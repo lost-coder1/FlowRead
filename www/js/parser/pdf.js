@@ -126,7 +126,7 @@ function groupIntoLines(items, pageHeight) {
 function finishLine(items, y, pageHeight) {
   /* Sort items left to right within the line */
   items.sort((a, b) => a.x - b.x);
-  const text = items.map(i => i.str).join(' ').replace(/\s+/g, ' ').trim();
+  const text = buildLineText(items);
   const yFromTop = pageHeight - y;
   const pctFromTop = yFromTop / pageHeight;
   return {
@@ -136,6 +136,38 @@ function finishLine(items, y, pageHeight) {
     isHeader: pctFromTop <= 0.14,
     isFooter: pctFromTop >= 0.86,
   };
+}
+
+function buildLineText(items) {
+  if (items.length === 0) return '';
+
+  let text = items[0].str || '';
+
+  for (let i = 1; i < items.length; i++) {
+    const prev = items[i - 1];
+    const current = items[i];
+    const joiner = shouldInsertSpace(prev, current) ? ' ' : '';
+    text += joiner + (current.str || '');
+  }
+
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+function shouldInsertSpace(prev, current) {
+  const prevText = prev.str || '';
+  const currentText = current.str || '';
+  if (!prevText || !currentText) return true;
+
+  if (/[-/]\s*$/.test(prevText)) return false;
+  if (/^[,.;:!?%)\]}/]/.test(currentText)) return false;
+  if (/[([{/"'`]$/.test(prevText)) return false;
+
+  const prevCharWidth = Math.max(0.8, (prev.width || 0) / Math.max(prevText.length, 1));
+  const currentCharWidth = Math.max(0.8, (current.width || 0) / Math.max(currentText.length, 1));
+  const gap = current.x - (prev.x + (prev.width || 0));
+  const noSpaceThreshold = Math.max(0.9, Math.min(prevCharWidth, currentCharWidth) * 0.45);
+
+  return gap > noSpaceThreshold;
 }
 
 /* ── Detect repeating headers and footers by frequency ──────── */

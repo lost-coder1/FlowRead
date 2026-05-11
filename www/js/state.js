@@ -7,4 +7,11 @@ const AppState = {
   isPlaying: false,
   currentView: 'view-upload',
   currentEngine: 'rsvp',
+  normalPage: 1,
+  normalZoom: 1,
+  normalFitWidth: true,
+  lastReaderEngine: 'rsvp',
+  normalRenderToken: 0,
+  chapters: [],
+  isIndexOpen: false,
 };

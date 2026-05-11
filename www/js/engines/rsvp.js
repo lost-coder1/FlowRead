@@ -55,7 +55,6 @@ const RSVPEngine = (function() {
           <button class="comfort-btn" id="btn-font-inc" title="Larger">A+</button>
           <button class="comfort-btn${_orpEnabled ? ' active' : ''}" id="btn-orp">ORP</button>
           <button class="comfort-btn${_contextEnabled ? ' active' : ''}" id="btn-context">Context</button>
-          <button class="comfort-btn${_calmEnabled ? ' active' : ''}" id="btn-calm">Calm</button>
         </div>
 
       </div>
@@ -72,6 +71,9 @@ const RSVPEngine = (function() {
     _applyOrpStyle();
     _displayWord(_words[_index]);
     _updateProgress();
+    if (typeof _syncReaderPosition === 'function') {
+      _syncReaderPosition(_index, _words.length);
+    }
     _bindComfortControls();
   }
 
@@ -100,12 +102,6 @@ const RSVPEngine = (function() {
       _contextEl && _contextEl.classList.toggle('hidden', !_contextEnabled);
       if (_contextEnabled) _updateContext();
     });
-    qs('#btn-calm').addEventListener('click', function() {
-      _calmEnabled = !_calmEnabled;
-      localStorage.setItem('fr_calm_mode', _calmEnabled);
-      this.classList.toggle('active', _calmEnabled);
-      qs('.rsvp-layout') && qs('.rsvp-layout').classList.toggle('calm', _calmEnabled);
-    });
   }
 
   function _applyFontSize() {
@@ -130,9 +126,13 @@ const RSVPEngine = (function() {
       _afterEl.textContent = word.label || '[Content]';
       _afterEl.style.color = 'var(--accent)';
       _afterEl.style.fontSize = '0.6em';
+      _stageEl.onclick = function() { openObjectPlaceholder(word); };
+      _stageEl.style.cursor = 'pointer';
       return;
     }
 
+    _stageEl.onclick = null;
+    _stageEl.style.cursor = '';
     _afterEl.style.color = '';
     _afterEl.style.fontSize = '';
 
@@ -169,6 +169,9 @@ const RSVPEngine = (function() {
     const total = _words.length;
     if (_progressTextEl) {
       _progressTextEl.textContent = formatNumber(_index) + ' / ' + formatNumber(total);
+    }
+    if (typeof _syncReaderPosition === 'function') {
+      _syncReaderPosition(_index, total);
     }
     /* Progress bar fill (lives in reader view, not rsvp-container) */
     const fill = qs('#progress-bar-fill');

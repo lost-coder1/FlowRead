@@ -23,6 +23,8 @@ window.addEventListener('unhandledrejection', function(e) {
 document.addEventListener('DOMContentLoaded', function() {
   /* Restore saved WPM */
   AppState.wpm = loadWPM();
+  AppState.currentEngine = localStorage.getItem('fr_last_engine') || 'rsvp';
+  AppState.lastReaderEngine = AppState.currentEngine;
 
   /* Render the upload (home) screen */
   renderUpload();
