@@ -57,10 +57,29 @@ async function parsePDF(arrayBuffer) {
 
   for (let i = 0; i < allPageData.length; i++) {
     pageWordIndex.push(words.length);
-    const { lines, pageHeight } = allPageData[i];
+    const { lines } = allPageData[i];
+    const tableRanges = detectTableRanges(lines);
+    let tableRangeCursor = 0;
 
-    for (const line of lines) {
+    for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+      const line = lines[lineIdx];
       if (line.isHeader || line.isFooter) continue;
+
+      const tableRange = tableRanges[tableRangeCursor];
+      if (tableRange && lineIdx >= tableRange.start && lineIdx <= tableRange.end) {
+        if (lineIdx === tableRange.start) {
+          words.push({
+            type: 'placeholder',
+            label: '[Table detected — Tap to View]',
+            page: i + 1,
+          });
+        }
+        if (lineIdx === tableRange.end) {
+          tableRangeCursor++;
+        }
+        continue;
+      }
+
       const normalized = normalizeLine(line.text);
       if (headerFooterSet.has(normalized)) continue;
       if (isNoiseLine(line.text)) continue;
@@ -79,8 +98,8 @@ async function parsePDF(arrayBuffer) {
   const avgWordsPerPage = totalWordCount / numPages;
   const hasTextLayer = avgWordsPerPage >= 5;
 
-  /* ── 6. Detect placeholder positions (tables / image gaps) ── */
-  insertPlaceholders(words, allPageData, pageWordIndex);
+  /* ── 6. Detect image-like gaps and insert placeholders ────── */
+  insertImagePlaceholders(words, allPageData, pageWordIndex);
 
   return {
     words,
@@ -127,6 +146,7 @@ function finishLine(items, y, pageHeight) {
   /* Sort items left to right within the line */
   items.sort((a, b) => a.x - b.x);
   const text = buildLineText(items);
+  const lineMetrics = buildLineMetrics(items);
   const yFromTop = pageHeight - y;
   const pctFromTop = yFromTop / pageHeight;
   return {
@@ -135,6 +155,12 @@ function finishLine(items, y, pageHeight) {
     yPct: pctFromTop,
     isHeader: pctFromTop <= 0.14,
     isFooter: pctFromTop >= 0.86,
+    itemCount: items.length,
+    wordCount: lineMetrics.wordCount,
+    numericTokenCount: lineMetrics.numericTokenCount,
+    wideGapCount: lineMetrics.wideGapCount,
+    alphaTokenCount: lineMetrics.alphaTokenCount,
+    lineSpan: lineMetrics.lineSpan,
   };
 }
 
@@ -151,6 +177,38 @@ function buildLineText(items) {
   }
 
   return text.replace(/\s+/g, ' ').trim();
+}
+
+function buildLineMetrics(items) {
+  const text = items.map(item => item.str || '').join(' ');
+  const tokens = text.trim().split(/\s+/).filter(Boolean);
+  const numericTokenCount = tokens.filter(token => /\d/.test(token)).length;
+  const alphaTokenCount = tokens.filter(token => /[A-Za-z]/.test(token)).length;
+
+  let wideGapCount = 0;
+  for (let i = 1; i < items.length; i++) {
+    const prev = items[i - 1];
+    const current = items[i];
+    const prevCharWidth = Math.max(0.8, (prev.width || 0) / Math.max((prev.str || '').length, 1));
+    const currentCharWidth = Math.max(0.8, (current.width || 0) / Math.max((current.str || '').length, 1));
+    const gap = current.x - (prev.x + (prev.width || 0));
+    const wideGapThreshold = Math.max(prevCharWidth, currentCharWidth) * 2.2;
+    if (gap > wideGapThreshold) {
+      wideGapCount++;
+    }
+  }
+
+  const first = items[0];
+  const last = items[items.length - 1];
+  const lineSpan = Math.max(0, (last.x + (last.width || 0)) - first.x);
+
+  return {
+    wordCount: tokens.length,
+    numericTokenCount,
+    wideGapCount,
+    alphaTokenCount,
+    lineSpan,
+  };
 }
 
 function shouldInsertSpace(prev, current) {
@@ -217,17 +275,13 @@ function isNoiseLine(text) {
   return false;
 }
 
-/* ── Insert placeholder objects for tables / image gaps ─────── */
-/* Simple heuristic: large vertical gaps between lines on a page suggest a figure/table */
-function insertPlaceholders(words, allPageData, pageWordIndex) {
-  /* Placeholder detection is a best-effort pass.
-     We insert placeholder objects into the words array where detected.
-     Each placeholder: { type: 'placeholder', label: '...', page: N } */
-
+/* ── Insert image placeholders for large visual gaps ────────── */
+function insertImagePlaceholders(words, allPageData, pageWordIndex) {
   for (let pageIdx = 0; pageIdx < allPageData.length; pageIdx++) {
     const { lines } = allPageData[pageIdx];
     let prevY = null;
     const pageHeight = allPageData[pageIdx].pageHeight;
+    let hasImagePlaceholder = false;
 
     for (let li = 0; li < lines.length; li++) {
       const line = lines[li];
@@ -235,22 +289,91 @@ function insertPlaceholders(words, allPageData, pageWordIndex) {
       if (prevY !== null) {
         const gap = prevY - line.y;
         /* Gap > 15% of page height suggests an image or table */
-        if (gap > pageHeight * 0.15 && gap < pageHeight * 0.9) {
-          const insertAt = pageWordIndex[pageIdx];
-          if (insertAt < words.length) {
-            words.splice(insertAt, 0, {
-              type: 'placeholder',
-              label: '[Image — Tap to View]',
-              page: pageIdx + 1,
-            });
-            /* Shift pageWordIndex for subsequent pages */
-            for (let pi = pageIdx + 1; pi < pageWordIndex.length; pi++) {
-              pageWordIndex[pi]++;
-            }
-          }
+        if (!hasImagePlaceholder && gap > pageHeight * 0.15 && gap < pageHeight * 0.9) {
+          addPagePlaceholder(words, pageWordIndex, pageIdx, '[Image — Tap to View]');
+          hasImagePlaceholder = true;
         }
       }
       prevY = line.y;
     }
+  }
+}
+
+function detectTableRanges(lines) {
+  const ranges = [];
+  let runStart = -1;
+  let runCount = 0;
+  let tableScore = 0;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.isHeader || line.isFooter) continue;
+
+    if (isTableLikeLine(line)) {
+      if (runStart === -1) runStart = i;
+      runCount++;
+      tableScore += getTableLineScore(line);
+    } else if (runStart !== -1) {
+      if (runCount >= 2 && tableScore >= 4) {
+        ranges.push({ start: runStart, end: i - 1 });
+      }
+      runStart = -1;
+      runCount = 0;
+      tableScore = 0;
+    }
+  }
+
+  if (runStart !== -1 && runCount >= 2 && tableScore >= 4) {
+    ranges.push({ start: runStart, end: lines.length - 1 });
+  }
+
+  return ranges;
+}
+
+function isTableLikeLine(line) {
+  if (!line || !line.text) return false;
+  const text = line.text.trim();
+  if (!text) return false;
+
+  const hasMultiColumnSpacing = line.itemCount >= 3 && line.wideGapCount >= 2;
+  const hasDenseNumericCells = line.itemCount >= 3 && line.numericTokenCount >= 2;
+  const hasShortCellLikeWords = line.wordCount >= 3 && line.wordCount <= 18 && line.itemCount >= 3;
+  const hasRepeatedCells = /\S+\s{2,}\S+/.test(text) || line.wideGapCount >= 3;
+  const isWideHorizontalRow = line.itemCount >= 5 && line.lineSpan >= 280;
+  const hasMixedHeaderAndValues = line.alphaTokenCount >= 2 && line.numericTokenCount >= 1;
+
+  if (hasMultiColumnSpacing && (hasDenseNumericCells || hasShortCellLikeWords || hasRepeatedCells)) {
+    return true;
+  }
+
+  if (isWideHorizontalRow && (hasDenseNumericCells || hasMixedHeaderAndValues)) {
+    return true;
+  }
+
+  return false;
+}
+
+function getTableLineScore(line) {
+  let score = 0;
+  if (line.wideGapCount >= 2) score += 1;
+  if (line.numericTokenCount >= 2) score += 1;
+  if (line.itemCount >= 5) score += 1;
+  if (line.lineSpan >= 280) score += 1;
+  if (line.alphaTokenCount >= 2 && line.numericTokenCount >= 1) score += 1;
+  return score;
+}
+
+function addPagePlaceholder(words, pageWordIndex, pageIdx, label) {
+  const insertAt = pageWordIndex[pageIdx];
+  if (insertAt > words.length) return;
+
+  words.splice(insertAt, 0, {
+    type: 'placeholder',
+    label,
+    page: pageIdx + 1,
+  });
+
+  for (let pi = pageIdx + 1; pi < pageWordIndex.length; pi++) {
+    pageWordIndex[pi]++;
   }
 }

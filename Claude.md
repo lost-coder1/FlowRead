@@ -329,7 +329,7 @@ These must be shown explicitly on first launch and accessible from Settings → 
 
 3. **Multi-column documents** — Two-column academic papers (IEEE, ACM format) may have reading-order issues. Recommend Guided Highlighting mode for these.
 
-4. **Tables and images** — Not read word-by-word. Shown as `[Object — Tap to View]` placeholders in the speed reading stream. Tap to view the original in Normal View.
+4. **Tables and images** — Not read word-by-word. Shown as `[Object — Tap to View]` placeholders in the speed reading stream when detected. Some uncommon table designs, especially wide horizontal layouts, may not be detected correctly. Tap to view the original in Normal View.
 
 5. **Math equations** — Skipped or shown as `[Equation — Tap to View]` placeholders.
 
