@@ -1,0 +1,424 @@
+/* ============================================================
+   FlowRead — Engines CSS
+   Per-engine styles built out progressively in Phase 2–3.
+   ============================================================ */
+
+/* ── Progress bar (2px, fixed top) ─────────────────────────── */
+.progress-bar-track {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--surface-2);
+  z-index: 100;
+}
+.progress-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  width: 0%;
+  transition: width 0.1s linear;
+}
+
+/* ── Reader layout ──────────────────────────────────────────── */
+#view-reader {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.reader-header {
+  display: flex;
+  align-items: center;
+  padding: 10px var(--space-sm);
+  border-bottom: 1px solid var(--border);
+  gap: var(--space-sm);
+  flex-shrink: 0;
+  margin-top: 2px; /* progress bar */
+  transition: opacity var(--transition-normal);
+}
+
+.reader-back {
+  font-size: 18px;
+  min-width: 44px;
+}
+
+.reader-filename {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+}
+
+/* ── Engine tab bar ─────────────────────────────────────────── */
+.engine-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  transition: opacity var(--transition-normal);
+}
+
+.engine-tab {
+  flex: 1;
+  padding: 10px 0;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.engine-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ── Engine container ───────────────────────────────────────── */
+.engine-container {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* ── RSVP layout ────────────────────────────────────────────── */
+.rsvp-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: var(--space-md);
+  padding: var(--space-md);
+}
+
+/* Calm mode dims header, tabs, playback bar */
+.rsvp-layout.calm ~ .wpm-bar,
+.rsvp-layout.calm ~ .playback-bar {
+  opacity: 0.15;
+  transition: opacity var(--transition-normal);
+}
+#reader-header:has(~ * .rsvp-layout.calm),
+#engine-tabs:has(~ * .rsvp-layout.calm) {
+  opacity: 0.15;
+}
+.rsvp-layout.calm ~ .wpm-bar:hover,
+.rsvp-layout.calm ~ .playback-bar:hover {
+  opacity: 1;
+}
+
+/* ── RSVP context line ──────────────────────────────────────── */
+.rsvp-context-line {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 15px;
+  color: var(--text-dim);
+  text-align: center;
+  min-height: 24px;
+  max-width: 320px;
+  line-height: 1.4;
+}
+
+/* ── RSVP stage ─────────────────────────────────────────────── */
+.rsvp-stage {
+  background: var(--rsvp-stage-bg);
+  width: 100%;
+  max-width: 380px;
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  padding: var(--space-lg) var(--space-md);
+}
+
+.rsvp-word-wrap {
+  font-family: 'Crimson Pro', Georgia, serif;
+  font-weight: 400;
+  font-size: 48px; /* default — overridden by JS _applyFontSize() via inline style */
+  line-height: 1.1;
+  color: var(--rsvp-text);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.rsvp-word-before,
+.rsvp-word-after {
+  color: var(--rsvp-text);
+}
+
+.rsvp-word-orp {
+  color: var(--rsvp-orp);
+}
+
+/* ── RSVP progress text ─────────────────────────────────────── */
+.rsvp-progress-text {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 300;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+/* ── Comfort controls ───────────────────────────────────────── */
+.rsvp-comfort-controls {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.comfort-btn {
+  padding: 6px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 36px;
+}
+
+.comfort-btn.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.comfort-btn:active {
+  background: var(--surface);
+}
+
+/* ── WPM bar ────────────────────────────────────────────────── */
+.wpm-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  transition: opacity var(--transition-normal);
+}
+
+.wpm-btn {
+  font-size: 20px;
+  min-width: 44px;
+  min-height: 44px;
+}
+
+#wpm-slider {
+  flex: 1;
+  height: 2px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.wpm-display {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+  min-width: 68px;
+  text-align: right;
+}
+
+/* ── Playback bar ───────────────────────────────────────────── */
+.playback-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  transition: opacity var(--transition-normal);
+}
+
+.control-btn {
+  font-size: 20px;
+  min-width: 44px;
+  min-height: 44px;
+  color: var(--text-muted);
+}
+
+.control-play {
+  font-size: 24px;
+  min-width: 56px;
+  min-height: 56px;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.position-display {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  min-width: 40px;
+  text-align: right;
+}
+
+/* ── Focus Bold (page mode) ─────────────────────────────────── */
+.fb-page-container {
+  height: 100%;
+  overflow: hidden;
+  padding: var(--space-lg) var(--space-md);
+  font-family: 'Crimson Pro', Georgia, serif;
+  font-size: 22px;
+  line-height: 1.9;
+  color: var(--text-muted);
+  box-sizing: border-box;
+}
+.fb-scroll-container {
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--space-lg) var(--space-md);
+  font-family: 'Crimson Pro', Georgia, serif;
+  font-size: 20px;
+  line-height: 1.9;
+  color: var(--text-muted);
+  -webkit-overflow-scrolling: touch;
+}
+
+.fb-word {
+  display: inline;
+  cursor: default;
+  transition: background 0.1s;
+}
+
+.fb-word.fb-current {
+  background: var(--surface-2);
+  border-radius: 2px;
+}
+
+.fb-word.fb-past .fb-bold,
+.fb-word.fb-past .fb-rest {
+  color: var(--text);
+}
+
+.fb-bold {
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.fb-rest {
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+.fb-word.fb-current .fb-bold { color: var(--text); }
+.fb-word.fb-current .fb-rest { color: var(--text-muted); }
+
+.fb-placeholder {
+  display: inline-block;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 2px 6px;
+  margin: 0 4px;
+  cursor: pointer;
+}
+
+/* ── Guided Highlighting ────────────────────────────────────── */
+.gh-scroll-container {
+  height: 100%;
+  overflow-y: auto;
+  padding: var(--space-lg) var(--space-md);
+  font-family: 'Crimson Pro', Georgia, serif;
+  font-size: 20px;
+  line-height: 1.9;
+  -webkit-overflow-scrolling: touch;
+}
+
+.gh-word {
+  display: inline;
+  color: var(--text-dim);
+  cursor: default;
+  border-radius: var(--radius-sm);
+  transition: background 0.08s;
+}
+
+.gh-word.gh-past { color: var(--text); }
+
+.gh-word.gh-current {
+  background: rgba(232, 197, 71, 0.28);
+  color: var(--text);
+  border-radius: 2px;
+  padding: 1px 2px;
+  box-shadow: 0 0 0 1px rgba(232, 197, 71, 0.5);
+}
+
+/* ── Simple Scroll ──────────────────────────────────────────── */
+.scroll-outer {
+  height: 100%;
+  overflow-y: auto;
+  position: relative;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: auto; /* JS controls scroll — no CSS smooth */
+}
+
+.scroll-content {
+  padding: 50% var(--space-md);
+  font-family: 'Crimson Pro', Georgia, serif;
+  font-size: 20px;
+  line-height: 1.9;
+  color: var(--text);
+}
+
+.scroll-word { display: inline; }
+
+.scroll-fade-top {
+  position: sticky;
+  top: 0;
+  height: 60px;
+  background: linear-gradient(to bottom, var(--bg), transparent);
+  pointer-events: none;
+  z-index: 1;
+  margin-bottom: -60px;
+}
+
+.scroll-fade-bottom {
+  position: sticky;
+  bottom: 0;
+  height: 60px;
+  background: linear-gradient(to top, var(--bg), transparent);
+  pointer-events: none;
+  z-index: 1;
+  margin-top: -60px;
+}
+
+.scroll-centre-line {
+  position: fixed;
+  left: 0; right: 0;
+  top: 40%; /* approx reading line */
+  height: 1px;
+  background: rgba(232, 197, 71, 0.35);
+  pointer-events: none;
+  border-radius: 2px;
+}
+
+.scroll-speed-row {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}

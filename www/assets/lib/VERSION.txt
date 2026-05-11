@@ -1,0 +1,5 @@
+pdf.js: 3.11.174 legacy build (pdf.min.js + pdf.worker.min.js — must always match)
+mammoth.js: 1.8.0 (mammoth.browser.min.js)
+
+Source: cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/legacy/build/
+IMPORTANT: pdf.min.js and pdf.worker.min.js must always be the same version.

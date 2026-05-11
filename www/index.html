@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self' capacitor: file:;
+             style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+             font-src 'self' https://fonts.gstatic.com;
+             script-src 'self' 'unsafe-inline';
+             worker-src 'self' blob:;" />
+  <title>FlowRead</title>
+
+  <!-- Google Fonts: loaded once, cached by browser forever after -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,600;1,400&family=DM+Mono:wght@300;400;500&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet" />
+
+  <!-- Styles: base first, then components, engines, themes -->
+  <link rel="stylesheet" href="css/base.css" />
+  <link rel="stylesheet" href="css/components.css" />
+  <link rel="stylesheet" href="css/engines.css" />
+  <link rel="stylesheet" href="css/themes.css" />
+</head>
+<body>
+
+  <!-- Upload / Home screen -->
+  <div id="view-upload" class="view"></div>
+
+  <!-- Speed reading engines (RSVP, Chunk, Focus Bold, Guide, Scroll) -->
+  <div id="view-reader" class="view hidden"></div>
+
+  <!-- Embedded normal PDF viewer -->
+  <div id="view-normal" class="view hidden"></div>
+
+  <!-- Settings screen -->
+  <div id="view-settings" class="view hidden"></div>
+
+  <!-- Global loading overlay -->
+  <div id="loading-overlay" class="hidden">
+    <div class="loading-spinner"></div>
+    <p id="loading-message">Loading...</p>
+  </div>
+
+  <!-- Global toast container -->
+  <div id="toast-container"></div>
+
+  <!-- Static library assets — loaded before app code -->
+  <script src="assets/lib/pdf.min.js"></script>
+  <script src="assets/lib/mammoth.browser.min.js"></script>
+
+  <!-- Utilities (no dependencies) -->
+  <script src="js/utils/format.js"></script>
+  <script src="js/utils/dom.js"></script>
+
+  <!-- Core state and storage -->
+  <script src="js/state.js"></script>
+  <script src="js/storage.js"></script>
+
+  <!-- Features -->
+  <script src="js/features/keep-awake.js"></script>
+  <script src="js/features/bridge.js"></script>
+  <script src="js/features/chapter-detection.js"></script>
+  <script src="js/features/cleaning.js"></script>
+  <script src="js/features/purchase.js"></script>
+
+  <!-- Parsers -->
+  <script src="js/parser/pdf.js"></script>
+  <script src="js/parser/docx.js"></script>
+  <script src="js/parser/txt.js"></script>
+
+  <!-- Reading engines -->
+  <script src="js/engines/rsvp.js"></script>
+  <script src="js/engines/chunk.js"></script>
+  <script src="js/engines/focusbold.js"></script>
+  <script src="js/engines/scroll.js"></script>
+
+  <!-- Views -->
+  <script src="js/views/upload.js"></script>
+  <script src="js/views/reader.js"></script>
+  <script src="js/views/normal.js"></script>
+  <script src="js/views/settings.js"></script>
+  <script src="js/views/dashboard.js"></script>
+
+  <!-- App entry point — must be last -->
+  <script src="js/app.js"></script>
+
+</body>
+</html>
