@@ -7,7 +7,7 @@ const ChunkEngine = (function() {
   function init(words, startIndex) {
     _words = words;
     _index = startIndex || 0;
-    _chunkSize = parseInt(localStorage.getItem('fr_chunk_size') || '3', 10);
+    _chunkSize = parseInt(localStorage.getItem('fr_chunk_size') || String((AppState.settings && AppState.settings.defaultChunkSize) || 3), 10);
     _render();
   }
 

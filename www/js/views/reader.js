@@ -16,7 +16,8 @@ function renderReader(options) {
 
   const opts = options || {};
   const startIndex = typeof opts.startIndex === 'number' ? opts.startIndex : loadPosition(file.id);
-  const savedEngine = localStorage.getItem('fr_last_engine') || AppState.currentEngine || 'rsvp';
+  const savedEngine = localStorage.getItem('fr_last_engine') || AppState.currentEngine || AppState.settings.defaultMode || 'rsvp';
+  const hasPdfBridge = !!(file.pdfDoc && file.pageWordIndex && file.pageWordIndex.length);
 
   AppState.currentIndex = startIndex;
   AppState.currentEngine = savedEngine;
@@ -44,7 +45,7 @@ function renderReader(options) {
     </div>
 
     <div id="rsvp-container" class="engine-container"></div>
-    <button class="reader-normal-toggle" id="btn-open-normal" title="Open matching PDF page">PDF</button>
+    ${hasPdfBridge ? '<button class="reader-normal-toggle" id="btn-open-normal" title="Open matching PDF page">PDF</button>' : ''}
 
     <aside class="reader-index-panel hidden" id="reader-index-panel">
       <div class="reader-index-head">
@@ -116,13 +117,16 @@ function _bindReaderControls() {
     switchView('view-upload');
   });
 
-  qs('#btn-open-normal').addEventListener('click', function() {
-    if (_activeEngine) {
-      AppState.currentIndex = _activeEngine.getIndex();
-      _activeEngine.pause();
-    }
-    openNormalAtCurrentWord();
-  });
+  const normalButton = qs('#btn-open-normal');
+  if (normalButton) {
+    normalButton.addEventListener('click', function() {
+      if (_activeEngine) {
+        AppState.currentIndex = _activeEngine.getIndex();
+        _activeEngine.pause();
+      }
+      openNormalAtCurrentWord();
+    });
+  }
 
   qs('#btn-reader-calm').addEventListener('click', function() {
     const next = localStorage.getItem('fr_calm_mode') !== 'true';
@@ -175,11 +179,16 @@ function _bindReaderControls() {
     });
   });
 
-  qs('#view-reader').addEventListener('click', function() {
+  const engineContainer = qs('#rsvp-container');
+  if (engineContainer) engineContainer.addEventListener('click', function() {
     if (localStorage.getItem('fr_calm_mode') !== 'true') return;
-    this.classList.add('calm-peek');
-    clearTimeout(this._calmPeekTimer);
-    this._calmPeekTimer = setTimeout(() => this.classList.remove('calm-peek'), 1800);
+    const readerView = qs('#view-reader');
+    if (!readerView) return;
+    readerView.classList.add('calm-peek');
+    clearTimeout(readerView._calmPeekTimer);
+    readerView._calmPeekTimer = setTimeout(function() {
+      readerView.classList.remove('calm-peek');
+    }, 1800);
   });
 }
 

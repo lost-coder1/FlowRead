@@ -51,15 +51,34 @@ function loadSettings() {
   }
 }
 
+function saveOnboardingComplete() {
+  localStorage.setItem('fr_onboarding_complete', 'true');
+}
+
+function loadOnboardingComplete() {
+  return localStorage.getItem('fr_onboarding_complete') === 'true';
+}
+
 /* ── Purchase state (Capacitor Preferences) ─────────────────── */
-/* Stubs — wired to real Capacitor Preferences in Phase 9 */
 async function savePurchaseState(key, value) {
-  /* TODO: replace with Capacitor Preferences in Phase 9 */
-  localStorage.setItem('fr_purchase_' + key, value);
+  const stringValue = String(value);
+  const preferences = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences;
+  if (preferences && typeof preferences.set === 'function') {
+    await preferences.set({
+      key: 'fr_purchase_' + key,
+      value: stringValue,
+    });
+    return;
+  }
+  localStorage.setItem('fr_purchase_' + key, stringValue);
 }
 
 async function loadPurchaseState(key) {
-  /* TODO: replace with Capacitor Preferences in Phase 9 */
+  const preferences = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences;
+  if (preferences && typeof preferences.get === 'function') {
+    const result = await preferences.get({ key: 'fr_purchase_' + key });
+    return result && result.value;
+  }
   return localStorage.getItem('fr_purchase_' + key);
 }
 
