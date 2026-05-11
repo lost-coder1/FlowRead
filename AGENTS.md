@@ -178,17 +178,6 @@ Each engine renders text differently but shares the same underlying word stream 
 - During playback, a subtle background highlight follows the current word.
 - Auto-scrolls to keep current word in view.
 
-### 4.4 Guided Highlighting
-**What it does:** Displays the full text page. A "pace car" highlight moves through it word by word at the set WPM.
-
-**Why it works:** Prevents regression (eye skipping back to re-read), enforces consistent pace.
-
-**Implementation rules:**
-- Yellow/amber highlight on the current word, no fade animations.
-- Previously-read words shown in full text colour.
-- Unread words shown muted.
-- Auto-scrolls to keep current word centred.
-- Recommended in onboarding for multi-column documents where RSVP gets jumbled.
 
 ### 4.5 Simple Scroll (Teleprompter)
 **What it does:** Full text scrolls upward continuously at speed derived from WPM.
@@ -329,7 +318,7 @@ These must be shown explicitly on first launch and accessible from Settings → 
 
 3. **Multi-column documents** — Two-column academic papers (IEEE, ACM format) may have reading-order issues. Recommend Guided Highlighting mode for these.
 
-4. **Tables and images** — Not read word-by-word. Shown as `[Object — Tap to View]` placeholders in the speed reading stream. Tap to view the original in Normal View.
+4. **Tables and images** — Not read word-by-word. Shown as `[Object — Tap to View]` placeholders in the speed reading stream when detected. Some uncommon table designs, especially wide horizontal layouts, may not be detected correctly. Tap to view the original in Normal View.
 
 5. **Math equations** — Skipped or shown as `[Equation — Tap to View]` placeholders.
 
