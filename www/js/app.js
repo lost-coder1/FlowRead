@@ -21,14 +21,25 @@ window.addEventListener('unhandledrejection', function(e) {
 
 /* Boot sequence */
 document.addEventListener('DOMContentLoaded', function() {
-  /* Restore saved WPM */
-  AppState.wpm = loadWPM();
-  AppState.currentEngine = localStorage.getItem('fr_last_engine') || 'rsvp';
+  const settings = typeof getSettings === 'function' ? getSettings() : {};
+  AppState.settings = settings;
+  AppState.wpm = settings.defaultWpm || loadWPM();
+  AppState.currentEngine = localStorage.getItem('fr_last_engine') || settings.defaultMode || 'rsvp';
   AppState.lastReaderEngine = AppState.currentEngine;
 
-  /* Render the upload (home) screen */
-  renderUpload();
+  if (localStorage.getItem('fr_orp_enabled') === null) localStorage.setItem('fr_orp_enabled', settings.orpDefault ? 'true' : 'false');
+  if (localStorage.getItem('fr_context_enabled') === null) localStorage.setItem('fr_context_enabled', settings.contextDefault ? 'true' : 'false');
+  if (localStorage.getItem('fr_calm_mode') === null) localStorage.setItem('fr_calm_mode', settings.calmModeDefault ? 'true' : 'false');
 
-  /* Show the upload view */
-  switchView('view-upload');
+  document.addEventListener('keydown', function(event) {
+    if (event.key === 'Escape' && AppState.activeModal) closeActiveModal();
+  });
+
+  if (loadOnboardingComplete()) {
+    renderUpload();
+    switchView('view-upload');
+    return;
+  }
+
+  renderOnboarding(0);
 });

@@ -1,12 +1,19 @@
 /* Upload / Home screen */
 
 function renderUpload() {
+  closeActiveModal();
   const view = qs('#view-upload');
   view.innerHTML = `
     <div class="upload-screen">
-      <header class="upload-header">
-        <h1 class="app-name">FlowRead</h1>
-        <p class="app-tagline">Read everything faster</p>
+      <header class="upload-header upload-header-wide">
+        <div>
+          <h1 class="app-name">FlowRead</h1>
+          <p class="app-tagline">Read everything faster</p>
+        </div>
+        <div class="upload-header-actions">
+          <button class="btn btn-ghost" id="btn-open-settings">Settings</button>
+          <button class="btn btn-ghost" id="btn-open-limitations">Limitations</button>
+        </div>
       </header>
 
       <div class="upload-zone" id="upload-zone" role="button" tabindex="0" aria-label="Open PDF">
@@ -19,12 +26,55 @@ function renderUpload() {
           </svg>
         </div>
         <p class="upload-zone-label">Tap to open a PDF</p>
-        <p class="upload-zone-hint">Your files never leave this device</p>
+        <p class="upload-zone-hint">Unlimited PDF reading. Your files never leave this device.</p>
       </div>
+
+      <div class="import-grid" id="import-grid">
+        <button class="import-card" id="btn-url-reader" type="button">
+          <span class="import-card-head">
+            <strong>URL Reader</strong>
+            <span class="import-badge" id="url-reader-badge">Pro</span>
+          </span>
+          <span class="import-card-body">Paste an article URL. Requires internet.</span>
+        </button>
+
+        <button class="import-card import-card-locked" id="btn-docx-reader" type="button">
+          <span class="import-card-head">
+            <strong>DOCX Import</strong>
+            <span class="import-badge">Pro</span>
+          </span>
+          <span class="import-card-body">Word documents with the same reading engines.</span>
+        </button>
+
+        <button class="import-card import-card-locked" id="btn-txt-reader" type="button">
+          <span class="import-card-head">
+            <strong>TXT Import</strong>
+            <span class="import-badge">Pro</span>
+          </span>
+          <span class="import-card-body">Plain text import for notes and drafts.</span>
+        </button>
+
+        <button class="import-card import-card-locked" id="btn-dashboard" type="button">
+          <span class="import-card-head">
+            <strong>Dashboard</strong>
+            <span class="import-badge">Pro</span>
+          </span>
+          <span class="import-card-body">Reading stats, streaks, and future analytics.</span>
+        </button>
+      </div>
+
+      <section class="url-panel hidden" id="url-panel">
+        <label class="url-panel-label" for="url-input">Paste article URL</label>
+        <div class="url-panel-row">
+          <input class="url-input" id="url-input" type="url" inputmode="url" placeholder="https://example.com/article" />
+          <button class="btn btn-primary" id="btn-import-url" type="button">Import</button>
+        </div>
+        <p class="url-panel-note">Pro feature. Requires internet. Parsing stays on this device.</p>
+      </section>
 
       <input type="file" id="file-input" accept=".pdf" style="display:none" />
 
-      <div id="upload-error" class="hidden" style="margin: 0 24px; width: 100%; max-width: 340px;"></div>
+      <div id="upload-error" class="hidden" style="margin: 0 24px; width: 100%; max-width: 680px;"></div>
 
       <div id="library-section" class="library-section">
         <!-- Populated by renderLibrary() -->
@@ -32,30 +82,80 @@ function renderUpload() {
     </div>
   `;
 
-  qs('#upload-zone').addEventListener('click', () => qs('#file-input').click());
-  qs('#upload-zone').addEventListener('keydown', e => {
-    if (e.key === 'Enter' || e.key === ' ') qs('#file-input').click();
+  qs('#upload-zone').addEventListener('click', function() { qs('#file-input').click(); });
+  qs('#upload-zone').addEventListener('keydown', function(event) {
+    if (event.key === 'Enter' || event.key === ' ') qs('#file-input').click();
   });
-  qs('#file-input').addEventListener('change', e => {
-    const file = e.target.files[0];
+  qs('#file-input').addEventListener('change', function(event) {
+    const file = event.target.files[0];
     if (file) handleFileSelect(file);
-    e.target.value = '';
+    event.target.value = '';
   });
 
+  qs('#btn-open-settings').addEventListener('click', renderSettings);
+  qs('#btn-open-limitations').addEventListener('click', function() {
+    renderSettings();
+    const section = qs('.settings-limitations');
+    if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  qs('#btn-url-reader').addEventListener('click', openUrlReader);
+  qs('#btn-docx-reader').addEventListener('click', function() { showProPaywall('docx-import'); });
+  qs('#btn-txt-reader').addEventListener('click', function() { showProPaywall('txt-import'); });
+  qs('#btn-dashboard').addEventListener('click', function() { showProPaywall('dashboard'); });
+  qs('#btn-import-url').addEventListener('click', function() {
+    handleUrlImport(qs('#url-input').value);
+  });
+  qs('#url-input').addEventListener('keydown', function(event) {
+    if (event.key === 'Enter') handleUrlImport(this.value);
+  });
+
+  hydrateUploadSurface();
   renderLibrary();
 }
 
+async function hydrateUploadSurface() {
+  const pro = await hasProAccess();
+  const badge = qs('#url-reader-badge');
+  const panel = qs('#url-panel');
+  const button = qs('#btn-url-reader');
+
+  if (!button || !badge || !panel) return;
+
+  if (pro) {
+    badge.textContent = 'Requires internet';
+    button.classList.add('import-card-live');
+  } else {
+    badge.textContent = 'Pro';
+    panel.classList.add('hidden');
+    button.classList.remove('import-card-live');
+  }
+}
+
+async function openUrlReader() {
+  const pro = await hasProAccess();
+  const panel = qs('#url-panel');
+  const input = qs('#url-input');
+
+  if (!pro) {
+    showProPaywall('url-reader');
+    return;
+  }
+
+  panel.classList.toggle('hidden');
+  if (!panel.classList.contains('hidden') && input) {
+    input.focus();
+  }
+}
+
 async function handleFileSelect(file) {
-  /* Validate file type */
   if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
-    showUploadError('Please select a PDF file (.pdf).');
+    showUploadError('Unsupported file', 'Please select a PDF file (.pdf).');
     return;
   }
 
   clearUploadError();
   showLoading('Reading PDF...');
 
-  /* Track parse progress */
   window._pdfParseProgress = function(current, total) {
     const msg = qs('#loading-message');
     if (msg) msg.textContent = 'Processing page ' + current + ' of ' + total + '...';
@@ -65,18 +165,16 @@ async function handleFileSelect(file) {
     const arrayBuffer = await readFileAsArrayBuffer(file);
     const result = await parsePDF(arrayBuffer);
 
-    /* Check for scanned / no text layer */
     if (!result.metadata.hasTextLayer) {
       hideLoading();
       showUploadError(
-        'This appears to be a scanned PDF. The free version reads only digital PDFs ' +
-        '(ones where you can highlight text). Scanned pages require the OCR Vision upgrade.',
-        true /* showOcrButton */
+        'Scanned PDF',
+        'This appears to be a scanned PDF. The free version reads only digital PDFs where you can highlight text. Scanned pages require the OCR Vision upgrade.',
+        { actionLabel: 'Learn about OCR Vision', action: function() { showOcrPaywall('scanned-pdf'); } }
       );
       return;
     }
 
-    /* Store in app state */
     const fileId = generateFileId(file.name, file.size);
     AppState.currentFile = {
       id: fileId,
@@ -84,14 +182,14 @@ async function handleFileSelect(file) {
       words: result.words,
       pageWordIndex: result.pageWordIndex,
       rawLines: result.rawLines,
-      metadata: result.metadata,
+      metadata: Object.assign({}, result.metadata, { sourceType: 'pdf' }),
       pdfDoc: result.pdfDoc,
     };
     AppState.currentIndex = loadPosition(fileId);
 
-    /* Persist metadata to library */
     saveFileToLibrary({
       id: fileId,
+      kind: 'pdf',
       name: file.name,
       wordCount: result.metadata.wordCount,
       pageCount: result.metadata.pageCount,
@@ -99,58 +197,324 @@ async function handleFileSelect(file) {
     });
 
     hideLoading();
-
-    /* Go to reader */
+    window._pdfParseProgress = null;
     renderReader();
     switchView('view-reader');
-
   } catch (err) {
     hideLoading();
     window._pdfParseProgress = null;
     console.error('PDF parse error — type:', err && err.type, '| detail:', err && err.detail, '| raw:', err);
 
     if (err && err.type === 'password') {
-      showUploadError(
-        'This PDF is password-protected. Please remove the password in a PDF editor and try again.'
-      );
-    } else if (err && err.type === 'corrupted') {
-      showUploadError(
-        'This file appears to be damaged. Try opening it in another PDF viewer to confirm it\'s readable. (Detail: ' + (err.detail || 'unknown') + ')'
-      );
-    } else {
-      showUploadError('Could not read this PDF. Error: ' + (err && (err.message || err.detail || JSON.stringify(err))));
+      showUploadError('Password-protected PDF', 'This PDF is password-protected. Please remove the password and re-import.');
+      return;
     }
+
+    if (err && err.type === 'corrupted') {
+      showUploadError('Corrupted PDF', 'This file appears to be damaged. Try opening it in another PDF viewer to confirm it is readable. Detail: ' + (err.detail || 'unknown') + '.');
+      return;
+    }
+
+    showUploadError('PDF import failed', 'Could not read this PDF. Error: ' + (err && (err.message || err.detail || JSON.stringify(err))));
   }
 }
 
-/* FileReader-based fallback — more reliable than file.arrayBuffer() in Android WebView */
+async function handleUrlImport(rawUrl) {
+  clearUploadError();
+
+  let parsedUrl;
+  try {
+    parsedUrl = validateArticleUrl(rawUrl);
+  } catch (err) {
+    showUploadError('Invalid URL', err.message);
+    return;
+  }
+
+  if (navigator.onLine === false) {
+    showUploadError('No internet connection', 'URL Reader requires internet for the initial fetch. Connect to the internet and try again.');
+    return;
+  }
+
+  showLoading('Fetching article...');
+
+  try {
+    const article = await fetchReadableArticle(parsedUrl);
+    const fileId = generateFileId(article.sourceUrl, article.wordCount);
+    AppState.currentFile = {
+      id: fileId,
+      name: article.title,
+      words: article.words,
+      pageWordIndex: [0],
+      rawLines: article.rawLines,
+      metadata: {
+        sourceType: 'url',
+        title: article.title,
+        sourceUrl: article.sourceUrl,
+        wordCount: article.wordCount,
+        pageCount: 1,
+        hasTextLayer: true,
+      },
+      pdfDoc: null,
+    };
+    AppState.currentIndex = loadPosition(fileId);
+
+    saveFileToLibrary({
+      id: fileId,
+      kind: 'url',
+      name: article.title,
+      wordCount: article.wordCount,
+      pageCount: 1,
+      sourceUrl: article.sourceUrl,
+      lastOpened: Date.now(),
+    });
+
+    hideLoading();
+    renderReader({ silentResume: true });
+    switchView('view-reader');
+  } catch (err) {
+    hideLoading();
+    const failure = normalizeUrlImportError(err);
+    showUploadError(failure.title, failure.message);
+  }
+}
+
+function validateArticleUrl(rawUrl) {
+  let parsed;
+  try {
+    parsed = new URL((rawUrl || '').trim());
+  } catch (_) {
+    throw new Error('Enter a full article URL that starts with http:// or https://.');
+  }
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('Only http:// and https:// article URLs are supported.');
+  }
+
+  return parsed.toString();
+}
+
+async function fetchReadableArticle(url) {
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timeoutId = controller ? setTimeout(function() { controller.abort(); }, 10000) : null;
+
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      mode: 'cors',
+      credentials: 'omit',
+      headers: { Accept: 'text/html,application/xhtml+xml' },
+      signal: controller ? controller.signal : undefined,
+    });
+
+    if (response.status === 401) throw { code: 'login-required' };
+    if (response.status === 402) throw { code: 'paywalled' };
+    if (response.status === 403 || response.status === 429) throw { code: 'blocked' };
+    if (!response.ok) throw { code: 'unsupported-structure', detail: 'HTTP ' + response.status };
+
+    const html = await response.text();
+    return extractReadableArticle(html, url);
+  } catch (err) {
+    if (err && err.name === 'AbortError') throw { code: 'timed-out' };
+    if (err && err.code) throw err;
+    if (err instanceof TypeError) throw { code: 'blocked' };
+    throw err;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
+function extractReadableArticle(html, sourceUrl) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, 'text/html');
+  const bodyText = normalizeWhitespace(doc.body ? doc.body.textContent : '');
+  const title = normalizeWhitespace(doc.title || extractMetaContent(doc, 'property', 'og:title') || extractMetaContent(doc, 'name', 'twitter:title') || 'Imported article');
+
+  if (!bodyText) throw { code: 'empty-extraction' };
+  if (containsLoginLanguage(bodyText)) throw { code: 'login-required' };
+  if (containsPaywallLanguage(bodyText)) throw { code: 'paywalled' };
+
+  qsa('script,style,noscript,svg,canvas,form,nav,aside,footer,header', doc).forEach(function(node) {
+    node.remove();
+  });
+
+  const candidateSelectors = [
+    'article',
+    'main',
+    '[role="main"]',
+    '.article-body',
+    '.post-content',
+    '.entry-content',
+    '.story-body',
+    '.article-content',
+  ];
+
+  let candidate = null;
+  for (let i = 0; i < candidateSelectors.length; i += 1) {
+    candidate = qs(candidateSelectors[i], doc);
+    if (candidate) break;
+  }
+
+  if (!candidate) candidate = doc.body;
+
+  const paragraphs = qsa('p, h1, h2, h3, li, blockquote', candidate)
+    .map(function(node) { return normalizeWhitespace(node.textContent); })
+    .filter(function(text) { return text.length > 40; });
+
+  const articleText = paragraphs.join('\n\n');
+  if (articleText.length < 120 && bodyText.length < 120) throw { code: 'empty-extraction' };
+  if (articleText.length < 220) throw { code: 'unsupported-structure' };
+
+  return buildImportedArticle(title, sourceUrl, articleText);
+}
+
+function buildImportedArticle(title, sourceUrl, articleText) {
+  const lines = [title].concat(articleText.split(/\n+/)).map(function(line) {
+    return normalizeWhitespace(line);
+  }).filter(Boolean);
+
+  const words = [];
+  lines.forEach(function(line) {
+    line.split(/\s+/).forEach(function(word) {
+      if (word) words.push(word);
+    });
+  });
+
+  if (words.length < 80) throw { code: 'empty-extraction' };
+
+  return {
+    title: title,
+    sourceUrl: sourceUrl,
+    rawLines: lines.map(function(line, index) {
+      return { page: 1, text: line, lineIndex: index };
+    }),
+    words: words,
+    wordCount: words.length,
+  };
+}
+
+function normalizeWhitespace(text) {
+  return String(text || '').replace(/\s+/g, ' ').trim();
+}
+
+function extractMetaContent(doc, attribute, key) {
+  const node = qs('meta[' + attribute + '="' + key + '"]', doc);
+  return node ? node.getAttribute('content') : '';
+}
+
+function containsPaywallLanguage(text) {
+  const value = (text || '').toLowerCase();
+  return [
+    'subscribe to continue',
+    'subscribe now',
+    'subscription required',
+    'become a subscriber',
+    'remaining article',
+    'unlock this article',
+    'purchase a subscription',
+    'member-only',
+  ].some(function(phrase) {
+    return value.includes(phrase);
+  });
+}
+
+function containsLoginLanguage(text) {
+  const value = (text || '').toLowerCase();
+  return [
+    'sign in to continue',
+    'log in to continue',
+    'please sign in',
+    'please log in',
+    'create an account to continue',
+    'members sign in',
+  ].some(function(phrase) {
+    return value.includes(phrase);
+  });
+}
+
+function normalizeUrlImportError(err) {
+  const code = err && err.code;
+
+  if (code === 'timed-out') {
+    return {
+      title: 'Request timed out',
+      message: 'The site took too long to respond. Try again on a stronger connection or try a different article.',
+    };
+  }
+
+  if (code === 'blocked') {
+    return {
+      title: 'Blocked by site',
+      message: 'This site denied direct fetching from the app, or the WebView could not access it. Some sites block import even when internet is available.',
+    };
+  }
+
+  if (code === 'paywalled') {
+    return {
+      title: 'Paywalled article',
+      message: 'This article appears to be behind a paywall or subscriber gate, so FlowRead cannot import the readable text.',
+    };
+  }
+
+  if (code === 'login-required') {
+    return {
+      title: 'Login required',
+      message: 'This page appears to require signing in before the article text is available.',
+    };
+  }
+
+  if (code === 'unsupported-structure') {
+    return {
+      title: 'Unsupported page structure',
+      message: 'FlowRead fetched the page but could not find a stable article body to import. Some site layouts are not supported yet.',
+    };
+  }
+
+  if (code === 'empty-extraction') {
+    return {
+      title: 'No readable article text found',
+      message: 'The page loaded, but FlowRead could not extract enough readable text to start the reader.',
+    };
+  }
+
+  return {
+    title: 'URL import failed',
+    message: 'FlowRead could not import this URL. Try another article or a direct article page instead.',
+  };
+}
+
 function readFileAsArrayBuffer(file) {
   return new Promise(function(resolve, reject) {
     const reader = new FileReader();
-    reader.onload = function(e) { resolve(e.target.result); };
-    reader.onerror = function(e) { reject(new Error('FileReader error: ' + e.target.error)); };
+    reader.onload = function(event) { resolve(event.target.result); };
+    reader.onerror = function(event) { reject(new Error('FileReader error: ' + event.target.error)); };
     reader.readAsArrayBuffer(file);
   });
 }
 
-function showUploadError(message, showOcrButton) {
+function showUploadError(title, message, options) {
   const container = qs('#upload-error');
   if (!container) return;
 
-  const ocrHtml = showOcrButton
-    ? `<button class="btn btn-primary" style="margin-top:8px" onclick="showOcrUpsell()">
-         Learn about OCR Vision
-       </button>`
+  const actionHtml = options && options.actionLabel
+    ? `<button class="btn btn-primary" id="upload-error-action">${escapeHtml(options.actionLabel)}</button>`
     : '';
 
   container.innerHTML = `
     <div class="error-card">
-      <p>${message}</p>
-      ${ocrHtml}
-      <button class="btn btn-ghost error-dismiss" onclick="clearUploadError()">Dismiss</button>
+      <p class="error-card-title">${escapeHtml(title)}</p>
+      <p>${escapeHtml(message)}</p>
+      <div class="error-card-actions">
+        ${actionHtml}
+        <button class="btn btn-ghost error-dismiss" id="btn-upload-error-dismiss">Dismiss</button>
+      </div>
     </div>
   `;
   show(container);
+
+  qs('#btn-upload-error-dismiss').addEventListener('click', clearUploadError);
+  if (options && typeof options.action === 'function') {
+    qs('#upload-error-action').addEventListener('click', options.action);
+  }
 }
 
 function clearUploadError() {
@@ -161,44 +525,55 @@ function clearUploadError() {
   }
 }
 
-function showOcrUpsell() {
-  /* Phase 9 stub */
-  showToast('OCR Vision add-on coming soon.');
-}
-
-/* ── File library ────────────────────────────────────────────── */
 function renderLibrary() {
   const section = qs('#library-section');
   if (!section) return;
+
   const lib = loadLibrary();
   if (lib.length === 0) {
     section.innerHTML = '';
     return;
   }
+
   section.innerHTML = `
     <h2 class="library-heading">Recent</h2>
     <ul class="library-list">
-      ${lib.map(f => `
-        <li class="library-item" data-id="${f.id}">
-          <div class="library-item-info">
-            <p class="library-item-name">${escapeHtml(f.name)}</p>
-            <p class="library-item-meta">${f.pageCount || '?'} pages &middot; ${formatDate(f.lastOpened)}</p>
-          </div>
-          <div class="library-item-progress">
-            <div class="library-progress-bar">
-              <div class="library-progress-fill" style="width:${getFileProgress(f)}%"></div>
+      ${lib.map(function(item) {
+        const meta = item.kind === 'url'
+          ? 'URL import · ' + formatDate(item.lastOpened)
+          : (item.pageCount || '?') + ' pages · ' + formatDate(item.lastOpened);
+
+        return `
+          <li class="library-item" data-id="${item.id}">
+            <div class="library-item-info">
+              <p class="library-item-name">${escapeHtml(item.name)}</p>
+              <p class="library-item-meta">${escapeHtml(meta)}</p>
             </div>
-          </div>
-        </li>
-      `).join('')}
+            <div class="library-item-progress">
+              <div class="library-progress-bar">
+                <div class="library-progress-fill" style="width:${getFileProgress(item)}%"></div>
+              </div>
+            </div>
+          </li>
+        `;
+      }).join('')}
     </ul>
   `;
+
+  qsa('.library-item', section).forEach(function(item) {
+    item.addEventListener('click', function() {
+      const id = this.dataset.id;
+      const entry = lib.find(function(record) { return record.id === id; });
+      if (!entry) return;
+      showToast(entry.kind === 'url'
+        ? 'URL imports are listed here, but full URL-library resume arrives with Pro storage work.'
+        : 'This recent list shows progress. Full tap-to-resume across app restarts still depends on persisted file storage.');
+    });
+  });
 }
 
-function getFileProgress(f) {
-  if (!f.wordCount) return 0;
-  const pos = loadPosition(f.id);
-  return Math.min(100, Math.round((pos / f.wordCount) * 100));
+function getFileProgress(fileMeta) {
+  if (!fileMeta.wordCount) return 0;
+  const pos = loadPosition(fileMeta.id);
+  return Math.min(100, Math.round((pos / fileMeta.wordCount) * 100));
 }
-
-/* escapeHtml lives in utils/dom.js */

@@ -120,7 +120,7 @@ flowread/
 ### Pricing tiers
 | Tier | Price | Includes |
 |---|---|---|
-| **Free** | $0 | Unlimited PDFs, all 5 reading engines, all core features for PDF |
+| **Free** | $0 | Unlimited PDFs, all 4 reading engines, all core features for PDF |
 | **Pro** | $24.99 Android / $39.99 iOS | All file formats + dashboard + dictionary + themes + sync |
 | **OCR Vision** | $9.99 (free or Pro user) | Read scanned/image-based PDFs |
 
@@ -135,7 +135,7 @@ flowread/
 
 ---
 
-## 4. The 5 Reading Engines (All Free for PDF)
+## 4. The 4 Reading Engines (All Free for PDF)
 
 Each engine renders text differently but shares the same underlying word stream and progress tracking.
 
@@ -178,19 +178,7 @@ Each engine renders text differently but shares the same underlying word stream 
 - During playback, a subtle background highlight follows the current word.
 - Auto-scrolls to keep current word in view.
 
-### 4.4 Guided Highlighting
-**What it does:** Displays the full text page. A "pace car" highlight moves through it word by word at the set WPM.
-
-**Why it works:** Prevents regression (eye skipping back to re-read), enforces consistent pace.
-
-**Implementation rules:**
-- Yellow/amber highlight on the current word, no fade animations.
-- Previously-read words shown in full text colour.
-- Unread words shown muted.
-- Auto-scrolls to keep current word centred.
-- Recommended in onboarding for multi-column documents where RSVP gets jumbled.
-
-### 4.5 Simple Scroll (Teleprompter)
+### 4.4 Simple Scroll (Teleprompter)
 **What it does:** Full text scrolls upward continuously at speed derived from WPM.
 
 **Why it works:** Most natural feeling, good for long sustained sessions, doesn't fragment text into flashes.
@@ -264,7 +252,7 @@ This is what makes the app actually usable for non-fiction. Someone reading a re
 
 ### Implementation rules
 - **Acquire wake lock** when:
-  - User opens any reading view (RSVP, Chunk, Focus Bold, Guided Highlight, Scroll, or Normal).
+  - User opens any reading view (RSVP, Chunk, Focus Bold, Scroll, or Normal).
   - User starts playback in any speed engine.
 - **Release wake lock** when:
   - User exits to upload screen / dashboard / settings.
@@ -327,7 +315,7 @@ These must be shown explicitly on first launch and accessible from Settings → 
 
 2. **DRM-protected files** — Kindle (.azw), Adobe Digital Editions, and other DRM-locked files cannot be read. Clear error message shown on import attempt. We do not provide DRM removal advice.
 
-3. **Multi-column documents** — Two-column academic papers (IEEE, ACM format) may have reading-order issues. Recommend Guided Highlighting mode for these.
+3. **Multi-column documents** — Two-column academic papers (IEEE, ACM format) may have reading-order issues. Recommend Focus Bold mode for these.
 
 4. **Tables and images** — Not read word-by-word. Shown as `[Object — Tap to View]` placeholders in the speed reading stream when detected. Some uncommon table designs, especially wide horizontal layouts, may not be detected correctly. Tap to view the original in Normal View.
 
@@ -341,7 +329,7 @@ These must be shown explicitly on first launch and accessible from Settings → 
 
 9. **Offline dictionary coverage** — Pro tier dictionary contains ~150k common words. Specialised medical, legal, or technical terms may not be found. System dictionary fallback is available on iOS and Android.
 
-10. **URL reader (Pro)** — Requires internet connection for initial article fetch. Parsing happens locally on device. Article content is never transmitted to any server we control.
+10. **URL reader (Pro)** — Requires internet for the initial article fetch. Parsing happens locally on device. Article content is never transmitted to any server we control. Even with internet, some sites cannot be imported because of paywalls, login walls, bot protection, blocked fetching, or unsupported page structure. URL import errors must say which failure category occurred in plain language.
 
 ---
 
@@ -419,32 +407,33 @@ These must be shown explicitly on first launch and accessible from Settings → 
 
 ### PHASE 7 — Onboarding & Limitations
 
-- [ ] **Task 7.1:** First-launch onboarding flow:
+- [x] **Task 7.1:** First-launch onboarding flow:
   - Welcome screen with one-line pitch.
   - "What this app can read" screen.
   - "What this app can't read" screen (all 10 limitations).
   - "Pick your reading speed" — show a 30-second WPM calibration with sample text in scroll mode at 200 WPM, let user adjust to comfortable speed.
   - Done.
-- [ ] **Task 7.2:** Settings screen with "Supported Formats & Known Limitations" section that re-shows all 10 limitations.
-- [ ] **Task 7.3:** Detect and clearly message: password-protected PDFs, scanned PDFs (no text layer), corrupted files.
+- [x] **Task 7.2:** Settings screen with "Supported Formats & Known Limitations" section that re-shows all 10 limitations.
+- [x] **Task 7.3:** Detect and clearly message: password-protected PDFs, scanned PDFs (no text layer), corrupted files.
 
 ### PHASE 8 — Settings & Polish
 
-- [ ] **Task 8.1:** Settings screen with categories:
+- [x] **Task 8.1:** Settings screen with categories:
   - Reading: default WPM, default chunk size, default mode.
   - Display: font size scale, theme (only OLED Black for free, others greyed out with Pro lock icon).
   - Comfort: ORP default, context default, calm mode default.
   - About: version, limitations, privacy statement, "this app collects no data" note.
 - [ ] **Task 8.2:** Free tier file library: list of opened files, % read, last opened. Tap to resume. Option to sync, so users can get all pdfs(free version, for pro, show last used urls, docx, txt files as well.
 )
-- [ ] **Task 8.3:** Loading states everywhere file operations happen.
+- [x] **Task 8.3:** Loading states everywhere file operations happen.
 - [ ] **Task 8.4:** Error boundaries — never let a parser error crash the whole app.
 
-### PHASE 9 — Pro Paywall Stubs (UI Only for MVP)
+### PHASE 9 — Pro Paywall & URL Reader UI
 
-- [ ] **Task 9.1:** Pro features show with lock icons in UI (DOCX upload, dashboard, themes, etc.).
-- [ ] **Task 9.2:** Tapping any Pro feature shows the paywall screen: feature list, price, "Unlock Pro" button. Button is non-functional in MVP — purchase flow comes in v1.1.
-- [ ] **Task 9.3:** "OCR Vision" lock screen for scanned PDFs with same non-functional button.
+- [x] **Task 9.1:** Pro features show with lock icons in UI (DOCX upload, dashboard, themes, URL Reader, etc.).
+- [x] **Task 9.2:** Tapping any Pro feature shows the paywall screen: feature list, price, "Unlock Pro" button. Button is non-functional in MVP — purchase flow comes in v1.1.
+- [x] **Task 9.3:** "OCR Vision" lock screen for scanned PDFs with same non-functional button.
+- [x] **Task 9.4:** Pro-only URL Reader entry point added on the home screen with explicit `Requires internet` labelling, plain-language failure states, and successful imports routed into the shared reader word-stream path.
 
 ### PHASE 10 — Pre-Launch Testing
 
@@ -507,7 +496,7 @@ These rules govern how Claude Code should approach building this project.
 
 | Feature | Free | Pro |
 |---|---|---|
-| PDF reading (all 5 engines) | ✅ | ✅ |
+| PDF reading (all 4 engines) | ✅ | ✅ |
 | Cleaning engine + placeholders | ✅ | ✅ |
 | Normal PDF view + sync | ✅ | ✅ |
 | Chapter detection + index | ✅ | ✅ |
@@ -573,7 +562,7 @@ When Claude Code is working on this project, it should:
 
 ## 15. Project Status
 
-- **Current phase:** Phase 7 — Onboarding & Limitations
+- **Current phase:** Phase 8 — Settings & Polish
 - **Web prototype:** Exists separately (single-file HTML) for reference. Use as inspiration, not as code to copy directly — we're rewriting properly into the modular structure above.
 - **Target platforms:** Android first, iOS second.
 - **Target launch:** TBD — focus on quality over speed.

@@ -92,6 +92,10 @@ p, li, label {
   color: var(--text);
 }
 
+input, select, textarea, button {
+  font: inherit;
+}
+
 code, pre, .mono {
   font-family: var(--font-mono);
   color: var(--text);
