@@ -1,4 +1,4 @@
-# FlowRead — Build Manual for Claude Code
+# FlowRead — Build Manual for Codex
 
 > **READ THIS ENTIRE FILE BEFORE WRITING ANY CODE.**
 > This document is the single source of truth for the FlowRead project. Every decision, feature, and architectural choice is documented here. If something isn't covered, ask the user before improvising.
@@ -110,7 +110,7 @@ flowread/
 │       └── icons/
 ├── capacitor.config.ts
 ├── package.json
-└── CLAUDE.md                   # THIS FILE
+└── AGENTS.md                   # THIS FILE
 ```
 
 ---
@@ -347,7 +347,7 @@ These must be shown explicitly on first launch and accessible from Settings → 
 
 ## 10. Build Phases & Tasks
 
-> **For Claude Code: complete tasks in order. Do not skip ahead. Each phase must work end-to-end before moving to the next.**
+> **For Codex: complete tasks in order. Do not skip ahead. Each phase must work end-to-end before moving to the next.**
 
 ### PHASE 0 — Project Scaffolding ✅ COMPLETE
 
@@ -456,9 +456,9 @@ These must be shown explicitly on first launch and accessible from Settings → 
 
 ---
 
-## 11. Rules for Claude Code
+## 11. Rules for Codex
 
-These rules govern how Claude Code should approach building this project.
+These rules govern how Codex should approach building this project.
 
 ### 11.1 Architecture rules
 - **Vanilla JS only.** Do not introduce React, Vue, Svelte, Alpine, or any framework. Do not introduce a build step beyond what Capacitor provides.
@@ -560,9 +560,9 @@ These rules govern how Claude Code should approach building this project.
 
 ## 14. Communication Protocol with User
 
-When Claude Code is working on this project, it should:
+When Codex is working on this project, it should:
 
-1. **At session start:** Acknowledge reading CLAUDE.md and state which phase/task it's working on.
+1. **At session start:** Acknowledge reading AGENTS.md and state which phase/task it's working on.
 2. **Before starting a task:** Briefly state the plan.
 3. **After completing a task:** Mark it done and ask if user wants to move to the next or test first.
 4. **If a task is ambiguous:** Ask, don't guess.

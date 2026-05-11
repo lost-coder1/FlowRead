@@ -81,6 +81,9 @@ const FocusBoldEngine = (function() {
     if (typeof word !== 'string') {
       span.className += ' fb-placeholder';
       span.textContent = (word && word.label) || '[Content]';
+      span.addEventListener('click', function() {
+        openObjectPlaceholder(word);
+      });
       return span;
     }
     const boldLen = Math.max(1, Math.ceil(word.length * 0.4));
@@ -106,6 +109,9 @@ const FocusBoldEngine = (function() {
     if (cur) { cur.classList.add('fb-current'); _prevSpan = cur; }
     const fill = qs('#progress-bar-fill');
     if (fill && _words.length) fill.style.width = ((_index / _words.length) * 100) + '%';
+    if (typeof _syncReaderPosition === 'function') {
+      _syncReaderPosition(_index, _words.length);
+    }
   }
 
   function _schedule() {
@@ -165,6 +171,9 @@ const FocusBoldEngine = (function() {
     _index = Math.max(0, Math.min(_words.length - 1, i));
     _pageStart = _index;
     _buildPage();
+    if (typeof _syncReaderPosition === 'function') {
+      _syncReaderPosition(_index, _words.length);
+    }
     if (AppState.currentFile) savePosition(AppState.currentFile.id, _index);
   }
 

@@ -4,6 +4,7 @@ const ScrollEngine = (function() {
   let _words = [], _index = 0;
   let _rafId = null, _scrollY = 0, _multiplier = 1.0, _lineThick = 1;
   let _containerEl = null, _lastTs = null;
+  let _spanTops = [], _lastIndexSyncTs = 0, _lastSavedIndex = -1;
 
   const _LINE_THICK_SIZES = [1, 2, 4, 6, 10];
 
@@ -49,11 +50,20 @@ const ScrollEngine = (function() {
       const span = document.createElement('span');
       span.dataset.index = i;
       span.className = 'scroll-word';
-      span.textContent = (typeof w === 'string' ? w : (w && w.label) || '[Content]') + ' ';
+      if (typeof w === 'string') {
+        span.textContent = w + ' ';
+      } else {
+        span.textContent = ((w && w.label) || '[Content]') + ' ';
+        span.classList.add('scroll-placeholder');
+        span.addEventListener('click', function() {
+          openObjectPlaceholder(w);
+        });
+      }
       content.appendChild(span);
     });
 
     requestAnimationFrame(function() {
+      _cacheSpanPositions();
       const target = qs('[data-index="' + _index + '"].scroll-word');
       if (target && _containerEl) {
         _scrollY = target.offsetTop - _containerEl.clientHeight / 2;
@@ -98,12 +108,25 @@ const ScrollEngine = (function() {
     _scrollY += pxPerMs * delta;
     if (_containerEl) _containerEl.scrollTop = _scrollY;
 
-    _syncIndexFromScroll();
+    if (ts - _lastIndexSyncTs >= 80) {
+      _syncIndexFromScroll();
+      _lastIndexSyncTs = ts;
+    }
 
     const fill = qs('#progress-bar-fill');
     if (fill && _words.length) fill.style.width = ((_index / _words.length) * 100) + '%';
+    if (typeof _syncReaderPosition === 'function') {
+      _syncReaderPosition(_index, _words.length);
+    }
 
-    if (_index % 30 === 0 && AppState.currentFile) savePosition(AppState.currentFile.id, _index);
+    if (
+      AppState.currentFile &&
+      _index !== _lastSavedIndex &&
+      _index % 30 === 0
+    ) {
+      savePosition(AppState.currentFile.id, _index);
+      _lastSavedIndex = _index;
+    }
 
     if (_containerEl && _containerEl.scrollTop + _containerEl.clientHeight >= _containerEl.scrollHeight - 10) {
       _handleEnd(); return;
@@ -112,15 +135,29 @@ const ScrollEngine = (function() {
   }
 
   function _syncIndexFromScroll() {
-    if (!_containerEl) return;
+    if (!_containerEl || _spanTops.length === 0) return;
     const mid = _containerEl.scrollTop + _containerEl.clientHeight * 0.4;
-    const spans = qsa('.scroll-word');
-    for (let i = spans.length - 1; i >= 0; i--) {
-      if (spans[i].offsetTop <= mid) {
-        _index = parseInt(spans[i].dataset.index, 10);
-        break;
+    let lo = 0;
+    let hi = _spanTops.length - 1;
+    let best = 0;
+
+    while (lo <= hi) {
+      const midIdx = Math.floor((lo + hi) / 2);
+      if (_spanTops[midIdx] <= mid) {
+        best = midIdx;
+        lo = midIdx + 1;
+      } else {
+        hi = midIdx - 1;
       }
     }
+
+    _index = best;
+  }
+
+  function _cacheSpanPositions() {
+    _spanTops = qsa('.scroll-word').map(function(span) {
+      return span.offsetTop;
+    });
   }
 
   function _handleEnd() {
@@ -134,6 +171,7 @@ const ScrollEngine = (function() {
     if (AppState.isPlaying) return;
     AppState.isPlaying = true;
     _lastTs = null;
+    _lastIndexSyncTs = 0;
     const btn = qs('#btn-play-pause'); if (btn) btn.textContent = '⏸';
     clearIdleReleaseTimer(); acquireWakeLock();
     _rafId = requestAnimationFrame(_frame);
@@ -146,7 +184,11 @@ const ScrollEngine = (function() {
     startIdleReleaseTimer();
     const btn = qs('#btn-play-pause'); if (btn) btn.textContent = '▶';
   }
-  function destroy() { pause(); AppState.isPlaying = false; }
+  function destroy() {
+    pause();
+    AppState.isPlaying = false;
+    _spanTops = [];
+  }
   function getIndex() { return _index; }
   function seekTo(i) {
     _index = Math.max(0, Math.min(_words.length - 1, i));
@@ -154,6 +196,9 @@ const ScrollEngine = (function() {
     if (target && _containerEl) {
       _scrollY = target.offsetTop - _containerEl.clientHeight / 2;
       _containerEl.scrollTop = Math.max(0, _scrollY);
+    }
+    if (typeof _syncReaderPosition === 'function') {
+      _syncReaderPosition(_index, _words.length);
     }
     if (AppState.currentFile) savePosition(AppState.currentFile.id, _index);
   }

@@ -34,11 +34,15 @@ const ChunkEngine = (function() {
   }
 
   function _updateDisplay() {
-    const chunk = _words.slice(_index, _index + _chunkSize)
-      .filter(w => typeof w === 'string').join(' ');
     const el = qs('#chunk-display');
     if (el) {
-      el.textContent = chunk || '';
+      const chunkWords = _words.slice(_index, _index + _chunkSize);
+      const placeholder = chunkWords.find(w => typeof w === 'object' && w.type === 'placeholder');
+      el.textContent = placeholder
+        ? (placeholder.label || '[Content]')
+        : chunkWords.filter(w => typeof w === 'string').join(' ');
+      el.classList.toggle('chunk-placeholder', Boolean(placeholder));
+      el.onclick = placeholder ? function() { openObjectPlaceholder(placeholder); } : null;
       /* Auto-shrink font until text fits in a single line */
       let size = 36;
       el.style.fontSize = size + 'px';
@@ -52,6 +56,9 @@ const ChunkEngine = (function() {
     }
     const prog = qs('#chunk-progress');
     if (prog) prog.textContent = formatNumber(_index) + ' / ' + formatNumber(_words.length);
+    if (typeof _syncReaderPosition === 'function') {
+      _syncReaderPosition(_index, _words.length);
+    }
     const fill = qs('#progress-bar-fill');
     if (fill && _words.length) fill.style.width = ((_index / _words.length) * 100) + '%';
   }
