@@ -45,6 +45,13 @@ const FocusBoldEngine = (function() {
     _prevSpan = null;
 
     const maxCandidates = Math.min(_words.length - _lineStart, 28);
+    if (maxCandidates <= 0) {
+      /* End of document */
+      _lineEnd = _lineStart;
+      _index = Math.max(0, _lineStart - 1);
+      return;
+    }
+
     const fragment = document.createDocumentFragment();
     for (let i = 0; i < maxCandidates; i += 1) {
       const span = _makeSpan(_words[_lineStart + i], _lineStart + i);
