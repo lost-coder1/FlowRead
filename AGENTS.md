@@ -180,29 +180,43 @@ Acquire: on entering any reading view, on play. Release: on exit to home/dashboa
 
 ## 11. Active Phase
 
-Phases 0–10 are complete. Current work is Phase 11.
+Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
 
-### PHASE 11 — Share Extension & Deeper Sync
+### PHASE 11 — Share Extension & Deeper Sync (Completed)
 
-- [ ] **Task 11.1 — Widen device sync search**
-  - Current: scans only DOCUMENTS and DOWNLOADS via `Filesystem.readdir`.
-  - Goal: scan the entire accessible device storage. On Android, start from EXTERNAL_STORAGE root and recurse into subdirectories (Downloads, Documents, Books, Ebooks, and any user-created folders), depth-limited to 4 levels to avoid infinite loops on deeply nested trees.
-  - Free tier: show only `.pdf`. Pro: also `.docx` and `.txt`.
-  - Show directory path on each sync-sheet row so the user knows where the file lives.
-  - Deduplicate: if the same filename appears in multiple directories, show all entries with their paths.
+- [x] **Task 11.1 — Widen device sync search**
+  - Implemented native Android storage scan via custom Capacitor plugin.
+  - Scans external storage recursively (depth-limited), free/pro extension gating (`.pdf` for free, `.pdf/.docx/.txt` for pro), and shows source paths.
+  - Results persist on home screen under **Readable files on device**.
 
-- [ ] **Task 11.2 — Android Share Extension (receive URL from browser)**
-  - **Goal:** FlowRead appears in Android's share sheet when a user shares any URL from Chrome/Firefox/any browser. Tapping "FlowRead" in the share sheet fetches the article and saves it under Recent files. The user can tap it from Recent to start reading whenever they want — it does not auto-open the reader.
-  - **Android manifest:** Add an `intent-filter` to `MainActivity` (or a lightweight trampoline `Activity`) for `ACTION_SEND` with `text/plain` MIME type. Extract the URL from `getIntent().getStringExtra(Intent.EXTRA_TEXT)` when the activity starts.
-  - **Capacitor bridge:** Implement a minimal custom Capacitor plugin (or use `@capacitor/app`'s `appUrlOpen` listener) to forward the shared URL string from the Android layer to the JS layer when the app is foregrounded via the share intent.
-  - **JS handler (`www/js/features/share-handler.js`):** On receiving a shared URL — validate with `validateArticleUrl()`, run `fetchReadableArticle()`, call `saveFileData()` + `saveFileToLibrary()`, then `renderLibrary()` to refresh Recent, show toast "Article saved to Recent files."
-  - **Pro gate:** If user is not Pro when the share intent fires, show the paywall and do not fetch.
-  - **iOS:** iOS Share Extension is a separate app target. Plan for v1.2, not this phase.
+- [x] **Task 11.2 — Android Share Extension (receive URL from browser)**
+  - Added Android share-sheet intent support.
+  - Share payload bridged to JS, Pro gate enforced, article fetched/saved locally, and opened in reader using default mode.
+  - Shared URL items appear in library/dashboard and support progress tracking.
 
-- [ ] **Task 11.3 — Error boundary**
-  - Wrap all parser calls and engine init in a top-level try/catch in `app.js`.
-  - Any unhandled error: show a plain-language error card ("Something went wrong — please re-import the file") and return user to home. Never a blank screen or silent crash.
+- [x] **Task 11.3 — Error boundary**
+  - Global error boundaries in `app.js` now surface plain-language fallback card and return user safely to home.
 
+- [x] **Phase 11 UX follow-ups**
+  - Home library split into `Recent` and collapsible `Read` (100% complete only).
+  - `Readable files on device` section is collapsible and defaults collapsed after each sync.
+  - Top Settings entry point added in upload header for quick access.
+
+### PHASE 12 — Engagement, Navigation, OCR Vision
+
+- [ ] **Task 12.1 — Daily reminder notifications**
+  - Free: remind once daily about unread PDFs only.
+  - Pro: remind once daily about unread items across all readable sections (PDF, URL, DOCX, TXT, synced device files in library).
+  - Fully local scheduling and state tracking (no backend, no analytics).
+
+- [ ] **Task 12.2 — Swipe-back reliability**
+  - Stabilize reader back gesture so swipe works consistently without relying on top back button.
+  - Use edge-swipe detection, avoid accidental triggers during normal reading gestures, and support all reader engines.
+
+- [ ] **Task 12.3 — On-device OCR Vision (new paid feature)**
+  - New phase for OCR implementation on scanned PDFs and image text, fully on-device.
+  - OCR Vision is a separate one-time paid feature.
+  - OCR Vision purchase flow is available only to Pro users; free users cannot buy/use OCR Vision.
 ---
 
 ## 12. Code Rules
