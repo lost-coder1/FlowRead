@@ -84,6 +84,7 @@ function renderUpload() {
       </div>
 
       <footer class="upload-footer">
+        <button class="btn btn-ghost" id="btn-sync-files">Sync files</button>
         <button class="btn btn-ghost" id="btn-open-settings">Settings</button>
         <button class="btn btn-ghost" id="btn-open-limitations">Limitations</button>
       </footer>
@@ -115,6 +116,7 @@ function renderUpload() {
     event.target.value = '';
   });
 
+  qs('#btn-sync-files').addEventListener('click', syncDeviceFiles);
   qs('#btn-open-settings').addEventListener('click', renderSettings);
   qs('#btn-open-limitations').addEventListener('click', function() {
     renderSettings();
@@ -151,6 +153,32 @@ async function hydrateUploadSurface() {
     badge.textContent = 'Pro';
     panel.classList.add('hidden');
     button.classList.remove('import-card-live');
+  }
+
+  /* Stats bar — shown only for Pro users */
+  const existingBar = qs('#home-stats-bar');
+  if (pro && !existingBar) {
+    const sessions = loadReadingSessions();
+    const streak = computeStreak(sessions);
+    const today = todayDateString();
+    const todayWords = sessions
+      .filter(function(s) { return s.date === today; })
+      .reduce(function(acc, s) { return acc + (s.wordsRead || 0); }, 0);
+    const avgWpm = last7DaysAvgWpm(sessions);
+
+    const bar = document.createElement('div');
+    bar.id = 'home-stats-bar';
+    bar.className = 'home-stats-bar';
+    bar.innerHTML = [
+      '<div class="home-stat"><span class="home-stat-value">' + streak + '</span><span class="home-stat-label">day streak</span></div>',
+      '<div class="home-stat"><span class="home-stat-value">' + formatNumber(todayWords) + '</span><span class="home-stat-label">words today</span></div>',
+      '<div class="home-stat"><span class="home-stat-value">' + (avgWpm > 0 ? formatWPM(avgWpm) : '—') + '</span><span class="home-stat-label">avg WPM</span></div>',
+    ].join('');
+
+    const libSection = qs('#library-section');
+    if (libSection) libSection.before(bar);
+  } else if (!pro && existingBar) {
+    existingBar.remove();
   }
 
   /* Unlock DOCX and TXT cards when Pro is active */
@@ -756,7 +784,7 @@ async function handleTxtSelect(file) {
   }
 }
 
-function renderLibrary() {
+async function renderLibrary() {
   const section = qs('#library-section');
   if (!section) return;
 
@@ -766,39 +794,58 @@ function renderLibrary() {
     return;
   }
 
-  section.innerHTML = `
-    <h2 class="library-heading">Recent</h2>
-    <ul class="library-list">
-      ${lib.map(function(item) {
+  const pro = await hasProAccess();
+
+  if (pro) {
+    section.innerHTML = '<h2 class="library-heading">Recent</h2><div class="library-grid"></div>';
+    const grid = qs('.library-grid', section);
+    lib.forEach(function(item) {
+      const pct = getFileProgress(item);
+      const kindLabel = item.kind === 'url' ? 'URL' : item.kind ? item.kind.toUpperCase() : 'PDF';
+      const card = document.createElement('div');
+      card.className = 'library-card';
+      card.dataset.id = item.id;
+      card.innerHTML = [
+        '<span class="library-card-kind">' + escapeHtml(kindLabel) + '</span>',
+        '<p class="library-card-name">' + escapeHtml(item.name) + '</p>',
+        '<p class="library-card-meta">' + escapeHtml(formatDate(item.lastOpened)) + (pct > 0 ? ' · ' + pct + '%' : '') + '</p>',
+        '<div class="library-card-progress"><div class="library-card-progress-fill" style="width:' + pct + '%"></div></div>',
+      ].join('');
+      card.addEventListener('click', function() { resumeFromLibrary(item); });
+      grid.appendChild(card);
+    });
+  } else {
+    section.innerHTML = [
+      '<h2 class="library-heading">Recent</h2>',
+      '<ul class="library-list">',
+      lib.map(function(item) {
         const pct = getFileProgress(item);
         const kindLabel = item.kind === 'url' ? 'URL' : item.kind ? item.kind.toUpperCase() : 'PDF';
         const meta = kindLabel + ' · ' + formatDate(item.lastOpened) + (pct > 0 ? ' · ' + pct + '%' : '');
+        return [
+          '<li class="library-item" data-id="' + escapeHtml(item.id) + '">',
+          '<div class="library-item-info">',
+          '<p class="library-item-name">' + escapeHtml(item.name) + '</p>',
+          '<p class="library-item-meta">' + escapeHtml(meta) + '</p>',
+          '</div>',
+          '<div class="library-item-progress"><div class="library-progress-bar">',
+          '<div class="library-progress-fill" style="width:' + pct + '%"></div>',
+          '</div></div>',
+          '</li>',
+        ].join('');
+      }).join(''),
+      '</ul>',
+    ].join('');
 
-        return `
-          <li class="library-item" data-id="${escapeHtml(item.id)}">
-            <div class="library-item-info">
-              <p class="library-item-name">${escapeHtml(item.name)}</p>
-              <p class="library-item-meta">${escapeHtml(meta)}</p>
-            </div>
-            <div class="library-item-progress">
-              <div class="library-progress-bar">
-                <div class="library-progress-fill" style="width:${pct}%"></div>
-              </div>
-            </div>
-          </li>
-        `;
-      }).join('')}
-    </ul>
-  `;
-
-  qsa('.library-item', section).forEach(function(el) {
-    el.addEventListener('click', function() {
-      const id = this.dataset.id;
-      const entry = lib.find(function(r) { return r.id === id; });
-      if (!entry) return;
-      resumeFromLibrary(entry);
+    qsa('.library-item', section).forEach(function(el) {
+      el.addEventListener('click', function() {
+        const id = this.dataset.id;
+        const entry = lib.find(function(r) { return r.id === id; });
+        if (!entry) return;
+        resumeFromLibrary(entry);
+      });
     });
-  });
+  }
 }
 
 async function resumeFromLibrary(entry) {
@@ -838,4 +885,127 @@ function getFileProgress(fileMeta) {
   if (!fileMeta.wordCount) return 0;
   const pos = loadPosition(fileMeta.id);
   return Math.min(100, Math.round((pos / fileMeta.wordCount) * 100));
+}
+
+/* ── Device file sync ────────────────────────────────────────── */
+
+async function syncDeviceFiles() {
+  const pro = await hasProAccess();
+  const Filesystem = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
+
+  if (!Filesystem || typeof Filesystem.readdir !== 'function') {
+    showToast('File scanning is only available on device — use the file picker instead.');
+    return;
+  }
+
+  showLoading('Scanning device files…');
+
+  const extensions = pro ? ['.pdf', '.docx', '.txt'] : ['.pdf'];
+  const dirs = ['DOCUMENTS', 'DOWNLOADS'];
+  const found = [];
+
+  for (let d = 0; d < dirs.length; d++) {
+    try {
+      const result = await Filesystem.readdir({ path: '', directory: dirs[d] });
+      const files = result.files || [];
+      files.forEach(function(f) {
+        const name = typeof f === 'string' ? f : (f.name || '');
+        const lower = name.toLowerCase();
+        for (let e = 0; e < extensions.length; e++) {
+          if (lower.endsWith(extensions[e])) {
+            found.push({ name: name, dir: dirs[d], path: name });
+            break;
+          }
+        }
+      });
+    } catch (_) {}
+  }
+
+  hideLoading();
+
+  if (found.length === 0) {
+    showToast('No readable files found in Documents or Downloads.');
+    return;
+  }
+
+  _showSyncSheet(found, pro);
+}
+
+function _showSyncSheet(files, isPro) {
+  const existing = qs('#sync-sheet');
+  if (existing) existing.remove();
+
+  const sheet = document.createElement('div');
+  sheet.id = 'sync-sheet';
+  sheet.className = 'sync-sheet';
+
+  const itemsHtml = files.map(function(f, i) {
+    return [
+      '<li class="sync-sheet-item" data-idx="' + i + '">',
+      '<span class="sync-sheet-name">' + escapeHtml(f.name) + '</span>',
+      '<span class="sync-sheet-dir">' + escapeHtml(f.dir) + '</span>',
+      '</li>',
+    ].join('');
+  }).join('');
+
+  const hasNonPdf = files.some(function(f) { return !f.name.toLowerCase().endsWith('.pdf'); });
+  const noteHtml = (!isPro && hasNonPdf)
+    ? '<p class="sync-sheet-note">DOCX and TXT files require Pro.</p>'
+    : '';
+
+  sheet.innerHTML = [
+    '<div class="sync-sheet-backdrop"></div>',
+    '<div class="sync-sheet-panel">',
+    '<div class="sync-sheet-header">',
+    '<p class="sync-sheet-title">Files found on device</p>',
+    '<button class="btn btn-ghost" id="btn-sync-close">✕</button>',
+    '</div>',
+    '<ul class="sync-sheet-list">' + itemsHtml + '</ul>',
+    noteHtml,
+    '</div>',
+  ].join('');
+
+  document.body.appendChild(sheet);
+
+  qs('#btn-sync-close', sheet).addEventListener('click', function() { sheet.remove(); });
+  qs('.sync-sheet-backdrop', sheet).addEventListener('click', function() { sheet.remove(); });
+
+  qsa('.sync-sheet-item', sheet).forEach(function(item) {
+    item.addEventListener('click', function() {
+      const idx = parseInt(item.dataset.idx, 10);
+      sheet.remove();
+      _importSyncedFile(files[idx]);
+    });
+  });
+}
+
+async function _importSyncedFile(fileDesc) {
+  const Filesystem = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
+  if (!Filesystem) {
+    showToast('Filesystem not available.');
+    return;
+  }
+
+  showLoading('Reading ' + fileDesc.name + '…');
+  try {
+    const result = await Filesystem.readFile({ path: fileDesc.path, directory: fileDesc.dir });
+    const binary = atob(result.data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    const arrayBuffer = bytes.buffer;
+    const ext = fileDesc.name.split('.').pop().toLowerCase();
+    const blob = new Blob([arrayBuffer]);
+    const syntheticFile = new File([blob], fileDesc.name);
+    hideLoading();
+
+    if (ext === 'pdf') handleFileSelect(syntheticFile);
+    else if (ext === 'docx') handleDocxSelect(syntheticFile);
+    else if (ext === 'txt') handleTxtSelect(syntheticFile);
+    else showToast('Unsupported file type: ' + ext);
+  } catch (_) {
+    hideLoading();
+    showToast('Could not read file: ' + fileDesc.name);
+  }
 }

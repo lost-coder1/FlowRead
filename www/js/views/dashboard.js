@@ -50,7 +50,7 @@ function renderDashboard() {
   if (!view) return;
 
   const sessions = loadReadingSessions();
-  const lib = loadLibrary().slice(0, 5);
+  const lib = loadLibrary();
 
   const totalWords = sessions.reduce(function(acc, s) { return acc + (s.wordsRead || 0); }, 0);
 
@@ -98,22 +98,21 @@ function renderDashboard() {
 
       ${lib.length > 0 ? `
         <section class="dashboard-section">
-          <h2 class="library-heading">Recent files</h2>
-          <ul class="library-list">
+          <h2 class="library-heading">Your library</h2>
+          <div class="library-grid">
             ${lib.map(function(item) {
-              const meta = item.kind === 'url'
-                ? 'URL · ' + formatDate(item.lastOpened)
-                : (item.pageCount || '?') + ' pages · ' + formatDate(item.lastOpened);
-              return `
-                <li class="library-item">
-                  <div class="library-item-info">
-                    <p class="library-item-name">${escapeHtml(item.name)}</p>
-                    <p class="library-item-meta">${escapeHtml(meta)}</p>
-                  </div>
-                </li>
-              `;
+              const pct = item.wordCount ? Math.min(100, Math.round((loadPosition(item.id) / item.wordCount) * 100)) : 0;
+              const kindLabel = item.kind === 'url' ? 'URL' : item.kind ? item.kind.toUpperCase() : 'PDF';
+              return [
+                '<div class="library-card" data-file-id="' + escapeHtml(item.id) + '">',
+                '<span class="library-card-kind">' + escapeHtml(kindLabel) + '</span>',
+                '<p class="library-card-name">' + escapeHtml(item.name) + '</p>',
+                '<p class="library-card-meta">' + escapeHtml(formatDate(item.lastOpened)) + (pct > 0 ? ' · ' + pct + '%' : '') + '</p>',
+                '<div class="library-card-progress"><div class="library-card-progress-fill" style="width:' + pct + '%"></div></div>',
+                '</div>',
+              ].join('');
             }).join('')}
-          </ul>
+          </div>
         </section>
       ` : ''}
 
@@ -126,5 +125,13 @@ function renderDashboard() {
   qs('#btn-dashboard-back').addEventListener('click', function() {
     renderUpload();
     switchView('view-upload');
+  });
+
+  qsa('.library-card[data-file-id]', view).forEach(function(card) {
+    card.addEventListener('click', function() {
+      const id = card.dataset.fileId;
+      const entry = lib.find(function(e) { return e.id === id; });
+      if (entry) resumeFromLibrary(entry);
+    });
   });
 }
