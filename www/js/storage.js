@@ -77,12 +77,18 @@ async function savePurchaseState(key, value) {
 }
 
 async function loadPurchaseState(key) {
+  /* Check localStorage first (dev/test bypass uses localStorage) */
+  const localValue = localStorage.getItem('fr_purchase_' + key);
+  if (localValue) return localValue;
+
+  /* Fall back to Capacitor Preferences (real device) */
   const preferences = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences;
   if (preferences && typeof preferences.get === 'function') {
     const result = await preferences.get({ key: 'fr_purchase_' + key });
     return result && result.value;
   }
-  return localStorage.getItem('fr_purchase_' + key);
+
+  return null;
 }
 
 /* ── File ID generation ─────────────────────────────────────── */

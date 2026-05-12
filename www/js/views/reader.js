@@ -112,12 +112,33 @@ function renderReader(options) {
 }
 
 function _bindReaderControls() {
-  qs('#btn-reader-back').addEventListener('click', function() {
+  const backHandler = function() {
     if (_activeEngine) _activeEngine.pause();
     _flushSessionIfActive();
     releaseWakeLock();
     switchView('view-upload');
-  });
+  };
+
+  qs('#btn-reader-back').addEventListener('click', backHandler);
+
+  /* Swipe gesture: left-to-right for back (one-hand usage) */
+  let _touchStart = null;
+  qs('#view-reader').addEventListener('touchstart', function(e) {
+    _touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }, false);
+
+  qs('#view-reader').addEventListener('touchend', function(e) {
+    if (!_touchStart) return;
+    const dx = e.changedTouches[0].clientX - _touchStart.x;
+    const dy = e.changedTouches[0].clientY - _touchStart.y;
+    const minSwipeDistance = 80;
+
+    /* Left-to-right swipe: if dx > threshold and horizontal is dominant */
+    if (dx > minSwipeDistance && Math.abs(dx) > Math.abs(dy)) {
+      backHandler();
+    }
+    _touchStart = null;
+  }, false);
 
   const normalButton = qs('#btn-open-normal');
   if (normalButton) {

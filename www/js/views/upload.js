@@ -10,26 +10,27 @@ function renderUpload() {
           <h1 class="app-name">FlowRead</h1>
           <p class="app-tagline">Read everything faster</p>
         </div>
-        <div class="upload-header-actions">
-          <button class="btn btn-ghost" id="btn-open-settings">Settings</button>
-          <button class="btn btn-ghost" id="btn-open-limitations">Limitations</button>
-        </div>
       </header>
 
-      <div class="upload-zone" id="upload-zone" role="button" tabindex="0" aria-label="Open PDF">
-        <div class="upload-zone-icon">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14,2 14,8 20,8"/>
-            <line x1="12" y1="18" x2="12" y2="12"/>
-            <polyline points="9,15 12,12 15,15"/>
-          </svg>
-        </div>
-        <p class="upload-zone-label">Tap to open a PDF</p>
-        <p class="upload-zone-hint">Unlimited PDF reading. Your files never leave this device.</p>
-      </div>
-
       <div class="import-grid" id="import-grid">
+        <button class="import-card import-card-featured" id="upload-zone" role="button" tabindex="0" aria-label="Open PDF">
+          <span class="import-card-head">
+            <strong>PDF Reader</strong>
+            <span class="import-badge">Free</span>
+          </span>
+          <span class="import-card-body">
+            <div class="upload-zone-icon" style="margin: 0 auto 8px; display: block; width: 32px; height: 32px;">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14,2 14,8 20,8"/>
+                <line x1="12" y1="18" x2="12" y2="12"/>
+                <polyline points="9,15 12,12 15,15"/>
+              </svg>
+            </div>
+            Tap to open PDF files. All 4 reading engines included.
+          </span>
+        </button>
+
         <button class="import-card" id="btn-url-reader" type="button">
           <span class="import-card-head">
             <strong>URL Reader</strong>
@@ -81,13 +82,21 @@ function renderUpload() {
       <div id="library-section" class="library-section">
         <!-- Populated by renderLibrary() -->
       </div>
+
+      <footer class="upload-footer">
+        <button class="btn btn-ghost" id="btn-open-settings">Settings</button>
+        <button class="btn btn-ghost" id="btn-open-limitations">Limitations</button>
+      </footer>
     </div>
   `;
 
-  qs('#upload-zone').addEventListener('click', function() { qs('#file-input').click(); });
-  qs('#upload-zone').addEventListener('keydown', function(event) {
-    if (event.key === 'Enter' || event.key === ' ') qs('#file-input').click();
-  });
+  const uploadZone = qs('#upload-zone');
+  if (uploadZone) {
+    uploadZone.addEventListener('click', function() { qs('#file-input').click(); });
+    uploadZone.addEventListener('keydown', function(event) {
+      if (event.key === 'Enter' || event.key === ' ') qs('#file-input').click();
+    });
+  }
   qs('#file-input').addEventListener('change', function(event) {
     const file = event.target.files[0];
     if (file) handleFileSelect(file);
