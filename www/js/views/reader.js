@@ -2,6 +2,8 @@
 
 let _activeEngine = null;
 let _sessionState = null; /* { startIndex, startTimeMs } */
+let _readerLifecycleBound = false;
+let _swipeState = null;
 
 const _engineMap = {
   rsvp: RSVPEngine,
@@ -94,13 +96,20 @@ function renderReader(options) {
   _applyCalmMode();
 
   _activeEngine = _engineMap[AppState.currentEngine] || RSVPEngine;
-  _activeEngine.init(file.words, startIndex);
+  try {
+    _activeEngine.init(file.words, startIndex);
+  } catch (err) {
+    console.error('Engine init failed:', err);
+    if (typeof showErrorCard === 'function') showErrorCard('Something went wrong — please re-import the file.');
+    return;
+  }
 
   if (startIndex > 0 && !opts.silentResume) {
     showToast('Resuming from word ' + formatNumber(startIndex) + ' — tap Start Over to reset', 5000);
   }
 
   _bindReaderControls();
+  _bindReaderLifecycleHooks();
   _renderIndexList('');
   _syncReaderPosition(startIndex, file.words.length);
   _applyEngineChrome(AppState.currentEngine);
@@ -111,34 +120,35 @@ function renderReader(options) {
   }
 }
 
+function _bindReaderLifecycleHooks() {
+  if (_readerLifecycleBound) return;
+  _readerLifecycleBound = true;
+
+  /* Capture reading sessions when app is backgrounded or page is hidden. */
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden && AppState.currentView === 'view-reader') {
+      _flushSessionIfActive();
+    }
+  });
+
+  window.addEventListener('pagehide', function() {
+    if (AppState.currentView === 'view-reader') {
+      _flushSessionIfActive();
+    }
+  });
+}
+
 function _bindReaderControls() {
   const backHandler = function() {
     if (_activeEngine) _activeEngine.pause();
     _flushSessionIfActive();
     releaseWakeLock();
+    renderUpload();
     switchView('view-upload');
   };
 
   qs('#btn-reader-back').addEventListener('click', backHandler);
-
-  /* Swipe gesture: left-to-right for back (one-hand usage) */
-  let _touchStart = null;
-  qs('#view-reader').addEventListener('touchstart', function(e) {
-    _touchStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-  }, false);
-
-  qs('#view-reader').addEventListener('touchend', function(e) {
-    if (!_touchStart) return;
-    const dx = e.changedTouches[0].clientX - _touchStart.x;
-    const dy = e.changedTouches[0].clientY - _touchStart.y;
-    const minSwipeDistance = 80;
-
-    /* Left-to-right swipe: if dx > threshold and horizontal is dominant */
-    if (dx > minSwipeDistance && Math.abs(dx) > Math.abs(dy)) {
-      backHandler();
-    }
-    _touchStart = null;
-  }, false);
+  _bindSwipeBackGesture(backHandler);
 
   const normalButton = qs('#btn-open-normal');
   if (normalButton) {
@@ -215,6 +225,62 @@ function _bindReaderControls() {
       readerView.classList.remove('calm-peek');
     }, 1800);
   });
+}
+
+function _bindSwipeBackGesture(backHandler) {
+  const readerView = qs('#view-reader');
+  if (!readerView) return;
+
+  const edgeStartPx = 36;
+  const minDx = 72;
+  const maxDy = 64;
+
+  readerView.addEventListener('touchstart', function(event) {
+    if (!event.touches || event.touches.length !== 1) {
+      _swipeState = null;
+      return;
+    }
+
+    const t = event.touches[0];
+    const startX = t.clientX;
+    const startY = t.clientY;
+
+    if (startX > edgeStartPx) {
+      _swipeState = null;
+      return;
+    }
+
+    _swipeState = {
+      id: t.identifier,
+      startX: startX,
+      startY: startY,
+      consumed: false,
+    };
+  }, { passive: true });
+
+  readerView.addEventListener('touchmove', function(event) {
+    if (!_swipeState || !event.changedTouches) return;
+    for (let i = 0; i < event.changedTouches.length; i++) {
+      const t = event.changedTouches[i];
+      if (t.identifier !== _swipeState.id) continue;
+
+      const dx = t.clientX - _swipeState.startX;
+      const dy = t.clientY - _swipeState.startY;
+      if (dx > minDx && Math.abs(dy) < maxDy && !_swipeState.consumed) {
+        _swipeState.consumed = true;
+        backHandler();
+      }
+      return;
+    }
+  }, { passive: true });
+
+  readerView.addEventListener('touchend', function() {
+    _swipeState = null;
+  }, { passive: true });
+
+  readerView.addEventListener('touchcancel', function() {
+    _swipeState = null;
+  }, { passive: true });
 }
 
 function _toggleIndexPanel() {
@@ -365,6 +431,12 @@ function _switchEngine(key) {
   _applyEngineChrome(key);
 
   _activeEngine = engine;
-  _activeEngine.init(AppState.currentFile.words, currentIndex);
+  try {
+    _activeEngine.init(AppState.currentFile.words, currentIndex);
+  } catch (err) {
+    console.error('Engine switch failed:', err);
+    if (typeof showErrorCard === 'function') showErrorCard('Something went wrong — please re-import the file.');
+    return;
+  }
   _syncReaderPosition(currentIndex, AppState.currentFile.words.length);
 }

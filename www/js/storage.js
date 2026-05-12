@@ -41,6 +41,20 @@ function loadLibrary() {
   }
 }
 
+function saveDeviceSyncedFiles(files) {
+  try {
+    localStorage.setItem('fr_device_files', JSON.stringify((files || []).filter(Boolean)));
+  } catch (_) {}
+}
+
+function loadDeviceSyncedFiles() {
+  try {
+    return JSON.parse(localStorage.getItem('fr_device_files') || '[]').filter(Boolean);
+  } catch (_) {
+    return [];
+  }
+}
+
 /* ── Settings ───────────────────────────────────────────────── */
 function saveSettings(settings) {
   localStorage.setItem('fr_settings', JSON.stringify(settings));
@@ -94,7 +108,25 @@ async function loadPurchaseState(key) {
 /* ── File ID generation ─────────────────────────────────────── */
 function generateFileId(primary, secondary, tertiary) {
   const seed = [primary || '', secondary || '', tertiary || ''].join('::');
-  return btoa(seed).replace(/[^a-z0-9]/gi, '').slice(0, 24);
+  return 'fr_' + _hashSeed(seed);
+}
+
+/* FNV-1a 32-bit hash + rolling hash pair to reduce collisions without dependencies. */
+function _hashSeed(seed) {
+  var input = String(seed || '');
+  var fnv = 2166136261;
+  var roll = 0;
+
+  for (var i = 0; i < input.length; i++) {
+    var code = input.charCodeAt(i);
+    fnv ^= code;
+    fnv = Math.imul(fnv, 16777619);
+    roll = (Math.imul(131, roll) + code) >>> 0;
+  }
+
+  var a = (fnv >>> 0).toString(16).padStart(8, '0');
+  var b = (roll >>> 0).toString(16).padStart(8, '0');
+  return a + b;
 }
 
 /* ── File data persistence (Capacitor Filesystem) ───────────── */

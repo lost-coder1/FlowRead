@@ -10,6 +10,9 @@ function renderUpload() {
           <h1 class="app-name">FlowRead</h1>
           <p class="app-tagline">Read everything faster</p>
         </div>
+        <div class="upload-header-actions">
+          <button class="btn btn-ghost" id="btn-open-settings-top" type="button">Settings</button>
+        </div>
       </header>
 
       <div class="import-grid" id="import-grid">
@@ -118,6 +121,7 @@ function renderUpload() {
 
   qs('#btn-sync-files').addEventListener('click', syncDeviceFiles);
   qs('#btn-open-settings').addEventListener('click', renderSettings);
+  qs('#btn-open-settings-top').addEventListener('click', renderSettings);
   qs('#btn-open-limitations').addEventListener('click', function() {
     renderSettings();
     const section = qs('.settings-limitations');
@@ -341,6 +345,8 @@ async function handleUrlImport(rawUrl) {
       pdfDoc: null,
     };
     AppState.currentIndex = loadPosition(fileId);
+    savePosition(fileId, 0);
+    AppState.currentIndex = 0;
 
     saveFileToLibrary({
       id: fileId,
@@ -352,7 +358,7 @@ async function handleUrlImport(rawUrl) {
       lastOpened: Date.now(),
     });
 
-    saveFileData(fileId, AppState.currentFile);
+    await saveFileData(fileId, AppState.currentFile);
 
     hideLoading();
     renderReader({ silentResume: true });
@@ -789,17 +795,114 @@ async function renderLibrary() {
   if (!section) return;
 
   const lib = loadLibrary();
-  if (lib.length === 0) {
+  const deviceFiles = loadDeviceSyncedFiles();
+  if (lib.length === 0 && deviceFiles.length === 0) {
     section.innerHTML = '';
     return;
   }
 
   const pro = await hasProAccess();
+  const recentLib = lib.filter(function(item) { return !isFileFullyRead(item); });
+  const readLib = lib.filter(function(item) { return isFileFullyRead(item); });
+  const readCollapsed = localStorage.getItem('fr_read_section_collapsed') !== 'false';
+  const deviceCollapsed = localStorage.getItem('fr_device_section_collapsed') !== 'false';
+  const sections = [];
 
   if (pro) {
-    section.innerHTML = '<h2 class="library-heading">Recent</h2><div class="library-grid"></div>';
-    const grid = qs('.library-grid', section);
-    lib.forEach(function(item) {
+    if (recentLib.length > 0) {
+      sections.push('<section class="library-subsection"><h2 class="library-heading">Recent</h2><div class="library-grid" id="recent-library-grid"></div></section>');
+    }
+  } else {
+    if (recentLib.length > 0) {
+      sections.push('<section class="library-subsection">' + [
+        '<h2 class="library-heading">Recent</h2>',
+        '<ul class="library-list">',
+        recentLib.map(function(item) {
+          const pct = getFileProgress(item);
+          const kindLabel = item.kind === 'url' ? 'URL' : item.kind ? item.kind.toUpperCase() : 'PDF';
+          const meta = kindLabel + ' · ' + formatDate(item.lastOpened) + (pct > 0 ? ' · ' + pct + '%' : '');
+          return [
+            '<li class="library-item" data-id="' + escapeHtml(item.id) + '">',
+            '<div class="library-item-info">',
+            '<p class="library-item-name">' + escapeHtml(item.name) + '</p>',
+            '<p class="library-item-meta">' + escapeHtml(meta) + '</p>',
+            '</div>',
+            '<div class="library-item-progress"><div class="library-progress-bar">',
+            '<div class="library-progress-fill" style="width:' + pct + '%"></div>',
+            '</div></div>',
+            '</li>',
+          ].join('');
+        }).join(''),
+        '</ul>',
+      ].join('') + '</section>');
+    }
+  }
+
+  if (readLib.length > 0) {
+    sections.push('<section class="library-subsection library-subsection-read">' + [
+      '<button class="library-collapse-toggle" id="btn-read-toggle" type="button" aria-expanded="' + (!readCollapsed) + '">',
+      '<span class="library-heading">Read</span>',
+      '<span class="library-collapse-count">' + formatNumber(readLib.length) + '</span>',
+      '<span class="library-collapse-icon">' + (readCollapsed ? '▸' : '▾') + '</span>',
+      '</button>',
+      '<div id="read-content"' + (readCollapsed ? ' class="hidden"' : '') + '>',
+      pro ? '<div class="library-grid" id="read-library-grid"></div>' : '',
+      !pro ? [
+        '<ul class="library-list">',
+        readLib.map(function(item) {
+          const pct = getFileProgress(item);
+          const kindLabel = item.kind === 'url' ? 'URL' : item.kind ? item.kind.toUpperCase() : 'PDF';
+          const meta = kindLabel + ' · ' + formatDate(item.lastOpened) + (pct > 0 ? ' · ' + pct + '%' : '');
+          return [
+            '<li class="library-item" data-id="' + escapeHtml(item.id) + '">',
+            '<div class="library-item-info">',
+            '<p class="library-item-name">' + escapeHtml(item.name) + '</p>',
+            '<p class="library-item-meta">' + escapeHtml(meta) + '</p>',
+            '</div>',
+            '<div class="library-item-progress"><div class="library-progress-bar">',
+            '<div class="library-progress-fill" style="width:' + pct + '%"></div>',
+            '</div></div>',
+            '<div class="library-item-actions"><button class="btn btn-ghost btn-mark-unread" type="button" data-mark-unread-id="' + escapeHtml(item.id) + '">Mark unread</button></div>',
+            '</li>',
+          ].join('');
+        }).join(''),
+        '</ul>',
+      ].join('') : '',
+      '</div>',
+    ].join('') + '</section>');
+  }
+
+  if (deviceFiles.length > 0) {
+    sections.push('<section class="library-subsection library-subsection-device">' + [
+      '<button class="library-collapse-toggle" id="btn-device-toggle" type="button" aria-expanded="' + (!deviceCollapsed) + '">',
+      '<span class="library-heading">Readable files on device</span>',
+      '<span class="library-collapse-count">' + formatNumber(deviceFiles.length) + '</span>',
+      '<span class="library-collapse-icon">' + (deviceCollapsed ? '▸' : '▾') + '</span>',
+      '</button>',
+      '<div id="device-content"' + (deviceCollapsed ? ' class="hidden"' : '') + '>',
+      '<ul class="library-list" id="device-files-list">',
+      deviceFiles.map(function(file, index) {
+        const ext = file.name.split('.').pop().toUpperCase();
+        const meta = (file.displayPath || file.dir || '/') + ' · ' + ext;
+        return [
+          '<li class="library-item" data-device-file-idx="' + index + '">',
+          '<div class="library-item-info">',
+          '<p class="library-item-name">' + escapeHtml(file.name) + '</p>',
+          '<p class="library-item-meta">' + escapeHtml(meta) + '</p>',
+          '</div>',
+          '</li>',
+        ].join('');
+      }).join(''),
+      '</ul>',
+      '</div>',
+    ].join('') + '</section>');
+  }
+
+  section.innerHTML = sections.join('');
+
+  if (pro && recentLib.length > 0) {
+    const grid = qs('#recent-library-grid', section);
+    recentLib.forEach(function(item) {
       const pct = getFileProgress(item);
       const kindLabel = item.kind === 'url' ? 'URL' : item.kind ? item.kind.toUpperCase() : 'PDF';
       const card = document.createElement('div');
@@ -814,38 +917,94 @@ async function renderLibrary() {
       card.addEventListener('click', function() { resumeFromLibrary(item); });
       grid.appendChild(card);
     });
-  } else {
-    section.innerHTML = [
-      '<h2 class="library-heading">Recent</h2>',
-      '<ul class="library-list">',
-      lib.map(function(item) {
+  }
+
+  if (pro && readLib.length > 0) {
+    const readGrid = qs('#read-library-grid', section);
+    if (readGrid) {
+      readLib.forEach(function(item) {
         const pct = getFileProgress(item);
         const kindLabel = item.kind === 'url' ? 'URL' : item.kind ? item.kind.toUpperCase() : 'PDF';
-        const meta = kindLabel + ' · ' + formatDate(item.lastOpened) + (pct > 0 ? ' · ' + pct + '%' : '');
-        return [
-          '<li class="library-item" data-id="' + escapeHtml(item.id) + '">',
-          '<div class="library-item-info">',
-          '<p class="library-item-name">' + escapeHtml(item.name) + '</p>',
-          '<p class="library-item-meta">' + escapeHtml(meta) + '</p>',
-          '</div>',
-          '<div class="library-item-progress"><div class="library-progress-bar">',
-          '<div class="library-progress-fill" style="width:' + pct + '%"></div>',
-          '</div></div>',
-          '</li>',
+        const card = document.createElement('div');
+        card.className = 'library-card';
+        card.dataset.id = item.id;
+        card.innerHTML = [
+          '<span class="library-card-kind">' + escapeHtml(kindLabel) + '</span>',
+          '<p class="library-card-name">' + escapeHtml(item.name) + '</p>',
+          '<p class="library-card-meta">' + escapeHtml(formatDate(item.lastOpened)) + (pct > 0 ? ' · ' + pct + '%' : '') + '</p>',
+          '<div class="library-card-progress"><div class="library-card-progress-fill" style="width:' + pct + '%"></div></div>',
+          '<div class="library-item-actions"><button class="btn btn-ghost btn-mark-unread" type="button" data-mark-unread-id="' + escapeHtml(item.id) + '">Mark unread</button></div>',
         ].join('');
-      }).join(''),
-      '</ul>',
-    ].join('');
-
-    qsa('.library-item', section).forEach(function(el) {
-      el.addEventListener('click', function() {
-        const id = this.dataset.id;
-        const entry = lib.find(function(r) { return r.id === id; });
-        if (!entry) return;
-        resumeFromLibrary(entry);
+        card.addEventListener('click', function() { resumeFromLibrary(item); });
+        const unreadBtn = qs('[data-mark-unread-id]', card);
+        if (unreadBtn) {
+          unreadBtn.addEventListener('click', function(event) {
+            event.stopPropagation();
+            markLibraryItemUnread(item.id);
+          });
+        }
+        readGrid.appendChild(card);
       });
+    }
+  }
+
+  qsa('.library-item[data-id]', section).forEach(function(el) {
+    el.addEventListener('click', function() {
+      const id = this.dataset.id;
+      const entry = lib.find(function(r) { return r.id === id; });
+      if (!entry) return;
+      resumeFromLibrary(entry);
+    });
+  });
+
+  qsa('[data-mark-unread-id]', section).forEach(function(btn) {
+    btn.addEventListener('click', function(event) {
+      event.stopPropagation();
+      markLibraryItemUnread(btn.dataset.markUnreadId);
+    });
+  });
+
+  qsa('.library-item[data-device-file-idx]', section).forEach(function(el) {
+    el.addEventListener('click', function() {
+      const idx = parseInt(this.dataset.deviceFileIdx, 10);
+      if (Number.isNaN(idx) || !deviceFiles[idx]) return;
+      _importSyncedFile(deviceFiles[idx]);
+    });
+  });
+
+  const readToggle = qs('#btn-read-toggle', section);
+  if (readToggle) {
+    readToggle.addEventListener('click', function() {
+      const content = qs('#read-content', section);
+      if (!content) return;
+      const nextCollapsed = !content.classList.contains('hidden');
+      content.classList.toggle('hidden', nextCollapsed);
+      localStorage.setItem('fr_read_section_collapsed', nextCollapsed ? 'true' : 'false');
+      readToggle.setAttribute('aria-expanded', nextCollapsed ? 'false' : 'true');
+      const icon = qs('.library-collapse-icon', readToggle);
+      if (icon) icon.textContent = nextCollapsed ? '▸' : '▾';
     });
   }
+
+  const deviceToggle = qs('#btn-device-toggle', section);
+  if (deviceToggle) {
+    deviceToggle.addEventListener('click', function() {
+      const content = qs('#device-content', section);
+      if (!content) return;
+      const nextCollapsed = !content.classList.contains('hidden');
+      content.classList.toggle('hidden', nextCollapsed);
+      localStorage.setItem('fr_device_section_collapsed', nextCollapsed ? 'true' : 'false');
+      deviceToggle.setAttribute('aria-expanded', nextCollapsed ? 'false' : 'true');
+      const icon = qs('.library-collapse-icon', deviceToggle);
+      if (icon) icon.textContent = nextCollapsed ? '▸' : '▾';
+    });
+  }
+}
+
+function markLibraryItemUnread(fileId) {
+  if (!fileId) return;
+  savePosition(fileId, 0);
+  renderLibrary();
 }
 
 async function resumeFromLibrary(entry) {
@@ -887,48 +1046,158 @@ function getFileProgress(fileMeta) {
   return Math.min(100, Math.round((pos / fileMeta.wordCount) * 100));
 }
 
+function isFileFullyRead(fileMeta) {
+  if (!fileMeta || !fileMeta.wordCount) return false;
+  const pos = loadPosition(fileMeta.id);
+  return pos >= fileMeta.wordCount;
+}
+
 /* ── Device file sync ────────────────────────────────────────── */
+
+async function _scanDirRecursive(Filesystem, dirPath, directory, extensions, depth, maxDepth, found) {
+  if (depth > maxDepth) return;
+
+  let entries;
+  try {
+    const result = await Filesystem.readdir({ path: dirPath, directory: directory });
+    entries = result.files || [];
+  } catch (_) {
+    return;
+  }
+
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
+    const entryName = typeof entry === 'string' ? entry : (entry.name || '');
+    if (!entryName || entryName.startsWith('.')) continue;
+
+    const entryPath = dirPath ? (dirPath + '/' + entryName) : entryName;
+    const lower = entryName.toLowerCase();
+    const isDir = (typeof entry === 'object' && entry.type === 'directory') || !lower.includes('.');
+
+    let matched = false;
+    for (let e = 0; e < extensions.length; e++) {
+      if (lower.endsWith(extensions[e])) {
+        found.push({ name: entryName, dir: directory, path: entryPath, displayPath: entryPath });
+        matched = true;
+        break;
+      }
+    }
+
+    if (!matched && isDir && depth < maxDepth) {
+      await _scanDirRecursive(Filesystem, entryPath, directory, extensions, depth + 1, maxDepth, found);
+    }
+  }
+}
 
 async function syncDeviceFiles() {
   const pro = await hasProAccess();
   const Filesystem = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
+  const DeviceSync = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.FlowReadDeviceSync;
+
+  if (DeviceSync && typeof DeviceSync.scanFiles === 'function') {
+    await _syncDeviceFilesNative(DeviceSync, pro);
+    return;
+  }
 
   if (!Filesystem || typeof Filesystem.readdir !== 'function') {
     showToast('File scanning is only available on device — use the file picker instead.');
     return;
   }
 
+  // Request storage permission if available (Android ≤ 12). On Android 13+
+  // READ_EXTERNAL_STORAGE no longer exists for documents — the dialog won't appear,
+  // so we proceed regardless and silently skip any inaccessible directories.
+  try {
+    if (typeof Filesystem.requestPermissions === 'function') {
+      await Filesystem.requestPermissions();
+    }
+  } catch (_) {}
+
   showLoading('Scanning device files…');
 
   const extensions = pro ? ['.pdf', '.docx', '.txt'] : ['.pdf'];
-  const dirs = ['DOCUMENTS', 'DOWNLOADS'];
   const found = [];
 
-  for (let d = 0; d < dirs.length; d++) {
-    try {
-      const result = await Filesystem.readdir({ path: '', directory: dirs[d] });
-      const files = result.files || [];
-      files.forEach(function(f) {
-        const name = typeof f === 'string' ? f : (f.name || '');
-        const lower = name.toLowerCase();
-        for (let e = 0; e < extensions.length; e++) {
-          if (lower.endsWith(extensions[e])) {
-            found.push({ name: name, dir: dirs[d], path: name });
-            break;
-          }
-        }
-      });
-    } catch (_) {}
+  // Well-known user-facing directories under external storage.
+  // Root scanning is restricted on Android 11+, so target specific folders.
+  const knownPaths = [
+    'Download', 'Downloads',
+    'Documents',
+    'Books', 'Ebooks', 'PDF', 'PDFs', 'Files',
+    // WhatsApp document locations (old and new Android storage layout)
+    'WhatsApp/Media/WhatsApp Documents',
+    'Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Documents',
+  ];
+  for (let i = 0; i < knownPaths.length; i++) {
+    await _scanDirRecursive(Filesystem, knownPaths[i], 'EXTERNAL_STORAGE', extensions, 0, 3, found);
   }
+  // App-specific external dir — no permission needed on any Android version
+  await _scanDirRecursive(Filesystem, '', 'EXTERNAL', extensions, 0, 3, found);
+  // App's internal documents directory
+  await _scanDirRecursive(Filesystem, '', 'DOCUMENTS', extensions, 0, 3, found);
 
   hideLoading();
 
   if (found.length === 0) {
-    showToast('No readable files found in Documents or Downloads.');
+    showToast('No files found. Check that PDFs are in Downloads or Documents.');
     return;
   }
 
-  _showSyncSheet(found, pro);
+  localStorage.setItem('fr_device_section_collapsed', 'true');
+  saveDeviceSyncedFiles(found);
+  renderLibrary();
+  showToast(formatNumber(found.length) + ' readable file' + (found.length === 1 ? '' : 's') + ' added to home.');
+}
+
+async function _syncDeviceFilesNative(DeviceSync, pro) {
+  const extensions = pro ? ['.pdf', '.docx', '.txt'] : ['.pdf'];
+
+  try {
+    const access = await DeviceSync.requestAccess();
+    if (access && access.openedSettings && !access.granted) {
+      showToast('Allow file access in Android settings, then tap Sync files again.');
+      return;
+    }
+
+    if (access && access.granted === false) {
+      showToast('File access is required to scan device storage.');
+      return;
+    }
+  } catch (_) {
+    showToast('Could not request file access.');
+    return;
+  }
+
+  showLoading('Scanning device files…');
+
+  try {
+    const result = await DeviceSync.scanFiles({
+      maxDepth: 4,
+      extensions: extensions,
+    });
+
+    hideLoading();
+
+    if (result && result.accessRequired) {
+      showToast('Allow file access in Android settings, then tap Sync files again.');
+      return;
+    }
+
+    const found = (result && result.files) ? result.files : [];
+    if (!found.length) {
+      showToast('No matching files found in accessible device storage.');
+      return;
+    }
+
+    localStorage.setItem('fr_device_section_collapsed', 'true');
+    saveDeviceSyncedFiles(found);
+    renderLibrary();
+    showToast(formatNumber(found.length) + ' readable file' + (found.length === 1 ? '' : 's') + ' added to home.');
+  } catch (err) {
+    hideLoading();
+    console.error('Native device sync failed:', err);
+    showToast('Could not scan device storage.');
+  }
 }
 
 function _showSyncSheet(files, isPro) {
@@ -943,7 +1212,7 @@ function _showSyncSheet(files, isPro) {
     return [
       '<li class="sync-sheet-item" data-idx="' + i + '">',
       '<span class="sync-sheet-name">' + escapeHtml(f.name) + '</span>',
-      '<span class="sync-sheet-dir">' + escapeHtml(f.dir) + '</span>',
+      '<span class="sync-sheet-dir">' + escapeHtml(f.displayPath || f.dir) + '</span>',
       '</li>',
     ].join('');
   }).join('');
@@ -981,14 +1250,20 @@ function _showSyncSheet(files, isPro) {
 
 async function _importSyncedFile(fileDesc) {
   const Filesystem = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
-  if (!Filesystem) {
+  const DeviceSync = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.FlowReadDeviceSync;
+  if (!Filesystem && !(DeviceSync && typeof DeviceSync.readFile === 'function')) {
     showToast('Filesystem not available.');
     return;
   }
 
   showLoading('Reading ' + fileDesc.name + '…');
   try {
-    const result = await Filesystem.readFile({ path: fileDesc.path, directory: fileDesc.dir });
+    let result;
+    if (fileDesc.path && !fileDesc.dir && DeviceSync && typeof DeviceSync.readFile === 'function') {
+      result = await DeviceSync.readFile({ path: fileDesc.path });
+    } else {
+      result = await Filesystem.readFile({ path: fileDesc.path, directory: fileDesc.dir });
+    }
     const binary = atob(result.data);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) {

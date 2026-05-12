@@ -234,7 +234,7 @@
   font-family: var(--font-display);
   font-size: 24px;
   font-weight: 700;
-  color: var(--text);
+  color: rgba(232, 228, 220, 0.88);
 }
 
 .import-card-body {
@@ -336,6 +336,47 @@
   margin-bottom: var(--space-sm);
 }
 
+.library-subsection + .library-subsection {
+  margin-top: calc(var(--space-lg) + var(--space-sm));
+  padding-top: var(--space-sm);
+  border-top: 1px solid rgba(232, 228, 220, 0.06);
+}
+
+.library-subsection-device .library-heading {
+  color: var(--accent);
+}
+
+.library-subsection-read .library-heading {
+  color: var(--accent-2);
+  margin-bottom: 0;
+}
+
+.library-collapse-toggle {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  padding: 0 0 var(--space-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  cursor: pointer;
+}
+
+.library-collapse-count {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.library-collapse-icon {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  width: 12px;
+  text-align: center;
+}
+
 .library-list {
   list-style: none;
   display: flex;
@@ -373,6 +414,17 @@
   font-size: 11px;
   font-weight: 300;
   color: var(--text-muted);
+}
+
+.library-item-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn-mark-unread {
+  font-size: 11px;
+  padding: 4px 8px;
+  min-height: 28px;
 }
 
 .library-progress-bar {
