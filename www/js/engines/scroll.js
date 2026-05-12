@@ -1,9 +1,9 @@
-/* Simple Scroll Engine — teleprompter-style continuous scroll via requestAnimationFrame */
+/* Simple Scroll Engine — teleprompter via CSS transform (GPU-composited, no layout reflow) */
 
 const ScrollEngine = (function() {
   let _words = [], _index = 0;
-  let _rafId = null, _scrollY = 0, _multiplier = 1.0, _lineThick = 1;
-  let _containerEl = null, _lastTs = null;
+  let _rafId = null, _scrollY = 0, _maxScrollY = 0, _multiplier = 1.0, _lineThick = 1;
+  let _outerEl = null, _trackEl = null, _lastTs = null;
   let _spanTops = [], _lastIndexSyncTs = 0, _lastSavedIndex = -1;
 
   const _LINE_THICK_SIZES = [1, 2, 4, 6, 10];
@@ -22,12 +22,18 @@ const ScrollEngine = (function() {
     if (line) line.style.height = _lineThick + 'px';
   }
 
+  function _applyTransform() {
+    if (_trackEl) _trackEl.style.transform = 'translateY(-' + _scrollY.toFixed(2) + 'px)';
+  }
+
   function _render() {
     const container = qs('#rsvp-container');
     container.innerHTML = `
       <div class="scroll-outer" id="scroll-outer">
+        <div class="scroll-track" id="scroll-track">
+          <div class="scroll-content" id="scroll-content"></div>
+        </div>
         <div class="scroll-fade-top"></div>
-        <div class="scroll-content" id="scroll-content"></div>
         <div class="scroll-fade-bottom"></div>
         <div class="scroll-centre-line"></div>
       </div>
@@ -43,7 +49,8 @@ const ScrollEngine = (function() {
         <button class="comfort-btn" id="btn-line-inc">+</button>
       </div>`;
 
-    _containerEl = qs('#scroll-outer');
+    _outerEl = qs('#scroll-outer');
+    _trackEl = qs('#scroll-track');
 
     const content = qs('#scroll-content');
     _words.forEach(function(w, i) {
@@ -55,19 +62,20 @@ const ScrollEngine = (function() {
       } else {
         span.textContent = ((w && w.label) || '[Content]') + ' ';
         span.classList.add('scroll-placeholder');
-        span.addEventListener('click', function() {
-          openObjectPlaceholder(w);
-        });
+        span.addEventListener('click', function() { openObjectPlaceholder(w); });
       }
       content.appendChild(span);
     });
 
     requestAnimationFrame(function() {
       _cacheSpanPositions();
+      if (_outerEl) {
+        _maxScrollY = Math.max(0, (_trackEl ? _trackEl.offsetHeight : 0) - _outerEl.clientHeight);
+      }
       const target = qs('[data-index="' + _index + '"].scroll-word');
-      if (target && _containerEl) {
-        _scrollY = target.offsetTop - _containerEl.clientHeight / 2;
-        _containerEl.scrollTop = Math.max(0, _scrollY);
+      if (target && _outerEl) {
+        _scrollY = Math.max(0, target.offsetTop - _outerEl.clientHeight / 2);
+        _applyTransform();
       }
     });
 
@@ -101,12 +109,12 @@ const ScrollEngine = (function() {
   function _frame(ts) {
     if (!AppState.isPlaying) return;
     if (_lastTs === null) _lastTs = ts;
-    const delta = ts - _lastTs;
+    const delta = Math.min(ts - _lastTs, 50); /* cap at 50ms to avoid big jumps after tab switch */
     _lastTs = ts;
 
     const pxPerMs = (AppState.wpm / 60000) * 28 / 8 * _multiplier;
     _scrollY += pxPerMs * delta;
-    if (_containerEl) _containerEl.scrollTop = _scrollY;
+    _applyTransform();
 
     if (ts - _lastIndexSyncTs >= 80) {
       _syncIndexFromScroll();
@@ -115,56 +123,44 @@ const ScrollEngine = (function() {
 
     const fill = qs('#progress-bar-fill');
     if (fill && _words.length) fill.style.width = ((_index / _words.length) * 100) + '%';
-    if (typeof _syncReaderPosition === 'function') {
-      _syncReaderPosition(_index, _words.length);
-    }
+    if (typeof _syncReaderPosition === 'function') _syncReaderPosition(_index, _words.length);
 
-    if (
-      AppState.currentFile &&
-      _index !== _lastSavedIndex &&
-      _index % 30 === 0
-    ) {
+    if (AppState.currentFile && _index !== _lastSavedIndex && _index % 30 === 0) {
       savePosition(AppState.currentFile.id, _index);
       _lastSavedIndex = _index;
     }
 
-    if (_containerEl && _containerEl.scrollTop + _containerEl.clientHeight >= _containerEl.scrollHeight - 10) {
-      _handleEnd(); return;
+    /* End detection: scrolled past content */
+    if (_maxScrollY > 0 && _scrollY >= _maxScrollY) {
+      _handleEnd();
+      return;
     }
+
     _rafId = requestAnimationFrame(_frame);
   }
 
   function _syncIndexFromScroll() {
-    if (!_containerEl || _spanTops.length === 0) return;
-    const mid = _containerEl.scrollTop + _containerEl.clientHeight * 0.4;
-    let lo = 0;
-    let hi = _spanTops.length - 1;
-    let best = 0;
-
+    if (_spanTops.length === 0 || !_outerEl) return;
+    /* Centre of the viewport in content-space */
+    const mid = _scrollY + _outerEl.clientHeight * 0.4;
+    let lo = 0, hi = _spanTops.length - 1, best = 0;
     while (lo <= hi) {
-      const midIdx = Math.floor((lo + hi) / 2);
-      if (_spanTops[midIdx] <= mid) {
-        best = midIdx;
-        lo = midIdx + 1;
-      } else {
-        hi = midIdx - 1;
-      }
+      const m = (lo + hi) >> 1;
+      if (_spanTops[m] <= mid) { best = m; lo = m + 1; } else { hi = m - 1; }
     }
-
     _index = best;
   }
 
   function _cacheSpanPositions() {
-    _spanTops = qsa('.scroll-word').map(function(span) {
-      return span.offsetTop;
-    });
+    _spanTops = qsa('.scroll-word').map(function(span) { return span.offsetTop; });
   }
 
   function _handleEnd() {
     AppState.isPlaying = false;
     if (AppState.currentFile) savePosition(AppState.currentFile.id, 0);
     showToast('Finished!');
-    const btn = qs('#btn-play-pause'); if (btn) btn.textContent = '▶';
+    const btn = qs('#btn-play-pause');
+    if (btn) btn.textContent = '▶';
   }
 
   function play() {
@@ -172,36 +168,50 @@ const ScrollEngine = (function() {
     AppState.isPlaying = true;
     _lastTs = null;
     _lastIndexSyncTs = 0;
-    const btn = qs('#btn-play-pause'); if (btn) btn.textContent = '⏸';
-    clearIdleReleaseTimer(); acquireWakeLock();
+    /* Recompute max scroll in case layout changed */
+    if (_outerEl && _trackEl) {
+      _maxScrollY = Math.max(0, _trackEl.offsetHeight - _outerEl.clientHeight);
+    }
+    const btn = qs('#btn-play-pause');
+    if (btn) btn.textContent = '⏸';
+    clearIdleReleaseTimer();
+    acquireWakeLock();
     _rafId = requestAnimationFrame(_frame);
   }
+
   function pause() {
     AppState.isPlaying = false;
     if (_rafId) { cancelAnimationFrame(_rafId); _rafId = null; }
     _lastTs = null;
     if (AppState.currentFile) savePosition(AppState.currentFile.id, _index);
     startIdleReleaseTimer();
-    const btn = qs('#btn-play-pause'); if (btn) btn.textContent = '▶';
+    const btn = qs('#btn-play-pause');
+    if (btn) btn.textContent = '▶';
   }
+
   function destroy() {
     pause();
-    AppState.isPlaying = false;
     _spanTops = [];
+    _outerEl = null;
+    _trackEl = null;
   }
+
   function getIndex() { return _index; }
+
   function seekTo(i) {
     _index = Math.max(0, Math.min(_words.length - 1, i));
     const target = qs('[data-index="' + _index + '"].scroll-word');
-    if (target && _containerEl) {
-      _scrollY = target.offsetTop - _containerEl.clientHeight / 2;
-      _containerEl.scrollTop = Math.max(0, _scrollY);
+    if (target && _outerEl) {
+      _scrollY = Math.max(0, target.offsetTop - _outerEl.clientHeight / 2);
+      _applyTransform();
     }
-    if (typeof _syncReaderPosition === 'function') {
-      _syncReaderPosition(_index, _words.length);
-    }
+    if (typeof _syncReaderPosition === 'function') _syncReaderPosition(_index, _words.length);
     if (AppState.currentFile) savePosition(AppState.currentFile.id, _index);
   }
 
-  return { init, play, pause, destroy, getIndex, seekTo };
+  function onWPMChange() {
+    /* No restart needed — pxPerMs is read live from AppState.wpm each frame */
+  }
+
+  return { init, play, pause, destroy, getIndex, seekTo, onWPMChange };
 })();

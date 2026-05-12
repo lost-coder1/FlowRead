@@ -97,6 +97,74 @@ function generateFileId(primary, secondary, tertiary) {
   return btoa(seed).replace(/[^a-z0-9]/gi, '').slice(0, 24);
 }
 
+/* ── File data persistence (Capacitor Filesystem) ───────────── */
+/*
+  Saves parsed file content (words, pageWordIndex, rawLines, metadata) so the
+  user can resume without re-importing. pdfDoc is not serialisable — Normal View
+  requires re-import. Filesystem is used on device; localStorage fallback in browser.
+*/
+async function saveFileData(fileId, fileData) {
+  const payload = JSON.stringify({
+    words: fileData.words,
+    pageWordIndex: fileData.pageWordIndex,
+    rawLines: fileData.rawLines,
+    metadata: fileData.metadata,
+  });
+
+  const Filesystem = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
+  if (Filesystem && typeof Filesystem.writeFile === 'function') {
+    try {
+      await Filesystem.writeFile({
+        path: 'flowread/' + fileId + '.json',
+        data: payload,
+        directory: 'DATA',
+        encoding: 'utf8',
+        recursive: true,
+      });
+      return;
+    } catch (_) {}
+  }
+
+  /* Browser fallback: store in localStorage if under 3 MB */
+  try {
+    if (payload.length < 3 * 1024 * 1024) {
+      localStorage.setItem('fr_filedata_' + fileId, payload);
+    }
+  } catch (_) {}
+}
+
+async function loadFileData(fileId) {
+  const Filesystem = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
+  if (Filesystem && typeof Filesystem.readFile === 'function') {
+    try {
+      const result = await Filesystem.readFile({
+        path: 'flowread/' + fileId + '.json',
+        directory: 'DATA',
+        encoding: 'utf8',
+      });
+      return JSON.parse(result.data);
+    } catch (_) {}
+  }
+
+  /* Browser fallback */
+  try {
+    const raw = localStorage.getItem('fr_filedata_' + fileId);
+    if (raw) return JSON.parse(raw);
+  } catch (_) {}
+
+  return null;
+}
+
+async function deleteFileData(fileId) {
+  const Filesystem = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
+  if (Filesystem && typeof Filesystem.deleteFile === 'function') {
+    try {
+      await Filesystem.deleteFile({ path: 'flowread/' + fileId + '.json', directory: 'DATA' });
+    } catch (_) {}
+  }
+  localStorage.removeItem('fr_filedata_' + fileId);
+}
+
 /* ── Dev test bypass (localStorage, test-only) ──────────────── */
 /* Uses localStorage instead of Capacitor Preferences so it's clearly separate from real purchases. */
 function saveDevProBypass(enabled) {

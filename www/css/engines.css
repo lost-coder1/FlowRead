@@ -540,14 +540,16 @@
 /* ── Simple Scroll ──────────────────────────────────────────── */
 .scroll-outer {
   height: 100%;
-  overflow-y: auto;
+  overflow: hidden;      /* JS drives position via transform, not scrollTop */
   position: relative;
-  -webkit-overflow-scrolling: touch;
-  scroll-behavior: auto; /* JS controls scroll — no CSS smooth */
+}
+
+.scroll-track {
+  will-change: transform;  /* GPU layer — composited, no layout reflow */
 }
 
 .scroll-content {
-  padding: 50% var(--space-md);
+  padding: 50vh var(--space-md);
   font-family: 'Crimson Pro', Georgia, serif;
   font-size: 20px;
   line-height: 1.9;
@@ -563,23 +565,21 @@
 }
 
 .scroll-fade-top {
-  position: sticky;
-  top: 0;
-  height: 60px;
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 80px;
   background: linear-gradient(to bottom, var(--bg), transparent);
   pointer-events: none;
-  z-index: 1;
-  margin-bottom: -60px;
+  z-index: 2;
 }
 
 .scroll-fade-bottom {
-  position: sticky;
-  bottom: 0;
-  height: 60px;
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 80px;
   background: linear-gradient(to top, var(--bg), transparent);
   pointer-events: none;
-  z-index: 1;
-  margin-top: -60px;
+  z-index: 2;
 }
 
 .scroll-centre-line {

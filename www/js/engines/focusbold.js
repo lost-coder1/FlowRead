@@ -46,9 +46,8 @@ const FocusBoldEngine = (function() {
 
     const maxCandidates = Math.min(_words.length - _lineStart, 28);
     if (maxCandidates <= 0) {
-      /* End of document */
+      /* End of document — nothing left to show */
       _lineEnd = _lineStart;
-      _index = Math.max(0, _lineStart - 1);
       return;
     }
 
@@ -60,9 +59,24 @@ const FocusBoldEngine = (function() {
     }
     line.appendChild(fragment);
 
-    while (_lineSpans.length > 1 && line.scrollWidth > line.clientWidth) {
-      const removed = _lineSpans.pop();
-      line.removeChild(removed);
+    /* Only prune by DOM width if layout is valid (clientWidth > 0).
+       When clientWidth is 0 (layout not yet done), skip pruning and use
+       a char-count estimate so playback never freezes. */
+    if (line.clientWidth > 50) {
+      while (_lineSpans.length > 1 && line.scrollWidth > line.clientWidth) {
+        const removed = _lineSpans.pop();
+        line.removeChild(removed);
+      }
+    } else {
+      /* Fallback: approx 55 chars per line */
+      let chars = 0;
+      while (_lineSpans.length > 1) {
+        const w = _words[_lineStart + _lineSpans.length - 1];
+        chars += (typeof w === 'string' ? w.length + 1 : 12);
+        if (chars <= 55) break;
+        const removed = _lineSpans.pop();
+        line.removeChild(removed);
+      }
     }
 
     _lineEnd = _lineStart + _lineSpans.length;
@@ -121,12 +135,13 @@ const FocusBoldEngine = (function() {
   }
 
   function _maybeShiftLine() {
-    if (_index < _lineStart || _index >= _lineEnd - 2) {
-      _lineStart = Math.max(0, _index - 2);
+    /* Rebuild when index goes before the line or reaches the last word.
+       Using _lineEnd - 1 (not - 2) prevents constant rebuilds on short lines. */
+    if (_index < _lineStart || _index >= _lineEnd - 1) {
+      _lineStart = Math.max(0, _index - 1);
       _buildLine();
       return;
     }
-
     _paintLine();
   }
 

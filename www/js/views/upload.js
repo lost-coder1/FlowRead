@@ -249,6 +249,9 @@ async function handleFileSelect(file) {
       lastOpened: Date.now(),
     });
 
+    /* Save parsed content for resume (pdfDoc excluded — not serialisable) */
+    saveFileData(fileId, AppState.currentFile);
+
     hideLoading();
     window._pdfParseProgress = null;
     renderReader();
@@ -321,6 +324,8 @@ async function handleUrlImport(rawUrl) {
       lastOpened: Date.now(),
     });
 
+    saveFileData(fileId, AppState.currentFile);
+
     hideLoading();
     renderReader({ silentResume: true });
     switchView('view-reader');
@@ -347,9 +352,43 @@ function validateArticleUrl(rawUrl) {
 }
 
 async function fetchReadableArticle(url) {
-  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-  const timeoutId = controller ? setTimeout(function() { controller.abort(); }, 10000) : null;
+  /* On native (Android/iOS), use CapacitorHttp which makes requests at the
+     native layer and bypasses WebView CORS restrictions entirely.
+     In browser/desktop, fall back to fetch() with CORS mode. */
+  const CapHttp = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.CapacitorHttp;
 
+  if (CapHttp && typeof CapHttp.get === 'function') {
+    return _fetchViaCapacitor(url, CapHttp);
+  }
+  return _fetchViaBrowser(url);
+}
+
+async function _fetchViaCapacitor(url, CapHttp) {
+  try {
+    const response = await CapHttp.get({
+      url: url,
+      headers: {
+        'Accept': 'text/html,application/xhtml+xml',
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 Chrome/120.0.0.0 Mobile Safari/537.36',
+      },
+      connectTimeout: 15000,
+      readTimeout: 15000,
+    });
+    if (response.status === 401) throw { code: 'login-required' };
+    if (response.status === 402) throw { code: 'paywalled' };
+    if (response.status === 403 || response.status === 429) throw { code: 'blocked' };
+    if (response.status < 200 || response.status >= 300) throw { code: 'unsupported-structure', detail: 'HTTP ' + response.status };
+    return extractReadableArticle(response.data || '', url);
+  } catch (err) {
+    if (err && err.code) throw err;
+    /* Network errors on native surface as generic errors */
+    throw { code: 'timed-out' };
+  }
+}
+
+async function _fetchViaBrowser(url) {
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timeoutId = controller ? setTimeout(function() { controller.abort(); }, 15000) : null;
   try {
     const response = await fetch(url, {
       method: 'GET',
@@ -358,12 +397,10 @@ async function fetchReadableArticle(url) {
       headers: { Accept: 'text/html,application/xhtml+xml' },
       signal: controller ? controller.signal : undefined,
     });
-
     if (response.status === 401) throw { code: 'login-required' };
     if (response.status === 402) throw { code: 'paywalled' };
     if (response.status === 403 || response.status === 429) throw { code: 'blocked' };
     if (!response.ok) throw { code: 'unsupported-structure', detail: 'HTTP ' + response.status };
-
     const html = await response.text();
     return extractReadableArticle(html, url);
   } catch (err) {
@@ -399,6 +436,13 @@ function extractReadableArticle(html, sourceUrl) {
     '.entry-content',
     '.story-body',
     '.article-content',
+    '.post-body',
+    '.blog-post',
+    '.blog-content',
+    '.single-post',
+    '.content',
+    '#content',
+    '#main',
   ];
 
   let candidate = null;
@@ -409,13 +453,15 @@ function extractReadableArticle(html, sourceUrl) {
 
   if (!candidate) candidate = doc.body;
 
+  /* Lower min-length to 20 to capture short sentences in small blogs */
   const paragraphs = qsa('p, h1, h2, h3, li, blockquote', candidate)
     .map(function(node) { return normalizeWhitespace(node.textContent); })
-    .filter(function(text) { return text.length > 40; });
+    .filter(function(text) { return text.length > 20; });
 
   const articleText = paragraphs.join('\n\n');
-  if (articleText.length < 120 && bodyText.length < 120) throw { code: 'empty-extraction' };
-  if (articleText.length < 220) throw { code: 'unsupported-structure' };
+  if (articleText.length < 80 && bodyText.length < 80) throw { code: 'empty-extraction' };
+  /* Lowered from 220 — small personal blogs have shorter total text */
+  if (articleText.length < 100) throw { code: 'unsupported-structure' };
 
   return buildImportedArticle(title, sourceUrl, articleText);
 }
@@ -646,6 +692,8 @@ async function handleDocxSelect(file) {
       lastOpened: Date.now(),
     });
 
+    saveFileData(fileId, AppState.currentFile);
+
     hideLoading();
     renderReader();
     switchView('view-reader');
@@ -693,6 +741,8 @@ async function handleTxtSelect(file) {
       lastOpened: Date.now(),
     });
 
+    saveFileData(fileId, AppState.currentFile);
+
     hideLoading();
     renderReader();
     switchView('view-reader');
@@ -720,19 +770,19 @@ function renderLibrary() {
     <h2 class="library-heading">Recent</h2>
     <ul class="library-list">
       ${lib.map(function(item) {
-        const meta = item.kind === 'url'
-          ? 'URL import · ' + formatDate(item.lastOpened)
-          : (item.pageCount || '?') + ' pages · ' + formatDate(item.lastOpened);
+        const pct = getFileProgress(item);
+        const kindLabel = item.kind === 'url' ? 'URL' : item.kind ? item.kind.toUpperCase() : 'PDF';
+        const meta = kindLabel + ' · ' + formatDate(item.lastOpened) + (pct > 0 ? ' · ' + pct + '%' : '');
 
         return `
-          <li class="library-item" data-id="${item.id}">
+          <li class="library-item" data-id="${escapeHtml(item.id)}">
             <div class="library-item-info">
               <p class="library-item-name">${escapeHtml(item.name)}</p>
               <p class="library-item-meta">${escapeHtml(meta)}</p>
             </div>
             <div class="library-item-progress">
               <div class="library-progress-bar">
-                <div class="library-progress-fill" style="width:${getFileProgress(item)}%"></div>
+                <div class="library-progress-fill" style="width:${pct}%"></div>
               </div>
             </div>
           </li>
@@ -741,16 +791,47 @@ function renderLibrary() {
     </ul>
   `;
 
-  qsa('.library-item', section).forEach(function(item) {
-    item.addEventListener('click', function() {
+  qsa('.library-item', section).forEach(function(el) {
+    el.addEventListener('click', function() {
       const id = this.dataset.id;
-      const entry = lib.find(function(record) { return record.id === id; });
+      const entry = lib.find(function(r) { return r.id === id; });
       if (!entry) return;
-      showToast(entry.kind === 'url'
-        ? 'URL imports are listed here, but full URL-library resume arrives with Pro storage work.'
-        : 'This recent list shows progress. Full tap-to-resume across app restarts still depends on persisted file storage.');
+      resumeFromLibrary(entry);
     });
   });
+}
+
+async function resumeFromLibrary(entry) {
+  showLoading('Loading ' + entry.name + '...');
+  try {
+    const data = await loadFileData(entry.id);
+    if (!data || !data.words || data.words.length === 0) {
+      hideLoading();
+      showToast('File not cached — please re-import to read.');
+      return;
+    }
+
+    /* Update lastOpened in library */
+    saveFileToLibrary(Object.assign({}, entry, { lastOpened: Date.now() }));
+
+    AppState.currentFile = {
+      id: entry.id,
+      name: entry.name,
+      words: data.words,
+      pageWordIndex: data.pageWordIndex,
+      rawLines: data.rawLines,
+      metadata: data.metadata,
+      pdfDoc: null, /* not serialisable — Normal View unavailable on resume */
+    };
+    AppState.currentIndex = loadPosition(entry.id);
+
+    hideLoading();
+    renderReader();
+    switchView('view-reader');
+  } catch (_) {
+    hideLoading();
+    showToast('Could not load file — please re-import.');
+  }
 }
 
 function getFileProgress(fileMeta) {
