@@ -337,8 +337,20 @@ function renderSettings() {
         <p class="settings-copy">This app collects no data. There is no account, no analytics backend, and no file upload to any server we control.</p>
         <p class="settings-copy">URL Reader is Pro-only and clearly marked when it requires internet.</p>
       </section>
+
+      <section class="settings-section">
+        <h2>Developer</h2>
+        <p class="settings-copy text-muted">Test mode only. Not a real purchase. Toggle resets if app data is cleared.</p>
+        <label class="settings-toggle">
+          <span>Unlock Pro (Test mode — not a real purchase)</span>
+          <input type="checkbox" id="settings-dev-pro" />
+        </label>
+      </section>
     </div>
   `;
+
+  const devProEl = qs('#settings-dev-pro');
+  if (devProEl) devProEl.checked = loadDevProBypass();
 
   switchView('view-settings');
   bindSettings();
@@ -393,4 +405,14 @@ function bindSettings() {
       showProPaywall(this.dataset.proSource);
     });
   });
+
+  const devPro = qs('#settings-dev-pro');
+  if (devPro) {
+    devPro.addEventListener('change', function() {
+      saveDevProBypass(this.checked);
+      showToast(this.checked
+        ? 'Pro test mode ON — go back to home to see unlocked features.'
+        : 'Pro test mode OFF.');
+    });
+  }
 }

@@ -430,10 +430,11 @@ These must be shown explicitly on first launch and accessible from Settings → 
 
 ### PHASE 9 — Pro Paywall & URL Reader UI
 
-- [x] **Task 9.1:** Pro features show with lock icons in UI (DOCX upload, dashboard, themes, URL Reader, etc.).
+- [x] **Task 9.1:** Pro features show with lock icons in UI (DOCX upload, dashboard, themes, URL Reader, etc.). It's in black currently and difficult to read. We have given top half of screen for showing pdfs, for other options, we have to scroll, make shorter like other option like url, docx, and mark clearly as free as others are marked PRO.
 - [x] **Task 9.2:** Tapping any Pro feature shows the paywall screen: feature list, price, "Unlock Pro" button. Button is non-functional in MVP — purchase flow comes in v1.1.
 - [x] **Task 9.3:** "OCR Vision" lock screen for scanned PDFs with same non-functional button.
 - [x] **Task 9.4:** Pro-only URL Reader entry point added on the home screen with explicit `Requires internet` labelling, plain-language failure states, and successful imports routed into the shared reader word-stream path.
+- [x] **Task 9.5:** Pro features like URL fetching, DOCX, TXT , Dashboard should be implemented, and there should be a way to test it without actually paying.
 
 ### PHASE 10 — Pre-Launch Testing
 

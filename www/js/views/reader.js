@@ -1,6 +1,7 @@
 /* Speed reading container view — hosts all reading engines */
 
 let _activeEngine = null;
+let _sessionState = null; /* { startIndex, startTimeMs } */
 
 const _engineMap = {
   rsvp: RSVPEngine,
@@ -113,6 +114,7 @@ function renderReader(options) {
 function _bindReaderControls() {
   qs('#btn-reader-back').addEventListener('click', function() {
     if (_activeEngine) _activeEngine.pause();
+    _flushSessionIfActive();
     releaseWakeLock();
     switchView('view-upload');
   });
@@ -140,7 +142,9 @@ function _bindReaderControls() {
   qs('#btn-play-pause').addEventListener('click', function() {
     if (AppState.isPlaying) {
       _activeEngine.pause();
+      _onEnginePause();
     } else {
+      _onEnginePlay();
       _activeEngine.play();
     }
   });
@@ -284,11 +288,49 @@ function _applyCalmMode() {
   if (calmBtn) calmBtn.classList.toggle('active', calmEnabled);
 }
 
+function _onEnginePlay() {
+  if (_sessionState) return; /* already tracking */
+  _sessionState = {
+    startIndex: _activeEngine ? _activeEngine.getIndex() : AppState.currentIndex,
+    startTimeMs: Date.now(),
+  };
+}
+
+function _onEnginePause() {
+  _flushSessionIfActive();
+}
+
+function _flushSessionIfActive() {
+  if (!_sessionState) return;
+  if (!AppState.currentFile) {
+    _sessionState = null;
+    return;
+  }
+
+  const endIndex = _activeEngine ? _activeEngine.getIndex() : AppState.currentIndex;
+  const wordsRead = Math.max(0, endIndex - _sessionState.startIndex);
+  const durationMs = Date.now() - _sessionState.startTimeMs;
+
+  /* Only record sessions with meaningful content — skip accidental taps */
+  if (wordsRead >= 10 && durationMs >= 3000) {
+    saveReadingSession({
+      date: todayDateString(),
+      wordsRead: wordsRead,
+      durationMs: durationMs,
+      wpm: AppState.wpm,
+      fileId: AppState.currentFile.id,
+    });
+  }
+
+  _sessionState = null;
+}
+
 function _switchEngine(key) {
   const engine = _engineMap[key];
   if (!engine) return;
 
   const currentIndex = _activeEngine ? _activeEngine.getIndex() : AppState.currentIndex;
+  _onEnginePause(); /* Flush session before switching engines */
   if (_activeEngine) _activeEngine.destroy();
   AppState.isPlaying = false;
 

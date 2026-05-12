@@ -22,17 +22,20 @@ function loadWPM() {
 
 /* ── File library ───────────────────────────────────────────── */
 function saveFileToLibrary(meta) {
-  /* meta: { id, name, wordCount, pageCount, lastOpened } */
-  const lib = loadLibrary();
-  const idx = lib.findIndex(f => f.id === meta.id);
-  if (idx >= 0) lib[idx] = { ...lib[idx], ...meta };
-  else lib.unshift(meta);
+  const lib = loadLibrary().filter(function(item) {
+    return item && item.id !== meta.id;
+  });
+  lib.unshift({ ...meta });
   localStorage.setItem('fr_library', JSON.stringify(lib));
 }
 
 function loadLibrary() {
   try {
-    return JSON.parse(localStorage.getItem('fr_library') || '[]');
+    return JSON.parse(localStorage.getItem('fr_library') || '[]')
+      .filter(Boolean)
+      .sort(function(a, b) {
+        return (b.lastOpened || 0) - (a.lastOpened || 0);
+      });
   } catch (_) {
     return [];
   }
@@ -83,6 +86,47 @@ async function loadPurchaseState(key) {
 }
 
 /* ── File ID generation ─────────────────────────────────────── */
-function generateFileId(name, size) {
-  return btoa(name + size).replace(/[^a-z0-9]/gi, '').slice(0, 16);
+function generateFileId(primary, secondary, tertiary) {
+  const seed = [primary || '', secondary || '', tertiary || ''].join('::');
+  return btoa(seed).replace(/[^a-z0-9]/gi, '').slice(0, 24);
+}
+
+/* ── Dev test bypass (localStorage, test-only) ──────────────── */
+/* Uses localStorage instead of Capacitor Preferences so it's clearly separate from real purchases. */
+function saveDevProBypass(enabled) {
+  if (enabled) {
+    localStorage.setItem('fr_purchase_pro', 'true');
+  } else {
+    localStorage.removeItem('fr_purchase_pro');
+  }
+}
+
+function loadDevProBypass() {
+  return localStorage.getItem('fr_purchase_pro') === 'true';
+}
+
+/* ── Reading stats (append-only array, max 500 sessions) ────── */
+/* Session shape: { date: 'YYYY-MM-DD', wordsRead, durationMs, wpm, fileId } */
+function saveReadingSession(session) {
+  var sessions = loadReadingSessions();
+  sessions.push(session);
+  if (sessions.length > 500) {
+    sessions = sessions.slice(sessions.length - 500);
+  }
+  localStorage.setItem('fr_stats', JSON.stringify(sessions));
+}
+
+function loadReadingSessions() {
+  try {
+    return JSON.parse(localStorage.getItem('fr_stats') || '[]').filter(Boolean);
+  } catch (_) {
+    return [];
+  }
+}
+
+function todayDateString() {
+  var d = new Date();
+  var mm = String(d.getMonth() + 1).padStart(2, '0');
+  var dd = String(d.getDate()).padStart(2, '0');
+  return d.getFullYear() + '-' + mm + '-' + dd;
 }

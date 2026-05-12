@@ -3,11 +3,16 @@
 const ChunkEngine = (function() {
   let _words = [], _index = 0, _timerId = null;
   let _chunkSize = 3;
+  let _stageWidth = 0;
+  let _fontSizeCache = Object.create(null);
+  let _measureCanvas = null;
+  let _measureContext = null;
 
   function init(words, startIndex) {
     _words = words;
     _index = startIndex || 0;
     _chunkSize = parseInt(localStorage.getItem('fr_chunk_size') || String((AppState.settings && AppState.settings.defaultChunkSize) || 3), 10);
+    _fontSizeCache = Object.create(null);
     _render();
   }
 
@@ -29,6 +34,13 @@ const ChunkEngine = (function() {
     qs('#chunk-size-select').addEventListener('change', function() {
       _chunkSize = parseInt(this.value, 10);
       localStorage.setItem('fr_chunk_size', _chunkSize);
+      _fontSizeCache = Object.create(null);
+      _updateDisplay();
+    });
+    requestAnimationFrame(function() {
+      const stage = qs('#chunk-stage');
+      _stageWidth = stage ? Math.max(120, stage.clientWidth - 32) : 0;
+      _updateDisplay();
     });
     _updateDisplay();
   }
@@ -38,21 +50,13 @@ const ChunkEngine = (function() {
     if (el) {
       const chunkWords = _words.slice(_index, _index + _chunkSize);
       const placeholder = chunkWords.find(w => typeof w === 'object' && w.type === 'placeholder');
-      el.textContent = placeholder
+      const text = placeholder
         ? (placeholder.label || '[Content]')
         : chunkWords.filter(w => typeof w === 'string').join(' ');
+      el.textContent = text;
       el.classList.toggle('chunk-placeholder', Boolean(placeholder));
       el.onclick = placeholder ? function() { openObjectPlaceholder(placeholder); } : null;
-      /* Auto-shrink font until text fits in a single line */
-      let size = 36;
-      el.style.fontSize = size + 'px';
-      const stage = qs('#chunk-stage');
-      if (stage) {
-        while (el.scrollWidth > stage.clientWidth - 32 && size > 14) {
-          size -= 2;
-          el.style.fontSize = size + 'px';
-        }
-      }
+      el.style.fontSize = _resolveChunkFontSize(text) + 'px';
     }
     const prog = qs('#chunk-progress');
     if (prog) prog.textContent = formatNumber(_index) + ' / ' + formatNumber(_words.length);
@@ -111,6 +115,41 @@ const ChunkEngine = (function() {
     if (!AppState.isPlaying) return;
     if (_timerId) { clearTimeout(_timerId); _timerId = null; }
     _schedule();
+  }
+
+  function _resolveChunkFontSize(text) {
+    if (!text) return 36;
+    if (!_measureCanvas) {
+      _measureCanvas = document.createElement('canvas');
+      _measureContext = _measureCanvas.getContext('2d');
+    }
+
+    if (!_stageWidth) {
+      const stage = qs('#chunk-stage');
+      _stageWidth = stage ? Math.max(120, stage.clientWidth - 32) : 320;
+    }
+
+    const cacheKey = text + '::' + _stageWidth;
+    if (_fontSizeCache[cacheKey]) return _fontSizeCache[cacheKey];
+
+    let low = 14;
+    let high = 36;
+    let best = 14;
+
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      _measureContext.font = '400 ' + mid + 'px "Crimson Pro", Georgia, serif';
+      const width = _measureContext.measureText(text).width;
+      if (width <= _stageWidth) {
+        best = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+
+    _fontSizeCache[cacheKey] = best;
+    return best;
   }
 
   return { init, play, pause, destroy, getIndex, seekTo, onWPMChange };

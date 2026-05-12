@@ -73,6 +73,8 @@ function renderUpload() {
       </section>
 
       <input type="file" id="file-input" accept=".pdf" style="display:none" />
+      <input type="file" id="file-input-docx" accept=".docx" style="display:none" />
+      <input type="file" id="file-input-txt" accept=".txt" style="display:none" />
 
       <div id="upload-error" class="hidden" style="margin: 0 24px; width: 100%; max-width: 680px;"></div>
 
@@ -92,6 +94,18 @@ function renderUpload() {
     event.target.value = '';
   });
 
+  qs('#file-input-docx').addEventListener('change', function(event) {
+    const file = event.target.files[0];
+    if (file) handleDocxSelect(file);
+    event.target.value = '';
+  });
+
+  qs('#file-input-txt').addEventListener('change', function(event) {
+    const file = event.target.files[0];
+    if (file) handleTxtSelect(file);
+    event.target.value = '';
+  });
+
   qs('#btn-open-settings').addEventListener('click', renderSettings);
   qs('#btn-open-limitations').addEventListener('click', function() {
     renderSettings();
@@ -99,9 +113,9 @@ function renderUpload() {
     if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
   qs('#btn-url-reader').addEventListener('click', openUrlReader);
-  qs('#btn-docx-reader').addEventListener('click', function() { showProPaywall('docx-import'); });
-  qs('#btn-txt-reader').addEventListener('click', function() { showProPaywall('txt-import'); });
-  qs('#btn-dashboard').addEventListener('click', function() { showProPaywall('dashboard'); });
+  qs('#btn-docx-reader').addEventListener('click', openDocxReader);
+  qs('#btn-txt-reader').addEventListener('click', openTxtReader);
+  qs('#btn-dashboard').addEventListener('click', openDashboard);
   qs('#btn-import-url').addEventListener('click', function() {
     handleUrlImport(qs('#url-input').value);
   });
@@ -128,6 +142,36 @@ async function hydrateUploadSurface() {
     badge.textContent = 'Pro';
     panel.classList.add('hidden');
     button.classList.remove('import-card-live');
+  }
+
+  /* Unlock DOCX and TXT cards when Pro is active */
+  const docxCard = qs('#btn-docx-reader');
+  const txtCard = qs('#btn-txt-reader');
+  const dashboardCard = qs('#btn-dashboard');
+
+  if (pro) {
+    if (docxCard) {
+      docxCard.classList.remove('import-card-locked');
+      docxCard.classList.add('import-card-live');
+      const badge = docxCard.querySelector('.import-badge');
+      if (badge) badge.textContent = 'Word documents';
+    }
+    if (txtCard) {
+      txtCard.classList.remove('import-card-locked');
+      txtCard.classList.add('import-card-live');
+      const badge = txtCard.querySelector('.import-badge');
+      if (badge) badge.textContent = 'Plain text';
+    }
+    if (dashboardCard) {
+      dashboardCard.classList.remove('import-card-locked');
+      dashboardCard.classList.add('import-card-live');
+      const badge = dashboardCard.querySelector('.import-badge');
+      if (badge) badge.textContent = 'Analytics';
+    }
+  } else {
+    if (docxCard) docxCard.classList.add('import-card-locked');
+    if (txtCard) txtCard.classList.add('import-card-locked');
+    if (dashboardCard) dashboardCard.classList.add('import-card-locked');
   }
 }
 
@@ -175,7 +219,7 @@ async function handleFileSelect(file) {
       return;
     }
 
-    const fileId = generateFileId(file.name, file.size);
+    const fileId = generateFileId(file.name, file.size, file.lastModified || result.metadata.pageCount);
     AppState.currentFile = {
       id: fileId,
       name: file.name,
@@ -239,7 +283,7 @@ async function handleUrlImport(rawUrl) {
 
   try {
     const article = await fetchReadableArticle(parsedUrl);
-    const fileId = generateFileId(article.sourceUrl, article.wordCount);
+    const fileId = generateFileId('url', article.sourceUrl, article.wordCount);
     AppState.currentFile = {
       id: fileId,
       name: article.title,
@@ -522,6 +566,134 @@ function clearUploadError() {
   if (container) {
     container.innerHTML = '';
     hide(container);
+  }
+}
+
+async function openDocxReader() {
+  const pro = await hasProAccess();
+  if (!pro) {
+    showProPaywall('docx-import');
+    return;
+  }
+  qs('#file-input-docx').click();
+}
+
+async function openTxtReader() {
+  const pro = await hasProAccess();
+  if (!pro) {
+    showProPaywall('txt-import');
+    return;
+  }
+  qs('#file-input-txt').click();
+}
+
+async function openDashboard() {
+  const pro = await hasProAccess();
+  if (!pro) {
+    showProPaywall('dashboard');
+    return;
+  }
+  renderDashboard();
+  switchView('view-dashboard');
+}
+
+async function handleDocxSelect(file) {
+  if (!file.name.toLowerCase().endsWith('.docx') && file.type !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+    showUploadError('Unsupported file', 'Please select a .docx file.');
+    return;
+  }
+
+  clearUploadError();
+  showLoading('Reading DOCX...');
+
+  try {
+    const arrayBuffer = await readFileAsArrayBuffer(file);
+    const result = await parseDOCX(arrayBuffer);
+
+    if (!result.metadata.hasTextLayer) {
+      hideLoading();
+      showUploadError('Empty document', 'This DOCX appears to contain no readable text.');
+      return;
+    }
+
+    const fileId = generateFileId(file.name, file.size, file.lastModified || result.metadata.wordCount);
+    AppState.currentFile = {
+      id: fileId,
+      name: file.name,
+      words: result.words,
+      pageWordIndex: result.pageWordIndex,
+      rawLines: result.rawLines,
+      metadata: Object.assign({}, result.metadata, { sourceType: 'docx' }),
+      pdfDoc: null,
+    };
+    AppState.currentIndex = loadPosition(fileId);
+
+    saveFileToLibrary({
+      id: fileId,
+      kind: 'docx',
+      name: file.name,
+      wordCount: result.metadata.wordCount,
+      pageCount: result.metadata.pageCount,
+      lastOpened: Date.now(),
+    });
+
+    hideLoading();
+    renderReader();
+    switchView('view-reader');
+  } catch (err) {
+    hideLoading();
+    if (err && err.type === 'empty-document') {
+      showUploadError('Empty document', 'This DOCX contains no readable text.');
+      return;
+    }
+    showUploadError('DOCX import failed', 'Could not read this file. ' + ((err && err.detail) || (err && err.message) || ''));
+  }
+}
+
+async function handleTxtSelect(file) {
+  if (!file.name.toLowerCase().endsWith('.txt') && file.type !== 'text/plain') {
+    showUploadError('Unsupported file', 'Please select a .txt file.');
+    return;
+  }
+
+  clearUploadError();
+  showLoading('Reading TXT...');
+
+  try {
+    const arrayBuffer = await readFileAsArrayBuffer(file);
+    const result = await parseTXT(arrayBuffer);
+
+    const fileId = generateFileId(file.name, file.size, file.lastModified || result.metadata.wordCount);
+    AppState.currentFile = {
+      id: fileId,
+      name: file.name,
+      words: result.words,
+      pageWordIndex: result.pageWordIndex,
+      rawLines: result.rawLines,
+      metadata: Object.assign({}, result.metadata, { sourceType: 'txt' }),
+      pdfDoc: null,
+    };
+    AppState.currentIndex = loadPosition(fileId);
+
+    saveFileToLibrary({
+      id: fileId,
+      kind: 'txt',
+      name: file.name,
+      wordCount: result.metadata.wordCount,
+      pageCount: result.metadata.pageCount,
+      lastOpened: Date.now(),
+    });
+
+    hideLoading();
+    renderReader();
+    switchView('view-reader');
+  } catch (err) {
+    hideLoading();
+    if (err && err.type === 'empty-document') {
+      showUploadError('Empty file', 'This TXT file contains no readable text.');
+      return;
+    }
+    showUploadError('TXT import failed', 'Could not read this file. ' + ((err && err.detail) || (err && err.message) || ''));
   }
 }
 
