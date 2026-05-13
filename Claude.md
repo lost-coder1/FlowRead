@@ -66,11 +66,22 @@ www/
 
 ## 3. Business Model
 
-| Tier | Price | Includes |
+| Tier | US Launch Price | Notes |
 |---|---|---|
 | **Free** | $0 | Unlimited PDFs, all 4 engines, all core features |
-| **Pro** | $24.99 Android / $39.99 iOS | All formats + dashboard + dictionary + themes + sync |
-| **OCR Vision** | $9.99 add-on | Scanned/image-based PDFs |
+| **Pro** | $9.99 Android / $14.99 iOS intro | Intro price is time-based, not user-count-based. Move to a higher anchor after launch if needed. |
+| **OCR Vision** | $4.99 Android / $7.99 iOS intro | Separate one-time add-on. Keep it available only to Pro users. |
+
+PPP structure:
+- Tier A: US, Canada, UK, Australia, Western Europe at 100% of launch price.
+- Tier B: LATAM, Eastern Europe, Southeast Asia at roughly 50% to 70%.
+- Tier C: India, Indonesia, Philippines, Vietnam, Pakistan, Egypt at roughly 25% to 45%.
+
+Implementation:
+- Use App Store Connect and Google Play Console regional pricing rather than hardcoding local prices in the app.
+- Keep `pro_lifetime` and `ocr_vision` as fixed product IDs across all regions.
+- Show the store-returned localized price in the paywall UI.
+- Avoid pricing by number of users; use launch windows and regional pricing instead.
 
 Store fees: iOS 30% (15% under $1M via SBP). Android 15% on first $1M.
 
@@ -218,6 +229,11 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
   - OCR Vision is a separate one-time paid feature.
   - OCR Vision purchase flow is available only to Pro users; free users cannot buy/use OCR Vision.
 
+-[ ] **Task 12.4 — Clean up Tasks**
+  - Sepia And High Contrast options in Display Settings are disabled even for pro users. It shuld only be disabled for Free Users.
+  - Add option to give more font types, disabled or dyslexic friendly ones as well.
+  - Add image for the app icon.
+  - Add an actual flow to buy the pro feature. 
 ---
 
 ## 12. Code Rules
