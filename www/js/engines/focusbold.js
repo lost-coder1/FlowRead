@@ -15,6 +15,7 @@ const FocusBoldEngine = (function() {
   let _domCache = null;   /* detached <div> holding the shell when engine is inactive */
   let _cacheFileId = null;
   let _abortBuild = false; /* set true on destroy() to short-circuit in-progress chunked build */
+  let _buildComplete = false;
 
   /* ── Init ─────────────────────────────────────────────────── */
 
@@ -24,37 +25,45 @@ const FocusBoldEngine = (function() {
     _timerId = null;
     _pageIndex = 0;
     _abortBuild = false;
+    _buildComplete = false;
 
     const fileId = AppState.currentFile && AppState.currentFile.id;
     const container = qs('#rsvp-container');
 
     /* Cache hit: same file, pages already built — restore DOM and seek */
     if (fileId && fileId === _cacheFileId && _domCache && _pages.length > 0) {
-      /* Clear whatever's in the container (previous engine's DOM, or a spinner)
-         before re-attaching the cached shell. Otherwise both engines' content
-         would coexist and overlap. */
-      container.innerHTML = '';
+      _clearEngineContent(container);
       while (_domCache.firstChild) {
         container.appendChild(_domCache.firstChild);
       }
       _domCache = null;
+      _buildComplete = true;
+      if (typeof _updateEngineLoadingProgress === 'function') {
+        _updateEngineLoadingProgress(92);
+      }
       _showPage(_pageForIndex(_index));
       _paintCurrent();
       if (typeof _syncReaderPosition === 'function') {
         _syncReaderPosition(_index, _words.length);
       }
+      if (typeof _updateEngineLoadingProgress === 'function') {
+        _updateEngineLoadingProgress(100);
+      }
+      _removeLoadingSpinner(container);
       return;
     }
 
     _pages = [];
     _allSpans = [];
     _domCache = null;
+    _buildComplete = false;
     _cacheFileId = fileId;
     _render();
   }
 
   function _render() {
     const container = qs('#rsvp-container');
+    _clearEngineContent(container);
 
     /* IMPORTANT: do NOT clear the container with innerHTML — that would remove the
        loading spinner set up in reader.js _switchEngine. Append the shell alongside
@@ -111,6 +120,7 @@ const FocusBoldEngine = (function() {
             if (typeof _updateEngineLoadingProgress === 'function') {
               _updateEngineLoadingProgress(100);
             }
+            _buildComplete = true;
             _removeLoadingSpinner(container);
             if (typeof _syncReaderPosition === 'function') {
               _syncReaderPosition(_index, _words.length);
@@ -126,6 +136,15 @@ const FocusBoldEngine = (function() {
   function _removeLoadingSpinner(container) {
     const spinner = container && container.querySelector('.engine-loading');
     if (spinner) spinner.remove();
+  }
+
+  function _clearEngineContent(container) {
+    if (!container) return;
+    Array.prototype.slice.call(container.children).forEach(function(child) {
+      if (!(child.classList && child.classList.contains('engine-loading'))) {
+        container.removeChild(child);
+      }
+    });
   }
 
   function _paginateFromDOM(tempPage, shell) {
@@ -356,7 +375,7 @@ const FocusBoldEngine = (function() {
     /* Move built DOM to cache before the container is overwritten by the next engine.
        Keeps _pages and _allSpans intact so restore skips full rebuild. */
     const container = qs('#rsvp-container');
-    if (container && _pages.length > 0 && _cacheFileId) {
+    if (container && _pages.length > 0 && _cacheFileId && _buildComplete) {
       /* Strip fb-page-visible from ALL pages so the cache is in a clean "no page visible"
          state — otherwise the old visible page would still show alongside the new one
          on cache restore, causing text-over-text overlap. */
@@ -364,9 +383,11 @@ const FocusBoldEngine = (function() {
         if (_pages[i].el) _pages[i].el.classList.remove('fb-page-visible');
       }
       _domCache = document.createElement('div');
-      while (container.firstChild) {
-        _domCache.appendChild(container.firstChild);
-      }
+      Array.prototype.slice.call(container.children).forEach(function(child) {
+        if (!(child.classList && child.classList.contains('engine-loading'))) {
+          _domCache.appendChild(child);
+        }
+      });
     } else {
       _domCache = null;
       _pages = [];
@@ -393,7 +414,7 @@ const FocusBoldEngine = (function() {
   }
 
   function hasCache(fileId) {
-    return !!(fileId && fileId === _cacheFileId && _domCache && _pages.length > 0);
+    return !!(fileId && fileId === _cacheFileId && _domCache && _pages.length > 0 && _buildComplete);
   }
 
   return { init, play, pause, destroy, getIndex, seekTo, onWPMChange, hasCache };
