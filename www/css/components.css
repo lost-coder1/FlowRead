@@ -653,6 +653,7 @@
   background: var(--surface-2);
   color: var(--text);
   border-radius: var(--radius-md);
+  transition: border-color var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
 }
 
 .settings-theme-chip.active {
@@ -661,6 +662,11 @@
 
 .settings-theme-chip.locked {
   color: var(--text-muted);
+}
+
+.settings-theme-chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
 }
 
 /* ── Modal ──────────────────────────────────────────────────── */

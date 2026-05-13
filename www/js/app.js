@@ -45,12 +45,26 @@ window.addEventListener('unhandledrejection', function(e) {
 });
 
 /* Boot sequence */
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
   const settings = typeof getSettings === 'function' ? getSettings() : {};
   AppState.settings = settings;
   AppState.wpm = settings.defaultWpm || loadWPM();
   AppState.currentEngine = localStorage.getItem('fr_last_engine') || settings.defaultMode || 'rsvp';
   AppState.lastReaderEngine = AppState.currentEngine;
+
+  try {
+    if (typeof hasProAccess === 'function') {
+      await hasProAccess();
+    } else {
+      AppState.isPro = typeof loadDevProBypass === 'function' ? loadDevProBypass() : false;
+    }
+  } catch (_) {
+    AppState.isPro = false;
+  }
+
+  if (typeof applyTheme === 'function') {
+    applyTheme(settings.theme);
+  }
 
   if (localStorage.getItem('fr_orp_enabled') === null) localStorage.setItem('fr_orp_enabled', settings.orpDefault ? 'true' : 'false');
   if (localStorage.getItem('fr_context_enabled') === null) localStorage.setItem('fr_context_enabled', settings.contextDefault ? 'true' : 'false');

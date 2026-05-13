@@ -52,6 +52,24 @@ const FlowReadContent = {
   ].join(' '),
 };
 
+const FlowReadThemes = [
+  {
+    key: 'oled-black',
+    label: 'OLED Black',
+    proOnly: false,
+  },
+  {
+    key: 'sepia',
+    label: 'Sepia',
+    proOnly: true,
+  },
+  {
+    key: 'high-contrast',
+    label: 'High Contrast',
+    proOnly: true,
+  },
+];
+
 function getDefaultSettings() {
   return {
     defaultWpm: 260,
@@ -72,6 +90,42 @@ function getSettings() {
 function updateSetting(key, value) {
   AppState.settings[key] = value;
   saveSettings(AppState.settings);
+}
+
+function isThemeUnlocked(themeKey, hasPro) {
+  const theme = FlowReadThemes.find(function(item) {
+    return item.key === themeKey;
+  }) || FlowReadThemes[0];
+  return !theme.proOnly || hasPro === true;
+}
+
+function getEffectiveTheme(themeKey, hasPro) {
+  if (isThemeUnlocked(themeKey, hasPro)) return themeKey;
+  return 'oled-black';
+}
+
+function applyTheme(themeKey) {
+  const theme = getEffectiveTheme(themeKey, AppState.isPro);
+  document.body.setAttribute('data-theme', theme);
+  return theme;
+}
+
+function syncThemeChips() {
+  const activeTheme = getEffectiveTheme(AppState.settings.theme, AppState.isPro);
+  qsa('[data-theme-value]').forEach(function(button) {
+    const themeKey = button.dataset.themeValue;
+    const locked = !isThemeUnlocked(themeKey, AppState.isPro);
+    const isActive = themeKey === activeTheme;
+
+    button.classList.toggle('active', isActive);
+    button.classList.toggle('locked', locked);
+    button.disabled = locked;
+    button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    button.setAttribute('aria-disabled', locked ? 'true' : 'false');
+    button.textContent = FlowReadThemes.find(function(item) {
+      return item.key === themeKey;
+    }).label + (locked ? ' 🔒' : '');
+  });
 }
 
 function renderOnboarding(stepIndex) {
@@ -254,6 +308,8 @@ function renderSettings() {
   if (!view) return;
 
   AppState.settings = getSettings();
+  const activeTheme = getEffectiveTheme(AppState.settings.theme, AppState.isPro);
+  applyTheme(AppState.settings.theme);
 
   view.innerHTML = `
     <div class="settings-screen">
@@ -299,9 +355,19 @@ function renderSettings() {
           <strong id="settings-font-scale-value">${Math.round(AppState.settings.fontScale * 100)}%</strong>
         </label>
         <div class="settings-theme-list">
-          <button class="settings-theme-chip active" type="button">OLED Black</button>
-          <button class="settings-theme-chip locked" type="button" data-pro-source="theme-sepia">Sepia 🔒</button>
-          <button class="settings-theme-chip locked" type="button" data-pro-source="theme-contrast">High Contrast 🔒</button>
+          ${FlowReadThemes.map(function(theme) {
+            const locked = !isThemeUnlocked(theme.key, AppState.isPro);
+            const active = theme.key === activeTheme;
+            return `
+              <button
+                class="settings-theme-chip${active ? ' active' : ''}${locked ? ' locked' : ''}"
+                type="button"
+                data-theme-value="${theme.key}"
+                aria-pressed="${active ? 'true' : 'false'}"
+                ${locked ? 'disabled aria-disabled="true"' : ''}
+              >${theme.label}${locked ? ' 🔒' : ''}</button>
+            `;
+          }).join('')}
         </div>
       </section>
 
@@ -352,6 +418,8 @@ function renderSettings() {
   const devProEl = qs('#settings-dev-pro');
   if (devProEl) devProEl.checked = loadDevProBypass();
 
+  syncThemeChips();
+
   switchView('view-settings');
   bindSettings();
 }
@@ -400,9 +468,14 @@ function bindSettings() {
     updateSetting('calmModeDefault', this.checked);
   });
 
-  qsa('[data-pro-source]').forEach(function(button) {
+  qsa('[data-theme-value]').forEach(function(button) {
     button.addEventListener('click', function() {
-      showProPaywall(this.dataset.proSource);
+      if (this.disabled) return;
+
+      const theme = this.dataset.themeValue;
+      updateSetting('theme', theme);
+      applyTheme(theme);
+      syncThemeChips();
     });
   });
 
@@ -410,6 +483,9 @@ function bindSettings() {
   if (devPro) {
     devPro.addEventListener('change', function() {
       saveDevProBypass(this.checked);
+      AppState.isPro = this.checked;
+      applyTheme(AppState.settings.theme);
+      syncThemeChips();
       showToast(this.checked
         ? 'Pro test mode ON — go back to home to see unlocked features.'
         : 'Pro test mode OFF.');

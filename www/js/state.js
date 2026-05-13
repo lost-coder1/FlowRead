@@ -5,6 +5,7 @@ const AppState = {
   currentIndex: 0,       /* current word position across all engines */
   wpm: 260,
   settings: {},
+  isPro: false,
   isPlaying: false,
   currentView: 'view-upload',
   currentEngine: 'rsvp',
