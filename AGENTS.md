@@ -195,23 +195,10 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
 
 ### PHASE 11 — Share Extension & Deeper Sync (Completed)
 
-- [x] **Task 11.1 — Widen device sync search**
-  - Implemented native Android storage scan via custom Capacitor plugin.
-  - Scans external storage recursively (depth-limited), free/pro extension gating (`.pdf` for free, `.pdf/.docx/.txt` for pro), and shows source paths.
-  - Results persist on home screen under **Readable files on device**.
+### Important intermittent next Task 
+- Going from any mode to Scroll 2nd time takes noticeable amount of time and UI seems stuck. We need to add a loading spinner here.
 
-- [x] **Task 11.2 — Android Share Extension (receive URL from browser)**
-  - Added Android share-sheet intent support.
-  - Share payload bridged to JS, Pro gate enforced, article fetched/saved locally, and opened in reader using default mode.
-  - Shared URL items appear in library/dashboard and support progress tracking.
 
-- [x] **Task 11.3 — Error boundary**
-  - Global error boundaries in `app.js` now surface plain-language fallback card and return user safely to home.
-
-- [x] **Phase 11 UX follow-ups**
-  - Home library split into `Recent` and collapsible `Read` (100% complete only).
-  - `Readable files on device` section is collapsible and defaults collapsed after each sync.
-  - Top Settings entry point added in upload header for quick access.
 
 ### PHASE 12 — Engagement, Navigation, OCR Vision
 
@@ -234,6 +221,11 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
   - Add option to give more font types, disabled or dyslexic friendly ones as well.
   - Add image for the app icon.
   - Add an actual flow to buy the pro feature. 
+
+-[ ] **Task 12.5 — Internal Dictionary**
+  - Provide a local dictionary
+  -when user long press on any word in any mode, app should show the meaning from this library
+  -if it is not available, it should show device specific options or dictionary as fall back
 
 ---
 
