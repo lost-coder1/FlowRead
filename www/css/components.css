@@ -646,6 +646,13 @@
   flex-wrap: wrap;
 }
 
+.settings-font-list {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.settings-font-chip,
 .settings-theme-chip {
   min-height: 40px;
   padding: 0 var(--space-md);
@@ -656,14 +663,17 @@
   transition: border-color var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
 }
 
+.settings-font-chip.active,
 .settings-theme-chip.active {
   border-color: var(--accent);
 }
 
+.settings-font-chip.locked,
 .settings-theme-chip.locked {
   color: var(--text-muted);
 }
 
+.settings-font-chip:disabled,
 .settings-theme-chip:disabled {
   cursor: not-allowed;
   opacity: 0.72;

@@ -66,6 +66,21 @@ html, body {
   --font-mono:    'DM Mono', 'Courier New', monospace;
 }
 
+body[data-font="classic-serif"] {
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body: 'Crimson Pro', Georgia, serif;
+}
+
+body[data-font="clean-sans"] {
+  --font-display: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+  --font-body: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
+
+body[data-font="dyslexic-friendly"] {
+  --font-display: 'OpenDyslexic', 'Atkinson Hyperlegible', 'Segoe UI', Arial, sans-serif;
+  --font-body: 'OpenDyslexic', 'Atkinson Hyperlegible', 'Segoe UI', Arial, sans-serif;
+}
+
 /* ── Base typography ────────────────────────────────────────── */
 body {
   font-family: var(--font-body);

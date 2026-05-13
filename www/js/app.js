@@ -66,6 +66,10 @@ document.addEventListener('DOMContentLoaded', async function() {
     applyTheme(settings.theme);
   }
 
+  if (typeof applyTypography === 'function') {
+    applyTypography(settings.fontPreset);
+  }
+
   if (localStorage.getItem('fr_orp_enabled') === null) localStorage.setItem('fr_orp_enabled', settings.orpDefault ? 'true' : 'false');
   if (localStorage.getItem('fr_context_enabled') === null) localStorage.setItem('fr_context_enabled', settings.contextDefault ? 'true' : 'false');
   if (localStorage.getItem('fr_calm_mode') === null) localStorage.setItem('fr_calm_mode', settings.calmModeDefault ? 'true' : 'false');

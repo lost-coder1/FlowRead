@@ -70,12 +70,31 @@ const FlowReadThemes = [
   },
 ];
 
+const FlowReadTypographyPresets = [
+  {
+    key: 'classic-serif',
+    label: 'Classic Serif',
+    proOnly: false,
+  },
+  {
+    key: 'clean-sans',
+    label: 'Clean Sans',
+    proOnly: true,
+  },
+  {
+    key: 'dyslexic-friendly',
+    label: 'Dyslexic Friendly',
+    proOnly: true,
+  },
+];
+
 function getDefaultSettings() {
   return {
     defaultWpm: 260,
     defaultChunkSize: 3,
     defaultMode: 'rsvp',
     fontScale: 1,
+    fontPreset: 'classic-serif',
     theme: 'oled-black',
     orpDefault: true,
     contextDefault: false,
@@ -104,10 +123,28 @@ function getEffectiveTheme(themeKey, hasPro) {
   return 'oled-black';
 }
 
+function isTypographyPresetUnlocked(fontKey, hasPro) {
+  const preset = FlowReadTypographyPresets.find(function(item) {
+    return item.key === fontKey;
+  }) || FlowReadTypographyPresets[0];
+  return !preset.proOnly || hasPro === true;
+}
+
+function getEffectiveFontPreset(fontKey, hasPro) {
+  if (isTypographyPresetUnlocked(fontKey, hasPro)) return fontKey;
+  return 'classic-serif';
+}
+
 function applyTheme(themeKey) {
   const theme = getEffectiveTheme(themeKey, AppState.isPro);
   document.body.setAttribute('data-theme', theme);
   return theme;
+}
+
+function applyTypography(fontKey) {
+  const preset = getEffectiveFontPreset(fontKey, AppState.isPro);
+  document.body.setAttribute('data-font', preset);
+  return preset;
 }
 
 function syncThemeChips() {
@@ -124,6 +161,24 @@ function syncThemeChips() {
     button.setAttribute('aria-disabled', locked ? 'true' : 'false');
     button.textContent = FlowReadThemes.find(function(item) {
       return item.key === themeKey;
+    }).label + (locked ? ' 🔒' : '');
+  });
+}
+
+function syncTypographyChips() {
+  const activePreset = getEffectiveFontPreset(AppState.settings.fontPreset, AppState.isPro);
+  qsa('[data-font-value]').forEach(function(button) {
+    const fontKey = button.dataset.fontValue;
+    const locked = !isTypographyPresetUnlocked(fontKey, AppState.isPro);
+    const isActive = fontKey === activePreset;
+
+    button.classList.toggle('active', isActive);
+    button.classList.toggle('locked', locked);
+    button.disabled = locked;
+    button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+    button.setAttribute('aria-disabled', locked ? 'true' : 'false');
+    button.textContent = FlowReadTypographyPresets.find(function(item) {
+      return item.key === fontKey;
     }).label + (locked ? ' 🔒' : '');
   });
 }
@@ -309,7 +364,9 @@ function renderSettings() {
 
   AppState.settings = getSettings();
   const activeTheme = getEffectiveTheme(AppState.settings.theme, AppState.isPro);
+  const activeFont = getEffectiveFontPreset(AppState.settings.fontPreset, AppState.isPro);
   applyTheme(AppState.settings.theme);
+  applyTypography(AppState.settings.fontPreset);
 
   view.innerHTML = `
     <div class="settings-screen">
@@ -354,6 +411,21 @@ function renderSettings() {
           <input type="range" id="settings-font-scale" min="0.85" max="1.25" step="0.05" value="${AppState.settings.fontScale}" />
           <strong id="settings-font-scale-value">${Math.round(AppState.settings.fontScale * 100)}%</strong>
         </label>
+        <div class="settings-font-list">
+          ${FlowReadTypographyPresets.map(function(font) {
+            const locked = !isTypographyPresetUnlocked(font.key, AppState.isPro);
+            const active = font.key === activeFont;
+            return `
+              <button
+                class="settings-font-chip${active ? ' active' : ''}${locked ? ' locked' : ''}"
+                type="button"
+                data-font-value="${font.key}"
+                aria-pressed="${active ? 'true' : 'false'}"
+                ${locked ? 'disabled aria-disabled="true"' : ''}
+              >${font.label}${locked ? ' 🔒' : ''}</button>
+            `;
+          }).join('')}
+        </div>
         <div class="settings-theme-list">
           ${FlowReadThemes.map(function(theme) {
             const locked = !isThemeUnlocked(theme.key, AppState.isPro);
@@ -419,6 +491,7 @@ function renderSettings() {
   if (devProEl) devProEl.checked = loadDevProBypass();
 
   syncThemeChips();
+  syncTypographyChips();
 
   switchView('view-settings');
   bindSettings();
@@ -446,6 +519,17 @@ function bindSettings() {
     const value = parseFloat(this.value);
     fontScaleValue.textContent = Math.round(value * 100) + '%';
     updateSetting('fontScale', value);
+  });
+
+  qsa('[data-font-value]').forEach(function(button) {
+    button.addEventListener('click', function() {
+      if (this.disabled) return;
+
+      const fontPreset = this.dataset.fontValue;
+      updateSetting('fontPreset', fontPreset);
+      applyTypography(fontPreset);
+      syncTypographyChips();
+    });
   });
 
   qs('#settings-chunk-size').addEventListener('change', function() {
@@ -485,7 +569,9 @@ function bindSettings() {
       saveDevProBypass(this.checked);
       AppState.isPro = this.checked;
       applyTheme(AppState.settings.theme);
+      applyTypography(AppState.settings.fontPreset);
       syncThemeChips();
+      syncTypographyChips();
       showToast(this.checked
         ? 'Pro test mode ON — go back to home to see unlocked features.'
         : 'Pro test mode OFF.');

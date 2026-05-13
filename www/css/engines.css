@@ -24,6 +24,7 @@
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
+  touch-action: pan-y;
 }
 
 .reader-header {
@@ -122,14 +123,14 @@
 }
 
 .engine-loading-title {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: var(--font-display);
   font-size: 19px;
   color: var(--text);
   margin-top: 6px;
 }
 
 .engine-loading-subtitle {
-  font-family: 'Crimson Pro', Georgia, serif;
+  font-family: var(--font-body);
   font-size: 14px;
   color: var(--text-muted);
   margin-top: -4px;
@@ -166,7 +167,7 @@
 }
 
 .engine-loading-tip {
-  font-family: 'Crimson Pro', Georgia, serif;
+  font-family: var(--font-body);
   font-size: 14px;
   font-style: italic;
   line-height: 1.5;
@@ -398,7 +399,7 @@
 }
 
 .rsvp-word-wrap {
-  font-family: 'Crimson Pro', Georgia, serif;
+  font-family: var(--font-body);
   font-weight: 400;
   font-size: 48px; /* default — overridden by JS _applyFontSize() via inline style */
   line-height: 1.1;
@@ -552,7 +553,7 @@
   display: none; /* skip layout for hidden pages — critical for large docs */
   padding: var(--space-xl) var(--space-lg);
   box-sizing: border-box;
-  font-family: 'Crimson Pro', Georgia, serif;
+  font-family: var(--font-body);
   font-size: clamp(18px, 3.2vw, 24px);
   line-height: 1.85;
   color: var(--text-dim);
@@ -617,7 +618,7 @@
   height: 100%;
   overflow-y: auto;
   padding: var(--space-lg) var(--space-md);
-  font-family: 'Crimson Pro', Georgia, serif;
+  font-family: var(--font-body);
   font-size: 20px;
   line-height: 1.9;
   -webkit-overflow-scrolling: touch;
@@ -654,7 +655,7 @@
 
 .scroll-content {
   padding: 50vh var(--space-md);
-  font-family: 'Crimson Pro', Georgia, serif;
+  font-family: var(--font-body);
   font-size: 20px;
   line-height: 1.9;
   color: var(--text);
