@@ -248,6 +248,9 @@ async function handleFileSelect(file) {
 
   try {
     const arrayBuffer = await readFileAsArrayBuffer(file);
+    /* Make an independent copy BEFORE parsePDF — pdf.js may transfer ownership of
+       the underlying buffer (detaching it), which would corrupt the raw save. */
+    const arrayBufferForStorage = arrayBuffer.slice(0);
     const result = await parsePDF(arrayBuffer);
 
     if (!result.metadata.hasTextLayer) {
@@ -283,6 +286,11 @@ async function handleFileSelect(file) {
 
     /* Save parsed content for resume (pdfDoc excluded — not serialisable) */
     saveFileData(fileId, AppState.currentFile);
+    /* Also persist the raw PDF binary so Normal View remains available across restarts.
+       Use the pre-parse copy in case pdf.js detached the original. */
+    saveRawPdf(fileId, arrayBufferForStorage).then(function(ok) {
+      if (!ok) console.warn('Raw PDF save failed for', fileId);
+    });
 
     hideLoading();
     window._pdfParseProgress = null;
@@ -830,6 +838,10 @@ async function renderLibrary() {
             '<div class="library-item-progress"><div class="library-progress-bar">',
             '<div class="library-progress-fill" style="width:' + pct + '%"></div>',
             '</div></div>',
+            '<div class="library-item-actions">',
+            '<button class="btn btn-ghost btn-mark-read" type="button" data-mark-read-id="' + escapeHtml(item.id) + '" data-mark-read-wc="' + (item.wordCount || 0) + '">Mark read</button>',
+            '<button class="btn btn-ghost btn-remove-file" type="button" data-remove-id="' + escapeHtml(item.id) + '">Remove</button>',
+            '</div>',
             '</li>',
           ].join('');
         }).join(''),
@@ -913,8 +925,26 @@ async function renderLibrary() {
         '<p class="library-card-name">' + escapeHtml(item.name) + '</p>',
         '<p class="library-card-meta">' + escapeHtml(formatDate(item.lastOpened)) + (pct > 0 ? ' · ' + pct + '%' : '') + '</p>',
         '<div class="library-card-progress"><div class="library-card-progress-fill" style="width:' + pct + '%"></div></div>',
+        '<div class="library-item-actions">',
+        '<button class="btn btn-ghost btn-mark-read" type="button" data-mark-read-id="' + escapeHtml(item.id) + '" data-mark-read-wc="' + (item.wordCount || 0) + '">Mark read</button>',
+        '<button class="btn btn-ghost btn-remove-file" type="button" data-remove-id="' + escapeHtml(item.id) + '">Remove</button>',
+        '</div>',
       ].join('');
       card.addEventListener('click', function() { resumeFromLibrary(item); });
+      const markReadBtn = qs('[data-mark-read-id]', card);
+      if (markReadBtn) {
+        markReadBtn.addEventListener('click', function(event) {
+          event.stopPropagation();
+          markFileAsRead(item.id, item.wordCount || 0);
+        });
+      }
+      const removeBtn = qs('[data-remove-id]', card);
+      if (removeBtn) {
+        removeBtn.addEventListener('click', function(event) {
+          event.stopPropagation();
+          _confirmRemoveFile(item.id);
+        });
+      }
       grid.appendChild(card);
     });
   }
@@ -964,6 +994,20 @@ async function renderLibrary() {
     });
   });
 
+  qsa('[data-mark-read-id]', section).forEach(function(btn) {
+    btn.addEventListener('click', function(event) {
+      event.stopPropagation();
+      markFileAsRead(btn.dataset.markReadId, parseInt(btn.dataset.markReadWc, 10) || 0);
+    });
+  });
+
+  qsa('[data-remove-id]', section).forEach(function(btn) {
+    btn.addEventListener('click', function(event) {
+      event.stopPropagation();
+      _confirmRemoveFile(btn.dataset.removeId);
+    });
+  });
+
   qsa('.library-item[data-device-file-idx]', section).forEach(function(el) {
     el.addEventListener('click', function() {
       const idx = parseInt(this.dataset.deviceFileIdx, 10);
@@ -1007,6 +1051,37 @@ function markLibraryItemUnread(fileId) {
   renderLibrary();
 }
 
+function markFileAsRead(fileId, wordCount) {
+  if (!fileId || !wordCount) return;
+  savePosition(fileId, wordCount);
+  renderLibrary();
+}
+
+function _confirmRemoveFile(fileId) {
+  if (!fileId) return;
+  /* Inline confirm: replace the item with a confirmation row, avoid modal */
+  const item = qs('[data-id="' + fileId + '"]') || qs('[data-remove-id="' + fileId + '"]');
+  const row = item && item.closest('.library-item, .library-card');
+  if (!row) {
+    removeFileFromLibrary(fileId);
+    renderLibrary();
+    return;
+  }
+  row.innerHTML = '<div class="library-item-confirm"><span>Remove this file?</span>' +
+    '<button class="btn btn-ghost btn-confirm-yes" type="button">Yes, remove</button>' +
+    '<button class="btn btn-ghost btn-confirm-no" type="button">Cancel</button></div>';
+
+  qs('.btn-confirm-yes', row).addEventListener('click', function(event) {
+    event.stopPropagation(); /* prevent bubbling to parent library-item click handler */
+    removeFileFromLibrary(fileId);
+    renderLibrary();
+  });
+  qs('.btn-confirm-no', row).addEventListener('click', function(event) {
+    event.stopPropagation();
+    renderLibrary();
+  });
+}
+
 async function resumeFromLibrary(entry) {
   showLoading('Loading ' + entry.name + '...');
   try {
@@ -1027,7 +1102,9 @@ async function resumeFromLibrary(entry) {
       pageWordIndex: data.pageWordIndex,
       rawLines: data.rawLines,
       metadata: data.metadata,
-      pdfDoc: null, /* not serialisable — Normal View unavailable on resume */
+      pdfDoc: null, /* not serialisable — re-parsed lazily from raw bytes if needed */
+      /* If we have the raw PDF on disk, Normal View can be opened on demand */
+      pdfRawAvailable: entry.kind === 'pdf' && hasRawPdf(entry.id),
     };
     AppState.currentIndex = loadPosition(entry.id);
 

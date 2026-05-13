@@ -8,6 +8,12 @@ const ChunkEngine = (function() {
   let _measureCanvas = null;
   let _measureContext = null;
 
+  function _getReadingFontFamily() {
+    if (!document.body || !window.getComputedStyle) return '"Roboto", "Helvetica Neue", Arial, sans-serif';
+    const family = window.getComputedStyle(document.body).getPropertyValue('--font-body').trim();
+    return family || '"Roboto", "Helvetica Neue", Arial, sans-serif';
+  }
+
   function init(words, startIndex) {
     _words = words;
     _index = startIndex || 0;
@@ -138,7 +144,7 @@ const ChunkEngine = (function() {
 
     while (low <= high) {
       const mid = Math.floor((low + high) / 2);
-      _measureContext.font = '400 ' + mid + 'px "Crimson Pro", Georgia, serif';
+      _measureContext.font = '400 ' + mid + 'px ' + _getReadingFontFamily();
       const width = _measureContext.measureText(text).width;
       if (width <= _stageWidth) {
         best = mid;

@@ -1,5 +1,7 @@
 async function hasProAccess() {
-  return (await loadPurchaseState('pro')) === 'true';
+  const access = (await loadPurchaseState('pro')) === 'true';
+  AppState.isPro = access;
+  return access;
 }
 
 async function hasOcrAccess() {

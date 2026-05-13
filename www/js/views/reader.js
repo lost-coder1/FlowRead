@@ -4,6 +4,10 @@ let _activeEngine = null;
 let _sessionState = null; /* { startIndex, startTimeMs } */
 let _readerLifecycleBound = false;
 let _swipeState = null;
+let _swipeBackHandler = null;
+let _swipeBackBound = false;
+let _engineTransitionToken = 0;
+let _engineTransitionInFlight = false;
 
 const _engineMap = {
   rsvp: RSVPEngine,
@@ -21,6 +25,10 @@ function renderReader(options) {
   const startIndex = typeof opts.startIndex === 'number' ? opts.startIndex : loadPosition(file.id);
   const savedEngine = localStorage.getItem('fr_last_engine') || AppState.currentEngine || AppState.settings.defaultMode || 'rsvp';
   const hasPdfBridge = !!(file.pdfDoc && file.pageWordIndex && file.pageWordIndex.length);
+  /* Raw PDF on disk but not yet re-parsed — show active button, lazy-load on tap */
+  const hasPdfLazy = !file.pdfDoc && !!(file.pdfRawAvailable && file.pageWordIndex && file.pageWordIndex.length);
+  /* Parsed data only (e.g. browser fallback, raw bytes missing) — disabled button hints to re-import */
+  const hasPdfDataOnly = !file.pdfDoc && !file.pdfRawAvailable && !!(file.pageWordIndex && file.pageWordIndex.length);
 
   AppState.currentIndex = startIndex;
   AppState.currentEngine = savedEngine;
@@ -49,6 +57,8 @@ function renderReader(options) {
 
     <div id="rsvp-container" class="engine-container"></div>
     ${hasPdfBridge ? '<button class="reader-normal-toggle" id="btn-open-normal" title="Open matching PDF page">PDF</button>' : ''}
+    ${hasPdfLazy ? '<button class="reader-normal-toggle" id="btn-open-normal-lazy" title="Open matching PDF page">PDF</button>' : ''}
+    ${hasPdfDataOnly ? '<button class="reader-normal-toggle reader-normal-toggle-disabled" id="btn-open-normal-hint" title="Re-import PDF to enable Normal View">PDF</button>' : ''}
 
     <aside class="reader-index-panel hidden" id="reader-index-panel">
       <div class="reader-index-head">
@@ -96,12 +106,35 @@ function renderReader(options) {
   _applyCalmMode();
 
   _activeEngine = _engineMap[AppState.currentEngine] || RSVPEngine;
-  try {
-    _activeEngine.init(file.words, startIndex);
-  } catch (err) {
-    console.error('Engine init failed:', err);
-    if (typeof showErrorCard === 'function') showErrorCard('Something went wrong — please re-import the file.');
-    return;
+
+  /* Decide whether to show the loading card. Heavy engines (Focus/Scroll) without
+     a cache hit need the card; instant engines and cache hits skip it. */
+  const isHeavyEngine = typeof _activeEngine.hasCache === 'function';
+  const hasCacheHit = isHeavyEngine && _activeEngine.hasCache(file.id);
+  const skipLoadingCard = !isHeavyEngine || hasCacheHit;
+
+  const initEngineAndAutoPlay = function() {
+    try {
+      _activeEngine.init(file.words, startIndex);
+    } catch (err) {
+      console.error('Engine init failed:', err);
+      if (typeof showErrorCard === 'function') showErrorCard('Something went wrong — please re-import the file.');
+      return;
+    }
+    if (opts.autoPlay) {
+      _activeEngine.play();
+    }
+  };
+
+  if (skipLoadingCard) {
+    initEngineAndAutoPlay();
+  } else {
+    const loadingContainer = qs('#rsvp-container');
+    if (loadingContainer) {
+      /* prevKey null → no cancel button (there's no "previous" to fall back to on direct entry) */
+      loadingContainer.innerHTML = _renderEngineLoadingCard(AppState.currentEngine, null);
+    }
+    setTimeout(initEngineAndAutoPlay, 0);
   }
 
   if (startIndex > 0 && !opts.silentResume) {
@@ -114,10 +147,6 @@ function renderReader(options) {
   _syncReaderPosition(startIndex, file.words.length);
   _applyEngineChrome(AppState.currentEngine);
   acquireWakeLock();
-
-  if (opts.autoPlay) {
-    _activeEngine.play();
-  }
 }
 
 function _bindReaderLifecycleHooks() {
@@ -140,7 +169,13 @@ function _bindReaderLifecycleHooks() {
 
 function _bindReaderControls() {
   const backHandler = function() {
-    if (_activeEngine) _activeEngine.pause();
+    if (_activeEngine) {
+      _activeEngine.pause();
+      /* Call destroy() so heavy engines (Focus/Scroll) populate their DOM cache.
+         When the user re-opens the same file, init() will hit that cache instead
+         of rebuilding from scratch. */
+      _activeEngine.destroy();
+    }
     _flushSessionIfActive();
     releaseWakeLock();
     renderUpload();
@@ -158,6 +193,42 @@ function _bindReaderControls() {
         _activeEngine.pause();
       }
       openNormalAtCurrentWord();
+    });
+  }
+
+  const normalHintButton = qs('#btn-open-normal-hint');
+  if (normalHintButton) {
+    normalHintButton.addEventListener('click', function() {
+      showToast('Re-import this PDF to enable Normal View.');
+    });
+  }
+
+  const normalLazyButton = qs('#btn-open-normal-lazy');
+  if (normalLazyButton) {
+    normalLazyButton.addEventListener('click', async function() {
+      if (_activeEngine) {
+        AppState.currentIndex = _activeEngine.getIndex();
+        _activeEngine.pause();
+      }
+      showLoading('Loading PDF…');
+      try {
+        const buf = await loadRawPdf(AppState.currentFile.id);
+        if (!buf) {
+          hideLoading();
+          showToast('PDF data missing. Please re-import.');
+          return;
+        }
+        const result = await parsePDF(buf);
+        AppState.currentFile.pdfDoc = result.pdfDoc;
+        /* Swap the lazy button for the active one so subsequent taps skip re-parsing */
+        normalLazyButton.id = 'btn-open-normal';
+        hideLoading();
+        openNormalAtCurrentWord();
+      } catch (err) {
+        console.error('Lazy PDF load failed:', err);
+        hideLoading();
+        showToast('Could not open PDF. Please re-import.');
+      }
     });
   }
 
@@ -228,59 +299,89 @@ function _bindReaderControls() {
 }
 
 function _bindSwipeBackGesture(backHandler) {
-  const readerView = qs('#view-reader');
-  if (!readerView) return;
+  _swipeBackHandler = backHandler;
+  if (_swipeBackBound) return;
+  _swipeBackBound = true;
 
-  const edgeStartPx = 36;
+  const edgeStartPx = 28;
+  const armDx = 14;
   const minDx = 72;
-  const maxDy = 64;
+  const maxDy = 42;
+  const maxGestureMs = 700;
 
-  readerView.addEventListener('touchstart', function(event) {
-    if (!event.touches || event.touches.length !== 1) {
-      _swipeState = null;
+  function clearSwipeState() {
+    _swipeState = null;
+  }
+
+  function isInteractiveTarget(target) {
+    if (!target || typeof target.closest !== 'function') return false;
+    return !!target.closest('button, input, select, textarea, a, label, [role="button"]');
+  }
+
+  function shouldTrackSwipe(event) {
+    return AppState.currentView === 'view-reader' && event && event.touches && event.touches.length === 1;
+  }
+
+  document.addEventListener('touchstart', function(event) {
+    if (!shouldTrackSwipe(event)) {
+      clearSwipeState();
       return;
     }
 
     const t = event.touches[0];
-    const startX = t.clientX;
-    const startY = t.clientY;
+    if (!t || isInteractiveTarget(event.target)) {
+      clearSwipeState();
+      return;
+    }
 
-    if (startX > edgeStartPx) {
-      _swipeState = null;
+    if (t.clientX > edgeStartPx) {
+      clearSwipeState();
       return;
     }
 
     _swipeState = {
       id: t.identifier,
-      startX: startX,
-      startY: startY,
+      startX: t.clientX,
+      startY: t.clientY,
+      startTime: Date.now(),
+      armed: false,
       consumed: false,
     };
-  }, { passive: true });
+  }, { passive: true, capture: true });
 
-  readerView.addEventListener('touchmove', function(event) {
+  document.addEventListener('touchmove', function(event) {
     if (!_swipeState || !event.changedTouches) return;
+
     for (let i = 0; i < event.changedTouches.length; i++) {
       const t = event.changedTouches[i];
       if (t.identifier !== _swipeState.id) continue;
 
       const dx = t.clientX - _swipeState.startX;
       const dy = t.clientY - _swipeState.startY;
-      if (dx > minDx && Math.abs(dy) < maxDy && !_swipeState.consumed) {
+      const elapsed = Date.now() - _swipeState.startTime;
+
+      if (elapsed > maxGestureMs || Math.abs(dy) > maxDy * 2 || dx < -12) {
+        clearSwipeState();
+        return;
+      }
+
+      if (Math.abs(dx) > armDx && Math.abs(dx) > Math.abs(dy)) {
+        _swipeState.armed = true;
+      }
+
+      if (_swipeState.armed && dx > minDx && Math.abs(dy) < maxDy && !_swipeState.consumed) {
         _swipeState.consumed = true;
-        backHandler();
+        clearSwipeState();
+        if (typeof _swipeBackHandler === 'function') {
+          _swipeBackHandler();
+        }
       }
       return;
     }
-  }, { passive: true });
+  }, { passive: true, capture: true });
 
-  readerView.addEventListener('touchend', function() {
-    _swipeState = null;
-  }, { passive: true });
-
-  readerView.addEventListener('touchcancel', function() {
-    _swipeState = null;
-  }, { passive: true });
+  document.addEventListener('touchend', clearSwipeState, { passive: true, capture: true });
+  document.addEventListener('touchcancel', clearSwipeState, { passive: true, capture: true });
 }
 
 function _toggleIndexPanel() {
@@ -412,13 +513,32 @@ function _flushSessionIfActive() {
   _sessionState = null;
 }
 
+function _nextFrame() {
+  return new Promise(function(resolve) {
+    requestAnimationFrame(function() { resolve(); });
+  });
+}
+
+function _clearReaderEngineContent(container) {
+  if (!container) return;
+  Array.prototype.slice.call(container.children).forEach(function(child) {
+    if (!(child.classList && child.classList.contains('engine-loading'))) {
+      container.removeChild(child);
+    }
+  });
+}
+
 function _switchEngine(key) {
   const engine = _engineMap[key];
   if (!engine) return;
 
-  const currentIndex = _activeEngine ? _activeEngine.getIndex() : AppState.currentIndex;
-  _onEnginePause(); /* Flush session before switching engines */
-  if (_activeEngine) _activeEngine.destroy();
+  /* Capture previous engine for cancel button — fall back to RSVP if same or unset */
+  const prevEngineKey = (AppState.currentEngine && AppState.currentEngine !== key)
+    ? AppState.currentEngine : 'rsvp';
+  const previousEngine = _activeEngine;
+
+  const currentIndex = previousEngine ? previousEngine.getIndex() : AppState.currentIndex;
+  _onEnginePause();
   AppState.isPlaying = false;
 
   qsa('.engine-tab').forEach(function(tab) {
@@ -430,13 +550,170 @@ function _switchEngine(key) {
   localStorage.setItem('fr_last_engine', key);
   _applyEngineChrome(key);
 
-  _activeEngine = engine;
-  try {
-    _activeEngine.init(AppState.currentFile.words, currentIndex);
-  } catch (err) {
-    console.error('Engine switch failed:', err);
-    if (typeof showErrorCard === 'function') showErrorCard('Something went wrong — please re-import the file.');
-    return;
+  const fileId = AppState.currentFile && AppState.currentFile.id;
+  /* "Heavy" engines (Focus, Scroll) expose hasCache(). Light engines (RSVP, Chunk) don't —
+     their init is fast enough that the loading card would just flash unnecessarily. */
+  const isHeavyEngine = typeof engine.hasCache === 'function';
+  const skipLoadingCard = !isHeavyEngine;
+  const transitionToken = ++_engineTransitionToken;
+  _engineTransitionInFlight = true;
+  const loaderShownAt = Date.now();
+  const minLoaderMs = 180;
+  const container = qs('#rsvp-container');
+
+  if (!skipLoadingCard && container) {
+    /* Paint loading UI first; heavy destroy/init starts on later frames. */
+    _showEngineLoadingCard(container, key, prevEngineKey);
+    const cancelBtn = qs('#engine-loading-cancel');
+    if (cancelBtn) {
+      cancelBtn.addEventListener('click', function() {
+        if (transitionToken !== _engineTransitionToken) return;
+        _engineTransitionToken += 1;
+        _engineTransitionInFlight = false;
+        _switchEngine(prevEngineKey);
+      });
+    }
   }
-  _syncReaderPosition(currentIndex, AppState.currentFile.words.length);
+
+  (async function runTransition() {
+    if (!skipLoadingCard) {
+      await _nextFrame(); /* let spinner render before teardown */
+    }
+    if (transitionToken !== _engineTransitionToken) return;
+
+    try {
+      if (previousEngine && typeof previousEngine.destroy === 'function') {
+        previousEngine.destroy();
+      }
+      _clearReaderEngineContent(container);
+    } catch (err) {
+      console.error('Engine destroy failed:', err);
+    }
+
+    if (transitionToken !== _engineTransitionToken) return;
+
+    if (!skipLoadingCard) {
+      await _nextFrame(); /* avoid back-to-back long tasks on same frame */
+    }
+    if (transitionToken !== _engineTransitionToken) return;
+
+    try {
+      _activeEngine = engine;
+      _activeEngine.init(AppState.currentFile.words, currentIndex);
+      _syncReaderPosition(currentIndex, AppState.currentFile.words.length);
+    } catch (err) {
+      console.error('Engine switch failed:', err);
+      if (typeof showErrorCard === 'function') showErrorCard('Something went wrong — please re-import the file.');
+      return;
+    } finally {
+      if (skipLoadingCard) {
+        _engineTransitionInFlight = false;
+        return;
+      }
+      const elapsed = Date.now() - loaderShownAt;
+      const remain = Math.max(0, minLoaderMs - elapsed);
+      setTimeout(function() {
+        if (transitionToken !== _engineTransitionToken) return;
+        _engineTransitionInFlight = false;
+      }, remain);
+    }
+  })();
+}
+
+function _showEngineLoadingCard(container, key, prevKey) {
+  const existing = container.querySelector('.engine-loading');
+  if (existing) existing.remove();
+  container.insertAdjacentHTML('beforeend', _renderEngineLoadingCard(key, prevKey));
+}
+
+/* Rotating speed-reading facts shown during the first-build wait.
+   Some are engine-specific; the generic ones can appear for any engine. */
+const _LOADING_FACTS_GENERIC = [
+  'The average adult reads at 200–250 WPM. With training, 400–600 WPM is comfortable.',
+  'Speed reading reduces "saccades" — the rapid eye jumps between words that slow you down.',
+  'Sub-vocalization (silently saying words in your head) caps you around 300 WPM. Beating it is the next jump.',
+  'Comprehension typically drops above 600 WPM. Find your sweet spot.',
+  'The Guinness record for reading is over 1,000 WPM with full comprehension.',
+  'Only about 4% of your reading time is spent absorbing meaning — the rest is eye movement.',
+  'Your eye fixates on a word for ~250ms. Speed reading shortens this window.',
+  'Reading in larger chunks (4–7 words at once) can double your speed without losing meaning.',
+  'A page of dense prose averages ~250 words. Knowing this helps you pace yourself.',
+  'Skimming and speed reading are different — speed reading aims for full comprehension.',
+  'The Optimal Recognition Point (ORP) sits at ~33% of each word, where your eye naturally rests.',
+  'Most people regress 5–15% of the time, re-reading what they already read. Speed modes prevent this.',
+  'Reading on screen is ~25% slower than reading on paper, on average — focus modes close the gap.',
+];
+
+const _LOADING_FACTS_FOCUS = [
+  'Focus highlights the first 40% of each word — your brain fills in the rest from context.',
+  'Bolded prefixes act as visual anchors, helping your eye land precisely on each word.',
+  'The first letters of a word carry more information than the last. Focus mode leans into this.',
+  'Tap a [Tap to view…] placeholder in Focus to see the original image, table, or equation.',
+];
+
+const _LOADING_FACTS_SCROLL = [
+  'Scroll mode is a teleprompter — text flows past while your eyes stay still.',
+  'The yellow centre line is your fixation point. Let words come to you.',
+  'Adjust speed independently of WPM in Scroll mode — handy for skimming.',
+  'Scroll uses GPU-accelerated transforms, so it stays smooth even on long documents.',
+];
+
+function _pickLoadingFact(engineKey) {
+  let pool = _LOADING_FACTS_GENERIC.slice();
+  if (engineKey === 'focus') pool = pool.concat(_LOADING_FACTS_FOCUS);
+  else if (engineKey === 'scroll') pool = pool.concat(_LOADING_FACTS_SCROLL);
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+function _renderEngineLoadingCard(key, prevKey) {
+  const file = AppState.currentFile;
+  const titles = {
+    focus: 'Building Focus Mode',
+    scroll: 'Setting up the teleprompter',
+    rsvp: 'Loading RSVP',
+    chunk: 'Loading Chunk',
+  };
+  const subtitles = {
+    focus: 'Bolding word anchors and laying out pages…',
+    scroll: 'Preparing a continuous text flow for you to glide through…',
+    rsvp: '',
+    chunk: '',
+  };
+  const labels = { focus: 'Focus', scroll: 'Scroll', rsvp: 'RSVP', chunk: 'Chunk' };
+
+  const title = titles[key] || 'Loading';
+  const subtitle = subtitles[key] || '';
+  const tip = _pickLoadingFact(key);
+  const pageCount = (file && file.metadata && file.metadata.pageCount) || 0;
+  const wordCount = (file && file.words && file.words.length) || 0;
+  const stats = wordCount
+    ? (pageCount ? formatNumber(pageCount) + ' pages · ' : '') + formatNumber(wordCount) + ' words'
+    : '';
+  const prevLabel = labels[prevKey] || 'previous mode';
+  const showCancel = prevKey && prevKey !== key;
+
+  return [
+    '<div class="engine-loading">',
+      '<div class="engine-loading-card">',
+        '<div class="engine-loading-spinner"></div>',
+        '<div class="engine-loading-title">' + escapeHtml(title) + '</div>',
+        subtitle ? '<div class="engine-loading-subtitle">' + escapeHtml(subtitle) + '</div>' : '',
+        stats ? '<div class="engine-loading-stats">' + escapeHtml(stats) + '</div>' : '',
+        '<div class="engine-loading-progress-track">',
+          '<div class="engine-loading-progress-fill" id="engine-loading-progress-fill"></div>',
+        '</div>',
+        '<div class="engine-loading-pct" id="engine-loading-pct">0%</div>',
+        tip ? '<div class="engine-loading-tip">' + escapeHtml(tip) + '</div>' : '',
+        showCancel ? '<button class="engine-loading-cancel" id="engine-loading-cancel" type="button">Cancel — stay in ' + escapeHtml(prevLabel) + '</button>' : '',
+      '</div>',
+    '</div>',
+  ].join('');
+}
+
+/* Global helper — engines call this between chunks to update the progress bar */
+function _updateEngineLoadingProgress(pct) {
+  const fill = document.getElementById('engine-loading-progress-fill');
+  if (fill) fill.style.width = pct + '%';
+  const pctText = document.getElementById('engine-loading-pct');
+  if (pctText) pctText.textContent = Math.round(pct) + '%';
 }

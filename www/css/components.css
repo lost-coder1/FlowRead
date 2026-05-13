@@ -419,12 +419,28 @@
 .library-item-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 4px;
 }
 
-.btn-mark-unread {
+.btn-mark-unread,
+.btn-mark-read,
+.btn-remove-file {
   font-size: 11px;
   padding: 4px 8px;
   min-height: 28px;
+}
+
+.btn-remove-file {
+  color: var(--error);
+}
+
+.library-item-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
 .library-progress-bar {
@@ -630,6 +646,13 @@
   flex-wrap: wrap;
 }
 
+.settings-font-list {
+  display: flex;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+
+.settings-font-chip,
 .settings-theme-chip {
   min-height: 40px;
   padding: 0 var(--space-md);
@@ -637,14 +660,23 @@
   background: var(--surface-2);
   color: var(--text);
   border-radius: var(--radius-md);
+  transition: border-color var(--transition-fast), color var(--transition-fast), opacity var(--transition-fast);
 }
 
+.settings-font-chip.active,
 .settings-theme-chip.active {
   border-color: var(--accent);
 }
 
+.settings-font-chip.locked,
 .settings-theme-chip.locked {
   color: var(--text-muted);
+}
+
+.settings-font-chip:disabled,
+.settings-theme-chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
 }
 
 /* ── Modal ──────────────────────────────────────────────────── */

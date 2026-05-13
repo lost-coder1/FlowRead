@@ -61,9 +61,24 @@ html, body {
   --transition-slow:   0.3s ease;
 
   /* Font families */
-  --font-display: 'Playfair Display', Georgia, serif;
-  --font-body:    'Crimson Pro', Georgia, serif;
+  --font-display: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --font-body:    'Roboto', 'Helvetica Neue', Arial, sans-serif;
   --font-mono:    'DM Mono', 'Courier New', monospace;
+}
+
+body[data-font="roboto"] {
+  --font-display: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --font-body: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+}
+
+body[data-font="open-sans"] {
+  --font-display: 'Open Sans', 'Helvetica Neue', Arial, sans-serif;
+  --font-body: 'Open Sans', 'Helvetica Neue', Arial, sans-serif;
+}
+
+body[data-font="lato"] {
+  --font-display: 'Lato', 'Helvetica Neue', Arial, sans-serif;
+  --font-body: 'Lato', 'Helvetica Neue', Arial, sans-serif;
 }
 
 /* ── Base typography ────────────────────────────────────────── */
