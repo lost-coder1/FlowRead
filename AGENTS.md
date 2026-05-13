@@ -195,8 +195,8 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
 
 ### PHASE 11 — Share Extension & Deeper Sync (Completed)
 
-### Important intermittent next Task 
-- Going from any mode to Scroll 2nd time takes noticeable amount of time and UI seems stuck. We need to add a loading spinner here.
+- [x] **Important intermittent next task**
+  - Going from any mode to `Scroll` now shows a loading spinner and progress overlay while the rebuild or cache restore completes.
 
 
 

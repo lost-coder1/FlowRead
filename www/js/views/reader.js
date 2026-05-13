@@ -4,6 +4,8 @@ let _activeEngine = null;
 let _sessionState = null; /* { startIndex, startTimeMs } */
 let _readerLifecycleBound = false;
 let _swipeState = null;
+let _engineTransitionToken = 0;
+let _engineTransitionInFlight = false;
 
 const _engineMap = {
   rsvp: RSVPEngine,
@@ -479,6 +481,21 @@ function _flushSessionIfActive() {
   _sessionState = null;
 }
 
+function _nextFrame() {
+  return new Promise(function(resolve) {
+    requestAnimationFrame(function() { resolve(); });
+  });
+}
+
+function _clearReaderEngineContent(container) {
+  if (!container) return;
+  Array.prototype.slice.call(container.children).forEach(function(child) {
+    if (!(child.classList && child.classList.contains('engine-loading'))) {
+      container.removeChild(child);
+    }
+  });
+}
+
 function _switchEngine(key) {
   const engine = _engineMap[key];
   if (!engine) return;
@@ -486,10 +503,10 @@ function _switchEngine(key) {
   /* Capture previous engine for cancel button — fall back to RSVP if same or unset */
   const prevEngineKey = (AppState.currentEngine && AppState.currentEngine !== key)
     ? AppState.currentEngine : 'rsvp';
+  const previousEngine = _activeEngine;
 
-  const currentIndex = _activeEngine ? _activeEngine.getIndex() : AppState.currentIndex;
+  const currentIndex = previousEngine ? previousEngine.getIndex() : AppState.currentIndex;
   _onEnginePause();
-  if (_activeEngine) _activeEngine.destroy();
   AppState.isPlaying = false;
 
   qsa('.engine-tab').forEach(function(tab) {
@@ -501,50 +518,80 @@ function _switchEngine(key) {
   localStorage.setItem('fr_last_engine', key);
   _applyEngineChrome(key);
 
-  _activeEngine = engine;
-
   const fileId = AppState.currentFile && AppState.currentFile.id;
   /* "Heavy" engines (Focus, Scroll) expose hasCache(). Light engines (RSVP, Chunk) don't —
      their init is fast enough that the loading card would just flash unnecessarily. */
   const isHeavyEngine = typeof engine.hasCache === 'function';
-  const hasCacheHit = isHeavyEngine && engine.hasCache(fileId);
-  const skipLoadingCard = !isHeavyEngine || hasCacheHit;
-
-  if (skipLoadingCard) {
-    /* Run init synchronously — engine clears the container itself */
-    try {
-      _activeEngine.init(AppState.currentFile.words, currentIndex);
-    } catch (err) {
-      console.error('Engine switch failed:', err);
-      if (typeof showErrorCard === 'function') showErrorCard('Something went wrong — please re-import the file.');
-      return;
-    }
-    _syncReaderPosition(currentIndex, AppState.currentFile.words.length);
-    return;
-  }
-
-  /* First-time build — show rich loading UI with real progress, doc stats, tip, cancel */
+  const skipLoadingCard = !isHeavyEngine;
+  const transitionToken = ++_engineTransitionToken;
+  _engineTransitionInFlight = true;
+  const loaderShownAt = Date.now();
+  const minLoaderMs = 180;
   const container = qs('#rsvp-container');
-  if (container) {
-    container.innerHTML = _renderEngineLoadingCard(key, prevEngineKey);
+
+  if (!skipLoadingCard && container) {
+    /* Paint loading UI first; heavy destroy/init starts on later frames. */
+    _showEngineLoadingCard(container, key, prevEngineKey);
     const cancelBtn = qs('#engine-loading-cancel');
     if (cancelBtn) {
       cancelBtn.addEventListener('click', function() {
+        if (transitionToken !== _engineTransitionToken) return;
+        _engineTransitionToken += 1;
+        _engineTransitionInFlight = false;
         _switchEngine(prevEngineKey);
       });
     }
   }
 
-  setTimeout(function() {
+  (async function runTransition() {
+    if (!skipLoadingCard) {
+      await _nextFrame(); /* let spinner render before teardown */
+    }
+    if (transitionToken !== _engineTransitionToken) return;
+
     try {
+      if (previousEngine && typeof previousEngine.destroy === 'function') {
+        previousEngine.destroy();
+      }
+      _clearReaderEngineContent(container);
+    } catch (err) {
+      console.error('Engine destroy failed:', err);
+    }
+
+    if (transitionToken !== _engineTransitionToken) return;
+
+    if (!skipLoadingCard) {
+      await _nextFrame(); /* avoid back-to-back long tasks on same frame */
+    }
+    if (transitionToken !== _engineTransitionToken) return;
+
+    try {
+      _activeEngine = engine;
       _activeEngine.init(AppState.currentFile.words, currentIndex);
+      _syncReaderPosition(currentIndex, AppState.currentFile.words.length);
     } catch (err) {
       console.error('Engine switch failed:', err);
       if (typeof showErrorCard === 'function') showErrorCard('Something went wrong — please re-import the file.');
       return;
+    } finally {
+      if (skipLoadingCard) {
+        _engineTransitionInFlight = false;
+        return;
+      }
+      const elapsed = Date.now() - loaderShownAt;
+      const remain = Math.max(0, minLoaderMs - elapsed);
+      setTimeout(function() {
+        if (transitionToken !== _engineTransitionToken) return;
+        _engineTransitionInFlight = false;
+      }, remain);
     }
-    _syncReaderPosition(currentIndex, AppState.currentFile.words.length);
-  }, 0);
+  })();
+}
+
+function _showEngineLoadingCard(container, key, prevKey) {
+  const existing = container.querySelector('.engine-loading');
+  if (existing) existing.remove();
+  container.insertAdjacentHTML('beforeend', _renderEngineLoadingCard(key, prevKey));
 }
 
 /* Rotating speed-reading facts shown during the first-build wait.

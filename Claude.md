@@ -212,8 +212,9 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
   - Home library split into `Recent` and collapsible `Read` (100% complete only).
   - `Readable files on device` section is collapsible and defaults collapsed after each sync.
   - Top Settings entry point added in upload header for quick access.
-### Important intermittent next Task 
-- Going from any mode to Scroll 2nd time takes noticeable amount of time and UI seems stuck. We need to add a loading spinner here.
+
+- [x] **Important intermittent next task**
+  - Going from any mode to `Scroll` now shows a loading spinner and progress overlay while the rebuild or cache restore completes.
 
 
 ### PHASE 12 — Engagement, Navigation, OCR Vision
@@ -222,7 +223,6 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
   - Free: remind once daily about unread PDFs only.
   - Pro: remind once daily about unread items across all readable sections (PDF, URL, DOCX, TXT, synced device files in library).
   - Fully local scheduling and state tracking (no backend, no analytics).
-  - Screen gets dimmed after sometime opening the app. 
 
 - [ ] **Task 12.2 — Swipe-back reliability**
   - Stabilize reader back gesture so swipe works consistently without relying on top back button.

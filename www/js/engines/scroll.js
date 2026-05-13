@@ -10,6 +10,7 @@ const ScrollEngine = (function() {
   let _domCache = null;
   let _cacheFileId = null;
   let _abortBuild = false;
+  let _buildComplete = false;
 
   const _LINE_THICK_SIZES = [1, 2, 4, 6, 10];
 
@@ -17,6 +18,7 @@ const ScrollEngine = (function() {
     _words = words;
     _index = startIndex || 0;
     _abortBuild = false;
+    _buildComplete = false;
     _multiplier = parseFloat(localStorage.getItem('fr_scroll_mult') || '1.0');
     _lineThick = parseInt(localStorage.getItem('fr_scroll_line') || '1', 10);
     if (!_LINE_THICK_SIZES.includes(_lineThick)) _lineThick = 1;
@@ -26,16 +28,26 @@ const ScrollEngine = (function() {
 
     /* Cache hit: restore DOM, re-acquire refs, seek to position */
     if (fileId && fileId === _cacheFileId && _domCache) {
-      /* Clear whatever's in the container (previous engine's DOM or a spinner)
-         before re-attaching the cached scroll DOM. */
-      container.innerHTML = '';
+      _clearEngineContent(container);
       while (_domCache.firstChild) {
         container.appendChild(_domCache.firstChild);
       }
       _domCache = null;
       _outerEl = qs('#scroll-outer');
       _trackEl = qs('#scroll-track');
+      if (!_outerEl || !_trackEl) {
+        _buildComplete = false;
+        _render();
+        return;
+      }
+      /* Keep cache-restore hidden until index re-seek completes.
+         Prevents visible "start of page then jump to saved index" flash. */
+      _outerEl.style.visibility = 'hidden';
+      _buildComplete = true;
       _applyLine();
+      if (typeof _updateEngineLoadingProgress === 'function') {
+        _updateEngineLoadingProgress(92);
+      }
       requestAnimationFrame(function() {
         _cacheSpanPositions();
         if (_outerEl && _trackEl) {
@@ -46,6 +58,11 @@ const ScrollEngine = (function() {
           _scrollY = Math.max(0, target.offsetTop - _outerEl.clientHeight / 2);
           _applyTransform();
         }
+        if (_outerEl) _outerEl.style.visibility = '';
+        if (typeof _updateEngineLoadingProgress === 'function') {
+          _updateEngineLoadingProgress(100);
+        }
+        _removeLoadingSpinner(container);
       });
       return;
     }
@@ -60,12 +77,27 @@ const ScrollEngine = (function() {
     if (line) line.style.height = _lineThick + 'px';
   }
 
+  function _clearEngineContent(container) {
+    if (!container) return;
+    Array.prototype.slice.call(container.children).forEach(function(child) {
+      if (!(child.classList && child.classList.contains('engine-loading'))) {
+        container.removeChild(child);
+      }
+    });
+  }
+
+  function _removeLoadingSpinner(container) {
+    const spinner = container && container.querySelector('.engine-loading');
+    if (spinner) spinner.remove();
+  }
+
   function _applyTransform() {
     if (_trackEl) _trackEl.style.transform = 'translateY(-' + _scrollY.toFixed(2) + 'px)';
   }
 
   function _render() {
     const container = qs('#rsvp-container');
+    _clearEngineContent(container);
 
     /* Append scroll structure WITHOUT clearing container — keeps the loading spinner
        (set up in _switchEngine) overlaying our build until we're ready to show. */
@@ -145,8 +177,8 @@ const ScrollEngine = (function() {
           if (typeof _updateEngineLoadingProgress === 'function') {
             _updateEngineLoadingProgress(100);
           }
-          const spinner = container.querySelector('.engine-loading');
-          if (spinner) spinner.remove();
+          _buildComplete = true;
+          _removeLoadingSpinner(container);
         });
       }
     }
@@ -269,14 +301,17 @@ const ScrollEngine = (function() {
     /* Move DOM to cache so re-switching to Scroll for the same file is near-instant.
        Event listeners on word spans survive the move — no rebinding needed. */
     const container = qs('#rsvp-container');
-    if (container && _cacheFileId) {
+    if (container && _cacheFileId && _buildComplete) {
       _domCache = document.createElement('div');
-      while (container.firstChild) {
-        _domCache.appendChild(container.firstChild);
-      }
+      Array.prototype.slice.call(container.children).forEach(function(child) {
+        if (!(child.classList && child.classList.contains('engine-loading'))) {
+          _domCache.appendChild(child);
+        }
+      });
     } else {
       _domCache = null;
     }
+    if (!_buildComplete) _domCache = null;
     _spanTops = [];
     _outerEl = null;
     _trackEl = null;
@@ -300,7 +335,7 @@ const ScrollEngine = (function() {
   }
 
   function hasCache(fileId) {
-    return !!(fileId && fileId === _cacheFileId && _domCache);
+    return !!(fileId && fileId === _cacheFileId && _domCache && _buildComplete);
   }
 
   return { init, play, pause, destroy, getIndex, seekTo, onWPMChange, hasCache };
