@@ -218,11 +218,6 @@ Next task to handle: **Task 12.5 — Internal Dictionary**
   - OCR imports must persist locally so scanned files do not need to be reprocessed on every launch.
   - If OCR cannot run, the app must show a plain-language error instead of failing silently.
 
-- [x] **Task 12.4 — Clean up Tasks**
-  - Sepia and High Contrast are now Pro-only instead of being blanket-disabled.
-  - Added extra font choices and replaced the duplicate preset with distinct reading fonts.
-  - Added the actual app icon assets for Android and iOS.
-  - Moved the real Pro purchase flow into the pre-launch store setup section.
 
 - [ ] **Task 12.5 — Internal Dictionary**
   - Provide a local dictionary
