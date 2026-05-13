@@ -9,9 +9,9 @@ const ChunkEngine = (function() {
   let _measureContext = null;
 
   function _getReadingFontFamily() {
-    if (!document.body || !window.getComputedStyle) return '"Crimson Pro", Georgia, serif';
+    if (!document.body || !window.getComputedStyle) return '"Roboto", "Helvetica Neue", Arial, sans-serif';
     const family = window.getComputedStyle(document.body).getPropertyValue('--font-body').trim();
-    return family || '"Crimson Pro", Georgia, serif';
+    return family || '"Roboto", "Helvetica Neue", Arial, sans-serif';
   }
 
   function init(words, startIndex) {

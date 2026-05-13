@@ -72,18 +72,18 @@ const FlowReadThemes = [
 
 const FlowReadTypographyPresets = [
   {
-    key: 'classic-serif',
-    label: 'Classic Serif',
+    key: 'roboto',
+    label: 'Roboto',
     proOnly: false,
   },
   {
-    key: 'clean-sans',
-    label: 'Clean Sans',
+    key: 'open-sans',
+    label: 'Open Sans',
     proOnly: true,
   },
   {
-    key: 'dyslexic-friendly',
-    label: 'Dyslexic Friendly',
+    key: 'lato',
+    label: 'Lato',
     proOnly: true,
   },
 ];
@@ -94,7 +94,7 @@ function getDefaultSettings() {
     defaultChunkSize: 3,
     defaultMode: 'rsvp',
     fontScale: 1,
-    fontPreset: 'classic-serif',
+    fontPreset: 'roboto',
     theme: 'oled-black',
     orpDefault: true,
     contextDefault: false,
@@ -132,7 +132,7 @@ function isTypographyPresetUnlocked(fontKey, hasPro) {
 
 function getEffectiveFontPreset(fontKey, hasPro) {
   if (isTypographyPresetUnlocked(fontKey, hasPro)) return fontKey;
-  return 'classic-serif';
+  return 'roboto';
 }
 
 function applyTheme(themeKey) {
