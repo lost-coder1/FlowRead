@@ -229,14 +229,18 @@ Next task to handle: **Task 12.5 — Internal Dictionary**
 
 
 - [ ] **Task 12.3 — On-device OCR Vision (new paid feature)**
-  - New phase for OCR implementation on scanned PDFs and image text, fully on-device.
-  - OCR Vision is a separate one-time paid feature.
-  - OCR Vision purchase flow is available only to Pro users; free users cannot buy/use OCR Vision.
+  - Replace the scanned-PDF hard stop with an on-device OCR pipeline for image-only PDFs.
+  - OCR runs locally on the device and feeds the same reader data model already used by the app (`words`, `pageWordIndex`, `rawLines`, `metadata`).
+  - Keep OCR Vision as a separate one-time paid feature, available only to Pro users.
+  - Free users still see a clear upgrade prompt when they import scanned PDFs.
+  - OCR imports must persist locally so scanned files do not need to be reprocessed on every launch.
+  - If OCR cannot run, the app must show a plain-language error instead of failing silently.
 
 - [x] **Task 12.4 — Clean up Tasks**
-  - Sepia and High Contrast options in Display Settings are disabled only for Free users.
-  - Added extra font choices and a proper app icon.
-  - Real Pro purchase flow moved to the pre-launch store setup section.
+  - Sepia and High Contrast are now Pro-only instead of being blanket-disabled.
+  - Added extra font choices and replaced the duplicate preset with distinct reading fonts.
+  - Added the actual app icon assets for Android and iOS.
+  - Moved the real Pro purchase flow into the pre-launch store setup section.
 
 - [ ] **Task 12.5 — Internal Dictionary**
   - Provide a local dictionary
