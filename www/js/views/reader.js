@@ -4,6 +4,8 @@ let _activeEngine = null;
 let _sessionState = null; /* { startIndex, startTimeMs } */
 let _readerLifecycleBound = false;
 let _swipeState = null;
+let _swipeBackHandler = null;
+let _swipeBackBound = false;
 let _engineTransitionToken = 0;
 let _engineTransitionInFlight = false;
 
@@ -297,59 +299,89 @@ function _bindReaderControls() {
 }
 
 function _bindSwipeBackGesture(backHandler) {
-  const readerView = qs('#view-reader');
-  if (!readerView) return;
+  _swipeBackHandler = backHandler;
+  if (_swipeBackBound) return;
+  _swipeBackBound = true;
 
-  const edgeStartPx = 36;
+  const edgeStartPx = 28;
+  const armDx = 14;
   const minDx = 72;
-  const maxDy = 64;
+  const maxDy = 42;
+  const maxGestureMs = 700;
 
-  readerView.addEventListener('touchstart', function(event) {
-    if (!event.touches || event.touches.length !== 1) {
-      _swipeState = null;
+  function clearSwipeState() {
+    _swipeState = null;
+  }
+
+  function isInteractiveTarget(target) {
+    if (!target || typeof target.closest !== 'function') return false;
+    return !!target.closest('button, input, select, textarea, a, label, [role="button"]');
+  }
+
+  function shouldTrackSwipe(event) {
+    return AppState.currentView === 'view-reader' && event && event.touches && event.touches.length === 1;
+  }
+
+  document.addEventListener('touchstart', function(event) {
+    if (!shouldTrackSwipe(event)) {
+      clearSwipeState();
       return;
     }
 
     const t = event.touches[0];
-    const startX = t.clientX;
-    const startY = t.clientY;
+    if (!t || isInteractiveTarget(event.target)) {
+      clearSwipeState();
+      return;
+    }
 
-    if (startX > edgeStartPx) {
-      _swipeState = null;
+    if (t.clientX > edgeStartPx) {
+      clearSwipeState();
       return;
     }
 
     _swipeState = {
       id: t.identifier,
-      startX: startX,
-      startY: startY,
+      startX: t.clientX,
+      startY: t.clientY,
+      startTime: Date.now(),
+      armed: false,
       consumed: false,
     };
-  }, { passive: true });
+  }, { passive: true, capture: true });
 
-  readerView.addEventListener('touchmove', function(event) {
+  document.addEventListener('touchmove', function(event) {
     if (!_swipeState || !event.changedTouches) return;
+
     for (let i = 0; i < event.changedTouches.length; i++) {
       const t = event.changedTouches[i];
       if (t.identifier !== _swipeState.id) continue;
 
       const dx = t.clientX - _swipeState.startX;
       const dy = t.clientY - _swipeState.startY;
-      if (dx > minDx && Math.abs(dy) < maxDy && !_swipeState.consumed) {
+      const elapsed = Date.now() - _swipeState.startTime;
+
+      if (elapsed > maxGestureMs || Math.abs(dy) > maxDy * 2 || dx < -12) {
+        clearSwipeState();
+        return;
+      }
+
+      if (Math.abs(dx) > armDx && Math.abs(dx) > Math.abs(dy)) {
+        _swipeState.armed = true;
+      }
+
+      if (_swipeState.armed && dx > minDx && Math.abs(dy) < maxDy && !_swipeState.consumed) {
         _swipeState.consumed = true;
-        backHandler();
+        clearSwipeState();
+        if (typeof _swipeBackHandler === 'function') {
+          _swipeBackHandler();
+        }
       }
       return;
     }
-  }, { passive: true });
+  }, { passive: true, capture: true });
 
-  readerView.addEventListener('touchend', function() {
-    _swipeState = null;
-  }, { passive: true });
-
-  readerView.addEventListener('touchcancel', function() {
-    _swipeState = null;
-  }, { passive: true });
+  document.addEventListener('touchend', clearSwipeState, { passive: true, capture: true });
+  document.addEventListener('touchcancel', clearSwipeState, { passive: true, capture: true });
 }
 
 function _toggleIndexPanel() {
