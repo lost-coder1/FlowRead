@@ -119,18 +119,24 @@ const RSVPEngine = (function() {
   function _displayWord(word) {
     if (!_beforeEl) return;
 
+    const wrap = _stageEl && _stageEl.querySelector('.rsvp-word-wrap');
+
     /* Placeholder object */
     if (word && typeof word === 'object' && word.type === 'placeholder') {
       _beforeEl.textContent = '';
       _orpEl.textContent = '';
       _afterEl.textContent = word.label || '[Content]';
       _afterEl.style.color = 'var(--accent)';
-      _afterEl.style.fontSize = '0.6em';
+      _afterEl.style.fontSize = '';
+      if (wrap) wrap.style.fontSize = Math.min(_fontSize, 22) + 'px';
+      if (wrap) wrap.classList.add('placeholder-mode');
       _stageEl.onclick = function() { openObjectPlaceholder(word); };
       _stageEl.style.cursor = 'pointer';
       return;
     }
 
+    if (wrap) wrap.classList.remove('placeholder-mode');
+    if (wrap) wrap.style.fontSize = _fontSize + 'px';
     _stageEl.onclick = null;
     _stageEl.style.cursor = '';
     _afterEl.style.color = '';

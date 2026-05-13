@@ -22,11 +22,22 @@ function loadWPM() {
 
 /* ── File library ───────────────────────────────────────────── */
 function saveFileToLibrary(meta) {
+  /* Remove by exact id OR by same name+kind (covers re-import with different lastModified) */
   const lib = loadLibrary().filter(function(item) {
-    return item && item.id !== meta.id;
+    return item && item.id !== meta.id && !(item.name === meta.name && item.kind === meta.kind);
   });
   lib.unshift({ ...meta });
   localStorage.setItem('fr_library', JSON.stringify(lib));
+}
+
+function removeFileFromLibrary(fileId) {
+  if (!fileId) return;
+  const lib = loadLibrary().filter(function(item) { return item && item.id !== fileId; });
+  localStorage.setItem('fr_library', JSON.stringify(lib));
+  localStorage.removeItem('fr_pos_' + fileId);
+  /* Best-effort cleanup of associated data — fire and forget */
+  if (typeof deleteFileData === 'function') deleteFileData(fileId);
+  if (typeof deleteRawPdf === 'function') deleteRawPdf(fileId);
 }
 
 function loadLibrary() {
@@ -195,6 +206,86 @@ async function deleteFileData(fileId) {
     } catch (_) {}
   }
   localStorage.removeItem('fr_filedata_' + fileId);
+}
+
+/* ── Raw PDF binary persistence (PDF only) ──────────────────── */
+/*
+  pdf.js document objects can't be serialised, but the original binary can.
+  We save the raw bytes on first import using IndexedDB — works in webview and
+  browser, stores ArrayBuffer natively (no base64), no Capacitor bridge limits.
+  On resume, the lazy PDF button re-parses these bytes only when the user taps it.
+*/
+const _RAW_PDF_DB = 'flowread_rawpdf';
+const _RAW_PDF_STORE = 'pdfs';
+const _RAW_PDF_FLAG_PREFIX = 'fr_rawpdf_';
+
+function _openRawPdfDb() {
+  return new Promise(function(resolve, reject) {
+    if (!window.indexedDB) { reject(new Error('IndexedDB unavailable')); return; }
+    const req = indexedDB.open(_RAW_PDF_DB, 1);
+    req.onupgradeneeded = function(event) {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(_RAW_PDF_STORE)) {
+        db.createObjectStore(_RAW_PDF_STORE);
+      }
+    };
+    req.onsuccess = function() { resolve(req.result); };
+    req.onerror = function() { reject(req.error); };
+  });
+}
+
+async function saveRawPdf(fileId, arrayBuffer) {
+  if (!fileId || !arrayBuffer || !arrayBuffer.byteLength) {
+    console.warn('saveRawPdf: missing/empty arrayBuffer for', fileId);
+    return false;
+  }
+  try {
+    const db = await _openRawPdfDb();
+    await new Promise(function(resolve, reject) {
+      const tx = db.transaction([_RAW_PDF_STORE], 'readwrite');
+      tx.objectStore(_RAW_PDF_STORE).put(arrayBuffer, fileId);
+      tx.oncomplete = function() { resolve(); };
+      tx.onerror = function() { reject(tx.error); };
+      tx.onabort = function() { reject(tx.error || new Error('IDB tx aborted')); };
+    });
+    localStorage.setItem(_RAW_PDF_FLAG_PREFIX + fileId, '1');
+    return true;
+  } catch (e) {
+    console.warn('saveRawPdf failed:', e);
+    return false;
+  }
+}
+
+async function loadRawPdf(fileId) {
+  try {
+    const db = await _openRawPdfDb();
+    return await new Promise(function(resolve, reject) {
+      const tx = db.transaction([_RAW_PDF_STORE], 'readonly');
+      const req = tx.objectStore(_RAW_PDF_STORE).get(fileId);
+      req.onsuccess = function() { resolve(req.result || null); };
+      req.onerror = function() { reject(req.error); };
+    });
+  } catch (e) {
+    console.warn('loadRawPdf failed:', e);
+    return null;
+  }
+}
+
+function hasRawPdf(fileId) {
+  return localStorage.getItem(_RAW_PDF_FLAG_PREFIX + fileId) === '1';
+}
+
+async function deleteRawPdf(fileId) {
+  localStorage.removeItem(_RAW_PDF_FLAG_PREFIX + fileId);
+  try {
+    const db = await _openRawPdfDb();
+    await new Promise(function(resolve, reject) {
+      const tx = db.transaction([_RAW_PDF_STORE], 'readwrite');
+      tx.objectStore(_RAW_PDF_STORE).delete(fileId);
+      tx.oncomplete = function() { resolve(); };
+      tx.onerror = function() { reject(tx.error); };
+    });
+  } catch (_) {}
 }
 
 /* ── Dev test bypass (localStorage, test-only) ──────────────── */

@@ -10,47 +10,122 @@ const FocusBoldEngine = (function() {
   let _pageIndex = 0;
   let _allSpans = [];   /* flat array indexed by word index */
 
+  /* DOM cache — keeps built shell alive between engine switches for the same file,
+     so re-switching skips the expensive span-creation + layout-measurement phase. */
+  let _domCache = null;   /* detached <div> holding the shell when engine is inactive */
+  let _cacheFileId = null;
+  let _abortBuild = false; /* set true on destroy() to short-circuit in-progress chunked build */
+
   /* ── Init ─────────────────────────────────────────────────── */
 
   function init(words, startIndex) {
     _words = words;
     _index = Math.max(0, startIndex || 0);
     _timerId = null;
-    _pages = [];
     _pageIndex = 0;
+    _abortBuild = false;
+
+    const fileId = AppState.currentFile && AppState.currentFile.id;
+    const container = qs('#rsvp-container');
+
+    /* Cache hit: same file, pages already built — restore DOM and seek */
+    if (fileId && fileId === _cacheFileId && _domCache && _pages.length > 0) {
+      /* Clear whatever's in the container (previous engine's DOM, or a spinner)
+         before re-attaching the cached shell. Otherwise both engines' content
+         would coexist and overlap. */
+      container.innerHTML = '';
+      while (_domCache.firstChild) {
+        container.appendChild(_domCache.firstChild);
+      }
+      _domCache = null;
+      _showPage(_pageForIndex(_index));
+      _paintCurrent();
+      if (typeof _syncReaderPosition === 'function') {
+        _syncReaderPosition(_index, _words.length);
+      }
+      return;
+    }
+
+    _pages = [];
     _allSpans = [];
+    _domCache = null;
+    _cacheFileId = fileId;
     _render();
   }
 
   function _render() {
     const container = qs('#rsvp-container');
-    container.innerHTML = '<div class="fb-focus-shell" id="fb-shell"></div>';
 
-    /* Build spans and put them all in a single temp page (in DOM so layout settles) */
-    const shell = qs('#fb-shell');
+    /* IMPORTANT: do NOT clear the container with innerHTML — that would remove the
+       loading spinner set up in reader.js _switchEngine. Append the shell alongside
+       the spinner; the spinner overlays it (CSS z-index) until we're ready to show. */
+    const shell = document.createElement('div');
+    shell.className = 'fb-focus-shell';
+    shell.id = 'fb-shell';
+    container.appendChild(shell);
+
     const tempPage = document.createElement('div');
     tempPage.className = 'fb-page fb-page-visible';
     tempPage.style.visibility = 'hidden';
     shell.appendChild(tempPage);
 
     _allSpans = [];
-    _words.forEach(function(word, i) {
-      const span = _makeWordSpan(word, i);
-      _allSpans.push(span);
-      tempPage.appendChild(span);
-    });
 
-    /* Two rAF so layout is settled before we measure */
-    requestAnimationFrame(function() {
-      requestAnimationFrame(function() {
-        _paginateFromDOM(tempPage, shell);
-        _showPage(_pageForIndex(_index));
-        _paintCurrent();
-        if (typeof _syncReaderPosition === 'function') {
-          _syncReaderPosition(_index, _words.length);
+    /* Chunk the span creation: yield to the browser between batches so the spinner
+       animation keeps running. Synchronous creation of 50k+ spans freezes the UI. */
+    const CHUNK_SIZE = 4000;
+    const total = _words.length;
+    let i = 0;
+
+    function buildChunk() {
+      if (_abortBuild) return; /* user cancelled / switched engines mid-build */
+
+      const frag = document.createDocumentFragment();
+      const end = Math.min(i + CHUNK_SIZE, total);
+      for (; i < end; i++) {
+        const span = _makeWordSpan(_words[i], i);
+        _allSpans.push(span);
+        frag.appendChild(span);
+      }
+      tempPage.appendChild(frag);
+
+      /* Reserve last 10% for pagination phase */
+      if (typeof _updateEngineLoadingProgress === 'function') {
+        _updateEngineLoadingProgress((i / total) * 90);
+      }
+
+      if (i < total) {
+        requestAnimationFrame(buildChunk); /* yield — browser paints spinner */
+      } else {
+        if (typeof _updateEngineLoadingProgress === 'function') {
+          _updateEngineLoadingProgress(95);
         }
-      });
-    });
+        /* All spans built. Two rAF for layout settle, then paginate and reveal. */
+        requestAnimationFrame(function() {
+          if (_abortBuild) return;
+          requestAnimationFrame(function() {
+            if (_abortBuild) return;
+            _paginateFromDOM(tempPage, shell);
+            _showPage(_pageForIndex(_index));
+            _paintCurrent();
+            if (typeof _updateEngineLoadingProgress === 'function') {
+              _updateEngineLoadingProgress(100);
+            }
+            _removeLoadingSpinner(container);
+            if (typeof _syncReaderPosition === 'function') {
+              _syncReaderPosition(_index, _words.length);
+            }
+          });
+        });
+      }
+    }
+
+    buildChunk();
+  }
+
+  function _removeLoadingSpinner(container) {
+    const spinner = container && container.querySelector('.engine-loading');
+    if (spinner) spinner.remove();
   }
 
   function _paginateFromDOM(tempPage, shell) {
@@ -70,20 +145,24 @@ const FocusBoldEngine = (function() {
       return;
     }
 
-    /* All spans are in tempPage (in DOM), so offsetTop is relative to tempPage.
-       Group spans into pages by tracking cumulative height within each page group. */
-    let pageStart = 0;
-    let pageBaseTop = _allSpans.length > 0 ? _allSpans[0].offsetTop : 0;
+    /* Snapshot all offsetTop/offsetHeight values BEFORE any spans are moved.
+       appendChild() removes a node from its current parent, which would invalidate
+       subsequent measurements on spans still in tempPage. */
+    const rects = _allSpans.map(function(span) {
+      return { top: span.offsetTop, bottom: span.offsetTop + span.offsetHeight };
+    });
 
-    for (let i = 0; i < _allSpans.length; i++) {
-      const span = _allSpans[i];
-      const relBottom = (span.offsetTop + span.offsetHeight) - pageBaseTop;
+    let pageStart = 0;
+    let pageBaseTop = rects.length > 0 ? rects[0].top : 0;
+
+    for (let i = 0; i < rects.length; i++) {
+      const relBottom = rects[i].bottom - pageBaseTop;
 
       if (relBottom > usableH && i > pageStart) {
         /* Span overflows — end current page at i-1 */
         _buildPage(pageStart, i - 1, shell);
         pageStart = i;
-        pageBaseTop = span.offsetTop;
+        pageBaseTop = rects[i].top;
       }
     }
 
@@ -273,8 +352,26 @@ const FocusBoldEngine = (function() {
 
   function destroy() {
     pause();
-    _pages = [];
-    _allSpans = [];
+    _abortBuild = true; /* short-circuit any in-progress chunked build */
+    /* Move built DOM to cache before the container is overwritten by the next engine.
+       Keeps _pages and _allSpans intact so restore skips full rebuild. */
+    const container = qs('#rsvp-container');
+    if (container && _pages.length > 0 && _cacheFileId) {
+      /* Strip fb-page-visible from ALL pages so the cache is in a clean "no page visible"
+         state — otherwise the old visible page would still show alongside the new one
+         on cache restore, causing text-over-text overlap. */
+      for (let i = 0; i < _pages.length; i++) {
+        if (_pages[i].el) _pages[i].el.classList.remove('fb-page-visible');
+      }
+      _domCache = document.createElement('div');
+      while (container.firstChild) {
+        _domCache.appendChild(container.firstChild);
+      }
+    } else {
+      _domCache = null;
+      _pages = [];
+      _allSpans = [];
+    }
   }
 
   function getIndex() { return _index; }
@@ -295,5 +392,9 @@ const FocusBoldEngine = (function() {
     _schedule();
   }
 
-  return { init, play, pause, destroy, getIndex, seekTo, onWPMChange };
+  function hasCache(fileId) {
+    return !!(fileId && fileId === _cacheFileId && _domCache && _pages.length > 0);
+  }
+
+  return { init, play, pause, destroy, getIndex, seekTo, onWPMChange, hasCache };
 })();

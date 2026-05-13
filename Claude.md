@@ -212,6 +212,12 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
   - Home library split into `Recent` and collapsible `Read` (100% complete only).
   - `Readable files on device` section is collapsible and defaults collapsed after each sync.
   - Top Settings entry point added in upload header for quick access.
+### Absolutely Required next Task 
+## App is crashing when going from any mode to Focus mode for pdfs
+- Tap to view image or longer words are going out of bound in RSVP mode
+-Give an option to remove files from recent section
+- In recent session, igf I import the same file again, there are 2 enries with different progress bar. We need to show only the latest one
+- Give an option to mark read as well
 
 ### PHASE 12 — Engagement, Navigation, OCR Vision
 
@@ -219,6 +225,7 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
   - Free: remind once daily about unread PDFs only.
   - Pro: remind once daily about unread items across all readable sections (PDF, URL, DOCX, TXT, synced device files in library).
   - Fully local scheduling and state tracking (no backend, no analytics).
+  - Screen gets dimmed after sometime opening the app. 
 
 - [ ] **Task 12.2 — Swipe-back reliability**
   - Stabilize reader back gesture so swipe works consistently without relying on top back button.
@@ -234,6 +241,11 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
   - Add option to give more font types, disabled or dyslexic friendly ones as well.
   - Add image for the app icon.
   - Add an actual flow to buy the pro feature. 
+
+-[ ] **Task 12.6 — Internal Dictionary**
+  - Provide a local dictionary
+  -when user long press on any word in any mode, app should show the meaning from this library
+  -if it is not available, it should show device specific options or dictionary as fall back
 ---
 
 ## 12. Code Rules
