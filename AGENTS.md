@@ -45,7 +45,7 @@ Every limitation shown upfront in onboarding. Never silently fail. Errors explai
 - **Storage:** Capacitor Preferences (Keychain/EncryptedSharedPrefs) for purchase state. Capacitor Filesystem for file data. localStorage for UI state (all keys prefixed `fr_`).
 - **Screen wake:** @capacitor-community/keep-awake@5
 - **IAP:** @capacitor-community/in-app-purchases (v1.1+)
-- **Fonts:** Playfair Display, DM Mono, Crimson Pro
+- **Fonts:** Roboto, Open Sans, Lato, DM Mono
 
 **Key folder paths:**
 ```
@@ -150,7 +150,7 @@ Acquire: on entering any reading view, on play. Release: on exit to home/dashboa
 - **No pure black (#000) or pure white (#fff) anywhere text appears.**
 - Border radius 2–4px on small elements, max 6px. No pill buttons.
 - Animations: 0.12–0.2s hover, 0.3s view transitions. No bounce. No RSVP flash.
-- Fonts: Playfair Display (headings/display), Crimson Pro (body/reading), DM Mono (labels/numbers).
+- Fonts: Roboto (default UI/reading), Open Sans (alternate reading), Lato (alternate reading), DM Mono (labels/numbers).
 
 ---
 
@@ -202,30 +202,34 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
 
 ### PHASE 12 — Engagement, Navigation, OCR Vision
 
+Next task to handle: **Task 12.5 — Internal Dictionary**
+
 - [ ] **Task 12.1 — Daily reminder notifications**
   - Free: remind once daily about unread PDFs only.
   - Pro: remind once daily about unread items across all readable sections (PDF, URL, DOCX, TXT, synced device files in library).
   - Fully local scheduling and state tracking (no backend, no analytics).
 
-- [ ] **Task 12.2 — Swipe-back reliability**
-  - Stabilize reader back gesture so swipe works consistently without relying on top back button.
-  - Use edge-swipe detection, avoid accidental triggers during normal reading gestures, and support all reader engines.
 
 - [ ] **Task 12.3 — On-device OCR Vision (new paid feature)**
   - New phase for OCR implementation on scanned PDFs and image text, fully on-device.
   - OCR Vision is a separate one-time paid feature.
   - OCR Vision purchase flow is available only to Pro users; free users cannot buy/use OCR Vision.
 
--[ ] **Task 12.4 — Clean up Tasks**
-  - Sepia And High Contrast options in Display Settings are disabled even for pro users. It shuld only be disabled for Free Users.
-  - Add option to give more font types, disabled or dyslexic friendly ones as well.
-  - Add image for the app icon.
-  - Add an actual flow to buy the pro feature. 
+- [x] **Task 12.4 — Clean up Tasks**
+  - Sepia and High Contrast options in Display Settings are disabled only for Free users.
+  - Added extra font choices and a proper app icon.
+  - Real Pro purchase flow moved to the pre-launch store setup section.
 
--[ ] **Task 12.5 — Internal Dictionary**
+- [ ] **Task 12.5 — Internal Dictionary**
   - Provide a local dictionary
-  -when user long press on any word in any mode, app should show the meaning from this library
-  -if it is not available, it should show device specific options or dictionary as fall back
+  - When user long press on any word in any mode, app should show the meaning from this library.
+  - If it is not available, it should show device-specific options or dictionary as fallback.
+
+### PRE-LAUNCH — Store Setup
+
+- [ ] **Real Pro purchase flow**
+  - Build the actual Pro purchase and entitlement flow after the Play Store developer profile is ready.
+  - Keep it as the final pre-launch store task before launch.
 
 ---
 
@@ -276,7 +280,7 @@ At session start: acknowledge reading AGENTS.md and state the current task. Befo
 
 ## 14. Project Status
 
-- **Current phase:** Phase 11 — Share Extension & Deeper Sync
+- **Current phase:** Phase 12 — Engagement, Navigation, OCR Vision
 - **Target platforms:** Android first, iOS second.
 - **Target launch:** TBD — quality over speed.
 

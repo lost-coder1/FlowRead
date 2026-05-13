@@ -1,8 +1,56 @@
 /* ============================================================
    FlowRead — Themes CSS
-   OLED Black is the default (free). Sepia and High Contrast
-   are Pro-locked and added in Phase 8/9.
+   OLED Black is the default. Sepia and High Contrast are
+   alternate themes unlocked for Pro users.
    ============================================================ */
 
 /* OLED Black — default, no class needed */
-/* (vars defined in base.css already match OLED Black) */
+body[data-theme="oled-black"] {
+  color-scheme: dark;
+}
+
+body[data-theme="sepia"] {
+  --bg: #f3e7d0;
+  --surface: #ead9bb;
+  --surface-2: #dec79f;
+  --border: #c4a97a;
+
+  --accent: #9a6332;
+  --accent-2: #7d4d23;
+
+  --text: #3e2f23;
+  --text-muted: #705a46;
+  --text-dim: #9d846b;
+
+  --rsvp-stage-bg: #f0e0c3;
+  --rsvp-text: #4a3728;
+  --rsvp-orp: #8f5b2c;
+
+  --success: #50775b;
+  --error: #9b543a;
+
+  color-scheme: light;
+}
+
+body[data-theme="high-contrast"] {
+  --bg: #101010;
+  --surface: #171717;
+  --surface-2: #232323;
+  --border: #525252;
+
+  --accent: #ffd35f;
+  --accent-2: #ff9d57;
+
+  --text: #f0ebe2;
+  --text-muted: #b3aca0;
+  --text-dim: #6f695f;
+
+  --rsvp-stage-bg: #121212;
+  --rsvp-text: #f4efe6;
+  --rsvp-orp: #ffd36f;
+
+  --success: #73b08b;
+  --error: #d46c49;
+
+  color-scheme: dark;
+}
