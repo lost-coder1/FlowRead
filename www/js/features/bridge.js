@@ -59,7 +59,36 @@ function jumpReaderToWord(wordIndex, options) {
   switchView('view-reader');
 }
 
-function openObjectPlaceholder(word) {
+async function openObjectPlaceholder(word) {
   if (!word || typeof word !== 'object' || word.type !== 'placeholder') return;
-  openNormalAtPage(word.page || wordIndexToPage(AppState.currentIndex));
+
+  const file = AppState.currentFile;
+  const targetPage = word.page || wordIndexToPage(AppState.currentIndex);
+
+  /* pdfDoc is not serialisable — on a resumed session it is null until loaded */
+  if (file && !file.pdfDoc && file.pdfRawAvailable) {
+    showLoading('Loading PDF…');
+    try {
+      const buf = await loadRawPdf(file.id);
+      if (!buf) {
+        hideLoading();
+        showToast('PDF data missing. Please re-import.');
+        return;
+      }
+      const data = new Uint8Array(buf);
+      file.pdfDoc = await pdfjsLib.getDocument({ data }).promise;
+      hideLoading();
+    } catch (err) {
+      hideLoading();
+      showToast('Could not open PDF. Please re-import.');
+      return;
+    }
+  }
+
+  if (file && !file.pdfDoc) {
+    showToast('Re-import this PDF to view inline content.');
+    return;
+  }
+
+  openNormalAtPage(targetPage);
 }
