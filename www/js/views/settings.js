@@ -505,12 +505,19 @@ function renderSettings() {
           <span>Unlock Pro (Test mode — not a real purchase)</span>
           <input type="checkbox" id="settings-dev-pro" />
         </label>
+        <label class="settings-toggle">
+          <span>Unlock OCR Vision (Test mode — not a real purchase)</span>
+          <input type="checkbox" id="settings-dev-ocr" />
+        </label>
       </section>
     </div>
   `;
 
   const devProEl = qs('#settings-dev-pro');
   if (devProEl) devProEl.checked = loadDevProBypass();
+
+  const devOcrEl = qs('#settings-dev-ocr');
+  if (devOcrEl) devOcrEl.checked = loadDevOcrBypass();
 
   syncThemeChips();
   syncTypographyChips();
@@ -597,6 +604,16 @@ function bindSettings() {
       showToast(this.checked
         ? 'Pro test mode ON — go back to home to see unlocked features.'
         : 'Pro test mode OFF.');
+    });
+  }
+
+  const devOcr = qs('#settings-dev-ocr');
+  if (devOcr) {
+    devOcr.addEventListener('change', function() {
+      saveDevOcrBypass(this.checked);
+      showToast(this.checked
+        ? 'OCR Vision test mode ON — go back to home to see the Image / Scan card.'
+        : 'OCR Vision test mode OFF.');
     });
   }
 

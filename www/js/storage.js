@@ -302,6 +302,18 @@ function loadDevProBypass() {
   return localStorage.getItem('fr_purchase_pro') === 'true';
 }
 
+function saveDevOcrBypass(enabled) {
+  if (enabled) {
+    localStorage.setItem('fr_purchase_ocr', 'true');
+  } else {
+    localStorage.removeItem('fr_purchase_ocr');
+  }
+}
+
+function loadDevOcrBypass() {
+  return localStorage.getItem('fr_purchase_ocr') === 'true';
+}
+
 /* ── Reading stats (append-only array, max 500 sessions) ────── */
 /* Session shape: { date: 'YYYY-MM-DD', wordsRead, durationMs, wpm, fileId } */
 function saveReadingSession(session) {
