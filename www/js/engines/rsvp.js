@@ -5,6 +5,7 @@ const RSVPEngine = (function() {
   let _words = [];
   let _index = 0;
   let _timerId = null;
+  let _generation = 0; /* incremented on every intentional stop; stale callbacks self-discard */
 
   /* DOM refs — built once at init, mutated during playback */
   let _stageEl = null;
@@ -212,7 +213,9 @@ const RSVPEngine = (function() {
     }
 
     const delay = _computeDelay(word);
+    const gen = _generation;
     _timerId = setTimeout(function() {
+      if (gen !== _generation) return; /* stale — a pause/seek invalidated this chain */
       _index++;
       if (_index >= _words.length) {
         _handleEnd();
@@ -240,6 +243,7 @@ const RSVPEngine = (function() {
 
   function pause() {
     AppState.isPlaying = false;
+    _generation++;
     if (_timerId) { clearTimeout(_timerId); _timerId = null; }
     if (AppState.currentFile) savePosition(AppState.currentFile.id, _index);
     startIdleReleaseTimer();
@@ -268,6 +272,7 @@ const RSVPEngine = (function() {
 
   function onWPMChange() {
     if (!AppState.isPlaying) return;
+    _generation++;
     if (_timerId) { clearTimeout(_timerId); _timerId = null; }
     _scheduleNext();
   }

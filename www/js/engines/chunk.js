@@ -1,7 +1,7 @@
 /* Chunk Mode — flashes 2–7 words at a time */
 
 const ChunkEngine = (function() {
-  let _words = [], _index = 0, _timerId = null;
+  let _words = [], _index = 0, _timerId = null, _generation = 0;
   let _chunkSize = 3;
   let _stageWidth = 0;
   let _fontSizeCache = Object.create(null);
@@ -99,7 +99,9 @@ const ChunkEngine = (function() {
     const base = (60000 / AppState.wpm) * _chunkSize;
     const last = typeof lastWord === 'string' ? lastWord[lastWord.length - 1] : '';
     const delay = '.!?'.includes(last) ? base * 1.8 : ',;:'.includes(last) ? base * 1.3 : base;
+    const gen = _generation;
     _timerId = setTimeout(function() {
+      if (gen !== _generation) return; /* stale — a pause/seek invalidated this chain */
       _index = Math.min(_index + _chunkSize, _words.length - 1);
       if (_index >= _words.length - 1) { _handleEnd(); return; }
       _schedule();
@@ -122,6 +124,7 @@ const ChunkEngine = (function() {
   }
   function pause() {
     AppState.isPlaying = false;
+    _generation++;
     if (_timerId) { clearTimeout(_timerId); _timerId = null; }
     if (AppState.currentFile) savePosition(AppState.currentFile.id, _index);
     startIdleReleaseTimer();
@@ -137,6 +140,7 @@ const ChunkEngine = (function() {
 
   function onWPMChange() {
     if (!AppState.isPlaying) return;
+    _generation++;
     if (_timerId) { clearTimeout(_timerId); _timerId = null; }
     _schedule();
   }
