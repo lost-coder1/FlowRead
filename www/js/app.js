@@ -92,4 +92,11 @@ document.addEventListener('DOMContentLoaded', async function() {
   }
 
   if (typeof initShareHandler === 'function') initShareHandler();
+
+  /* Dismiss splash after boot — fade out then remove from DOM */
+  const splash = document.getElementById('app-splash');
+  if (splash) {
+    splash.classList.add('splash-hiding');
+    splash.addEventListener('transitionend', function() { splash.remove(); }, { once: true });
+  }
 });
