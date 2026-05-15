@@ -229,12 +229,14 @@ Next task to handle: **Task 12.1 — Daily reminder notifications**
 
 
 - [ ] **Task 12.3 — On-device OCR Vision (new paid feature)**
-  - Replace the scanned-PDF hard stop with an on-device OCR pipeline for image-only PDFs.
-  - OCR runs locally on the device and feeds the same reader data model already used by the app (`words`, `pageWordIndex`, `rawLines`, `metadata`).
-  - Keep OCR Vision as a separate one-time paid feature, available only to Pro users.
-  - Free users still see a clear upgrade prompt when they import scanned PDFs.
-  - OCR imports must persist locally so scanned files do not need to be reprocessed on every launch.
-  - If OCR cannot run, the app must show a plain-language error instead of failing silently.
+  - Scope: scanned (image-only) PDFs + standalone image import (JPG/PNG/HEIC/WEBP). Mixed PDFs deferred.
+  - Android: uses Google ML Kit Text Recognition (on-device, no internet, via @capacitor-mlkit/text-recognition).
+  - iOS (future): use Apple Vision Framework — NOT ML Kit. Must be implemented separately when iOS work begins.
+  - OCR runs locally on the device and feeds the same reader data model (`words`, `pageWordIndex`, `rawLines`, `metadata`).
+  - New "Image / Scan" import card on home screen — supports camera capture and gallery multi-select.
+  - Gate: Pro + OCR Vision add-on ($4.99 one-time). Free/Pro-only users see upgrade prompt.
+  - OCR imports persist locally so files are not reprocessed on every launch.
+  - If OCR cannot run, show a plain-language error instead of failing silently.
 
 
 - [x] **Task 12.5 — Internal Dictionary** (Completed)
