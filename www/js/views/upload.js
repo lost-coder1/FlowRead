@@ -159,9 +159,9 @@ async function hydrateUploadSurface() {
     button.classList.remove('import-card-live');
   }
 
-  /* Stats bar — shown only for Pro users */
+  /* Stats bar — shown only for Pro users; always refreshed so stats are current */
   const existingBar = qs('#home-stats-bar');
-  if (pro && !existingBar) {
+  if (pro) {
     const sessions = loadReadingSessions();
     const streak = computeStreak(sessions);
     const today = todayDateString();
@@ -170,18 +170,23 @@ async function hydrateUploadSurface() {
       .reduce(function(acc, s) { return acc + (s.wordsRead || 0); }, 0);
     const avgWpm = last7DaysAvgWpm(sessions);
 
-    const bar = document.createElement('div');
-    bar.id = 'home-stats-bar';
-    bar.className = 'home-stats-bar';
-    bar.innerHTML = [
+    const statsHtml = [
       '<div class="home-stat"><span class="home-stat-value">' + streak + '</span><span class="home-stat-label">day streak</span></div>',
       '<div class="home-stat"><span class="home-stat-value">' + formatNumber(todayWords) + '</span><span class="home-stat-label">words today</span></div>',
       '<div class="home-stat"><span class="home-stat-value">' + (avgWpm > 0 ? formatWPM(avgWpm) : '—') + '</span><span class="home-stat-label">avg WPM</span></div>',
     ].join('');
 
-    const libSection = qs('#library-section');
-    if (libSection) libSection.before(bar);
-  } else if (!pro && existingBar) {
+    if (existingBar) {
+      existingBar.innerHTML = statsHtml;
+    } else {
+      const bar = document.createElement('div');
+      bar.id = 'home-stats-bar';
+      bar.className = 'home-stats-bar';
+      bar.innerHTML = statsHtml;
+      const libSection = qs('#library-section');
+      if (libSection) libSection.before(bar);
+    }
+  } else if (existingBar) {
     existingBar.remove();
   }
 
