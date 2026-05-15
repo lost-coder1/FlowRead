@@ -271,6 +271,7 @@ async function handleFileSelect(file) {
     const fileId = generateFileId(file.name, file.size, file.lastModified || result.metadata.pageCount);
     AppState.currentFile = {
       id: fileId,
+      kind: 'pdf',
       name: file.name,
       words: result.words,
       pageWordIndex: result.pageWordIndex,
@@ -343,6 +344,7 @@ async function handleUrlImport(rawUrl) {
     const fileId = generateFileId('url', article.sourceUrl, article.wordCount);
     AppState.currentFile = {
       id: fileId,
+      kind: 'url',
       name: article.title,
       words: article.words,
       pageWordIndex: [0],
@@ -721,6 +723,7 @@ async function handleDocxSelect(file) {
     const fileId = generateFileId(file.name, file.size, file.lastModified || result.metadata.wordCount);
     AppState.currentFile = {
       id: fileId,
+      kind: 'docx',
       name: file.name,
       words: result.words,
       pageWordIndex: result.pageWordIndex,
@@ -770,6 +773,7 @@ async function handleTxtSelect(file) {
     const fileId = generateFileId(file.name, file.size, file.lastModified || result.metadata.wordCount);
     AppState.currentFile = {
       id: fileId,
+      kind: 'txt',
       name: file.name,
       words: result.words,
       pageWordIndex: result.pageWordIndex,
@@ -1102,6 +1106,7 @@ async function resumeFromLibrary(entry) {
 
     AppState.currentFile = {
       id: entry.id,
+      kind: entry.kind,
       name: entry.name,
       words: data.words,
       pageWordIndex: data.pageWordIndex,

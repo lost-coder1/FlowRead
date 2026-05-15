@@ -24,11 +24,11 @@ function renderReader(options) {
   const opts = options || {};
   const startIndex = typeof opts.startIndex === 'number' ? opts.startIndex : loadPosition(file.id);
   const savedEngine = localStorage.getItem('fr_last_engine') || AppState.currentEngine || AppState.settings.defaultMode || 'rsvp';
-  const hasPdfBridge = !!(file.pdfDoc && file.pageWordIndex && file.pageWordIndex.length);
+  const hasPdfBridge = file.kind === 'pdf' && !!(file.pdfDoc && file.pageWordIndex && file.pageWordIndex.length);
   /* Raw PDF on disk but not yet re-parsed — show active button, lazy-load on tap */
-  const hasPdfLazy = !file.pdfDoc && !!(file.pdfRawAvailable && file.pageWordIndex && file.pageWordIndex.length);
+  const hasPdfLazy = file.kind === 'pdf' && !file.pdfDoc && !!(file.pdfRawAvailable && file.pageWordIndex && file.pageWordIndex.length);
   /* Parsed data only (e.g. browser fallback, raw bytes missing) — disabled button hints to re-import */
-  const hasPdfDataOnly = !file.pdfDoc && !file.pdfRawAvailable && !!(file.pageWordIndex && file.pageWordIndex.length);
+  const hasPdfDataOnly = file.kind === 'pdf' && !file.pdfDoc && !file.pdfRawAvailable && !!(file.pageWordIndex && file.pageWordIndex.length);
 
   AppState.currentIndex = startIndex;
   AppState.currentEngine = savedEngine;
