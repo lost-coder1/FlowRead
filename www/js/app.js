@@ -92,6 +92,7 @@ document.addEventListener('DOMContentLoaded', async function() {
   }
 
   if (typeof initShareHandler === 'function') initShareHandler();
+  if (typeof NotificationsFeature !== 'undefined') NotificationsFeature.init();
 
   /* Dismiss splash after boot — fade out then remove from DOM */
   const splash = document.getElementById('app-splash');

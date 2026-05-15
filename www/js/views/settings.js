@@ -99,6 +99,8 @@ function getDefaultSettings() {
     orpDefault: true,
     contextDefault: false,
     calmModeDefault: false,
+    reminderEnabled: false,
+    reminderHour: 20,
   };
 }
 
@@ -477,6 +479,26 @@ function renderSettings() {
       </section>
 
       <section class="settings-section">
+        <h2>Notifications</h2>
+        <label class="settings-toggle">
+          <span>Daily reading reminder</span>
+          <input type="checkbox" id="settings-reminder-enabled" ${AppState.settings.reminderEnabled ? 'checked' : ''} />
+        </label>
+        <div class="settings-field${AppState.settings.reminderEnabled ? '' : ' hidden'}" id="settings-reminder-time-row">
+          <label class="settings-label" for="settings-reminder-hour">Reminder time</label>
+          <select id="settings-reminder-hour" class="settings-select">
+            ${[7,8,9,12,17,18,19,20,21,22].map(function(h) {
+              const label = h < 12 ? h + ':00 AM' : h === 12 ? '12:00 PM' : (h - 12) + ':00 PM';
+              return '<option value="' + h + '"' + (AppState.settings.reminderHour === h ? ' selected' : '') + '>' + label + '</option>';
+            }).join('')}
+          </select>
+        </div>
+        <p class="settings-copy text-muted" id="settings-reminder-note" style="${AppState.settings.reminderEnabled ? '' : 'display:none'}">
+          ${AppState.isPro ? 'Reminds you about all unread items.' : 'Free: reminds about unread PDFs only. Upgrade to Pro for all file types.'}
+        </p>
+      </section>
+
+      <section class="settings-section">
         <h2>Developer</h2>
         <p class="settings-copy text-muted">Test mode only. Not a real purchase. Toggle resets if app data is cleared.</p>
         <label class="settings-toggle">
@@ -575,6 +597,32 @@ function bindSettings() {
       showToast(this.checked
         ? 'Pro test mode ON — go back to home to see unlocked features.'
         : 'Pro test mode OFF.');
+    });
+  }
+
+  const reminderToggle = qs('#settings-reminder-enabled');
+  if (reminderToggle) {
+    reminderToggle.addEventListener('change', function() {
+      const enabled = this.checked;
+      updateSetting('reminderEnabled', enabled);
+      localStorage.setItem('fr_reminder_enabled', enabled);
+      const timeRow = qs('#settings-reminder-time-row');
+      const note = qs('#settings-reminder-note');
+      if (timeRow) timeRow.classList.toggle('hidden', !enabled);
+      if (note) note.style.display = enabled ? '' : 'none';
+      if (typeof NotificationsFeature !== 'undefined') {
+        enabled ? NotificationsFeature.scheduleIfNeeded() : NotificationsFeature.cancel();
+      }
+    });
+  }
+
+  const reminderHour = qs('#settings-reminder-hour');
+  if (reminderHour) {
+    reminderHour.addEventListener('change', function() {
+      const h = parseInt(this.value, 10);
+      updateSetting('reminderHour', h);
+      localStorage.setItem('fr_reminder_hour', h);
+      if (typeof NotificationsFeature !== 'undefined') NotificationsFeature.scheduleIfNeeded();
     });
   }
 }
