@@ -255,6 +255,12 @@ const FocusBoldEngine = (function() {
     span.appendChild(bold);
     span.appendChild(rest);
     span.appendChild(document.createTextNode(' '));
+    (function(w) {
+      span.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (typeof DictionaryFeature !== 'undefined') DictionaryFeature.showDictionaryModal(w);
+      });
+    })(word);
     return span;
   }
 

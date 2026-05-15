@@ -59,10 +59,28 @@ const ChunkEngine = (function() {
       const text = placeholder
         ? (placeholder.label || '[Content]')
         : chunkWords.filter(w => typeof w === 'string').join(' ');
-      el.textContent = text;
+
       el.classList.toggle('chunk-placeholder', Boolean(placeholder));
-      el.onclick = placeholder ? function() { openObjectPlaceholder(placeholder); } : null;
       el.style.fontSize = _resolveChunkFontSize(text) + 'px';
+
+      if (placeholder) {
+        el.textContent = text;
+        el.onclick = function() { openObjectPlaceholder(placeholder); };
+      } else {
+        el.innerHTML = '';
+        el.onclick = null;
+        const stringWords = chunkWords.filter(w => typeof w === 'string');
+        stringWords.forEach(function(w, i) {
+          const span = document.createElement('span');
+          span.className = 'chunk-word';
+          span.textContent = w + (i < stringWords.length - 1 ? ' ' : '');
+          span.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if (typeof DictionaryFeature !== 'undefined') DictionaryFeature.showDictionaryModal(w);
+          });
+          el.appendChild(span);
+        });
+      }
     }
     const prog = qs('#chunk-progress');
     if (prog) prog.textContent = formatNumber(_index) + ' / ' + formatNumber(_words.length);

@@ -147,11 +147,20 @@ function renderReader(options) {
   _syncReaderPosition(startIndex, file.words.length);
   _applyEngineChrome(AppState.currentEngine);
   acquireWakeLock();
+  /* Preload dictionary in background so first tap has no delay */
+  if (AppState.isPro && typeof DictionaryFeature !== 'undefined') {
+    DictionaryFeature.loadDictionary();
+  }
 }
 
 function _bindReaderLifecycleHooks() {
   if (_readerLifecycleBound) return;
   _readerLifecycleBound = true;
+
+  /* Pause active engine when dictionary requests it */
+  document.addEventListener('fr-reading-pause', function() {
+    if (_activeEngine && AppState.isPlaying) _activeEngine.pause();
+  });
 
   /* Capture reading sessions when app is backgrounded or page is hidden. */
   document.addEventListener('visibilitychange', function() {

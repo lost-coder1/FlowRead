@@ -219,7 +219,7 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
 
 ### PHASE 12 — Engagement, Navigation, OCR Vision
 
-Next task to handle: **Task 12.5 — Internal Dictionary**
+Next task to handle: **Task 12.1 — Daily reminder notifications**
 
 - [ ] **Task 12.1 — Daily reminder notifications**
   - Free: remind once daily about unread PDFs only.
@@ -237,11 +237,19 @@ Next task to handle: **Task 12.5 — Internal Dictionary**
   - If OCR cannot run, the app must show a plain-language error instead of failing silently.
 
 
-- [ ] **Task 12.5 — Internal Dictionary**
-  - Provide a local dictionary
-  - When user long press on any word in any mode, app should show the meaning from this library.
-  - If it is not available, it should show device-specific options or dictionary as fallback.
+- [x] **Task 12.5 — Internal Dictionary** (Completed)
+  - ✅ 82,559-word local offline dictionary from WordNet 3.1 (Pro feature)
+  - ✅ Single tap on any word in RSVP/Chunk/Scroll/FocusBold → shows definition modal
+  - ✅ Free users see Pro upgrade prompt with "Look up online" fallback
+  - ✅ Dictionary auto-loads in background on reader open (zero delay on first tap)
+  - ✅ Playback auto-pauses when dictionary opens
+  - ✅ Definitions capped at 2 per word, max 120 chars (7.98 MB file, compresses further in APK/IPA)
 
+- [ ] **Task 12.6 — Clean Up Tasks**
+  - Add a loading screen when app opens, it has to be a clean UI 
+  - Disable pro feature test botton in settings or remove it
+  - 
+  
 ### PRE-LAUNCH — Store Setup
 
 - [ ] **Real Pro purchase flow**

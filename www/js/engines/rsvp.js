@@ -137,8 +137,11 @@ const RSVPEngine = (function() {
 
     if (wrap) wrap.classList.remove('placeholder-mode');
     if (wrap) wrap.style.fontSize = _fontSize + 'px';
-    _stageEl.onclick = null;
-    _stageEl.style.cursor = '';
+    _stageEl.onclick = function() {
+      const word = (_beforeEl.textContent || '') + (_orpEl.textContent || '') + (_afterEl.textContent || '');
+      if (typeof DictionaryFeature !== 'undefined') DictionaryFeature.showDictionaryModal(word.trim());
+    };
+    _stageEl.style.cursor = 'pointer';
     _afterEl.style.color = '';
     _afterEl.style.fontSize = '';
 

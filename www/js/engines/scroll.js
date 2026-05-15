@@ -144,6 +144,12 @@ const ScrollEngine = (function() {
         span.className = 'scroll-word';
         if (typeof w === 'string') {
           span.textContent = w + ' ';
+          (function(captured) {
+            span.addEventListener('click', function(e) {
+              e.stopPropagation();
+              if (typeof DictionaryFeature !== 'undefined') DictionaryFeature.showDictionaryModal(captured);
+            });
+          })(w);
         } else {
           span.textContent = ((w && w.label) || '[Content]') + ' ';
           span.classList.add('scroll-placeholder');
