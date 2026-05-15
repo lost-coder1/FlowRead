@@ -60,25 +60,26 @@ html, body {
   --transition-normal: 0.2s ease;
   --transition-slow:   0.3s ease;
 
-  /* Font families */
-  --font-display: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
-  --font-body:    'Roboto', 'Helvetica Neue', Arial, sans-serif;
-  --font-mono:    'DM Mono', 'Courier New', monospace;
+  /* Font families. Noto Sans Devanagari is appended as a script fallback so
+     Hindi text shapes correctly regardless of which UI font the user picks. */
+  --font-display: 'Roboto', 'Noto Sans Devanagari', 'Helvetica Neue', Arial, sans-serif;
+  --font-body:    'Roboto', 'Noto Sans Devanagari', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono:    'DM Mono', 'Noto Sans Devanagari', 'Courier New', monospace;
 }
 
 body[data-font="roboto"] {
-  --font-display: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
-  --font-body: 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Roboto', 'Noto Sans Devanagari', 'Helvetica Neue', Arial, sans-serif;
+  --font-body: 'Roboto', 'Noto Sans Devanagari', 'Helvetica Neue', Arial, sans-serif;
 }
 
 body[data-font="open-sans"] {
-  --font-display: 'Open Sans', 'Helvetica Neue', Arial, sans-serif;
-  --font-body: 'Open Sans', 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Open Sans', 'Noto Sans Devanagari', 'Helvetica Neue', Arial, sans-serif;
+  --font-body: 'Open Sans', 'Noto Sans Devanagari', 'Helvetica Neue', Arial, sans-serif;
 }
 
 body[data-font="lato"] {
-  --font-display: 'Lato', 'Helvetica Neue', Arial, sans-serif;
-  --font-body: 'Lato', 'Helvetica Neue', Arial, sans-serif;
+  --font-display: 'Lato', 'Noto Sans Devanagari', 'Helvetica Neue', Arial, sans-serif;
+  --font-body: 'Lato', 'Noto Sans Devanagari', 'Helvetica Neue', Arial, sans-serif;
 }
 
 /* ── Base typography ────────────────────────────────────────── */

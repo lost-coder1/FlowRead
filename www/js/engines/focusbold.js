@@ -243,14 +243,14 @@ const FocusBoldEngine = (function() {
       return span;
     }
 
-    const boldLen = Math.max(1, Math.ceil(word.length * 0.4));
+    const [prefix, remainder] = splitAtGrapheme(word, 0.4);
     const bold = document.createElement('span');
     bold.className = 'fb-bold';
-    bold.textContent = word.slice(0, boldLen);
+    bold.textContent = prefix;
 
     const rest = document.createElement('span');
     rest.className = 'fb-rest';
-    rest.textContent = word.slice(boldLen);
+    rest.textContent = remainder;
 
     span.appendChild(bold);
     span.appendChild(rest);
