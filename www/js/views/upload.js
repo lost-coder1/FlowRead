@@ -65,6 +65,14 @@ function renderUpload() {
           </span>
           <span class="import-card-body">Reading stats, streaks, and future analytics.</span>
         </button>
+
+        <button class="import-card import-card-locked" id="btn-image-reader" type="button">
+          <span class="import-card-head">
+            <strong>Image / Scan</strong>
+            <span class="import-badge">OCR Vision</span>
+          </span>
+          <span class="import-card-body">Take a photo or pick images. OCR extracts the text on-device.</span>
+        </button>
       </div>
 
       <section class="url-panel hidden" id="url-panel">
@@ -79,6 +87,7 @@ function renderUpload() {
       <input type="file" id="file-input" accept=".pdf" style="display:none" />
       <input type="file" id="file-input-docx" accept=".docx" style="display:none" />
       <input type="file" id="file-input-txt" accept=".txt" style="display:none" />
+      <input type="file" id="file-input-image" accept="image/*" multiple style="display:none" />
 
       <div id="upload-error" class="hidden" style="margin: 0 24px; width: 100%; max-width: 680px;"></div>
 
@@ -119,6 +128,12 @@ function renderUpload() {
     event.target.value = '';
   });
 
+  qs('#file-input-image').addEventListener('change', function(event) {
+    const files = event.target.files;
+    if (files && files.length) handleImageSelect(files);
+    event.target.value = '';
+  });
+
   qs('#btn-sync-files').addEventListener('click', syncDeviceFiles);
   qs('#btn-open-settings').addEventListener('click', renderSettings);
   qs('#btn-open-settings-top').addEventListener('click', renderSettings);
@@ -131,6 +146,7 @@ function renderUpload() {
   qs('#btn-docx-reader').addEventListener('click', openDocxReader);
   qs('#btn-txt-reader').addEventListener('click', openTxtReader);
   qs('#btn-dashboard').addEventListener('click', openDashboard);
+  qs('#btn-image-reader').addEventListener('click', openImageReader);
   qs('#btn-import-url').addEventListener('click', function() {
     handleUrlImport(qs('#url-input').value);
   });
@@ -194,6 +210,8 @@ async function hydrateUploadSurface() {
   const docxCard = qs('#btn-docx-reader');
   const txtCard = qs('#btn-txt-reader');
   const dashboardCard = qs('#btn-dashboard');
+  const imageCard = qs('#btn-image-reader');
+  const ocr = pro ? await hasOcrAccess() : false;
 
   if (pro) {
     if (docxCard) {
@@ -218,6 +236,17 @@ async function hydrateUploadSurface() {
     if (docxCard) docxCard.classList.add('import-card-locked');
     if (txtCard) txtCard.classList.add('import-card-locked');
     if (dashboardCard) dashboardCard.classList.add('import-card-locked');
+  }
+
+  if (imageCard) {
+    if (ocr) {
+      imageCard.classList.remove('import-card-locked');
+      imageCard.classList.add('import-card-live');
+      const badge = imageCard.querySelector('.import-badge');
+      if (badge) badge.textContent = 'On-device OCR';
+    } else {
+      imageCard.classList.add('import-card-locked');
+    }
   }
 }
 
@@ -259,13 +288,42 @@ async function handleFileSelect(file) {
     const result = await parsePDF(arrayBuffer);
 
     if (!result.metadata.hasTextLayer) {
-      hideLoading();
-      showUploadError(
-        'Scanned PDF',
-        'This appears to be a scanned PDF. The free version reads only digital PDFs where you can highlight text. Scanned pages require the OCR Vision upgrade.',
-        { actionLabel: 'Learn about OCR Vision', action: function() { showOcrPaywall('scanned-pdf'); } }
-      );
-      return;
+      const ocrAccess = await hasOcrAccess();
+      if (!ocrAccess) {
+        hideLoading();
+        showUploadError(
+          'Scanned PDF',
+          'This appears to be a scanned PDF. OCR Vision can extract the text on-device — no internet required.',
+          { actionLabel: 'Unlock OCR Vision', action: function() { showOcrPaywall('scanned-pdf'); } }
+        );
+        return;
+      }
+      /* Run OCR on the scanned PDF */
+      showLoading('Running OCR…');
+      window._pdfParseProgress = function(current, total) {
+        const msg = qs('#loading-message');
+        if (msg) msg.textContent = 'OCR page ' + current + ' of ' + total + '…';
+      };
+      let ocrResult;
+      try {
+        ocrResult = await parseScannedPDF(result.pdfDoc, window._pdfParseProgress);
+      } catch (ocrErr) {
+        hideLoading();
+        window._pdfParseProgress = null;
+        showUploadError('OCR failed', 'Could not extract text from this PDF. Try a higher-quality scan or re-import.');
+        return;
+      }
+      if (!ocrResult.metadata.wordCount) {
+        hideLoading();
+        window._pdfParseProgress = null;
+        showUploadError('No text found', 'OCR ran but could not find readable text. The scan may be too low quality.');
+        return;
+      }
+      /* Swap in OCR result and continue the normal import flow */
+      result.words = ocrResult.words;
+      result.pageWordIndex = ocrResult.pageWordIndex;
+      result.rawLines = ocrResult.rawLines;
+      result.metadata = Object.assign({}, result.metadata, ocrResult.metadata);
     }
 
     const fileId = generateFileId(file.name, file.size, file.lastModified || result.metadata.pageCount);
@@ -804,6 +862,79 @@ async function handleTxtSelect(file) {
       return;
     }
     showUploadError('TXT import failed', 'Could not read this file. ' + ((err && err.detail) || (err && err.message) || ''));
+  }
+}
+
+async function openImageReader() {
+  const pro = await hasProAccess();
+  const ocr = await hasOcrAccess();
+  if (!pro || !ocr) {
+    showOcrPaywall('image-scan');
+    return;
+  }
+  qs('#file-input-image').click();
+}
+
+async function handleImageSelect(files) {
+  if (!files || files.length === 0) return;
+  const fileList = Array.prototype.slice.call(files);
+
+  clearUploadError();
+  showLoading('Running OCR…');
+
+  window._pdfParseProgress = function(current, total) {
+    const msg = qs('#loading-message');
+    if (msg) msg.textContent = 'Processing image ' + current + ' of ' + total + '…';
+  };
+
+  try {
+    const result = await parseImages(fileList, window._pdfParseProgress);
+    window._pdfParseProgress = null;
+
+    if (!result.metadata.wordCount) {
+      hideLoading();
+      showUploadError('No text found', 'OCR could not find readable text in the selected image(s). Try a clearer photo.');
+      return;
+    }
+
+    const firstName = fileList[0].name;
+    const name = fileList.length === 1 ? firstName : fileList.length + ' images';
+    const fileId = generateFileId('img', firstName, fileList.length + result.metadata.wordCount);
+
+    AppState.currentFile = {
+      id: fileId,
+      kind: 'image',
+      name: name,
+      words: result.words,
+      pageWordIndex: result.pageWordIndex,
+      rawLines: result.rawLines,
+      metadata: Object.assign({}, result.metadata, { sourceType: 'image' }),
+      pdfDoc: null,
+      pdfRawAvailable: false,
+    };
+    AppState.currentIndex = 0;
+
+    saveFileToLibrary({
+      id: fileId,
+      kind: 'image',
+      name: name,
+      wordCount: result.metadata.wordCount,
+      pageCount: result.metadata.pageCount,
+      lastOpened: Date.now(),
+    });
+    saveFileData(fileId, AppState.currentFile);
+
+    hideLoading();
+    renderReader();
+    switchView('view-reader');
+  } catch (err) {
+    hideLoading();
+    window._pdfParseProgress = null;
+    if (err && err.type === 'ocr-unavailable') {
+      showUploadError('OCR not available', 'On-device OCR is not available on this device.');
+      return;
+    }
+    showUploadError('Image import failed', 'Could not process the image(s). ' + ((err && err.detail) || (err && err.message) || ''));
   }
 }
 
