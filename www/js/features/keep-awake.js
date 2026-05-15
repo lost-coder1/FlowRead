@@ -43,3 +43,12 @@ function clearIdleReleaseTimer() {
     _idleReleaseTimer = null;
   }
 }
+
+/* Re-acquire wake lock when app returns to foreground — Android can clear
+   FLAG_KEEP_SCREEN_ON on activity recreation or after app-switcher use */
+(function() {
+  if (typeof Capacitor === 'undefined' || !Capacitor.Plugins || !Capacitor.Plugins.App) return;
+  Capacitor.Plugins.App.addListener('appStateChange', function(state) {
+    if (state.isActive && _wakeLockActive) acquireWakeLock();
+  });
+})();
