@@ -155,10 +155,10 @@ const RSVPEngine = (function() {
     }
 
     if (_orpEnabled) {
-      const orpIdx = Math.floor(w.length * 0.33);
-      _beforeEl.textContent = w.slice(0, orpIdx);
-      _orpEl.textContent = w[orpIdx] || '';
-      _afterEl.textContent = w.slice(orpIdx + 1);
+      const parts = graphemeAt(w, 0.33);
+      _beforeEl.textContent = parts.before;
+      _orpEl.textContent = parts.cluster;
+      _afterEl.textContent = parts.after;
     } else {
       _beforeEl.textContent = '';
       _orpEl.textContent = '';
