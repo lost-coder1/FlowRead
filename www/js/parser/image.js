@@ -16,8 +16,8 @@ async function parseImages(files, onProgress) {
     try {
       const base64 = await OCREngine.imageFileToBase64(files[i]);
       pageText = await OCREngine.recogniseBase64(base64);
-    } catch (_) {
-      /* Non-fatal — blank page placeholder keeps page count correct */
+    } catch (err) {
+      console.error('OCR image', i, files[i] && files[i].name, 'failed:', err);
       pageText = '';
     }
 

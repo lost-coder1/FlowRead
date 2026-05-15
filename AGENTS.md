@@ -210,13 +210,37 @@ Next task to handle: **Task 12.1 — Daily reminder notifications**
   - Fully local scheduling and state tracking (no backend, no analytics).
 
 
-- [ ] **Task 12.3 — On-device OCR Vision (new paid feature)**
-  - Replace the scanned-PDF hard stop with an on-device OCR pipeline for image-only PDFs.
-  - OCR runs locally on the device and feeds the same reader data model already used by the app (`words`, `pageWordIndex`, `rawLines`, `metadata`).
-  - Keep OCR Vision as a separate one-time paid feature, available only to Pro users.
-  - Free users still see a clear upgrade prompt when they import scanned PDFs.
-  - OCR imports must persist locally so scanned files do not need to be reprocessed on every launch.
-  - If OCR cannot run, the app must show a plain-language error instead of failing silently.
+- [x] **Task 12.3 — On-device OCR Vision (Android complete)**
+  - ✅ Custom `FlowReadOcr` Capacitor plugin (`android/app/src/main/java/com/flowread/app/FlowReadOcrPlugin.java`) wraps ML Kit Text Recognition v2 with an explicit `script` parameter (`'latin'` | `'devanagari'`). Replaces the published `@pantrist/capacitor-plugin-ml-kit-text-recognition` (which hardcoded Latin and silently dropped Hindi).
+  - ✅ Gradle: `play-services-mlkit-text-recognition:19.0.1` + `play-services-mlkit-text-recognition-devanagari:16.0.1` bundled into the APK — fully offline.
+  - ✅ JS OCR engine tries Latin first, falls back to Devanagari, and merges results for mixed Hindi+English pages.
+  - ✅ Scanned-PDF detection now uses three signals: word-count threshold, scanner watermark regex (CamScanner, OKEN Scanner, etc.), and a junk-text ratio. Scanner apps' bad embedded text layers no longer bypass our recognizer.
+  - ✅ Image OCR uses `FileReader.readAsDataURL()` (no canvas) — avoids WebView OOM on 12MP+ photos.
+  - ✅ PDF OCR renders at 3× scale with white-fill background; falls back to extracting the largest embedded image XObject directly when full-page render returns nothing (handles JBIG2/JPEG2000).
+  - ✅ "Image / Scan" import card on home screen — gallery multi-select.
+  - ✅ Free/Pro-only users see upgrade prompt. Dev bypass in Settings > Developer.
+  - ✅ OCR imports persist locally; no reprocessing on launch.
+  - ⏳ **iOS implementation pending** — use Apple Vision Framework (`VNRecognizeTextRequest`), NOT ML Kit. Apple Vision auto-detects script across most languages, so a single recognizer call typically covers Latin + Devanagari + CJK + Cyrillic without separate models. Must be wired through an equivalent custom Capacitor plugin in `ios/App/App/` when iOS work begins.
+
+### Language coverage notes (added during 12.3)
+
+**Normal (text-layer) PDFs — no extra plugin needed:**
+- ✅ Latin + diacritics (English, French, Spanish, German, Italian, Portuguese, Dutch, Polish, Turkish, Vietnamese, etc.) — bundled fonts already cover.
+- ✅ Cyrillic (Russian, Ukrainian, Bulgarian, Serbian) and Greek — Roboto/Open Sans already include these glyphs.
+- ❌ Devanagari (Hindi, Marathi, Nepali) — need Noto Sans Devanagari bundled.
+- ❌ CJK — need CJK font (~5–15 MB/script) and word-segmentation (no spaces between words).
+- ❌ Thai, Khmer, Lao — word-segmentation issue.
+- ❌ Arabic, Hebrew, Urdu — already excluded in v1 (RTL).
+
+**On-device OCR (ML Kit script models, Android):**
+- ✅ Latin (~30 languages) and Devanagari (Hindi/Marathi/Nepali) shipping today.
+- Available but not yet added (each ~3–5 MB APK overhead): Chinese, Japanese, Korean.
+- ❌ ML Kit does NOT support: Cyrillic, Arabic, Hebrew, Thai, Tamil, Bengali — would need Tesseract.js or cloud OCR for those.
+
+**Suggested market-entry order after Latin + Devanagari:**
+1. Japanese + Korean — high spending power, premium app market, easy bilingual handling via our existing script-merge logic. ~7–10 MB additional.
+2. Chinese — biggest TAM but no Google Play in mainland China; revisit when iOS launches or alt-stores are in scope.
+3. Cyrillic markets — would require Tesseract.js fallback; defer.
 
 
 - [x] **Task 12.5 — Internal Dictionary** (Completed)

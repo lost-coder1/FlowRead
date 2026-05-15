@@ -96,7 +96,33 @@ async function parsePDF(arrayBuffer) {
 
   /* ── 5. Detect if PDF has a real text layer ───────────────── */
   const avgWordsPerPage = totalWordCount / numPages;
-  const hasTextLayer = avgWordsPerPage >= 5;
+
+  /* Scanner apps embed their own (often garbage) OCR text layer. Detect known
+     watermarks AND text-quality signals so we can route to our ML Kit OCR. */
+  const SCANNER_WATERMARK = /scanned (with|by|using)|camscanner|adobe scan|office lens|microsoft lens|scanner pro|scanbot|genius scan|tap ?scanner|clear ?scanner|tiny scanner|simple scanner|pdf scanner/i;
+  const fullText = rawLines.map(function(l) { return l.text; }).join(' ');
+  const hasScannerWatermark = SCANNER_WATERMARK.test(fullText);
+
+  /* Garbage-text heuristic: if most "words" are short/no-vowel/mixed-alnum tokens,
+     it's almost certainly low-quality embedded OCR rather than real text. */
+  let realWords = 0, junkWords = 0;
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    if (typeof w !== 'string') continue;
+    const stripped = w.replace(/[^A-Za-z]/g, '');
+    if (stripped.length >= 3 && /[aeiouAEIOU]/.test(stripped)) realWords++;
+    else junkWords++;
+  }
+  const totalTokens = realWords + junkWords;
+  const junkRatio = totalTokens > 0 ? junkWords / totalTokens : 0;
+  const textLooksGarbled = totalTokens > 0 && junkRatio > 0.55;
+
+  const hasTextLayer = !hasScannerWatermark && !textLooksGarbled && avgWordsPerPage >= 30;
+
+  console.log('[parsePDF] avgWordsPerPage=' + avgWordsPerPage.toFixed(1)
+    + ' watermark=' + hasScannerWatermark
+    + ' junkRatio=' + junkRatio.toFixed(2)
+    + ' hasTextLayer=' + hasTextLayer);
 
   /* ── 6. Detect image-like gaps and insert placeholders ────── */
   insertImagePlaceholders(words, allPageData, pageWordIndex);
