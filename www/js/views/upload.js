@@ -1111,7 +1111,9 @@ async function resumeFromLibrary(entry) {
       /* If we have the raw PDF on disk, Normal View can be opened on demand */
       pdfRawAvailable: entry.kind === 'pdf' && hasRawPdf(entry.id),
     };
-    AppState.currentIndex = loadPosition(entry.id);
+    const savedPos = loadPosition(entry.id);
+    /* If the file was completed, start from the beginning on re-open */
+    AppState.currentIndex = savedPos >= data.words.length ? 0 : savedPos;
 
     hideLoading();
     renderReader();

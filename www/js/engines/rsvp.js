@@ -227,8 +227,8 @@ const RSVPEngine = (function() {
 
   function _handleEnd() {
     AppState.isPlaying = false;
-    if (AppState.currentFile) savePosition(AppState.currentFile.id, 0);
-    showToast('Finished! Position reset to beginning.');
+    if (AppState.currentFile) savePosition(AppState.currentFile.id, _words.length);
+    showToast('Finished!');
     _updatePlayPauseBtn();
   }
 

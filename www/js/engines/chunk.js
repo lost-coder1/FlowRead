@@ -110,7 +110,7 @@ const ChunkEngine = (function() {
 
   function _handleEnd() {
     AppState.isPlaying = false;
-    if (AppState.currentFile) savePosition(AppState.currentFile.id, 0);
+    if (AppState.currentFile) savePosition(AppState.currentFile.id, _words.length);
     showToast('Finished!');
     const btn = qs('#btn-play-pause'); if (btn) btn.textContent = '▶';
   }
