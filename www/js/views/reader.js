@@ -412,6 +412,7 @@ function _seekReaderTo(index) {
   _activeEngine.seekTo(index);
   _syncReaderPosition(_activeEngine.getIndex(), AppState.currentFile.words.length);
   if (wasPlaying) _activeEngine.play();
+  if (AppState.isIndexOpen) _toggleIndexPanel();
 }
 
 function _setWPM(wpm) {
@@ -459,8 +460,19 @@ function _renderIndexList(query) {
 
 function _updateSeekText(index) {
   const text = qs('#reader-seek-text');
-  if (!text || !AppState.currentFile) return;
-  text.textContent = formatPct(index, AppState.currentFile.words.length) + ' · word ' + formatNumber(index);
+  const file = AppState.currentFile;
+  if (!text || !file) return;
+  let pageStr = '';
+  const pwi = file.pageWordIndex;
+  if (pwi && pwi.length) {
+    let page = 1;
+    for (let i = 0; i < pwi.length; i++) {
+      if (pwi[i] <= index) page = i + 1;
+      else break;
+    }
+    pageStr = ' · p.' + page + '/' + pwi.length;
+  }
+  text.textContent = formatPct(index, file.words.length) + pageStr + ' · word ' + formatNumber(index);
 }
 
 function _syncReaderPosition(index, total) {
