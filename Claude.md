@@ -275,13 +275,13 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
   - ✅ Playback auto-pauses when dictionary opens
   - ✅ Definitions capped at 2 per word, max 120 chars (7.98 MB file, compresses further in APK/IPA)
 
-- [ ] **Task 12.6 — Clean Up Tasks** 
-    - Give the opyion to paste text and read it as well like any other option, this would be free as well. discuss
-    - like pdf, there should be img button for seeing image 
-    - For URLs - give users a button to go to url where pdf button was
-    -Update the limitation about OCR accuracy
-    - Image/scan option only show files to upload, I want it to open camera maybe. Discuss
-    - During on-boarding, we are showing user scroll to caliberate. Maybe use RSVP to calibrate. And use some prepared fun texts, like you are reading this at 200WPM, you also are comprehending this , something like this. Discuss. Also give a toggle in settings like for pro to test on-boarding.
+- [x] **Task 12.6 — Clean Up Tasks** (Completed)
+  - ✅ **Task 1:** URL button in reader — opens source article in system browser
+  - ✅ **Task 2:** IMG button in reader — fullscreen gallery modal for viewing original OCR source images
+  - ✅ **Task 3:** Updated OCR accuracy limitation — notes best practices (flat, well-lit, straight-on); accuracy drops with poor conditions
+  - ✅ **Task 4:** Paste Text reader — free feature, card + modal, saves to library, 10-char minimum
+  - ✅ **Task 5:** Camera + Gallery action sheet — Image/Scan card now shows Take Photo / Choose from Gallery; camera integration via @capacitor/camera
+  - ✅ **Task 6:** RSVP onboarding calibration — live word-flashing at chosen WPM with adaptive tier texts; slider/buttons update speed and restart preview; added Reset Onboarding toggle in Settings > Developer
 
 ### PRE-LAUNCH — Store Setup & In-App Purchase
 
