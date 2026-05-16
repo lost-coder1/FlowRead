@@ -50,7 +50,7 @@ function lastNSessions(sessions, n) {
 
 function completionStats(lib) {
   let completed = 0;
-  const byKind = { pdf: 0, docx: 0, txt: 0, url: 0 };
+  const byKind = { pdf: 0, docx: 0, txt: 0, url: 0, image: 0 };
 
   lib.forEach(function(item) {
     const pos = loadPosition(item.id);
@@ -64,29 +64,16 @@ function completionStats(lib) {
   return { completed, byKind };
 }
 
-function mostRecentFile(lib) {
-  if (lib.length === 0) return null;
-  const sorted = lib.slice().sort(function(a, b) { return b.lastOpened - a.lastOpened; });
-  const item = sorted[0];
-  return {
-    fileId: item.id,
-    name: item.name,
-    wordCount: item.wordCount,
-    position: loadPosition(item.id)
-  };
-}
-
-function timeToComplete(mostRecentFileData, avgWpm) {
-  if (!mostRecentFileData || !avgWpm || avgWpm <= 0) return '—';
-
-  const wordsRemaining = Math.max(0, mostRecentFileData.wordCount - mostRecentFileData.position);
-  if (wordsRemaining <= 0) return 'You\'ve finished this one!';
-
-  const minutesNeeded = Math.round(wordsRemaining / avgWpm);
-  if (minutesNeeded < 60) return '~' + minutesNeeded + ' min';
-  const h = Math.floor(minutesNeeded / 60);
-  const m = minutesNeeded % 60;
-  return '~' + h + 'h ' + m + 'm';
+function estimateReadTime(item, avgWpm) {
+  if (!avgWpm || avgWpm <= 0 || !item.wordCount) return '';
+  const pos = loadPosition(item.id);
+  const wordsRemaining = Math.max(0, item.wordCount - pos);
+  if (wordsRemaining <= 0) return '';
+  const min = Math.round(wordsRemaining / avgWpm);
+  if (min < 60) return '~' + min + 'm left';
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return '~' + h + 'h ' + (m > 0 ? m + 'm ' : '') + 'left';
 }
 
 function getHeatmapIntensity(words) {
@@ -225,15 +212,15 @@ function renderDashboard() {
 
   const last7 = lastNSessions(sessions, 7);
   const completion = completionStats(lib);
-  const mostRecent = mostRecentFile(lib);
-  const timeEstimate = timeToComplete(mostRecent, avgWpm);
   const heatmapData = buildHeatmapData(sessions);
   const heatmapHtml = renderHeatmapHtml(heatmapData);
   const wpmChartHtml = renderWpmChartSvg(last7);
 
-  const totalCompleted = completion.completed;
   const completedByKind = completion.byKind;
-  const totalCompletedBooks = Object.values(completedByKind).reduce(function(a, b) { return a + b; }, 0);
+  const totalCompletedFiles = completion.completed;
+
+  const activeLib = lib.filter(function(item) { return !isFileFullyRead(item); });
+  const readLib = lib.filter(function(item) { return isFileFullyRead(item); });
 
   view.innerHTML = `
     <div class="dashboard-screen">
@@ -262,13 +249,9 @@ function renderDashboard() {
           <p class="dashboard-kpi-label">Avg WPM (7 days)</p>
           <p class="dashboard-kpi-value">${avgWpm > 0 ? formatWPM(avgWpm) : '—'}</p>
         </div>
-        <div class="dashboard-kpi-card">
+        <div class="dashboard-kpi-card dashboard-kpi-card-wide">
           <p class="dashboard-kpi-label">Total reading time</p>
           <p class="dashboard-kpi-value">${totalTime}</p>
-        </div>
-        <div class="dashboard-kpi-card dashboard-kpi-card-wide">
-          <p class="dashboard-kpi-label">Time to complete current file</p>
-          <p class="dashboard-kpi-value">${mostRecent ? timeEstimate + (timeEstimate !== '—' && timeEstimate !== 'You\'ve finished this one!' ? ' in ' + escapeHtml(mostRecent.name.length > 20 ? mostRecent.name.substring(0, 17) + '...' : mostRecent.name) : '') : '—'}</p>
         </div>
       </div>
 
@@ -281,21 +264,23 @@ function renderDashboard() {
 
       ${lib.length > 0 ? `
         <section class="dashboard-section">
-          <h2 class="section-heading">Books Completed</h2>
-          ${totalCompletedBooks > 0 ? `
+          <h2 class="section-heading">Files Completed</h2>
+          ${totalCompletedFiles > 0 ? `
             <div class="dashboard-completion-card">
-              <p class="dashboard-completion-label">${totalCompletedBooks} completed</p>
+              <p class="dashboard-completion-label">${totalCompletedFiles} completed</p>
               <div class="dashboard-completion-bar">
                 ${completedByKind.pdf > 0 ? '<div class="dashboard-completion-segment" style="flex: ' + completedByKind.pdf + '; background: var(--accent);"></div>' : ''}
                 ${completedByKind.docx > 0 ? '<div class="dashboard-completion-segment" style="flex: ' + completedByKind.docx + '; background: var(--accent-2);"></div>' : ''}
                 ${completedByKind.txt > 0 ? '<div class="dashboard-completion-segment" style="flex: ' + completedByKind.txt + '; background: var(--text-muted);"></div>' : ''}
                 ${completedByKind.url > 0 ? '<div class="dashboard-completion-segment" style="flex: ' + completedByKind.url + '; background: var(--text-dim);"></div>' : ''}
+                ${completedByKind.image > 0 ? '<div class="dashboard-completion-segment" style="flex: ' + completedByKind.image + '; background: var(--success);"></div>' : ''}
               </div>
               <div class="dashboard-completion-legend">
                 ${completedByKind.pdf > 0 ? '<span><span class="legend-dot" style="background: var(--accent);"></span>PDF (' + completedByKind.pdf + ')</span>' : ''}
                 ${completedByKind.docx > 0 ? '<span><span class="legend-dot" style="background: var(--accent-2);"></span>DOCX (' + completedByKind.docx + ')</span>' : ''}
                 ${completedByKind.txt > 0 ? '<span><span class="legend-dot" style="background: var(--text-muted);"></span>TXT (' + completedByKind.txt + ')</span>' : ''}
                 ${completedByKind.url > 0 ? '<span><span class="legend-dot" style="background: var(--text-dim);"></span>URL (' + completedByKind.url + ')</span>' : ''}
+                ${completedByKind.image > 0 ? '<span><span class="legend-dot" style="background: var(--success);"></span>OCR (' + completedByKind.image + ')</span>' : ''}
               </div>
             </div>
           ` : `
@@ -311,22 +296,48 @@ function renderDashboard() {
         </section>
       ` : ''}
 
-      ${lib.length > 0 ? `
+      ${activeLib.length > 0 ? `
         <section class="dashboard-section">
-          <h2 class="library-heading">Your library</h2>
+          <h2 class="library-heading">Your Library</h2>
           <div class="library-grid">
-            ${lib.map(function(item) {
+            ${activeLib.map(function(item) {
               const pct = item.wordCount ? Math.min(100, Math.round((loadPosition(item.id) / item.wordCount) * 100)) : 0;
-              const kindLabel = item.kind === 'url' ? 'URL' : item.kind ? item.kind.toUpperCase() : 'PDF';
+              const kindLabel = item.kind === 'url' ? 'URL' : item.kind === 'image' ? 'OCR' : item.kind ? item.kind.toUpperCase() : 'PDF';
+              const est = estimateReadTime(item, avgWpm);
               return [
                 '<div class="library-card" data-file-id="' + escapeHtml(item.id) + '">',
                 '<span class="library-card-kind">' + escapeHtml(kindLabel) + '</span>',
                 '<p class="library-card-name">' + escapeHtml(item.name) + '</p>',
-                '<p class="library-card-meta">' + escapeHtml(formatDate(item.lastOpened)) + (pct > 0 ? ' · ' + pct + '%' : '') + '</p>',
+                '<p class="library-card-meta">' + escapeHtml(formatDate(item.lastOpened)) + (pct > 0 ? ' · ' + pct + '%' : '') + (est ? ' · ' + est : '') + '</p>',
                 '<div class="library-card-progress"><div class="library-card-progress-fill" style="width:' + pct + '%"></div></div>',
                 '</div>',
               ].join('');
             }).join('')}
+          </div>
+        </section>
+      ` : ''}
+
+      ${readLib.length > 0 ? `
+        <section class="dashboard-section">
+          <button class="library-collapse-toggle" id="btn-dash-read-toggle" type="button">
+            <span class="library-heading">Read</span>
+            <span class="library-collapse-count">${formatNumber(readLib.length)}</span>
+            <span class="library-collapse-icon" id="dash-read-icon">▸</span>
+          </button>
+          <div id="dash-read-content" class="hidden">
+            <div class="library-grid">
+              ${readLib.map(function(item) {
+                const kindLabel = item.kind === 'url' ? 'URL' : item.kind === 'image' ? 'OCR' : item.kind ? item.kind.toUpperCase() : 'PDF';
+                return [
+                  '<div class="library-card" data-file-id="' + escapeHtml(item.id) + '">',
+                  '<span class="library-card-kind">' + escapeHtml(kindLabel) + '</span>',
+                  '<p class="library-card-name">' + escapeHtml(item.name) + '</p>',
+                  '<p class="library-card-meta">' + escapeHtml(formatDate(item.lastOpened)) + ' · 100%</p>',
+                  '<div class="library-card-progress"><div class="library-card-progress-fill" style="width:100%"></div></div>',
+                  '</div>',
+                ].join('');
+              }).join('')}
+            </div>
           </div>
         </section>
       ` : ''}
@@ -341,6 +352,21 @@ function renderDashboard() {
     renderUpload();
     switchView('view-upload');
   });
+
+  const readToggle = qs('#btn-dash-read-toggle', view);
+  if (readToggle) {
+    readToggle.addEventListener('click', function() {
+      const content = qs('#dash-read-content', view);
+      const icon = qs('#dash-read-icon', view);
+      if (content.classList.contains('hidden')) {
+        content.classList.remove('hidden');
+        icon.textContent = '▾';
+      } else {
+        content.classList.add('hidden');
+        icon.textContent = '▸';
+      }
+    });
+  }
 
   qsa('.library-card[data-file-id]', view).forEach(function(card) {
     card.addEventListener('click', function() {
