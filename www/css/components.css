@@ -825,6 +825,215 @@
   padding: var(--space-xl);
 }
 
+.dashboard-empty-section {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: var(--space-lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.section-heading {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: var(--space-md) 0;
+}
+
+/* WPM Chart */
+.dashboard-chart-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+}
+
+.dashboard-chart-svg {
+  width: 100%;
+  height: auto;
+  min-height: 120px;
+  display: block;
+}
+
+.dashboard-chart-empty {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: var(--space-lg);
+  margin: 0;
+}
+
+.dashboard-chart-trend {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+  margin-top: var(--space-sm);
+}
+
+.dashboard-chart-trend--up {
+  color: var(--success);
+}
+
+.dashboard-chart-trend--down {
+  color: var(--error);
+}
+
+.dashboard-chart-trend--steady {
+  color: var(--text-muted);
+}
+
+/* Completion Stats */
+.dashboard-completion-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+.dashboard-completion-label {
+  font-family: var(--font-display);
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 0;
+}
+
+.dashboard-completion-bar {
+  display: flex;
+  height: 12px;
+  border-radius: 4px;
+  overflow: hidden;
+  gap: 0;
+  background: var(--surface-2);
+}
+
+.dashboard-completion-segment {
+  height: 100%;
+  min-width: 2px;
+  flex-shrink: 0;
+}
+
+.dashboard-completion-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.dashboard-completion-legend span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  display: inline-block;
+}
+
+/* Heatmap */
+.dashboard-heatmap-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: var(--space-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.dashboard-heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(13, 16px);
+  grid-template-rows: repeat(7, 16px);
+  grid-auto-flow: column;
+  gap: 2px;
+  min-width: min-content;
+}
+
+.dashboard-heatmap-cell {
+  width: 14px;
+  height: 14px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: opacity 0.15s ease-out;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.dashboard-heatmap-cell[data-level="0"] {
+  background: var(--border);
+}
+
+.dashboard-heatmap-cell[data-level="1"] {
+  background: rgba(232, 197, 71, 0.25);
+}
+
+.dashboard-heatmap-cell[data-level="2"] {
+  background: rgba(232, 197, 71, 0.55);
+}
+
+.dashboard-heatmap-cell[data-level="3"] {
+  background: var(--accent);
+}
+
+.dashboard-heatmap-cell:hover {
+  opacity: 0.8;
+}
+
+.dashboard-heatmap-today {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.dashboard-heatmap-legend {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: var(--space-md);
+  margin-bottom: 0;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .dashboard-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-heatmap-grid {
+    grid-template-columns: repeat(13, 14px);
+    grid-template-rows: repeat(7, 14px);
+  }
+
+  .dashboard-heatmap-cell {
+    width: 12px;
+    height: 12px;
+  }
+}
+
 /* ── Pro home stats bar ─────────────────────────────────────── */
 .home-stats-bar {
   display: flex;
