@@ -271,6 +271,14 @@ Next task to handle: **Task 12.1 — Daily reminder notifications**
   - ✅ PDF Normal View button hidden for URL/DOCX/TXT files — kind property added to AppState.currentFile
   - ⏳ Disable Pro feature test button in settings — deferred to PRE-LAUNCH
 
+- [x] **Task 12.6 — Feature Clean-Up (Round 2)** (Completed)
+  - ✅ URL button in reader — tapping opens source article in system/external browser; handler uses `AppState.currentFile` (correct scope); `resumeFromLibrary` restores `sourceUrl` so button works from Recent files
+  - ✅ IMG button in reader — fullscreen gallery modal with original OCR source images; fixed CSP `img-src data: blob:` so base64 dataURLs render; handler scope fix + `resumeFromLibrary` restores `imageDataUrls`
+  - ✅ OCR accuracy limitation updated in Settings — highlights best practices and conditions that reduce accuracy
+  - ✅ Paste Text reader — free feature, card + modal, saves to library (`kind: 'paste'`), minimum 10 chars
+  - ✅ Image/Scan action sheet redesigned — 2-column grid (Take Photo | Gallery) with stroke SVG icons (accent colour); Cancel full-width below; no emojis
+  - ✅ RSVP onboarding calibration — ORP fixation letter highlighted within the word at ~33%; adaptive tier texts (~100 words each); `transition: font-size` removed so word size changes are frame-instant
+
 ### PRE-LAUNCH — Store Setup & In-App Purchase
 
 - [ ] **Store account setup (calendar-blocking)**
