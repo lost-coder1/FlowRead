@@ -55,10 +55,10 @@ const FlowReadContent = {
     'You can change it anytime later from Settings.',
   ].join(' '),
   calibrationTiers: {
-    slow: 'You\'re reading this at 200 words per minute. Pretty comfortable, right?',
-    medium: 'At this speed most people read and understand everything clearly.',
-    fast: 'This is where trained readers cruise. You may need to focus more.',
-    veryFast: 'Ultra fast. Comprehension drops here for most readers. Back off a little.',
+    slow: 'You are reading this at a comfortable pace. Every word lands clearly. You have time to build a mental picture as you go. This is a great starting point for longer reading sessions where you want full comprehension. Books, articles, research papers — at this speed nothing slips past you. You will finish more than you think. The goal is not to rush. The goal is to keep moving without losing the thread. Comfortable and steady wins.',
+    medium: 'You are tracking this at a solid reading pace. Most trained readers live here. You are picking up meaning word by word without effort. This is the zone where reading feels effortless and comprehension stays high. You can push slightly faster and still follow everything. Try it. If you feel yourself re-reading words mentally, back off ten notches. If everything lands on the first pass, you may have room to go faster. Trust your instincts.',
+    fast: 'You are moving quickly now. This is the zone where practice separates good readers from great ones. Your eyes are locked on the centre. Your brain is processing before the next word arrives. Comprehension is still there but it takes focus. You cannot let your mind drift. Distractions cost you more at this speed. If you felt you missed a word just now, you probably did. That is normal here. With practice this speed starts to feel easy.',
+    veryFast: 'This is pushing the upper edge of comfortable reading for most people. Words are arriving fast. Your brain is making predictions and filling gaps rather than reading every single word deliberately. Some readers train to this level over months. If you are comprehending everything here, this is your zone. If words are blurring together or meaning is slipping, drop back twenty notches. Speed without comprehension is just watching words go by. Find the edge where you are still in control.',
   },
 };
 
@@ -223,12 +223,16 @@ function renderOnboarding(stepIndex) {
       <div class="onboarding-screen">
         <div class="onboarding-card">
           <p class="onboarding-kicker">What It Can Read</p>
-          <h1 class="onboarding-title">Fast reading for digital PDFs.</h1>
+          <h1 class="onboarding-title">Read anything, your way.</h1>
           <ul class="onboarding-list">
-            <li>PDFs with selectable text in all 4 reading engines.</li>
-            <li>Normal PDF view with jump-to-reader sync.</li>
-            <li>Chapter detection, resume position, and local progress.</li>
-            <li>URL Reader is available in Pro and requires internet for the initial fetch.</li>
+            <li><strong>PDF</strong> — Digital PDFs with selectable text. Normal view + jump-to-page sync. Free.</li>
+            <li><strong>Paste Text</strong> — Paste or type any text and read it. Free.</li>
+            <li><strong>URL Reader</strong> — Fetch any article from the web and read it offline. Pro.</li>
+            <li><strong>DOCX</strong> — Word documents with the same 4 reading engines. Pro.</li>
+            <li><strong>TXT</strong> — Plain text files and notes. Pro.</li>
+            <li><strong>Image / Scan</strong> — On-device OCR from camera or gallery. Pro + OCR Vision add-on.</li>
+            <li>All 4 engines: RSVP, Chunk, Focus Bold, and Simple Scroll.</li>
+            <li>Chapter detection, resume position, and local progress — fully offline.</li>
           </ul>
           <div class="onboarding-actions">
             <button class="btn btn-ghost" id="btn-onboarding-back">Back</button>
@@ -264,6 +268,7 @@ function renderOnboarding(stepIndex) {
           <p class="onboarding-body">Watch words flash at your chosen speed. Adjust until it feels easy to read.</p>
           <div class="calibration-rsvp-container">
             <div class="calibration-rsvp-stage" id="calibration-rsvp-stage">
+              <div class="calibration-rsvp-orp-line"></div>
               <span class="calibration-rsvp-word" id="calibration-rsvp-word">—</span>
             </div>
           </div>

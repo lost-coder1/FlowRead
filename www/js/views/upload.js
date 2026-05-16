@@ -74,7 +74,7 @@ function renderUpload() {
           <span class="import-card-body">Take a photo or pick images. OCR extracts the text on-device.</span>
         </button>
 
-        <button class="import-card import-card-featured import-card-locked" id="btn-dashboard" type="button">
+        <button class="import-card import-card-locked" id="btn-dashboard" type="button">
           <span class="import-card-head">
             <strong>Dashboard</strong>
             <span class="import-badge">Pro</span>
@@ -1510,8 +1510,11 @@ async function resumeFromLibrary(entry, source) {
       rawLines: data.rawLines,
       metadata: data.metadata,
       pdfDoc: null, /* not serialisable — re-parsed lazily from raw bytes if needed */
-      /* If we have the raw PDF on disk, Normal View can be opened on demand */
       pdfRawAvailable: entry.kind === 'pdf' && hasRawPdf(entry.id),
+      /* Restore URL source for the URL button in reader */
+      sourceUrl: data.sourceUrl || entry.sourceUrl || (data.metadata && data.metadata.sourceUrl) || null,
+      /* Restore original image data for the IMG button in reader */
+      imageDataUrls: data.imageDataUrls || null,
     };
     const savedPos = loadPosition(entry.id);
     /* If the file was completed, start from the beginning on re-open */

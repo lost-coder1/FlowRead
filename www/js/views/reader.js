@@ -771,30 +771,49 @@ function _updateEngineLoadingProgress(pct) {
 function showImageViewer(imageDataUrls) {
   if (!imageDataUrls || !imageDataUrls.length) return;
 
-  const modalHTML = `
-    <div class="img-viewer-modal" id="img-viewer-modal">
-      <div class="img-viewer-header">
-        <p class="img-viewer-title">Source images</p>
-        <button class="btn btn-ghost img-viewer-close" id="img-viewer-close">×</button>
-      </div>
-      <div class="img-viewer-container">
-        <div class="img-viewer-scroll">
-          ${imageDataUrls.map((url, i) => `<img src="${url}" alt="Image ${i + 1}" class="img-viewer-image" />`).join('')}
-        </div>
-      </div>
-    </div>
-  `;
-
-  document.body.insertAdjacentHTML('beforeend', modalHTML);
-  const modal = qs('#img-viewer-modal');
-
-  qs('#img-viewer-close').addEventListener('click', function() {
+  function removeModal() {
     if (modal && modal.parentNode) modal.parentNode.removeChild(modal);
+  }
+
+  const modal = document.createElement('div');
+  modal.className = 'img-viewer-modal';
+  modal.id = 'img-viewer-modal';
+
+  const header = document.createElement('div');
+  header.className = 'img-viewer-header';
+
+  const title = document.createElement('p');
+  title.className = 'img-viewer-title';
+  title.textContent = 'Source images (' + imageDataUrls.length + ')';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'btn btn-ghost img-viewer-close';
+  closeBtn.textContent = '×';
+  closeBtn.addEventListener('click', removeModal);
+
+  header.appendChild(title);
+  header.appendChild(closeBtn);
+
+  const container = document.createElement('div');
+  container.className = 'img-viewer-container';
+
+  const scroll = document.createElement('div');
+  scroll.className = 'img-viewer-scroll';
+
+  imageDataUrls.forEach(function(url, i) {
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = 'Image ' + (i + 1);
+    img.className = 'img-viewer-image';
+    scroll.appendChild(img);
   });
 
+  container.appendChild(scroll);
+  modal.appendChild(header);
+  modal.appendChild(container);
+  document.body.appendChild(modal);
+
   modal.addEventListener('click', function(e) {
-    if (e.target === modal) {
-      if (modal.parentNode) modal.parentNode.removeChild(modal);
-    }
+    if (e.target === modal) removeModal();
   });
 }

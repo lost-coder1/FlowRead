@@ -154,6 +154,11 @@ async function saveFileData(fileId, fileData) {
     metadata: fileData.metadata,
   };
 
+  /* Store sourceUrl for URL files so the URL button works after app restart */
+  if (fileData.sourceUrl) {
+    payloadObj.sourceUrl = fileData.sourceUrl;
+  }
+
   /* Store imageDataUrls if present (image/OCR files) */
   if (fileData.imageDataUrls && fileData.imageDataUrls.length) {
     payloadObj.imageDataUrls = fileData.imageDataUrls;
