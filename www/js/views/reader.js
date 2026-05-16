@@ -260,13 +260,10 @@ function _bindReaderControls() {
         AppState.currentIndex = _activeEngine.getIndex();
         _activeEngine.pause();
       }
-      try {
-        const url = file.sourceUrl;
-        if (!url) { showToast('Source URL not available.'); return; }
-        window.open(url, '_blank');
-      } catch (err) {
-        showToast('URL error: ' + (err && err.message ? err.message : String(err)));
-      }
+      /* AppState.currentFile is used here — file is not in scope (_bindReaderControls is separate from renderReader) */
+      const url = AppState.currentFile && AppState.currentFile.sourceUrl;
+      if (!url) { showToast('Source URL not available.'); return; }
+      window.open(url, '_blank');
     });
   }
 
@@ -278,14 +275,9 @@ function _bindReaderControls() {
         AppState.currentIndex = _activeEngine.getIndex();
         _activeEngine.pause();
       }
-      try {
-        const urls = file.imageDataUrls;
-        if (!urls || !urls.length) { showToast('No source images found.'); return; }
-        showToast('Opening viewer… ' + urls.length + ' image(s), type: ' + typeof urls[0] + ', len: ' + (urls[0] ? urls[0].length : 0));
-        setTimeout(function() { showImageViewer(urls); }, 300);
-      } catch (err) {
-        showToast('IMG error: ' + (err && err.message ? err.message : String(err)));
-      }
+      const urls = AppState.currentFile && AppState.currentFile.imageDataUrls;
+      if (!urls || !urls.length) { showToast('Source images not available. Re-import the file to view them.'); return; }
+      showImageViewer(urls);
     });
   }
 
