@@ -263,18 +263,9 @@ function _bindReaderControls() {
       try {
         const url = file.sourceUrl;
         if (!url) { showToast('Source URL not available.'); return; }
-        /* Anchor click is most reliable in Capacitor WebView — avoids window.open quirks */
-        const link = document.createElement('a');
-        link.href = url;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        window.open(url, '_blank');
       } catch (err) {
-        console.error('URL open error:', err);
-        showToast('Could not open URL.');
+        showToast('URL error: ' + (err && err.message ? err.message : String(err)));
       }
     });
   }
@@ -289,11 +280,11 @@ function _bindReaderControls() {
       }
       try {
         const urls = file.imageDataUrls;
-        if (!urls || !urls.length) { showToast('Source images not available. Re-import the file to view them.'); return; }
-        showImageViewer(urls);
+        if (!urls || !urls.length) { showToast('No source images found.'); return; }
+        showToast('Opening viewer… ' + urls.length + ' image(s), type: ' + typeof urls[0] + ', len: ' + (urls[0] ? urls[0].length : 0));
+        setTimeout(function() { showImageViewer(urls); }, 300);
       } catch (err) {
-        console.error('IMG viewer error:', err);
-        showToast('Could not open image viewer.');
+        showToast('IMG error: ' + (err && err.message ? err.message : String(err)));
       }
     });
   }
