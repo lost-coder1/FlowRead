@@ -187,8 +187,15 @@ function _bindReaderControls() {
     }
     _flushSessionIfActive();
     releaseWakeLock();
-    renderUpload();
-    switchView('view-upload');
+    const src = AppState.readerSource || 'upload';
+    AppState.readerSource = 'upload';
+    if (src === 'dashboard') {
+      renderDashboard();
+      switchView('view-dashboard');
+    } else {
+      renderUpload();
+      switchView('view-upload');
+    }
   };
 
   qs('#btn-reader-back').addEventListener('click', backHandler);

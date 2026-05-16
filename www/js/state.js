@@ -18,4 +18,5 @@ const AppState = {
   isIndexOpen: false,
   activeModal: null,
   onboardingCalibrationWpm: 200,
+  readerSource: 'upload',   /* 'upload' | 'dashboard' — where the file was opened from */
 };

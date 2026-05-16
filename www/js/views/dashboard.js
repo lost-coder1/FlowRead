@@ -372,7 +372,7 @@ function renderDashboard() {
     card.addEventListener('click', function() {
       const id = card.dataset.fileId;
       const entry = lib.find(function(e) { return e.id === id; });
-      if (entry) resumeFromLibrary(entry);
+      if (entry) resumeFromLibrary(entry, 'dashboard');
     });
   });
 }
