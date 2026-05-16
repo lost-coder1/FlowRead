@@ -234,13 +234,16 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
   - ✅ OCR imports persist locally so files are not reprocessed on every launch.
   - ⏳ **iOS implementation still required** — use Apple Vision Framework (`VNRecognizeTextRequest`), NOT ML Kit. Apple Vision supports script auto-detection across most languages natively, so a single recognizer call typically covers Latin + Devanagari + CJK + Cyrillic without separate models. Must be wired through an equivalent custom Capacitor plugin in `ios/App/App/`.
 
-### Task 12.6 - Improve Pro Dashboard
-High Value (implement before launch):
-
-WPM Progress Chart — line graph, last 7 sessions. Shows trend (improving/declining). Users care about "am I getting faster?"
-Books/Files Completed — counter + mini bar chart showing completion rate by file type (PDFs, DOCX, TXT, URLs). Gamifies the experience.
-Time to Complete Estimate — "At current pace, you'll finish this file in ~3 hours 22 minutes." Motivates users to set reading goals.
-Reading Streaks — already have days, but show visual calendar heatmap (GitHub-style) of reading days. Very sticky feature.
+- [x] **Task 12.6 — Improve Pro Dashboard** (Completed)
+  - ✅ WPM Progress Chart — SVG line graph showing last 7 sessions with trend badge (↑ Improving / ↓ Declining / → Steady)
+  - ✅ Files Completed — counter + stacked bar chart by type (PDF/DOCX/TXT/URL/OCR). Now tracks image/OCR files.
+  - ✅ Per-card time-to-complete estimates — shows inline in active library cards (e.g., "~3h 22m left")
+  - ✅ Reading Streak Heatmap — 91-day GitHub-style calendar with intensity levels (0–3) based on daily word count
+  - ✅ Library split into "Your Library" (active files) + collapsible "Read" section (100% complete)
+  - ✅ OCR/image files now visible in completion stats with green segment + "OCR" legend
+  - ✅ Smart back navigation — reader returns to Dashboard when file was opened from there (via AppState.readerSource)
+  - ✅ Homepage card reorder — Image/Scan moved above Dashboard; Dashboard given full-width (import-card-featured)
+  - ✅ 2-column import grid on mobile — removed single-column breakpoint so cards lay out as intended
 
 ### Language support reference (added during 12.3)
 
@@ -281,12 +284,24 @@ Reading Streaks — already have days, but show visual calendar heatmap (GitHub-
   - ✅ PDF Normal View button hidden for URL/DOCX/TXT files — kind property added to AppState.currentFile
   - ⏳ Disable Pro feature test button in settings — deferred to PRE-LAUNCH
 
-### PRE-LAUNCH — Store Setup
+### PRE-LAUNCH — Store Setup & In-App Purchase
 
-- [ ] **Real Pro purchase flow**
-  - Disable Pro feature test button in settings before launch.
-  - Build the actual Pro purchase and entitlement flow after the Play Store developer profile is ready.
-  - Keep it as the final pre-launch store task before launch.
+- [ ] **Store account setup (calendar-blocking)**
+  - [ ] Google Play Console account ($25 one-time) — create app, upload signed APK/AAB, publish to internal testing
+  - [ ] Create two one-time IAP products: `pro_lifetime` ($9.99) and `ocr_vision` ($4.99) with regional PPP pricing (Tier A/B/C per Section 3)
+  - [ ] App Store Connect account ($99/year) — create app, add store listing
+  - [ ] Create two non-consumable IAPs: `pro_lifetime` (Tier 15, ~$14.99) and `ocr_vision` (Tier 8, ~$7.99)
+  - [ ] Submit app + IAPs to App Store review
+
+- [ ] **Real in-app purchase flow** (code, ~1–2 days after store products are live)
+  - [ ] Initialize IAP plugin on boot (`app.js`) — call `initIAP()` which registers products and restores prior purchases
+  - [ ] Implement purchase.js: `buyPro()`, `buyOcr()`, `restorePurchases()` — wire to Capacitor InAppPurchases plugin
+  - [ ] Show store-localized prices in paywall modal (read from `product.price` after `getProducts()`)
+  - [ ] Wire "Unlock" buttons in paywall to `buyPro()` / `buyOcr()` — add loading state + error handling
+  - [ ] Add "Restore purchases" link to paywall (App Store requirement)
+  - [ ] Hide dev Pro/OCR test toggles in Settings before launch (or guard behind secret tap sequence)
+  - [ ] Test full purchase flow on real devices with sandbox accounts (Android + iOS)
+  - [ ] Test re-install: `restorePurchases()` should rehydrate entitlements from receipt
 ---
 
 ## 12. Code Rules
