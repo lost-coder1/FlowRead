@@ -276,13 +276,12 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
   - ✅ Definitions capped at 2 per word, max 120 chars (7.98 MB file, compresses further in APK/IPA)
 
 - [x] **Task 12.6 — Clean Up Tasks** (Completed)
-  - ✅ App loading splash screen — clean "FlowRead / Read everything faster" splash shown before JS boot, fades out after init
-  - ✅ Screen going off during reading — re-acquire wake lock on app foreground via Capacitor App.appStateChange listener
-  - ✅ WPM timer accumulation in RSVP/Chunk — generation counter prevents stale setTimeout chains from doubling speed
-  - ✅ Home stats bar (streak, words today, avg WPM) now refreshes on every return to home screen
-  - ✅ 100% read items auto-move to Read section — engines save wordCount position on finish; re-open resets to 0
-  - ✅ PDF Normal View button hidden for URL/DOCX/TXT files — kind property added to AppState.currentFile
-  - ⏳ Disable Pro feature test button in settings — deferred to PRE-LAUNCH
+  - ✅ **Task 1:** URL button in reader — opens source article in system browser (`window.open` → external/system browser on Android)
+  - ✅ **Task 2:** IMG button in reader — fullscreen gallery modal for viewing original OCR source images; fixed CSP to allow `data:` URLs (`img-src data: blob:`); fixed handler scope (`AppState.currentFile` instead of out-of-scope `file`); fixed `resumeFromLibrary` to restore `imageDataUrls` so button works from Recent files
+  - ✅ **Task 3:** Updated OCR accuracy limitation — notes best practices (flat, well-lit, straight-on); accuracy drops with poor conditions
+  - ✅ **Task 4:** Paste Text reader — free feature, card + modal, saves to library, 10-char minimum
+  - ✅ **Task 5:** Camera + Gallery action sheet — 2-column grid layout (Take Photo | Gallery) with stroke SVG icons in accent colour; Cancel spans full width below; camera integration via @capacitor/camera
+  - ✅ **Task 6:** RSVP onboarding calibration — live word-flashing at chosen WPM with ORP fixation letter highlighted in word; adaptive tier texts; slider/buttons update speed and restart preview; removed `transition: font-size` so size changes are frame-instant; added Reset Onboarding toggle in Settings > Developer
 
 ### PRE-LAUNCH — Store Setup & In-App Purchase
 
