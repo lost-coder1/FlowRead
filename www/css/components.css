@@ -583,6 +583,34 @@
   color: var(--rsvp-text);
 }
 
+.calibration-rsvp-container {
+  height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, rgba(22, 20, 16, 0.8), rgba(22, 20, 16, 1));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.calibration-rsvp-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Crimson Pro', serif;
+  font-size: 48px;
+  font-weight: 400;
+  color: var(--text);
+  min-width: 100px;
+}
+
+.calibration-rsvp-word {
+  display: inline-block;
+  text-align: center;
+  min-width: 80px;
+}
+
 .calibration-controls {
   display: flex;
   align-items: center;

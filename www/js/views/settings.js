@@ -54,6 +54,12 @@ const FlowReadContent = {
     'That number is a better starting point than chasing an arbitrary target.',
     'You can change it anytime later from Settings.',
   ].join(' '),
+  calibrationTiers: {
+    slow: 'You\'re reading this at 200 words per minute. Pretty comfortable, right?',
+    medium: 'At this speed most people read and understand everything clearly.',
+    fast: 'This is where trained readers cruise. You may need to focus more.',
+    veryFast: 'Ultra fast. Comprehension drops here for most readers. Back off a little.',
+  },
 };
 
 const FlowReadThemes = [
@@ -255,20 +261,17 @@ function renderOnboarding(stepIndex) {
         <div class="onboarding-card onboarding-card-wide">
           <p class="onboarding-kicker">Reading Speed</p>
           <h1 class="onboarding-title">Pick a comfortable starting pace.</h1>
-          <p class="onboarding-body">Watch the sample text move for about 30 seconds, then adjust until it feels sustainable.</p>
-          <div class="calibration-stage">
-            <div class="calibration-viewport">
-              <div class="calibration-track" id="calibration-track">
-                <p>${escapeHtml(FlowReadContent.calibrationSample)}</p>
-                <p>${escapeHtml(FlowReadContent.calibrationSample)}</p>
-              </div>
+          <p class="onboarding-body">Watch words flash at your chosen speed. Adjust until it feels easy to read.</p>
+          <div class="calibration-rsvp-container">
+            <div class="calibration-rsvp-stage" id="calibration-rsvp-stage">
+              <span class="calibration-rsvp-word" id="calibration-rsvp-word">—</span>
             </div>
-            <div class="calibration-controls">
-              <button class="btn btn-ghost" id="btn-calibration-dec">−</button>
-              <input type="range" id="calibration-slider" min="120" max="600" step="10" value="${AppState.onboardingCalibrationWpm}" />
-              <button class="btn btn-ghost" id="btn-calibration-inc">+</button>
-              <span class="wpm-display" id="calibration-display">${formatWPM(AppState.onboardingCalibrationWpm)}</span>
-            </div>
+          </div>
+          <div class="calibration-controls">
+            <button class="btn btn-ghost" id="btn-calibration-dec">−</button>
+            <input type="range" id="calibration-slider" min="120" max="600" step="10" value="${AppState.onboardingCalibrationWpm}" />
+            <button class="btn btn-ghost" id="btn-calibration-inc">+</button>
+            <span class="wpm-display" id="calibration-display">${formatWPM(AppState.onboardingCalibrationWpm)}</span>
           </div>
           <div class="onboarding-actions">
             <button class="btn btn-ghost" id="btn-onboarding-back">Back</button>
@@ -310,6 +313,8 @@ function bindOnboarding(step) {
       AppState.onboardingCalibrationWpm = value;
       if (slider) slider.value = value;
       if (display) display.textContent = formatWPM(value);
+      /* Restart RSVP preview with new speed and text tier */
+      startCalibrationPreview();
     }
 
     slider.addEventListener('input', function() {
@@ -326,37 +331,38 @@ function bindOnboarding(step) {
   }
 }
 
+function _getCalibrationText(wpm) {
+  if (wpm < 200) return FlowReadContent.calibrationTiers.slow;
+  if (wpm < 300) return FlowReadContent.calibrationTiers.medium;
+  if (wpm < 450) return FlowReadContent.calibrationTiers.fast;
+  return FlowReadContent.calibrationTiers.veryFast;
+}
+
 function startCalibrationPreview() {
   stopCalibrationPreview();
-  const track = qs('#calibration-track');
-  if (!track) return;
+  const stage = qs('#calibration-rsvp-word');
+  if (!stage) return;
 
-  let offset = 0;
-  let last = 0;
+  const text = _getCalibrationText(AppState.onboardingCalibrationWpm);
+  const words = text.split(/\s+/);
+  let wordIdx = 0;
 
-  function step(now) {
+  function updateWord() {
     if (!qs('#view-onboarding') || AppState.currentView !== 'view-onboarding') return;
-    if (!last) last = now;
-    const elapsed = now - last;
-    last = now;
-
-    const pxPerSecond = Math.max(14, AppState.onboardingCalibrationWpm * 0.12);
-    offset += (elapsed / 1000) * pxPerSecond;
-    track.style.transform = 'translateY(-' + offset.toFixed(2) + 'px)';
-
-    const resetPoint = track.scrollHeight / 2;
-    if (offset >= resetPoint) {
-      offset = 0;
-      track.style.transform = 'translateY(0)';
-    }
-
-    window._calibrationRaf = requestAnimationFrame(step);
+    stage.textContent = words[wordIdx % words.length];
+    wordIdx++;
+    const delayMs = 60000 / AppState.onboardingCalibrationWpm;
+    window._calibrationTimer = setTimeout(updateWord, delayMs);
   }
 
-  window._calibrationRaf = requestAnimationFrame(step);
+  updateWord();
 }
 
 function stopCalibrationPreview() {
+  if (window._calibrationTimer) {
+    clearTimeout(window._calibrationTimer);
+    window._calibrationTimer = null;
+  }
   if (window._calibrationRaf) {
     cancelAnimationFrame(window._calibrationRaf);
     window._calibrationRaf = null;
@@ -513,6 +519,10 @@ function renderSettings() {
           <span>Unlock OCR Vision (Test mode — not a real purchase)</span>
           <input type="checkbox" id="settings-dev-ocr" />
         </label>
+        <label class="settings-toggle">
+          <span>Reset Onboarding</span>
+          <input type="checkbox" id="settings-dev-reset-onboarding" />
+        </label>
       </section>
     </div>
   `;
@@ -618,6 +628,18 @@ function bindSettings() {
       showToast(this.checked
         ? 'OCR Vision test mode ON — go back to home to see the Image / Scan card.'
         : 'OCR Vision test mode OFF.');
+    });
+  }
+
+  const devResetOnboarding = qs('#settings-dev-reset-onboarding');
+  if (devResetOnboarding) {
+    devResetOnboarding.addEventListener('change', function() {
+      if (this.checked) {
+        localStorage.removeItem('fr_onboarding_complete');
+        renderOnboarding(0);
+        switchView('view-onboarding');
+        this.checked = false;
+      }
     });
   }
 
