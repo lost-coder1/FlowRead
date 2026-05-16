@@ -302,7 +302,7 @@ function renderDashboard() {
           <div class="library-grid">
             ${activeLib.map(function(item) {
               const pct = item.wordCount ? Math.min(100, Math.round((loadPosition(item.id) / item.wordCount) * 100)) : 0;
-              const kindLabel = item.kind === 'url' ? 'URL' : item.kind === 'image' ? 'OCR' : item.kind ? item.kind.toUpperCase() : 'PDF';
+              const kindLabel = item.kind === 'url' ? 'URL' : item.kind === 'image' ? 'OCR' : item.kind === 'paste' ? 'PASTE' : item.kind ? item.kind.toUpperCase() : 'PDF';
               const est = estimateReadTime(item, avgWpm);
               return [
                 '<div class="library-card" data-file-id="' + escapeHtml(item.id) + '">',
@@ -327,7 +327,7 @@ function renderDashboard() {
           <div id="dash-read-content" class="hidden">
             <div class="library-grid">
               ${readLib.map(function(item) {
-                const kindLabel = item.kind === 'url' ? 'URL' : item.kind === 'image' ? 'OCR' : item.kind ? item.kind.toUpperCase() : 'PDF';
+                const kindLabel = item.kind === 'url' ? 'URL' : item.kind === 'image' ? 'OCR' : item.kind === 'paste' ? 'PASTE' : item.kind ? item.kind.toUpperCase() : 'PDF';
                 return [
                   '<div class="library-card" data-file-id="' + escapeHtml(item.id) + '">',
                   '<span class="library-card-kind">' + escapeHtml(kindLabel) + '</span>',

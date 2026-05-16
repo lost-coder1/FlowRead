@@ -29,6 +29,8 @@ function renderReader(options) {
   const hasPdfLazy = file.kind === 'pdf' && !file.pdfDoc && !!(file.pdfRawAvailable && file.pageWordIndex && file.pageWordIndex.length);
   /* Parsed data only (e.g. browser fallback, raw bytes missing) — disabled button hints to re-import */
   const hasPdfDataOnly = file.kind === 'pdf' && !file.pdfDoc && !file.pdfRawAvailable && !!(file.pageWordIndex && file.pageWordIndex.length);
+  const hasUrlSource = file.kind === 'url' && !!file.sourceUrl;
+  const hasImgSource = file.kind === 'image' && file.imageDataUrls && file.imageDataUrls.length;
 
   AppState.currentIndex = startIndex;
   AppState.currentEngine = savedEngine;
@@ -59,6 +61,8 @@ function renderReader(options) {
     ${hasPdfBridge ? '<button class="reader-normal-toggle" id="btn-open-normal" title="Open matching PDF page">PDF</button>' : ''}
     ${hasPdfLazy ? '<button class="reader-normal-toggle" id="btn-open-normal-lazy" title="Open matching PDF page">PDF</button>' : ''}
     ${hasPdfDataOnly ? '<button class="reader-normal-toggle reader-normal-toggle-disabled" id="btn-open-normal-hint" title="Re-import PDF to enable Normal View">PDF</button>' : ''}
+    ${hasUrlSource ? '<button class="reader-normal-toggle" id="btn-open-source-url" title="Open source article">URL</button>' : ''}
+    ${hasImgSource ? '<button class="reader-normal-toggle" id="btn-open-img-viewer" title="View source images">IMG</button>' : ''}
 
     <aside class="reader-index-panel hidden" id="reader-index-panel">
       <div class="reader-index-head">
@@ -245,6 +249,35 @@ function _bindReaderControls() {
         hideLoading();
         showToast('Could not open PDF. Please re-import.');
       }
+    });
+  }
+
+  const urlButton = qs('#btn-open-source-url');
+  if (urlButton) {
+    urlButton.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (_activeEngine && AppState.isPlaying) {
+        AppState.currentIndex = _activeEngine.getIndex();
+        _activeEngine.pause();
+      }
+      /* AppState.currentFile is used here — file is not in scope (_bindReaderControls is separate from renderReader) */
+      const url = AppState.currentFile && AppState.currentFile.sourceUrl;
+      if (!url) { showToast('Source URL not available.'); return; }
+      window.open(url, '_blank');
+    });
+  }
+
+  const imgButton = qs('#btn-open-img-viewer');
+  if (imgButton) {
+    imgButton.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (_activeEngine && AppState.isPlaying) {
+        AppState.currentIndex = _activeEngine.getIndex();
+        _activeEngine.pause();
+      }
+      const urls = AppState.currentFile && AppState.currentFile.imageDataUrls;
+      if (!urls || !urls.length) { showToast('Source images not available. Re-import the file to view them.'); return; }
+      showImageViewer(urls);
     });
   }
 
@@ -744,4 +777,54 @@ function _updateEngineLoadingProgress(pct) {
   if (fill) fill.style.width = pct + '%';
   const pctText = document.getElementById('engine-loading-pct');
   if (pctText) pctText.textContent = Math.round(pct) + '%';
+}
+
+function showImageViewer(imageDataUrls) {
+  if (!imageDataUrls || !imageDataUrls.length) return;
+
+  function removeModal() {
+    if (modal && modal.parentNode) modal.parentNode.removeChild(modal);
+  }
+
+  const modal = document.createElement('div');
+  modal.className = 'img-viewer-modal';
+  modal.id = 'img-viewer-modal';
+
+  const header = document.createElement('div');
+  header.className = 'img-viewer-header';
+
+  const title = document.createElement('p');
+  title.className = 'img-viewer-title';
+  title.textContent = 'Source images (' + imageDataUrls.length + ')';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'btn btn-ghost img-viewer-close';
+  closeBtn.textContent = '×';
+  closeBtn.addEventListener('click', removeModal);
+
+  header.appendChild(title);
+  header.appendChild(closeBtn);
+
+  const container = document.createElement('div');
+  container.className = 'img-viewer-container';
+
+  const scroll = document.createElement('div');
+  scroll.className = 'img-viewer-scroll';
+
+  imageDataUrls.forEach(function(url, i) {
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = 'Image ' + (i + 1);
+    img.className = 'img-viewer-image';
+    scroll.appendChild(img);
+  });
+
+  container.appendChild(scroll);
+  modal.appendChild(header);
+  modal.appendChild(container);
+  document.body.appendChild(modal);
+
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) removeModal();
+  });
 }
