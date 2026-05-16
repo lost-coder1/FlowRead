@@ -58,20 +58,20 @@ function renderUpload() {
           <span class="import-card-body">Plain text import for notes and drafts.</span>
         </button>
 
-        <button class="import-card import-card-locked" id="btn-dashboard" type="button">
-          <span class="import-card-head">
-            <strong>Dashboard</strong>
-            <span class="import-badge">Pro</span>
-          </span>
-          <span class="import-card-body">Reading stats, streaks, and future analytics.</span>
-        </button>
-
         <button class="import-card import-card-locked" id="btn-image-reader" type="button">
           <span class="import-card-head">
             <strong>Image / Scan</strong>
             <span class="import-badge">OCR Vision</span>
           </span>
           <span class="import-card-body">Take a photo or pick images. OCR extracts the text on-device.</span>
+        </button>
+
+        <button class="import-card import-card-featured import-card-locked" id="btn-dashboard" type="button">
+          <span class="import-card-head">
+            <strong>Dashboard</strong>
+            <span class="import-badge">Pro</span>
+          </span>
+          <span class="import-card-body">Reading stats, streaks, and future analytics.</span>
         </button>
       </div>
 
@@ -1222,7 +1222,8 @@ function _confirmRemoveFile(fileId) {
   });
 }
 
-async function resumeFromLibrary(entry) {
+async function resumeFromLibrary(entry, source) {
+  AppState.readerSource = source || 'upload';
   showLoading('Loading ' + entry.name + '...');
   try {
     const data = await loadFileData(entry.id);

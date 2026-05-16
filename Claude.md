@@ -219,13 +219,6 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
 
 ### PHASE 12 — Engagement, Navigation, OCR Vision
 
-Next task to handle: **Task 12.1 — Daily reminder notifications**
-
-- [ ] **Task 12.1 — Daily reminder notifications**
-  - Free: remind once daily about unread PDFs only.
-  - Pro: remind once daily about unread items across all readable sections (PDF, URL, DOCX, TXT, synced device files in library).
-  - Fully local scheduling and state tracking (no backend, no analytics).
-
 
 
 - [x] **Task 12.3 — On-device OCR Vision (Android complete)**
@@ -240,6 +233,14 @@ Next task to handle: **Task 12.1 — Daily reminder notifications**
   - ✅ Gate: Pro + OCR Vision add-on ($4.99 one-time). Free/Pro-only users see upgrade prompt. Dev bypass available in Settings > Developer.
   - ✅ OCR imports persist locally so files are not reprocessed on every launch.
   - ⏳ **iOS implementation still required** — use Apple Vision Framework (`VNRecognizeTextRequest`), NOT ML Kit. Apple Vision supports script auto-detection across most languages natively, so a single recognizer call typically covers Latin + Devanagari + CJK + Cyrillic without separate models. Must be wired through an equivalent custom Capacitor plugin in `ios/App/App/`.
+
+### Task 12.6 - Improve Pro Dashboard
+High Value (implement before launch):
+
+WPM Progress Chart — line graph, last 7 sessions. Shows trend (improving/declining). Users care about "am I getting faster?"
+Books/Files Completed — counter + mini bar chart showing completion rate by file type (PDFs, DOCX, TXT, URLs). Gamifies the experience.
+Time to Complete Estimate — "At current pace, you'll finish this file in ~3 hours 22 minutes." Motivates users to set reading goals.
+Reading Streaks — already have days, but show visual calendar heatmap (GitHub-style) of reading days. Very sticky feature.
 
 ### Language support reference (added during 12.3)
 
@@ -260,10 +261,7 @@ Next task to handle: **Task 12.1 — Daily reminder notifications**
   - `play-services-mlkit-text-recognition-korean`
 - ❌ ML Kit does NOT support: Cyrillic, Arabic, Hebrew, Thai, Tamil, Bengali. Tesseract.js or a cloud OCR fallback would be required for those markets.
 
-**Suggested market-entry order after current Latin + Devanagari coverage:**
-1. **Japanese + Korean** — high spending power, premium app market, low Google Play friction, often paired with English in source documents (our merge-scripts logic already handles bilingual pages). Adding both costs ~7–10 MB.
-2. **Chinese** — biggest TAM but no Google Play in mainland China (alt-store distribution needed) and stronger free-app competition. Add when iOS launches or when alt-stores are in scope.
-3. **Cyrillic markets** (Russia, Ukraine) — would require switching to or augmenting with Tesseract.js for OCR; lower priority unless meaningful trafficc emerges.
+
 
 
 - [x] **Task 12.5 — Internal Dictionary** (Completed)
