@@ -1237,10 +1237,6 @@
     align-items: stretch;
   }
 
-  .import-grid {
-    grid-template-columns: 1fr;
-  }
-
   .upload-header-actions,
   .modal-actions,
   .onboarding-actions {
