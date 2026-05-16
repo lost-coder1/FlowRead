@@ -1539,3 +1539,85 @@
   border-top: 1px solid var(--border);
   justify-content: flex-end;
 }
+
+/* ── Action Sheet ────────────────────────────────────────────── */
+.action-sheet-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: flex-end;
+  z-index: 9998;
+  animation: slideUp 0.3s;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.action-sheet {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  width: 100%;
+  padding: var(--space-sm) 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  animation: slideUp 0.3s;
+}
+
+.action-sheet-item {
+  display: block;
+  width: 100%;
+  padding: var(--space-md);
+  text-align: center;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 400;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--transition-fast);
+}
+
+.action-sheet-item:last-of-type {
+  border-bottom: none;
+}
+
+.action-sheet-item:active {
+  background: var(--surface-2);
+}
+
+.action-sheet-cancel {
+  display: block;
+  width: 100%;
+  padding: var(--space-md);
+  margin-top: var(--space-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 16px;
+  font-weight: 400;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--transition-fast);
+}
+
+.action-sheet-cancel:active {
+  background: var(--surface);
+}

@@ -934,7 +934,95 @@ async function openImageReader() {
     showOcrPaywall('image-scan');
     return;
   }
-  qs('#file-input-image').click();
+
+  const sheetHTML = `
+    <div class="action-sheet-overlay" id="action-sheet-overlay">
+      <div class="action-sheet">
+        <button class="action-sheet-item" id="action-take-photo" type="button">
+          <span>📷 Take Photo</span>
+        </button>
+        <button class="action-sheet-item" id="action-choose-gallery" type="button">
+          <span>🖼 Choose from Gallery</span>
+        </button>
+        <button class="action-sheet-cancel" id="action-cancel" type="button">Cancel</button>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', sheetHTML);
+  const overlay = qs('#action-sheet-overlay');
+
+  function closeSheet() {
+    if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+  }
+
+  qs('#action-cancel').addEventListener('click', closeSheet);
+
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) closeSheet();
+  });
+
+  qs('#action-choose-gallery').addEventListener('click', function() {
+    closeSheet();
+    qs('#file-input-image').click();
+  });
+
+  qs('#action-take-photo').addEventListener('click', async function() {
+    closeSheet();
+    await capturePhotoWithCamera();
+  });
+}
+
+async function capturePhotoWithCamera() {
+  if (!window.Capacitor || !Capacitor.isNativePlatform()) {
+    showToast('Camera is only available on native devices.');
+    return;
+  }
+
+  try {
+    const { Camera } = Capacitor.Plugins;
+    if (!Camera || typeof Camera.getPhoto !== 'function') {
+      showToast('Camera plugin not available. Choose from Gallery instead.');
+      return;
+    }
+
+    const photo = await Camera.getPhoto({
+      resultType: 'dataUrl',
+      source: 'CAMERA',
+      quality: 90,
+      width: 2000,
+      height: 2000,
+      correctOrientation: true,
+    });
+
+    if (!photo || !photo.dataUrl) {
+      showToast('Failed to capture photo.');
+      return;
+    }
+
+    /* Convert dataUrl to File-like object */
+    const blob = dataUrlToBlob(photo.dataUrl);
+    const file = new File([blob], 'photo-' + Date.now() + '.jpg', { type: 'image/jpeg' });
+    handleImageSelect([file]);
+  } catch (err) {
+    if (err && err.message && err.message.includes('User cancelled')) {
+      /* User cancelled, no error message */
+      return;
+    }
+    console.error('Camera error:', err);
+    showToast('Could not capture photo.');
+  }
+}
+
+function dataUrlToBlob(dataUrl) {
+  const parts = dataUrl.split(',');
+  const mime = parts[0].match(/:(.*?);/)[1];
+  const binary = atob(parts[1]);
+  const array = [];
+  for (let i = 0; i < binary.length; i++) {
+    array.push(binary.charCodeAt(i));
+  }
+  return new Blob([new Uint8Array(array)], { type: mime });
 }
 
 async function handlePasteTextImport(title, text) {
