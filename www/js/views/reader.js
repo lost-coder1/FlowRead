@@ -29,6 +29,8 @@ function renderReader(options) {
   const hasPdfLazy = file.kind === 'pdf' && !file.pdfDoc && !!(file.pdfRawAvailable && file.pageWordIndex && file.pageWordIndex.length);
   /* Parsed data only (e.g. browser fallback, raw bytes missing) — disabled button hints to re-import */
   const hasPdfDataOnly = file.kind === 'pdf' && !file.pdfDoc && !file.pdfRawAvailable && !!(file.pageWordIndex && file.pageWordIndex.length);
+  const hasUrlSource = file.kind === 'url' && !!file.sourceUrl;
+  const hasImgSource = file.kind === 'image' && file.imageDataUrls && file.imageDataUrls.length;
 
   AppState.currentIndex = startIndex;
   AppState.currentEngine = savedEngine;
@@ -59,6 +61,8 @@ function renderReader(options) {
     ${hasPdfBridge ? '<button class="reader-normal-toggle" id="btn-open-normal" title="Open matching PDF page">PDF</button>' : ''}
     ${hasPdfLazy ? '<button class="reader-normal-toggle" id="btn-open-normal-lazy" title="Open matching PDF page">PDF</button>' : ''}
     ${hasPdfDataOnly ? '<button class="reader-normal-toggle reader-normal-toggle-disabled" id="btn-open-normal-hint" title="Re-import PDF to enable Normal View">PDF</button>' : ''}
+    ${hasUrlSource ? '<button class="reader-normal-toggle" id="btn-open-source-url" title="Open source article">URL</button>' : ''}
+    ${hasImgSource ? '<button class="reader-normal-toggle" id="btn-open-img-viewer" title="View source images">IMG</button>' : ''}
 
     <aside class="reader-index-panel hidden" id="reader-index-panel">
       <div class="reader-index-head">
@@ -245,6 +249,24 @@ function _bindReaderControls() {
         hideLoading();
         showToast('Could not open PDF. Please re-import.');
       }
+    });
+  }
+
+  const urlButton = qs('#btn-open-source-url');
+  if (urlButton) {
+    urlButton.addEventListener('click', function() {
+      if (window.Capacitor && Capacitor.isNativePlatform()) {
+        window.open(file.sourceUrl, '_system');
+      } else {
+        window.open(file.sourceUrl, '_blank');
+      }
+    });
+  }
+
+  const imgButton = qs('#btn-open-img-viewer');
+  if (imgButton) {
+    imgButton.addEventListener('click', function() {
+      showImageViewer(file.imageDataUrls);
     });
   }
 
@@ -744,4 +766,35 @@ function _updateEngineLoadingProgress(pct) {
   if (fill) fill.style.width = pct + '%';
   const pctText = document.getElementById('engine-loading-pct');
   if (pctText) pctText.textContent = Math.round(pct) + '%';
+}
+
+function showImageViewer(imageDataUrls) {
+  if (!imageDataUrls || !imageDataUrls.length) return;
+
+  const modalHTML = `
+    <div class="img-viewer-modal" id="img-viewer-modal">
+      <div class="img-viewer-header">
+        <p class="img-viewer-title">Source images</p>
+        <button class="btn btn-ghost img-viewer-close" id="img-viewer-close">×</button>
+      </div>
+      <div class="img-viewer-container">
+        <div class="img-viewer-scroll">
+          ${imageDataUrls.map((url, i) => `<img src="${url}" alt="Image ${i + 1}" class="img-viewer-image" />`).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+  const modal = qs('#img-viewer-modal');
+
+  qs('#img-viewer-close').addEventListener('click', function() {
+    if (modal && modal.parentNode) modal.parentNode.removeChild(modal);
+  });
+
+  modal.addEventListener('click', function(e) {
+    if (e.target === modal) {
+      if (modal.parentNode) modal.parentNode.removeChild(modal);
+    }
+  });
 }

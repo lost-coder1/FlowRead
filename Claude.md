@@ -275,14 +275,13 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
   - ✅ Playback auto-pauses when dictionary opens
   - ✅ Definitions capped at 2 per word, max 120 chars (7.98 MB file, compresses further in APK/IPA)
 
-- [x] **Task 12.6 — Clean Up Tasks** (Completed)
-  - ✅ App loading splash screen — clean "FlowRead / Read everything faster" splash shown before JS boot, fades out after init
-  - ✅ Screen going off during reading — re-acquire wake lock on app foreground via Capacitor App.appStateChange listener
-  - ✅ WPM timer accumulation in RSVP/Chunk — generation counter prevents stale setTimeout chains from doubling speed
-  - ✅ Home stats bar (streak, words today, avg WPM) now refreshes on every return to home screen
-  - ✅ 100% read items auto-move to Read section — engines save wordCount position on finish; re-open resets to 0
-  - ✅ PDF Normal View button hidden for URL/DOCX/TXT files — kind property added to AppState.currentFile
-  - ⏳ Disable Pro feature test button in settings — deferred to PRE-LAUNCH
+- [ ] **Task 12.6 — Clean Up Tasks** 
+    - Give the opyion to paste text and read it as well like any other option, this would be free as well. discuss
+    - like pdf, there should be img button for seeing image 
+    - For URLs - give users a button to go to url where pdf button was
+    -Update the limitation about OCR accuracy
+    - Image/scan option only show files to upload, I want it to open camera maybe. Discuss
+    - During on-boarding, we are showing user scroll to caliberate. Maybe use RSVP to calibrate. And use some prepared fun texts, like you are reading this at 200WPM, you also are comprehending this , something like this. Discuss. Also give a toggle in settings like for pro to test on-boarding.
 
 ### PRE-LAUNCH — Store Setup & In-App Purchase
 

@@ -407,6 +407,7 @@ async function handleUrlImport(rawUrl) {
       words: article.words,
       pageWordIndex: [0],
       rawLines: article.rawLines,
+      sourceUrl: article.sourceUrl,
       metadata: {
         sourceType: 'url',
         title: article.title,
@@ -888,6 +889,13 @@ async function handleImageSelect(files) {
   };
 
   try {
+    // Read image files as dataURLs for later viewing
+    const imageDataUrls = await Promise.all(fileList.map(f => new Promise(resolve => {
+      const reader = new FileReader();
+      reader.onload = e => resolve(e.target.result);
+      reader.readAsDataURL(f);
+    })));
+
     const result = await parseImages(fileList, window._pdfParseProgress);
     window._pdfParseProgress = null;
 
@@ -908,6 +916,7 @@ async function handleImageSelect(files) {
       words: result.words,
       pageWordIndex: result.pageWordIndex,
       rawLines: result.rawLines,
+      imageDataUrls: imageDataUrls,
       metadata: Object.assign({}, result.metadata, { sourceType: 'image' }),
       pdfDoc: null,
       pdfRawAvailable: false,

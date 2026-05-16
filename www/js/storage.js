@@ -147,12 +147,19 @@ function _hashSeed(seed) {
   requires re-import. Filesystem is used on device; localStorage fallback in browser.
 */
 async function saveFileData(fileId, fileData) {
-  const payload = JSON.stringify({
+  const payloadObj = {
     words: fileData.words,
     pageWordIndex: fileData.pageWordIndex,
     rawLines: fileData.rawLines,
     metadata: fileData.metadata,
-  });
+  };
+
+  /* Store imageDataUrls if present (image/OCR files) */
+  if (fileData.imageDataUrls && fileData.imageDataUrls.length) {
+    payloadObj.imageDataUrls = fileData.imageDataUrls;
+  }
+
+  const payload = JSON.stringify(payloadObj);
 
   const Filesystem = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
   if (Filesystem && typeof Filesystem.writeFile === 'function') {

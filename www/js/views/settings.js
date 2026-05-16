@@ -25,6 +25,10 @@ const FlowReadContent = {
       body: 'App is designed for printed text. Cursive or handwritten notes will not parse accurately, even with OCR.',
     },
     {
+      title: 'OCR accuracy (Image / Scan)',
+      body: 'On-device OCR works best on flat, well-lit printed text photographed straight-on. Accuracy drops significantly with low light, skewed angles, small font sizes, or decorative fonts. Take a clear photo in good lighting for best results.',
+    },
+    {
       title: 'Password-protected PDFs',
       body: 'Detected at import. Clear error message: "This PDF is password-protected. Please remove the password and re-import."',
     },
