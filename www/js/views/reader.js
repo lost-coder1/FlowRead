@@ -254,19 +254,47 @@ function _bindReaderControls() {
 
   const urlButton = qs('#btn-open-source-url');
   if (urlButton) {
-    urlButton.addEventListener('click', function() {
-      if (window.Capacitor && Capacitor.isNativePlatform()) {
-        window.open(file.sourceUrl, '_system');
-      } else {
-        window.open(file.sourceUrl, '_blank');
+    urlButton.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (_activeEngine && AppState.isPlaying) {
+        AppState.currentIndex = _activeEngine.getIndex();
+        _activeEngine.pause();
+      }
+      try {
+        const url = file.sourceUrl;
+        if (!url) { showToast('Source URL not available.'); return; }
+        /* Anchor click is most reliable in Capacitor WebView — avoids window.open quirks */
+        const link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } catch (err) {
+        console.error('URL open error:', err);
+        showToast('Could not open URL.');
       }
     });
   }
 
   const imgButton = qs('#btn-open-img-viewer');
   if (imgButton) {
-    imgButton.addEventListener('click', function() {
-      showImageViewer(file.imageDataUrls);
+    imgButton.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (_activeEngine && AppState.isPlaying) {
+        AppState.currentIndex = _activeEngine.getIndex();
+        _activeEngine.pause();
+      }
+      try {
+        const urls = file.imageDataUrls;
+        if (!urls || !urls.length) { showToast('Source images not available. Re-import the file to view them.'); return; }
+        showImageViewer(urls);
+      } catch (err) {
+        console.error('IMG viewer error:', err);
+        showToast('Could not open image viewer.');
+      }
     });
   }
 

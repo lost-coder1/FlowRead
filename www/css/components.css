@@ -596,32 +596,28 @@
 
 .calibration-rsvp-stage {
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 16px;
   font-family: 'Crimson Pro', serif;
   font-size: 48px;
   font-weight: 400;
   color: var(--text);
-  min-width: 200px;
-}
-
-.calibration-rsvp-orp-line {
-  width: 40px;
-  height: 3px;
-  background: var(--rsvp-orp);
-  border-radius: 2px;
-  opacity: 0.85;
-  flex-shrink: 0;
-  order: 2; /* renders below the word */
+  width: 100%;
+  padding: 0 var(--space-md);
+  box-sizing: border-box;
 }
 
 .calibration-rsvp-word {
   display: inline-block;
   text-align: center;
-  min-width: 80px;
-  order: 1;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: font-size 0.1s;
+}
+
+.calibration-orp-letter {
+  color: var(--rsvp-orp);
 }
 
 .calibration-controls {

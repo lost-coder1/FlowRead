@@ -268,7 +268,6 @@ function renderOnboarding(stepIndex) {
           <p class="onboarding-body">Watch words flash at your chosen speed. Adjust until it feels easy to read.</p>
           <div class="calibration-rsvp-container">
             <div class="calibration-rsvp-stage" id="calibration-rsvp-stage">
-              <div class="calibration-rsvp-orp-line"></div>
               <span class="calibration-rsvp-word" id="calibration-rsvp-word">—</span>
             </div>
           </div>
@@ -345,8 +344,8 @@ function _getCalibrationText(wpm) {
 
 function startCalibrationPreview() {
   stopCalibrationPreview();
-  const stage = qs('#calibration-rsvp-word');
-  if (!stage) return;
+  const wordEl = qs('#calibration-rsvp-word');
+  if (!wordEl) return;
 
   const text = _getCalibrationText(AppState.onboardingCalibrationWpm);
   const words = text.split(/\s+/);
@@ -354,8 +353,20 @@ function startCalibrationPreview() {
 
   function updateWord() {
     if (!qs('#view-onboarding') || AppState.currentView !== 'view-onboarding') return;
-    stage.textContent = words[wordIdx % words.length];
+    const w = words[wordIdx % words.length];
     wordIdx++;
+
+    /* Scale font down for long words so they stay in the box */
+    const len = w.length;
+    wordEl.style.fontSize = len > 10 ? Math.max(28, 48 - (len - 10) * 2) + 'px' : '';
+
+    /* Highlight the ORP letter at ~33% into the word */
+    const orpIdx = Math.max(0, Math.floor(len * 0.33));
+    const before = escapeHtml(w.slice(0, orpIdx));
+    const orp = escapeHtml(w[orpIdx] || '');
+    const after = escapeHtml(w.slice(orpIdx + 1));
+    wordEl.innerHTML = before + '<span class="calibration-orp-letter">' + orp + '</span>' + after;
+
     const delayMs = 60000 / AppState.onboardingCalibrationWpm;
     window._calibrationTimer = setTimeout(updateWord, delayMs);
   }
