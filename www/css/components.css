@@ -613,7 +613,6 @@
   max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
-  transition: font-size 0.1s;
 }
 
 .calibration-orp-letter {
