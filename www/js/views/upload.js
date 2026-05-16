@@ -34,6 +34,14 @@ function renderUpload() {
           </span>
         </button>
 
+        <button class="import-card" id="btn-paste-reader" type="button">
+          <span class="import-card-head">
+            <strong>Paste Text</strong>
+            <span class="import-badge">Free</span>
+          </span>
+          <span class="import-card-body">Paste or type any text and read it with all 4 engines.</span>
+        </button>
+
         <button class="import-card" id="btn-url-reader" type="button">
           <span class="import-card-head">
             <strong>URL Reader</strong>
@@ -142,6 +150,7 @@ function renderUpload() {
     const section = qs('.settings-limitations');
     if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
+  qs('#btn-paste-reader').addEventListener('click', openPasteText);
   qs('#btn-url-reader').addEventListener('click', openUrlReader);
   qs('#btn-docx-reader').addEventListener('click', openDocxReader);
   qs('#btn-txt-reader').addEventListener('click', openTxtReader);
@@ -248,6 +257,58 @@ async function hydrateUploadSurface() {
       imageCard.classList.add('import-card-locked');
     }
   }
+}
+
+function openPasteText() {
+  const modalHTML = `
+    <div class="paste-modal-overlay" id="paste-modal-overlay">
+      <div class="paste-modal">
+        <div class="paste-modal-header">
+          <p class="paste-modal-title">Paste or type text</p>
+          <button class="btn btn-ghost paste-modal-close" id="paste-modal-close" type="button">×</button>
+        </div>
+        <div class="paste-modal-body">
+          <input type="text" id="paste-title-input" class="paste-title-input" placeholder="Untitled paste (optional)" />
+          <textarea id="paste-text-input" class="paste-text-input" placeholder="Paste or type text here…" spellcheck="true"></textarea>
+        </div>
+        <div class="paste-modal-footer">
+          <button class="btn btn-secondary" id="paste-modal-cancel" type="button">Cancel</button>
+          <button class="btn btn-primary" id="paste-modal-read" type="button">Read Now</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHTML);
+  const overlay = qs('#paste-modal-overlay');
+  const titleInput = qs('#paste-title-input');
+  const textInput = qs('#paste-text-input');
+
+  function closeModal() {
+    if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+  }
+
+  qs('#paste-modal-close').addEventListener('click', closeModal);
+  qs('#paste-modal-cancel').addEventListener('click', closeModal);
+
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) closeModal();
+  });
+
+  qs('#paste-modal-read').addEventListener('click', function() {
+    const title = titleInput.value.trim() || 'Pasted text';
+    const text = textInput.value.trim();
+
+    if (text.length < 10) {
+      showToast('Please paste at least 10 characters to read.');
+      return;
+    }
+
+    closeModal();
+    handlePasteTextImport(title, text);
+  });
+
+  titleInput.focus();
 }
 
 async function openUrlReader() {
@@ -874,6 +935,113 @@ async function openImageReader() {
     return;
   }
   qs('#file-input-image').click();
+}
+
+async function handlePasteTextImport(title, text) {
+  clearUploadError();
+  showLoading('Processing text…');
+
+  try {
+    /* Normalize line endings */
+    let normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+    /* Split into paragraph blocks (blank-line delimited) */
+    const paragraphs = normalized
+      .split(/\n{2,}/)
+      .flatMap(function(block) { return block.split(/\n/); })
+      .map(function(line) { return line.trim(); })
+      .filter(function(line) { return line.length >= 2; });
+
+    /* Clean paragraphs */
+    const cleaned = paragraphs.map(function(p) {
+      p = p.replace(/[ \t]+/g, ' ').trim();
+      p = p.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+      return p;
+    });
+
+    /* Filter out page numbers, bare URLs */
+    const filtered = cleaned.filter(function(line) {
+      if (line.length < 2) return false;
+      if (/^\d+$/.test(line)) return false;
+      if (/^https?:\/\//.test(line) && line.length < 50) return false;
+      return true;
+    });
+
+    /* Deduplicate adjacent identical lines */
+    const deduplicated = [];
+    let lastLine = '';
+    filtered.forEach(function(line) {
+      if (line !== lastLine) {
+        deduplicated.push(line);
+        lastLine = line;
+      }
+    });
+
+    /* Build rawLines and words */
+    const rawLines = [];
+    const words = [];
+    const pageWordIndex = [0];
+    const PAGE_SIZE = 250;
+    let wordIndex = 0;
+    let syntheticPage = 0;
+
+    deduplicated.forEach(function(line) {
+      rawLines.push(line);
+      const lineWords = line.split(/\s+/);
+      lineWords.forEach(function(word) {
+        words.push(word);
+        wordIndex++;
+
+        while (Math.floor(wordIndex / PAGE_SIZE) > syntheticPage) {
+          syntheticPage++;
+          pageWordIndex.push(wordIndex);
+        }
+      });
+    });
+
+    if (words.length < 10) {
+      hideLoading();
+      showUploadError('Not enough text', 'Please paste at least 10 words to read.');
+      return;
+    }
+
+    const fileId = generateFileId('paste', title, words.length);
+
+    AppState.currentFile = {
+      id: fileId,
+      kind: 'paste',
+      name: title,
+      words: words,
+      pageWordIndex: pageWordIndex,
+      rawLines: rawLines,
+      metadata: {
+        sourceType: 'paste',
+        title: title,
+        wordCount: words.length,
+        pageCount: pageWordIndex.length,
+        hasTextLayer: true,
+      },
+      pdfDoc: null,
+    };
+    AppState.currentIndex = 0;
+
+    saveFileToLibrary({
+      id: fileId,
+      kind: 'paste',
+      name: title,
+      wordCount: words.length,
+      pageCount: pageWordIndex.length,
+      lastOpened: Date.now(),
+    });
+    saveFileData(fileId, AppState.currentFile);
+
+    hideLoading();
+    renderReader();
+    switchView('view-reader');
+  } catch (err) {
+    hideLoading();
+    showUploadError('Error', 'Could not process the pasted text.');
+  }
 }
 
 async function handleImageSelect(files) {
