@@ -129,8 +129,8 @@ async function _handleShareUrl(rawText) {
 }
 
 function _showShareError(message) {
-  if ((AppState.currentView === 'view-upload' || AppState.currentView === 'view-dashboard') && typeof showUploadError === 'function') {
-    showUploadError('Shared URL import failed', message);
+  if (typeof showErrorModal === 'function') {
+    showErrorModal('Shared URL import failed', message);
     return;
   }
 
