@@ -250,6 +250,8 @@
   text-transform: uppercase;
   letter-spacing: 0.8px;
   color: var(--accent);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .import-card-featured {

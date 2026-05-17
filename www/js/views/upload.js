@@ -170,7 +170,7 @@ async function hydrateUploadSurface() {
   if (!button || !badge || !panel) return;
 
   if (pro) {
-    badge.textContent = 'Requires internet';
+    badge.textContent = 'Online';
     button.classList.add('import-card-live');
   } else {
     badge.textContent = 'Pro';
@@ -221,13 +221,13 @@ async function hydrateUploadSurface() {
       docxCard.classList.remove('import-card-locked');
       docxCard.classList.add('import-card-live');
       const badge = docxCard.querySelector('.import-badge');
-      if (badge) badge.textContent = 'Word documents';
+      if (badge) badge.textContent = 'Unlocked';
     }
     if (txtCard) {
       txtCard.classList.remove('import-card-locked');
       txtCard.classList.add('import-card-live');
       const badge = txtCard.querySelector('.import-badge');
-      if (badge) badge.textContent = 'Plain text';
+      if (badge) badge.textContent = 'Unlocked';
     }
     if (dashboardCard) {
       dashboardCard.classList.remove('import-card-locked');
@@ -246,7 +246,7 @@ async function hydrateUploadSurface() {
       imageCard.classList.remove('import-card-locked');
       imageCard.classList.add('import-card-live');
       const badge = imageCard.querySelector('.import-badge');
-      if (badge) badge.textContent = 'On-device OCR';
+      if (badge) badge.textContent = 'On-device';
     } else {
       imageCard.classList.add('import-card-locked');
     }
