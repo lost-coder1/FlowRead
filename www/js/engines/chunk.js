@@ -134,8 +134,11 @@ const ChunkEngine = (function() {
   function getIndex() { return _index; }
   function seekTo(i) {
     _index = Math.max(0, Math.min(_words.length - 1, i));
+    _generation++;
+    if (_timerId) { clearTimeout(_timerId); _timerId = null; }
     _updateDisplay();
     if (AppState.currentFile) savePosition(AppState.currentFile.id, _index);
+    if (AppState.isPlaying) _schedule();
   }
 
   function onWPMChange() {

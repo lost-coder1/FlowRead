@@ -259,10 +259,13 @@ const RSVPEngine = (function() {
 
   function seekTo(index) {
     _index = Math.max(0, Math.min(_words.length - 1, index));
+    _generation++;
+    if (_timerId) { clearTimeout(_timerId); _timerId = null; }
     _displayWord(_words[_index]);
     _updateContext();
     _updateProgress();
     if (AppState.currentFile) savePosition(AppState.currentFile.id, _index);
+    if (AppState.isPlaying) _scheduleNext();
   }
 
   function _updatePlayPauseBtn() {
