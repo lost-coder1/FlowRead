@@ -42,10 +42,9 @@ const FlowReadContent = {
     },
     {
       title: 'URL reader (Pro)',
-      body: 'Requires internet for the initial article fetch. Parsing happens locally on device. Article content is never transmitted to any server we control. Even with internet, some sites cannot be imported because of paywalls, login walls, bot protection, blocked fetching, or unsupported page structure. URL import errors must say which failure category occurred in plain language.',
+      body: 'Requires internet for the initial article fetch. Parsing happens locally on device. Article content is never transmitted to any server we control. Even with internet, some sites cannot be imported because of paywalls, login walls, bot protection, blocked fetching, or unsupported page structure.',
     },
   ],
-  urlFailurePolicy: 'URL import errors must state the real failure category in plain language: invalid URL, no internet, timed out, blocked by site, paywalled article, login required, unsupported page structure, or no readable article text found.',
   calibrationSample: [
     'FlowRead is built for readers who want less friction and more momentum.',
     'The goal of this calibration is not to impress you with a big number.',

@@ -186,7 +186,7 @@ function renderHeatmapHtml(heatmapData) {
       <div class="dashboard-heatmap-grid">
         ${heatmapHtml}
       </div>
-      <p class="dashboard-heatmap-legend">Green intensity shows reading activity. Darker = more words read.</p>
+      <p class="dashboard-heatmap-legend">Yellow intensity shows reading activity. Darker = more words read.</p>
     </div>
   `;
 }

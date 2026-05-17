@@ -346,11 +346,7 @@ async function handleFileSelect(file) {
       const ocrAccess = await hasOcrAccess();
       if (!ocrAccess) {
         hideLoading();
-        showUploadError(
-          'Scanned PDF',
-          'This appears to be a scanned PDF. OCR Vision can extract the text on-device — no internet required.',
-          { actionLabel: 'Unlock OCR Vision', action: function() { showOcrPaywall('scanned-pdf'); } }
-        );
+        showScannedPdfModal();
         return;
       }
       /* Run OCR on the scanned PDF */
@@ -785,6 +781,58 @@ function clearUploadError() {
     container.innerHTML = '';
     hide(container);
   }
+}
+
+function showScannedPdfModal() {
+  const existing = qs('#scanned-pdf-modal');
+  if (existing) existing.parentNode.removeChild(existing);
+
+  const overlay = document.createElement('div');
+  overlay.id = 'scanned-pdf-modal';
+  overlay.className = 'paste-modal-overlay';
+
+  const modal = document.createElement('div');
+  modal.className = 'paste-modal';
+  modal.style.maxWidth = '360px';
+
+  const title = document.createElement('p');
+  title.className = 'error-card-title';
+  title.style.cssText = 'font-size:13px;letter-spacing:0.6px;text-transform:uppercase;color:var(--accent);margin-bottom:8px;';
+  title.textContent = 'Scanned PDF';
+
+  const body = document.createElement('p');
+  body.style.cssText = 'font-family:var(--font-body);font-size:15px;line-height:1.55;color:var(--text);margin-bottom:20px;';
+  body.textContent = 'This PDF has no text layer — it\'s a scan or image. OCR Vision can extract the text on-device with no internet required.';
+
+  const actions = document.createElement('div');
+  actions.className = 'paste-modal-footer';
+
+  const unlockBtn = document.createElement('button');
+  unlockBtn.className = 'btn btn-primary';
+  unlockBtn.textContent = 'Unlock OCR Vision';
+
+  const dismissBtn = document.createElement('button');
+  dismissBtn.className = 'btn btn-ghost';
+  dismissBtn.textContent = 'Dismiss';
+
+  function close() {
+    if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+  }
+
+  unlockBtn.addEventListener('click', function() {
+    close();
+    showOcrPaywall('scanned-pdf');
+  });
+  dismissBtn.addEventListener('click', close);
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+
+  actions.appendChild(unlockBtn);
+  actions.appendChild(dismissBtn);
+  modal.appendChild(title);
+  modal.appendChild(body);
+  modal.appendChild(actions);
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
 }
 
 async function openDocxReader() {
