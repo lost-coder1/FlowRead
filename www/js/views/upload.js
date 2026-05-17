@@ -437,12 +437,12 @@ async function handleUrlImport(rawUrl) {
   try {
     parsedUrl = validateArticleUrl(rawUrl);
   } catch (err) {
-    showUploadError('Invalid URL', err.message);
+    showErrorModal('Invalid URL', err.message);
     return;
   }
 
   if (navigator.onLine === false) {
-    showUploadError('No internet connection', 'URL Reader requires internet for the initial fetch. Connect to the internet and try again.');
+    showErrorModal('No internet connection', 'URL Reader requires internet for the initial fetch. Connect to the internet and try again.');
     return;
   }
 
@@ -491,7 +491,7 @@ async function handleUrlImport(rawUrl) {
   } catch (err) {
     hideLoading();
     const failure = normalizeUrlImportError(err);
-    showUploadError(failure.title, failure.message);
+    showErrorModal(failure.title, failure.message);
   }
 }
 
@@ -783,33 +783,43 @@ function clearUploadError() {
   }
 }
 
-function showScannedPdfModal() {
-  const existing = qs('#scanned-pdf-modal');
+/* Generic centered error modal — title, message, optional primary action + dismiss */
+function showErrorModal(title, message, options) {
+  const id = 'upload-error-modal';
+  const existing = qs('#' + id);
   if (existing) existing.parentNode.removeChild(existing);
 
   const overlay = document.createElement('div');
-  overlay.id = 'scanned-pdf-modal';
+  overlay.id = id;
   overlay.className = 'paste-modal-overlay';
 
   const modal = document.createElement('div');
   modal.className = 'paste-modal';
-  modal.style.maxWidth = '360px';
 
-  const title = document.createElement('p');
-  title.className = 'error-card-title';
-  title.style.cssText = 'font-size:13px;letter-spacing:0.6px;text-transform:uppercase;color:var(--accent);margin-bottom:8px;';
-  title.textContent = 'Scanned PDF';
+  const header = document.createElement('div');
+  header.className = 'paste-modal-header';
 
-  const body = document.createElement('p');
-  body.style.cssText = 'font-family:var(--font-body);font-size:15px;line-height:1.55;color:var(--text);margin-bottom:20px;';
-  body.textContent = 'This PDF has no text layer — it\'s a scan or image. OCR Vision can extract the text on-device with no internet required.';
+  const titleEl = document.createElement('p');
+  titleEl.className = 'paste-modal-title';
+  titleEl.textContent = title;
 
-  const actions = document.createElement('div');
-  actions.className = 'paste-modal-footer';
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'btn btn-ghost paste-modal-close';
+  closeBtn.textContent = '×';
 
-  const unlockBtn = document.createElement('button');
-  unlockBtn.className = 'btn btn-primary';
-  unlockBtn.textContent = 'Unlock OCR Vision';
+  header.appendChild(titleEl);
+  header.appendChild(closeBtn);
+
+  const body = document.createElement('div');
+  body.className = 'paste-modal-body';
+
+  const msgEl = document.createElement('p');
+  msgEl.style.cssText = 'font-family:var(--font-body);font-size:15px;line-height:1.55;color:var(--text);margin:0;';
+  msgEl.textContent = message;
+  body.appendChild(msgEl);
+
+  const footer = document.createElement('div');
+  footer.className = 'paste-modal-footer';
 
   const dismissBtn = document.createElement('button');
   dismissBtn.className = 'btn btn-ghost';
@@ -819,20 +829,32 @@ function showScannedPdfModal() {
     if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
   }
 
-  unlockBtn.addEventListener('click', function() {
-    close();
-    showOcrPaywall('scanned-pdf');
-  });
+  closeBtn.addEventListener('click', close);
   dismissBtn.addEventListener('click', close);
   overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
 
-  actions.appendChild(unlockBtn);
-  actions.appendChild(dismissBtn);
-  modal.appendChild(title);
+  if (options && options.actionLabel && typeof options.action === 'function') {
+    const actionBtn = document.createElement('button');
+    actionBtn.className = 'btn btn-primary';
+    actionBtn.textContent = options.actionLabel;
+    actionBtn.addEventListener('click', function() { close(); options.action(); });
+    footer.appendChild(actionBtn);
+  }
+
+  footer.appendChild(dismissBtn);
+  modal.appendChild(header);
   modal.appendChild(body);
-  modal.appendChild(actions);
+  modal.appendChild(footer);
   overlay.appendChild(modal);
   document.body.appendChild(overlay);
+}
+
+function showScannedPdfModal() {
+  showErrorModal(
+    'Scanned PDF',
+    'This PDF has no text layer — it\'s a scan or image. OCR Vision can extract the text on-device with no internet required.',
+    { actionLabel: 'Unlock OCR Vision', action: function() { showOcrPaywall('scanned-pdf'); } }
+  );
 }
 
 async function openDocxReader() {

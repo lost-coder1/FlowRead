@@ -493,7 +493,6 @@ function renderSettings() {
             return `<li><strong>${escapeHtml(item.title)}</strong> — ${escapeHtml(item.body)}</li>`;
           }).join('')}
         </ol>
-        <p class="settings-note">${escapeHtml(FlowReadContent.urlFailurePolicy)}</p>
       </section>
 
       <section class="settings-section">
