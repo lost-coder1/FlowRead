@@ -77,6 +77,8 @@ async function buyPro() {
     const plugin = _IapPlugin.get();
     if (!plugin) throw new Error('no_plugin');
 
+    await plugin.queryProducts();
+
     const result = await plugin.purchaseProduct({ productId: 'pro_lifetime' });
     const productIds = (result && result.productIds) || [];
     if (productIds.indexOf('pro_lifetime') !== -1) {
@@ -109,6 +111,8 @@ async function buyOcr() {
     await _ensureIap();
     const plugin = _IapPlugin.get();
     if (!plugin) throw new Error('no_plugin');
+
+    await plugin.queryProducts();
 
     const result = await plugin.purchaseProduct({ productId: 'ocr_vision' });
     const productIds = (result && result.productIds) || [];
