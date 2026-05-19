@@ -497,9 +497,10 @@ function renderSettings() {
 
       <section class="settings-section">
         <h2>About</h2>
-        <p class="settings-copy">Version 1.0.0 MVP</p>
+        <p class="settings-copy">Version 1.1.0</p>
         <p class="settings-copy">This app collects no data. There is no account, no analytics backend, and no file upload to any server we control.</p>
         <p class="settings-copy">URL Reader is Pro-only and clearly marked when it requires internet.</p>
+        <button class="btn btn-ghost settings-restore-btn" id="btn-settings-restore">Restore Purchases</button>
       </section>
 
       <section class="settings-section">
@@ -522,30 +523,8 @@ function renderSettings() {
         </p>
       </section>
 
-      <section class="settings-section">
-        <h2>Developer</h2>
-        <p class="settings-copy text-muted">Test mode only. Not a real purchase. Toggle resets if app data is cleared.</p>
-        <label class="settings-toggle">
-          <span>Unlock Pro (Test mode — not a real purchase)</span>
-          <input type="checkbox" id="settings-dev-pro" />
-        </label>
-        <label class="settings-toggle">
-          <span>Unlock OCR Vision (Test mode — not a real purchase)</span>
-          <input type="checkbox" id="settings-dev-ocr" />
-        </label>
-        <label class="settings-toggle">
-          <span>Reset Onboarding</span>
-          <input type="checkbox" id="settings-dev-reset-onboarding" />
-        </label>
-      </section>
     </div>
   `;
-
-  const devProEl = qs('#settings-dev-pro');
-  if (devProEl) devProEl.checked = loadDevProBypass();
-
-  const devOcrEl = qs('#settings-dev-ocr');
-  if (devOcrEl) devOcrEl.checked = loadDevOcrBypass();
 
   syncThemeChips();
   syncTypographyChips();
@@ -620,40 +599,10 @@ function bindSettings() {
     });
   });
 
-  const devPro = qs('#settings-dev-pro');
-  if (devPro) {
-    devPro.addEventListener('change', function() {
-      saveDevProBypass(this.checked);
-      AppState.isPro = this.checked;
-      applyTheme(AppState.settings.theme);
-      applyTypography(AppState.settings.fontPreset);
-      syncThemeChips();
-      syncTypographyChips();
-      showToast(this.checked
-        ? 'Pro test mode ON — go back to home to see unlocked features.'
-        : 'Pro test mode OFF.');
-    });
-  }
-
-  const devOcr = qs('#settings-dev-ocr');
-  if (devOcr) {
-    devOcr.addEventListener('change', function() {
-      saveDevOcrBypass(this.checked);
-      showToast(this.checked
-        ? 'OCR Vision test mode ON — go back to home to see the Image / Scan card.'
-        : 'OCR Vision test mode OFF.');
-    });
-  }
-
-  const devResetOnboarding = qs('#settings-dev-reset-onboarding');
-  if (devResetOnboarding) {
-    devResetOnboarding.addEventListener('change', function() {
-      if (this.checked) {
-        localStorage.removeItem('fr_onboarding_complete');
-        renderOnboarding(0);
-        switchView('view-onboarding');
-        this.checked = false;
-      }
+  const restoreBtn = qs('#btn-settings-restore');
+  if (restoreBtn) {
+    restoreBtn.addEventListener('click', function() {
+      if (typeof restorePurchases === 'function') restorePurchases();
     });
   }
 

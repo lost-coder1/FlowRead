@@ -7,3 +7,6 @@ dist/
 .env
 .env.local
 capacitor.config.ts
+*.jks
+*.keystore
+keystore.properties

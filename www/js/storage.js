@@ -102,17 +102,11 @@ async function savePurchaseState(key, value) {
 }
 
 async function loadPurchaseState(key) {
-  /* Check localStorage first (dev/test bypass uses localStorage) */
-  const localValue = localStorage.getItem('fr_purchase_' + key);
-  if (localValue) return localValue;
-
-  /* Fall back to Capacitor Preferences (real device) */
   const preferences = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences;
   if (preferences && typeof preferences.get === 'function') {
     const result = await preferences.get({ key: 'fr_purchase_' + key });
     return result && result.value;
   }
-
   return null;
 }
 
@@ -298,32 +292,6 @@ async function deleteRawPdf(fileId) {
       tx.onerror = function() { reject(tx.error); };
     });
   } catch (_) {}
-}
-
-/* ── Dev test bypass (localStorage, test-only) ──────────────── */
-/* Uses localStorage instead of Capacitor Preferences so it's clearly separate from real purchases. */
-function saveDevProBypass(enabled) {
-  if (enabled) {
-    localStorage.setItem('fr_purchase_pro', 'true');
-  } else {
-    localStorage.removeItem('fr_purchase_pro');
-  }
-}
-
-function loadDevProBypass() {
-  return localStorage.getItem('fr_purchase_pro') === 'true';
-}
-
-function saveDevOcrBypass(enabled) {
-  if (enabled) {
-    localStorage.setItem('fr_purchase_ocr', 'true');
-  } else {
-    localStorage.removeItem('fr_purchase_ocr');
-  }
-}
-
-function loadDevOcrBypass() {
-  return localStorage.getItem('fr_purchase_ocr') === 'true';
 }
 
 /* ── Reading stats (append-only array, max 500 sessions) ────── */

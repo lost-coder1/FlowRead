@@ -53,10 +53,13 @@ document.addEventListener('DOMContentLoaded', async function() {
   AppState.lastReaderEngine = AppState.currentEngine;
 
   try {
+    if (typeof initIAP === 'function') {
+      initIAP().catch(function() {});
+    }
     if (typeof hasProAccess === 'function') {
       await hasProAccess();
     } else {
-      AppState.isPro = typeof loadDevProBypass === 'function' ? loadDevProBypass() : false;
+      AppState.isPro = false;
     }
   } catch (_) {
     AppState.isPro = false;
