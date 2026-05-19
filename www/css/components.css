@@ -103,7 +103,7 @@
 
 .upload-header {
   text-align: center;
-  padding-top: var(--space-xl);
+  padding-top: calc(var(--space-xl) + var(--safe-top));
 }
 
 .upload-header-wide {
@@ -641,6 +641,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-md);
+  padding-top: var(--safe-top);
 }
 
 .settings-section {
@@ -810,6 +811,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-md);
+  padding-top: var(--safe-top);
 }
 
 .dashboard-kpi-grid {
