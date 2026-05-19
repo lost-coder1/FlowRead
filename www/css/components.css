@@ -235,9 +235,6 @@
   font-size: 24px;
   font-weight: 700;
   color: rgba(232, 228, 220, 0.88);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .import-card-body {

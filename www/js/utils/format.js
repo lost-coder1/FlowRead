@@ -35,16 +35,29 @@ function splitAtGrapheme(word, fraction) {
   return [word.slice(0, cut), word.slice(cut)];
 }
 
+/* Expand PDF typographic ligatures so ORP lands on a real visible letter */
+function _normalizeLigatures(w) {
+  return w
+    .replace(/ﬀ/g, 'ff')
+    .replace(/ﬁ/g, 'fi')
+    .replace(/ﬂ/g, 'fl')
+    .replace(/ﬃ/g, 'ffi')
+    .replace(/ﬄ/g, 'ffl')
+    .replace(/ﬅ/g, 'st')
+    .replace(/ﬆ/g, 'st');
+}
+
 function graphemeAt(word, fraction) {
   if (!word) return { before: '', cluster: '', after: '' };
+  const w = _normalizeLigatures(word);
   if (typeof Intl === 'undefined' || !Intl.Segmenter) {
-    const i = Math.min(word.length - 1, Math.floor(word.length * fraction));
-    return { before: word.slice(0, i), cluster: word[i] || '', after: word.slice(i + 1) };
+    const i = Math.min(w.length - 1, Math.floor(w.length * fraction));
+    return { before: w.slice(0, i), cluster: w[i] || '', after: w.slice(i + 1) };
   }
-  const segs = Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(word));
+  const segs = Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(w));
   if (!segs.length) return { before: '', cluster: '', after: '' };
   const target = Math.min(segs.length - 1, Math.floor(segs.length * fraction));
   const seg = segs[target];
   const end = seg.index + seg.segment.length;
-  return { before: word.slice(0, seg.index), cluster: seg.segment, after: word.slice(end) };
+  return { before: w.slice(0, seg.index), cluster: seg.segment, after: w.slice(end) };
 }
