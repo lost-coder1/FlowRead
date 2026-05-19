@@ -44,7 +44,7 @@ Every limitation shown upfront in onboarding. Never silently fail. Errors explai
 - **DOCX parsing:** mammoth.js 1.8.0
 - **Storage:** Capacitor Preferences (Keychain/EncryptedSharedPrefs) for purchase state. Capacitor Filesystem for file data. localStorage for UI state (all keys prefixed `fr_`).
 - **Screen wake:** @capacitor-community/keep-awake@5
-- **IAP:** @capacitor-community/in-app-purchases (v1.1+)
+- **IAP:** Custom native Capacitor plugin `FlowReadIapPlugin` wrapping Google Play Billing Library 7.1.1 (`android/app/src/main/java/com/flowread/app/FlowReadIapPlugin.java`). Do NOT use @capacitor-community/in-app-purchases — it is behind on Billing 7 API and not installed.
 - **Fonts:** Roboto, Open Sans, Lato, DM Mono
 
 **Key folder paths:**
@@ -285,22 +285,28 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
 
 ### PRE-LAUNCH — Store Setup & In-App Purchase
 
-- [ ] **Store account setup (calendar-blocking)**
-  - [ ] Google Play Console account ($25 one-time) — create app, upload signed APK/AAB, publish to internal testing
-  - [ ] Create two one-time IAP products: `pro_lifetime` ($9.99) and `ocr_vision` ($4.99) with regional PPP pricing (Tier A/B/C per Section 3)
+- [x] **Android store setup (complete)**
+  - ✅ Google Play Console — app created, signed AAB uploaded (versionCode 3, versionName 1.1), published to internal testing
+  - ✅ Release signing configured — keystore at `~/flowread-release.jks`, signing config in `android/keystore.properties` (gitignored). Alias: `flowread`.
+  - ✅ targetSdk / compileSdk bumped to API 35 (Play Store requirement as of 2025)
+  - ✅ IAP products created in Play Console: `pro_lifetime` (one-time, $9.99, Active) and `ocr_vision` (one-time, $4.99, Active)
+  - ✅ License testing configured — internal testers added, license response set to LICENSED
+
+- [x] **Real in-app purchase flow (Android complete)**
+  - ✅ `FlowReadIapPlugin.java` — custom Capacitor plugin wrapping Google Play Billing Library 7.1.1. Methods: `initBilling`, `queryProducts`, `purchaseProduct`, `queryPurchases`, `acknowledgePurchase`. Registered in `MainActivity.java`.
+  - ✅ `purchase.js` fully rewritten — `initIAP()` called at boot (non-blocking), `buyPro()`, `buyOcr()`, `restorePurchases()` all use real Play Billing. `queryProducts()` called explicitly before every purchase to ensure cache is warm.
+  - ✅ Store-localized prices shown in paywall modal (fetched via `queryProducts` at boot, fallback to $9.99 / $4.99)
+  - ✅ "Restore Purchases" button in paywall modals and in Settings → About
+  - ✅ Dev Pro/OCR test toggles removed from Settings — no dev bypass remains in UI or storage
+  - ✅ `loadPurchaseState` reads only from Capacitor Preferences (localStorage dev-bypass path removed)
+  - ✅ USER_CANCELED handled silently — no error toast when user taps back on billing sheet
+  - ✅ Purchase acknowledgment handled in native plugin — auto-retried on `queryPurchases` if missed
+
+- [ ] **iOS store setup (pending)**
   - [ ] App Store Connect account ($99/year) — create app, add store listing
   - [ ] Create two non-consumable IAPs: `pro_lifetime` (Tier 15, ~$14.99) and `ocr_vision` (Tier 8, ~$7.99)
+  - [ ] iOS IAP plugin — use StoreKit 2 in a custom Capacitor plugin (`ios/App/App/FlowReadIapPlugin.swift`). Do NOT use the Android FlowReadIapPlugin approach — iOS uses StoreKit 2 (`Product.purchase()` API), not Google Play Billing.
   - [ ] Submit app + IAPs to App Store review
-
-- [ ] **Real in-app purchase flow** (code, ~1–2 days after store products are live)
-  - [ ] Initialize IAP plugin on boot (`app.js`) — call `initIAP()` which registers products and restores prior purchases
-  - [ ] Implement purchase.js: `buyPro()`, `buyOcr()`, `restorePurchases()` — wire to Capacitor InAppPurchases plugin
-  - [ ] Show store-localized prices in paywall modal (read from `product.price` after `getProducts()`)
-  - [ ] Wire "Unlock" buttons in paywall to `buyPro()` / `buyOcr()` — add loading state + error handling
-  - [ ] Add "Restore purchases" link to paywall (App Store requirement)
-  - [ ] Hide dev Pro/OCR test toggles in Settings before launch (or guard behind secret tap sequence)
-  - [ ] Test full purchase flow on real devices with sandbox accounts (Android + iOS)
-  - [ ] Test re-install: `restorePurchases()` should rehydrate entitlements from receipt
 ---
 
 ## 12. Code Rules
