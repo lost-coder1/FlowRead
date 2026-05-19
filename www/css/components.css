@@ -232,7 +232,7 @@
 
 .import-card strong {
   font-family: var(--font-display);
-  font-size: 20px;
+  font-size: 24px;
   font-weight: 700;
   color: rgba(232, 228, 220, 0.88);
   white-space: nowrap;

@@ -33,10 +33,10 @@ function renderUpload() {
           <span class="import-card-body">Paste or type any text and read it with all 4 engines.</span>
         </button>
 
-        <!-- Row 2: Image / Scan | URL Reader -->
+        <!-- Row 2: Scan | URL Reader -->
         <button class="import-card import-card-locked" id="btn-image-reader" type="button">
           <span class="import-card-head">
-            <strong>Image / Scan</strong>
+            <strong>Scan</strong>
             <span class="import-badge">OCR Vision</span>
           </span>
           <span class="import-card-body">Take a photo or pick images. OCR extracts the text on-device.</span>
