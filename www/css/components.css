@@ -103,7 +103,7 @@
 
 .upload-header {
   text-align: center;
-  padding-top: var(--space-xl);
+  padding-top: calc(var(--space-xl) + var(--safe-top));
 }
 
 .upload-header-wide {
@@ -232,9 +232,12 @@
 
 .import-card strong {
   font-family: var(--font-display);
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 700;
   color: rgba(232, 228, 220, 0.88);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .import-card-body {
@@ -641,6 +644,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-md);
+  padding-top: var(--safe-top);
 }
 
 .settings-section {
@@ -810,6 +814,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-md);
+  padding-top: var(--safe-top);
 }
 
 .dashboard-kpi-grid {

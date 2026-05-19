@@ -6,7 +6,7 @@
 /* ── Progress bar (2px, fixed top) ─────────────────────────── */
 .progress-bar-track {
   position: fixed;
-  top: 0; left: 0; right: 0;
+  top: var(--safe-top); left: 0; right: 0;
   height: 2px;
   background: var(--surface-2);
   z-index: 100;
@@ -22,7 +22,7 @@
 #view-reader {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   touch-action: pan-y;
 }
@@ -30,7 +30,7 @@
 .reader-header {
   display: flex;
   align-items: center;
-  padding: 10px var(--space-sm);
+  padding: calc(10px + var(--safe-top)) var(--space-sm) 10px;
   border-bottom: 1px solid var(--border);
   gap: var(--space-sm);
   flex-shrink: 0;
@@ -508,7 +508,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--space-xs);
-  padding: var(--space-sm) var(--space-md);
+  padding: var(--space-sm) var(--space-md) calc(var(--space-sm) + var(--safe-bottom));
   border-top: 1px solid var(--border);
   flex-shrink: 0;
   transition: opacity var(--transition-normal);
@@ -725,7 +725,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-xs);
-  padding: var(--space-sm);
+  padding: calc(var(--space-sm) + var(--safe-top)) var(--space-sm) var(--space-sm);
   border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
   background: var(--bg);

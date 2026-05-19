@@ -1,14 +1,21 @@
 /* Screen wake lock — prevents screen from dimming during reading */
-/* Uses @capacitor-community/keep-awake@5 */
+/* Uses @capacitor-community/keep-awake@5 via Capacitor.Plugins.KeepAwake */
 
 let _wakeLockActive = false;
 let _idleReleaseTimer = null;
 const IDLE_RELEASE_MS = 5 * 60 * 1000; /* 5 minutes */
 
+function _getPlugin() {
+  return window.Capacitor &&
+         window.Capacitor.Plugins &&
+         window.Capacitor.Plugins.KeepAwake || null;
+}
+
 async function acquireWakeLock() {
   try {
-    if (typeof CapacitorKeepAwake !== 'undefined') {
-      await CapacitorKeepAwake.KeepAwake.keepAwake();
+    const plugin = _getPlugin();
+    if (plugin) {
+      await plugin.keepAwake();
     }
     _wakeLockActive = true;
   } catch (e) {
@@ -20,8 +27,9 @@ async function acquireWakeLock() {
 async function releaseWakeLock() {
   clearIdleReleaseTimer();
   try {
-    if (typeof CapacitorKeepAwake !== 'undefined') {
-      await CapacitorKeepAwake.KeepAwake.allowSleep();
+    const plugin = _getPlugin();
+    if (plugin) {
+      await plugin.allowSleep();
     }
     _wakeLockActive = false;
   } catch (e) {
