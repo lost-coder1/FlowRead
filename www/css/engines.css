@@ -201,7 +201,7 @@
 .reader-normal-toggle {
   position: absolute;
   right: var(--space-md);
-  bottom: 152px;
+  bottom: calc(152px + var(--safe-bottom));
   z-index: 5;
   min-width: 54px;
   min-height: 54px;
@@ -512,6 +512,11 @@
   border-top: 1px solid var(--border);
   flex-shrink: 0;
   transition: opacity var(--transition-normal);
+}
+
+/* Push toast above the wpm-bar + playback-bar stack while reader is visible */
+#view-reader:not(.hidden) ~ #toast-container {
+  bottom: calc(150px + var(--safe-bottom));
 }
 
 .control-btn {

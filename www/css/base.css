@@ -253,7 +253,7 @@ a:hover {
 /* ── Toast container ────────────────────────────────────────── */
 #toast-container {
   position: fixed;
-  bottom: var(--space-xl);
+  bottom: calc(var(--space-xl) + var(--safe-bottom));
   left: 50%;
   transform: translateX(-50%);
   z-index: 9998;
@@ -277,7 +277,9 @@ a:hover {
   opacity: 0;
   transform: translateY(8px);
   transition: opacity var(--transition-normal), transform var(--transition-normal);
-  white-space: nowrap;
+  white-space: normal;
+  max-width: calc(100vw - 2 * var(--space-lg));
+  text-align: center;
 }
 
 .toast.visible {
