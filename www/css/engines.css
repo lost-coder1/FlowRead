@@ -707,6 +707,7 @@
   bottom: 0; left: 0; right: 0;
   display: flex;
   align-items: center;
+  justify-content: space-evenly;
   gap: 4px;
   padding: var(--space-sm) var(--space-sm) calc(var(--space-sm) + var(--safe-bottom));
   background: var(--surface);
