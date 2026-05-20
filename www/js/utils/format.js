@@ -47,17 +47,29 @@ function _normalizeLigatures(w) {
     .replace(/ﬆ/g, 'st');
 }
 
+/* True if a grapheme cluster contains at least one Unicode letter */
+function _isLetter(cluster) {
+  return /\p{L}/u.test(cluster);
+}
+
 function graphemeAt(word, fraction) {
   if (!word) return { before: '', cluster: '', after: '' };
-  const w = _normalizeLigatures(word);
+  /* Normalize known ligatures then decompose remaining Unicode compatibility
+     ligatures (NFKD turns U+FB01 ﬁ → fi, etc.) so ORP always lands on a
+     real visible glyph even when the PDF used non-standard ligature codepoints */
+  const w = _normalizeLigatures(word).normalize('NFKD');
   if (typeof Intl === 'undefined' || !Intl.Segmenter) {
-    const i = Math.min(w.length - 1, Math.floor(w.length * fraction));
+    let i = Math.min(w.length - 1, Math.floor(w.length * fraction));
+    /* Advance past non-letter characters (hyphens, invisible PDF glyphs, etc.) */
+    while (i < w.length - 1 && !_isLetter(w[i])) i++;
     return { before: w.slice(0, i), cluster: w[i] || '', after: w.slice(i + 1) };
   }
   const segs = Array.from(new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(w));
   if (!segs.length) return { before: '', cluster: '', after: '' };
-  const target = Math.min(segs.length - 1, Math.floor(segs.length * fraction));
-  const seg = segs[target];
+  let t = Math.min(segs.length - 1, Math.floor(segs.length * fraction));
+  /* Advance past non-letter clusters (hyphens, invisible PDF-encoding glyphs) */
+  while (t < segs.length - 1 && !_isLetter(segs[t].segment)) t++;
+  const seg = segs[t];
   const end = seg.index + seg.segment.length;
   return { before: w.slice(0, seg.index), cluster: seg.segment, after: w.slice(end) };
 }
