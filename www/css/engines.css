@@ -707,10 +707,15 @@
   bottom: 0; left: 0; right: 0;
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-sm) var(--space-md) calc(var(--space-sm) + var(--safe-bottom));
+  gap: 4px;
+  padding: var(--space-sm) var(--space-sm) calc(var(--space-sm) + var(--safe-bottom));
   background: var(--surface);
   border-top: 1px solid var(--border);
+}
+
+.scroll-speed-row .comfort-btn {
+  padding: 6px 8px;
+  min-height: 36px;
 }
 
 /* ── Normal PDF view ───────────────────────────────────────── */
