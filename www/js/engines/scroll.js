@@ -111,14 +111,14 @@ const ScrollEngine = (function() {
         '<div class="scroll-centre-line"></div>' +
       '</div>' +
       '<div class="scroll-speed-row" id="scroll-speed-row">' +
-        '<span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted)">Speed</span>' +
+        '<span style="font-family:var(--font-mono);font-size:12px;color:var(--text)">Speed</span>' +
         '<button class="comfort-btn" id="btn-scroll-dec">−</button>' +
-        '<span class="comfort-btn" id="scroll-mult-display" style="cursor:default;pointer-events:none;min-width:44px;text-align:center">' + _multiplier.toFixed(2) + '×</span>' +
+        '<span class="comfort-btn" id="scroll-mult-display" style="cursor:default;pointer-events:none;text-align:center">' + _multiplier.toFixed(2) + '×</span>' +
         '<button class="comfort-btn" id="btn-scroll-inc">+</button>' +
         '<div style="width:1px;background:var(--border);align-self:stretch;margin:0 4px"></div>' +
-        '<span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted)">Line</span>' +
+        '<span style="font-family:var(--font-mono);font-size:12px;color:var(--text)">Line</span>' +
         '<button class="comfort-btn" id="btn-line-dec">−</button>' +
-        '<span class="comfort-btn" id="scroll-line-display" style="cursor:default;pointer-events:none;min-width:44px;text-align:center">' + _lineThick + 'px</span>' +
+        '<span class="comfort-btn" id="scroll-line-display" style="cursor:default;pointer-events:none;text-align:center">' + _lineThick + 'px</span>' +
         '<button class="comfort-btn" id="btn-line-inc">+</button>' +
       '</div>');
 
