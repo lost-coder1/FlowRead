@@ -97,6 +97,41 @@ document.addEventListener('DOMContentLoaded', async function() {
   if (typeof initShareHandler === 'function') initShareHandler();
   if (typeof NotificationsFeature !== 'undefined') NotificationsFeature.init();
 
+  /* Android hardware/gesture back button */
+  if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+    window.Capacitor.Plugins.App.addListener('backButton', function() {
+      /* 1. Close any open modal first */
+      if (AppState.activeModal) { closeActiveModal(); return; }
+
+      const view = AppState.currentView;
+
+      /* 2. Inside reader — same logic as the ← header button */
+      if (view === 'view-reader') {
+        const backBtn = document.getElementById('btn-reader-back');
+        if (backBtn) { backBtn.click(); return; }
+      }
+
+      /* 3. Normal PDF viewer — go back to reader */
+      if (view === 'view-normal') {
+        const backBtn = document.getElementById('btn-normal-back');
+        if (backBtn) { backBtn.click(); return; }
+      }
+
+      /* 4. Settings or Dashboard — return to home */
+      if (view === 'view-settings' || view === 'view-dashboard') {
+        renderUpload();
+        switchView('view-upload');
+        return;
+      }
+
+      /* 5. Home screen — minimize the app (standard Android behaviour) */
+      if (view === 'view-upload') {
+        window.Capacitor.Plugins.App.minimizeApp();
+        return;
+      }
+    });
+  }
+
   /* Dismiss splash after boot — fade out then remove from DOM */
   const splash = document.getElementById('app-splash');
   if (splash) {
