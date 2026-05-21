@@ -16,11 +16,10 @@ function renderUpload() {
       </header>
 
       <div class="import-grid" id="import-grid">
-        <!-- Row 1: PDF | Paste Text -->
+        <!-- Row 1: PDF | Paste Text (always free, no badge needed) -->
         <button class="import-card" id="upload-zone" role="button" tabindex="0" aria-label="Open PDF">
           <span class="import-card-head">
             <strong>PDF Reader</strong>
-            <span class="import-badge">Free</span>
           </span>
           <span class="import-card-body">Tap to open PDF files. All 4 reading engines included.</span>
         </button>
@@ -28,7 +27,6 @@ function renderUpload() {
         <button class="import-card" id="btn-paste-reader" type="button">
           <span class="import-card-head">
             <strong>Paste Text</strong>
-            <span class="import-badge">Free</span>
           </span>
           <span class="import-card-body">Paste or type any text and read it with all 4 engines.</span>
         </button>
@@ -37,15 +35,15 @@ function renderUpload() {
         <button class="import-card import-card-locked" id="btn-image-reader" type="button">
           <span class="import-card-head">
             <strong>Scan</strong>
-            <span class="import-badge">OCR Vision</span>
+            <span class="import-badge import-badge-lock" id="scan-badge">🔒 OCR Add-on</span>
           </span>
           <span class="import-card-body">Take a photo or pick images. OCR extracts the text on-device.</span>
         </button>
 
-        <button class="import-card" id="btn-url-reader" type="button">
+        <button class="import-card import-card-locked" id="btn-url-reader" type="button">
           <span class="import-card-head">
             <strong>URL Reader</strong>
-            <span class="import-badge" id="url-reader-badge">Pro</span>
+            <span class="import-badge import-badge-lock" id="url-reader-badge">🔒 Pro</span>
           </span>
           <span class="import-card-body">Paste an article URL. Requires internet.</span>
         </button>
@@ -54,7 +52,7 @@ function renderUpload() {
         <button class="import-card import-card-locked" id="btn-docx-reader" type="button">
           <span class="import-card-head">
             <strong>DOCX Import</strong>
-            <span class="import-badge">Pro</span>
+            <span class="import-badge import-badge-lock" id="docx-badge">🔒 Pro</span>
           </span>
           <span class="import-card-body">Word documents with the same reading engines.</span>
         </button>
@@ -62,7 +60,7 @@ function renderUpload() {
         <button class="import-card import-card-locked" id="btn-txt-reader" type="button">
           <span class="import-card-head">
             <strong>TXT Import</strong>
-            <span class="import-badge">Pro</span>
+            <span class="import-badge import-badge-lock" id="txt-badge">🔒 Pro</span>
           </span>
           <span class="import-card-body">Plain text import for notes and drafts.</span>
         </button>
@@ -71,7 +69,7 @@ function renderUpload() {
         <button class="import-card import-card-featured import-card-locked" id="btn-dashboard" type="button">
           <span class="import-card-head">
             <strong>Dashboard</strong>
-            <span class="import-badge">Pro</span>
+            <span class="import-badge import-badge-lock" id="dashboard-badge">🔒 Pro</span>
           </span>
           <span class="import-card-body">Reading stats, streaks, and future analytics.</span>
         </button>
@@ -171,11 +169,15 @@ async function hydrateUploadSurface() {
 
   if (pro) {
     badge.textContent = 'Online';
+    badge.classList.remove('import-badge-lock');
+    button.classList.remove('import-card-locked');
     button.classList.add('import-card-live');
   } else {
-    badge.textContent = 'Pro';
+    badge.textContent = '🔒 Pro';
+    badge.classList.add('import-badge-lock');
     panel.classList.add('hidden');
     button.classList.remove('import-card-live');
+    button.classList.add('import-card-locked');
   }
 
   /* Stats bar — shown only for Pro users; always refreshed so stats are current */
@@ -221,19 +223,19 @@ async function hydrateUploadSurface() {
       docxCard.classList.remove('import-card-locked');
       docxCard.classList.add('import-card-live');
       const badge = docxCard.querySelector('.import-badge');
-      if (badge) badge.textContent = 'Unlocked';
+      if (badge) { badge.textContent = ''; badge.classList.remove('import-badge-lock'); }
     }
     if (txtCard) {
       txtCard.classList.remove('import-card-locked');
       txtCard.classList.add('import-card-live');
       const badge = txtCard.querySelector('.import-badge');
-      if (badge) badge.textContent = 'Unlocked';
+      if (badge) { badge.textContent = ''; badge.classList.remove('import-badge-lock'); }
     }
     if (dashboardCard) {
       dashboardCard.classList.remove('import-card-locked');
       dashboardCard.classList.add('import-card-live');
       const badge = dashboardCard.querySelector('.import-badge');
-      if (badge) badge.textContent = 'Analytics';
+      if (badge) { badge.textContent = 'Analytics'; badge.classList.remove('import-badge-lock'); }
     }
   } else {
     if (docxCard) docxCard.classList.add('import-card-locked');
@@ -246,7 +248,7 @@ async function hydrateUploadSurface() {
       imageCard.classList.remove('import-card-locked');
       imageCard.classList.add('import-card-live');
       const badge = imageCard.querySelector('.import-badge');
-      if (badge) badge.textContent = 'On-device';
+      if (badge) { badge.textContent = 'On-Device'; badge.classList.remove('import-badge-lock'); }
     } else {
       imageCard.classList.add('import-card-locked');
     }

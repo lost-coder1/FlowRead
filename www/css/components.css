@@ -216,11 +216,11 @@
 }
 
 .import-card-locked {
-  opacity: 0.85;
+  opacity: 0.6;
 }
 
 .import-card-live {
-  border-color: var(--success);
+  /* no special border — Pro users see a uniform grid */
 }
 
 .import-card-head {
@@ -252,6 +252,10 @@
   color: var(--accent);
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.import-badge-lock {
+  color: var(--text-muted);
 }
 
 .import-card-featured {
