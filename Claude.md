@@ -353,6 +353,24 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
 - [x] **Notification icon**
   - ✅ `capacitor.config.json`: `LocalNotifications.smallIcon = "ic_launcher_foreground"`, `iconColor = "#E8C547"` — replaces default Capacitor "i" icon with app icon foreground (rendered as white silhouette on Android 5+)
 
+- [x] **Post-purchase home screen refresh** (`www/js/features/purchase.js`)
+  - ✅ After `buyPro()`, `buyOcr()`, and `restorePurchases()` succeed, `hydrateUploadSurface()` is called if the user is on the home view — import cards update immediately without requiring navigation away and back
+
+- [x] **ORP browser ligature rendering fix** (`www/css/engines.css`)
+  - ✅ Added `font-variant-ligatures: none` to `.rsvp-word-wrap` — prevents the browser from merging adjacent letters (fi, ff, ffi etc.) into a single glyph across the before/orp/after span boundary, which was silently hiding the ORP amber colour on words like "officiate", "first", "field", "affixed"
+
+- [x] **Standalone punctuation merge in PDF parser** (`www/js/parser/pdf.js`)
+  - ✅ During word-array building, punctuation-only tokens (e.g. lone `?` or `,` emitted as separate text items by some PDF encoders) are merged into the preceding word rather than pushed as standalone entries — RSVP no longer flashes a bare `?` as its own word
+  - ✅ Merge guard: only applies when the previous entry is a string (not a placeholder object) so table/image placeholders are unaffected
+  - ✅ Detection regex: `/^[^\p{L}\p{N}]+$/u` — tokens containing no Unicode letters or digits
+
+- [x] **Comma/semicolon pause perceptibility** (`www/js/engines/rsvp.js`, `www/js/engines/chunk.js`)
+  - ✅ Raised soft-punctuation (`,;:`) pause multiplier from 1.3× to 1.6× — at 300 WPM this is 320 ms vs 200 ms base (was 260 ms), clearly perceptible as a breath pause without feeling jarring like the 1.8× sentence-end pause
+
+- [x] **Chunk mode mid-chunk punctuation pause** (`www/js/engines/chunk.js`)
+  - ✅ `_schedule()` now scans the entire chunk slice (all 2–7 words) for `.!?` (strong) and `,;:` (soft) rather than only checking the last word
+  - ✅ Uses the strongest pause found anywhere in the chunk — a sentence-ending `?` in word 2 of a 5-word chunk now correctly triggers the 1.8× pause even though word 5 has no punctuation
+
 ### Roadmap decisions made during Phase 13
 
 - **EPUB support** — planned as future Pro feature. EPUB is a ZIP of XHTML files; parseable with JSZip + DOMParser, no native plugin needed. High value (universal ebook format). Add post-revenue.
@@ -404,7 +422,7 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
 ## 13. Project Status
 
 - **Current phase:** Phase 13 — Internal Testing Bug Fixes & Polish
-- **Android versionCode:** 14 (versionName "1.1") — published to internal testing
+- **Android versionCode:** 15 (versionName "1.1") — published to internal testing
 - **Target platforms:** Android first, iOS second.
 - **Target launch:** TBD — quality over speed.
 

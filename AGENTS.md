@@ -349,6 +349,22 @@ Next task to handle: **Task 12.1 — Daily reminder notifications**
 - [x] **Notification icon**
   - ✅ `capacitor.config.json`: `LocalNotifications.smallIcon = "ic_launcher_foreground"`, `iconColor = "#E8C547"` — replaces default Capacitor "i" icon with app icon foreground (rendered as white silhouette on Android 5+)
 
+- [x] **Post-purchase home screen refresh** (`www/js/features/purchase.js`)
+  - ✅ `hydrateUploadSurface()` called after `buyPro()`, `buyOcr()`, and `restorePurchases()` succeed — import cards unlock immediately without navigating away
+
+- [x] **ORP browser ligature rendering fix** (`www/css/engines.css`)
+  - ✅ `font-variant-ligatures: none` on `.rsvp-word-wrap` — browser was merging fi/ff/ffi glyphs across span boundaries, hiding the ORP amber colour on words like "officiate", "first", "field"
+
+- [x] **PDF standalone punctuation merge** (`www/js/parser/pdf.js`)
+  - ✅ Punctuation-only tokens (lone `?`, `,` etc. emitted as separate items by some PDF encoders) are merged into the preceding word during word-array building using `/^[^\p{L}\p{N}]+$/u` — RSVP no longer flashes bare punctuation as its own word
+  - ✅ Guard: only merges into string entries, never into placeholder objects
+
+- [x] **Comma/semicolon pause perceptibility** (`rsvp.js`, `chunk.js`)
+  - ✅ Soft-punctuation (`,;:`) multiplier raised 1.3× → 1.6× in both engines — clearly audible rhythm pause without reaching the 1.8× sentence-end weight
+
+- [x] **Chunk mode mid-chunk punctuation** (`www/js/engines/chunk.js`)
+  - ✅ `_schedule()` scans the entire chunk slice for `.!?` (strong) and `,;:` (soft) — sentence-ending punctuation anywhere in the chunk triggers the correct pause, not just the last word
+
 ### Roadmap decisions made during Phase 13
 
 - **EPUB support** — planned as future Pro feature. EPUB is a ZIP of XHTML files; parseable with JSZip + DOMParser, no native plugin needed. High value (universal ebook format). Add post-revenue.
@@ -406,7 +422,7 @@ At session start: acknowledge reading AGENTS.md and state the current task. Befo
 ## 14. Project Status
 
 - **Current phase:** Phase 13 — Internal Testing Bug Fixes & Polish
-- **Android versionCode:** 14 (versionName "1.1") — published to internal testing
+- **Android versionCode:** 15 (versionName "1.1") — published to internal testing
 - **Target platforms:** Android first, iOS second.
 - **Target launch:** TBD — quality over speed.
 
