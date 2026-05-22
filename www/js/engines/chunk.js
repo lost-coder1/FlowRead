@@ -95,10 +95,11 @@ const ChunkEngine = (function() {
     if (!AppState.isPlaying) return;
     _updateDisplay();
     if (_index % 30 === 0 && AppState.currentFile) savePosition(AppState.currentFile.id, _index);
-    const lastWord = _words[Math.min(_index + _chunkSize - 1, _words.length - 1)];
     const base = (60000 / AppState.wpm) * _chunkSize;
-    const last = typeof lastWord === 'string' ? lastWord[lastWord.length - 1] : '';
-    const delay = '.!?'.includes(last) ? base * 1.8 : ',;:'.includes(last) ? base * 1.3 : base;
+    const chunkSlice = _words.slice(_index, Math.min(_index + _chunkSize, _words.length));
+    const hasStrong = chunkSlice.some(function(w) { return typeof w === 'string' && '.!?'.includes(w[w.length - 1]); });
+    const hasSoft   = chunkSlice.some(function(w) { return typeof w === 'string' && ',;:'.includes(w[w.length - 1]); });
+    const delay = hasStrong ? base * 1.8 : hasSoft ? base * 1.6 : base;
     const gen = _generation;
     _timerId = setTimeout(function() {
       if (gen !== _generation) return; /* stale — a pause/seek invalidated this chain */

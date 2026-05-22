@@ -90,6 +90,9 @@ async function buyPro() {
       syncTypographyChips();
       closeActiveModal();
       showToast('Pro unlocked. Thank you!');
+      if (typeof hydrateUploadSurface === 'function' && AppState.currentView === 'view-upload') {
+        hydrateUploadSurface();
+      }
     }
   } catch (err) {
     _handlePurchaseError(err, btn, 'Unlock Pro');
@@ -120,6 +123,9 @@ async function buyOcr() {
       await savePurchaseState('ocr', 'true');
       closeActiveModal();
       showToast('OCR Vision unlocked. Thank you!');
+      if (typeof hydrateUploadSurface === 'function' && AppState.currentView === 'view-upload') {
+        hydrateUploadSurface();
+      }
     }
   } catch (err) {
     _handlePurchaseError(err, btn, 'Unlock OCR Vision');
@@ -165,6 +171,9 @@ async function restorePurchases() {
       syncTypographyChips();
       closeActiveModal();
       showToast(labels.join(' + ') + ' restored successfully.');
+      if (typeof hydrateUploadSurface === 'function' && AppState.currentView === 'view-upload') {
+        hydrateUploadSurface();
+      }
     } else {
       showToast('No previous purchases found for this account.');
       if (btn) { btn.disabled = false; btn.textContent = btn.id === 'btn-settings-restore' ? 'Restore Purchases' : 'Restore Purchases'; }
