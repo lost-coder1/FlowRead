@@ -88,7 +88,13 @@ async function parsePDF(arrayBuffer) {
 
       const lineWords = line.text.split(/\s+/).filter(w => w.length > 0);
       for (const w of lineWords) {
-        words.push(w);
+        /* Merge punctuation-only tokens (e.g. standalone '?' or ',') with the
+           previous word so RSVP never flashes a bare punctuation character */
+        if (/^[^\p{L}\p{N}]+$/u.test(w) && words.length > 0 && typeof words[words.length - 1] === 'string') {
+          words[words.length - 1] += w;
+        } else {
+          words.push(w);
+        }
       }
       totalWordCount += lineWords.length;
     }

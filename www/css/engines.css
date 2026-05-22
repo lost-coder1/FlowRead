@@ -408,6 +408,7 @@
   white-space: nowrap;
   max-width: 100%;
   overflow: visible;
+  font-variant-ligatures: none; /* prevent browser from merging letters across ORP span boundaries */
 }
 
 .rsvp-word-wrap.placeholder-mode {
