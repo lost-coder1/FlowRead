@@ -78,8 +78,7 @@ const NotificationsFeature = (function() {
           body: body,
           schedule: { at: _nextAt(_getHour()), allowWhileIdle: true },
           channelId: CHANNEL_ID,
-          smallIcon: 'ic_launcher_foreground',
-          largeIcon: 'ic_launcher_foreground',
+          smallIcon: 'ic_stat_notify',
         }]
       });
     } catch (_) {}
