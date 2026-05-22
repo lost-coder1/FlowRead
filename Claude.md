@@ -286,7 +286,7 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
 ### PRE-LAUNCH — Store Setup & In-App Purchase
 
 - [x] **Android store setup (complete)**
-  - ✅ Google Play Console — app created, signed AAB uploaded (versionCode 3, versionName 1.1), published to internal testing
+  - ✅ Google Play Console — app created, signed AAB uploaded, published to internal testing
   - ✅ Release signing configured — keystore at `~/flowread-release.jks`, signing config in `android/keystore.properties` (gitignored). Alias: `flowread`.
   - ✅ targetSdk / compileSdk bumped to API 35 (Play Store requirement as of 2025)
   - ✅ IAP products created in Play Console: `pro_lifetime` (one-time, $9.99, Active) and `ocr_vision` (one-time, $4.99, Active)
@@ -307,6 +307,60 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
   - [ ] Create two non-consumable IAPs: `pro_lifetime` (Tier 15, ~$14.99) and `ocr_vision` (Tier 8, ~$7.99)
   - [ ] iOS IAP plugin — use StoreKit 2 in a custom Capacitor plugin (`ios/App/App/FlowReadIapPlugin.swift`). Do NOT use the Android FlowReadIapPlugin approach — iOS uses StoreKit 2 (`Product.purchase()` API), not Google Play Billing.
   - [ ] Submit app + IAPs to App Store review
+
+---
+
+### PHASE 13 — Internal Testing Bug Fixes & Polish (current)
+
+- [x] **Safe area insets — all views**
+  - ✅ Added `viewport-fit=cover` to viewport meta in `index.html`
+  - ✅ CSS variables `--safe-top`, `--safe-bottom`, `--safe-left`, `--safe-right` defined in `:root` in `base.css`
+  - ✅ `.reader-header`: `padding-top: calc(10px + var(--safe-top))`
+  - ✅ `.playback-bar`: bottom padding includes `var(--safe-bottom)`
+  - ✅ `.scroll-speed-row`: bottom padding includes `var(--safe-bottom)`
+  - ✅ `.normal-toolbar`: top padding includes `var(--safe-top)`
+  - ✅ `.upload-header`, `.settings-header`, `.dashboard-header`: top padding includes `var(--safe-top)`
+  - ✅ `#view-reader`: `height: 100dvh` (dynamic viewport height)
+  - ✅ PDF floating button (`.reader-normal-toggle`): `bottom: calc(185px + var(--safe-bottom))` — raised from 152px which was too tight
+  - ✅ Toast container: `bottom: calc(var(--space-xl) + var(--safe-bottom))`; reader-active sibling rule pushes toast above bar stack: `#view-reader:not(.hidden) ~ #toast-container { bottom: calc(150px + var(--safe-bottom)) }`
+  - ✅ Toast element: `white-space: normal; max-width: calc(100vw - 2 * var(--space-lg)); text-align: center` — long "Resuming from…" text no longer clips left edge
+
+- [x] **Screen wake lock fix**
+  - ✅ `keep-awake.js` was referencing a non-existent global `CapacitorKeepAwake`. Fixed to use `window.Capacitor.Plugins.KeepAwake` via `_getPlugin()` helper — the correct Capacitor 6 accessor pattern.
+
+- [x] **ORP highlighting fixes (`www/js/utils/format.js`)**
+  - ✅ `_normalizeLigatures()` — expands Unicode ligatures (ﬁ→fi, ﬂ→fl, ﬀ→ff, ﬃ→ffi, ﬄ→ffl, ﬅ/ﬆ→st) before ORP position calculation
+  - ✅ `.normalize('NFKD')` applied after manual table — catches remaining Unicode compatibility ligatures (U+FB00–FB06 range)
+  - ✅ `_isLetter(cluster)` using `/\p{L}/u` — after computing target ORP index, walks forward past any non-letter cluster. Fixes: (a) invisible PDF private-use-area glyphs landing at ORP position, (b) hyphens in compound words like "co-worker" being highlighted instead of the adjacent letter
+
+- [x] **Scroll mode speed controls**
+  - ✅ Row overflow on narrow screens: gap reduced 8px→4px, horizontal padding 16px→8px, comfort-btn horizontal padding 12px→8px within the row
+  - ✅ `justify-content: space-evenly` — controls distributed across full row width
+  - ✅ Speed/Line labels: `font-size: 11px; color: var(--text-muted)` → `12px; var(--text)` — clearly readable
+  - ✅ Display span `min-width: 44px` removed — was clipping the `×` character; natural `comfort-btn` padding now sizes it correctly
+
+- [x] **Import card visual redesign**
+  - ✅ "Image / Scan" card renamed to "Scan" (was wrapping across 3 lines)
+  - ✅ `.import-card strong` truncation rules (`white-space: nowrap; overflow: hidden; text-overflow: ellipsis`) removed — was cutting all card titles to ellipsis
+  - ✅ Free users: locked cards at `opacity: 0.6`, badges show `🔒 Pro` / `🔒 OCR Add-on` in muted colour (`.import-badge-lock`)
+  - ✅ PDF Reader and Paste Text badges removed — they're always free, no badge needed
+  - ✅ Pro users: green border removed from unlocked cards (`.import-card-live` no longer sets `border-color`). DOCX/TXT badges cleared. URL → "Online", Scan → "On-Device", Dashboard → "Analytics"
+
+- [x] **Android hardware back button**
+  - ✅ `Capacitor.Plugins.App.addListener('backButton')` wired in `app.js` after boot
+  - Priority order: (1) close open modal → (2) reader view: trigger `#btn-reader-back` click (reuses existing save/release/route logic) → (3) normal PDF view: trigger `#btn-normal-back` → (4) settings/dashboard: `renderUpload()` + `switchView('view-upload')` → (5) home screen: `minimizeApp()`
+
+- [x] **Notification icon**
+  - ✅ `capacitor.config.json`: `LocalNotifications.smallIcon = "ic_launcher_foreground"`, `iconColor = "#E8C547"` — replaces default Capacitor "i" icon with app icon foreground (rendered as white silhouette on Android 5+)
+
+### Roadmap decisions made during Phase 13
+
+- **EPUB support** — planned as future Pro feature. EPUB is a ZIP of XHTML files; parseable with JSZip + DOMParser, no native plugin needed. High value (universal ebook format). Add post-revenue.
+- **MOBI/AZW** — permanently skipped. Proprietary Amazon binary format, virtually always DRM-locked, no viable JS parser.
+- **Tablets** — deferred until post-launch revenue. Layout needs responsive breakpoints but no architectural changes required.
+- **DOCX/TXT reader button** — decided no. No meaningful alternate view to show unlike PDF (rendered pages) or URL (source article). Would add UI noise for zero user benefit.
+- **Deep sync (DOCX/TXT for Pro)** — already implemented. JS passes `['.pdf', '.docx', '.txt']` for Pro, `['.pdf']` for free. Native plugin accepts any extension list. `_importSyncedFile` routes correctly to `handleDocxSelect` / `handleTxtSelect`.
+
 ---
 
 ## 12. Code Rules
@@ -349,7 +403,8 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
 
 ## 13. Project Status
 
-- **Current phase:** Phase 12 — Engagement, Navigation, OCR Vision
+- **Current phase:** Phase 13 — Internal Testing Bug Fixes & Polish
+- **Android versionCode:** 14 (versionName "1.1") — published to internal testing
 - **Target platforms:** Android first, iOS second.
 - **Target launch:** TBD — quality over speed.
 
