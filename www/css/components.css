@@ -119,8 +119,12 @@
 .upload-header-actions {
   display: flex;
   gap: var(--space-sm);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
+}
+
+.upload-header-actions .btn {
+  flex: 1;
 }
 
 .app-name {
