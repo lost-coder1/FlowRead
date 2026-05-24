@@ -11,6 +11,7 @@ function renderUpload() {
           <p class="app-tagline">Read everything faster</p>
         </div>
         <div class="upload-header-actions">
+          <button class="btn btn-ghost" id="btn-scroll-library" type="button">Library</button>
           <button class="btn btn-ghost" id="btn-open-settings-top" type="button">Settings</button>
         </div>
       </header>
@@ -137,6 +138,10 @@ function renderUpload() {
   qs('#btn-sync-files').addEventListener('click', syncDeviceFiles);
   qs('#btn-open-settings').addEventListener('click', renderSettings);
   qs('#btn-open-settings-top').addEventListener('click', renderSettings);
+  qs('#btn-scroll-library').addEventListener('click', function() {
+    const lib = qs('#library-section');
+    if (lib) lib.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
   qs('#btn-open-limitations').addEventListener('click', function() {
     renderSettings();
     const section = qs('.settings-limitations');

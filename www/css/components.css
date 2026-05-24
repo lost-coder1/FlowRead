@@ -648,6 +648,13 @@
   padding-top: var(--safe-top);
 }
 
+.btn-settings-back {
+  min-width: 44px;
+  min-height: 44px;
+  font-size: 16px;
+  padding: 10px 14px;
+}
+
 .settings-section {
   background: var(--surface);
   border: 1px solid var(--border);
