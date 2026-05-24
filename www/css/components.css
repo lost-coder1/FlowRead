@@ -657,6 +657,10 @@
   min-height: 44px;
   font-size: 16px;
   padding: 10px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  line-height: 1;
 }
 
 .settings-section {

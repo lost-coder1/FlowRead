@@ -398,7 +398,7 @@ function renderSettings() {
   view.innerHTML = `
     <div class="settings-screen">
       <div class="settings-header">
-        <button class="btn btn-ghost btn-settings-back" id="btn-settings-back">← Back</button>
+        <button class="btn btn-ghost btn-settings-back" id="btn-settings-back"><span style="line-height:1">←</span><span>Back</span></button>
         <div>
           <p class="settings-kicker">Settings</p>
           <h1 class="settings-title">Preferences</h1>
