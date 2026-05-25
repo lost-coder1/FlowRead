@@ -10,3 +10,10 @@ capacitor.config.ts
 *.jks
 *.keystore
 keystore.properties
+
+# Local planning / build artefacts
+Pre-Launch.md
+launch-day-plan.md
+outputs/
+play-store-icon-512.png
+scripts/
