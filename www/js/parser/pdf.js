@@ -134,22 +134,27 @@ async function parsePDF(arrayBuffer) {
      Excluded: ' (apostrophes in contractions), ; (end-of-sentence punctuation),
      % (statistics), & (company names as standalone tokens). */
   /* Two complementary patterns for KrutiDev/Indic legacy encoding:
-     A) Special char BETWEEN letters: laf{klr→f{k, ckS/n→S/n, ys[kd→s[k
-        Filters dates (10/2024), citations ([1]), URLs (http://) which have
-        digits or non-letters adjacent to the special char.
-     B) Word STARTS with /letter or #letter: /kEe, /keZ, #ikarj
-        KrutiDev uses / heavily at word start for vowel matras. These never
-        appear at the start of real English words. */
-  const INDIC_EMBEDDED = /[A-Za-z][\/\{\[\]@#\^\\][A-Za-z]/;
-  const INDIC_LEADING  = /^[\/\#][A-Za-z]/;
+     A) Special char BETWEEN letters. Includes ; because KrutiDev uses it
+        for the "ya" matra (fy;s, cuok;k, O;wg). In English ; is always
+        followed by a space — letter;letter without spaces is essentially
+        impossible in normal prose.
+     B) Word STARTS with /letter: /kEe, /keZ — KrutiDev vowel matras at
+        word start. Never occurs in English words.
+     Ratio computed against LETTER-CONTAINING tokens only — ignores pure
+     digit/dash tokens (---145, 19) that dilute the ratio in TOC-style files. */
+  const INDIC_EMBEDDED = /[A-Za-z][\/\{\[\]@#\^\\;][A-Za-z]/;
+  const INDIC_LEADING  = /^\/[A-Za-z]/;
   let specialInWordCount = 0;
+  let letterTokens = 0;
   for (let i = 0; i < words.length; i++) {
     const w = words[i];
     if (typeof w !== 'string' || w.length < 2) continue;
+    if (!/[A-Za-z]/.test(w)) continue; /* skip pure digit/dash/symbol tokens */
+    letterTokens++;
     if (INDIC_EMBEDDED.test(w) || INDIC_LEADING.test(w)) specialInWordCount++;
   }
-  const specialInWordRatio = totalTokens > 0 ? specialInWordCount / totalTokens : 0;
-  const hasIndicSpecialChars = totalTokens > 20 && specialInWordRatio > 0.06;
+  const specialInWordRatio = letterTokens > 20 ? specialInWordCount / letterTokens : 0;
+  const hasIndicSpecialChars = specialInWordRatio > 0.06;
 
   /* Font name check as secondary signal — pdf.js may return PostScript names
      (Moosa-Bold, KrutiDev) or internal resource names; catches what it can. */
