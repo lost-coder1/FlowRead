@@ -148,7 +148,11 @@ async function parsePDF(arrayBuffer) {
      Devanagari/Indic glyphs onto ASCII including special chars like / { [ @ # ; ^
      These appear INSIDE word tokens — something that almost never happens in real
      English/European prose. Count tokens that contain these chars. */
-  const INDIC_SPECIAL = /[\/\{\[\]@#\^%&;'\\]/;
+  /* Chars that KrutiDev/Moosa use to encode Devanagari conjuncts but are
+     essentially never embedded inside legitimate English/European words.
+     Excluded: ' (apostrophes in contractions), ; (end-of-sentence punctuation),
+     % (statistics), & (company names as standalone tokens). */
+  const INDIC_SPECIAL = /[\/\{\[\]@#\^\\]/;
   let specialInWordCount = 0;
   for (let i = 0; i < words.length; i++) {
     const w = words[i];
