@@ -886,7 +886,8 @@ function showLegacyEncodingBanner() {
 
   const banner = document.createElement('div');
   banner.id = 'legacy-encoding-banner';
-  banner.style.cssText = 'position:fixed;top:calc(56px + var(--safe-top,0px));left:0;right:0;z-index:200;background:var(--surface-2);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;color:var(--text)';
+  const safeTop = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--safe-top')) || 0;
+  banner.style.cssText = 'position:fixed;top:' + (56 + safeTop) + 'px;left:0;right:0;z-index:9999;background:#1c1c1c;border-bottom:1px solid #2a2a2a;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;color:#e8e4dc';
 
   const msg = document.createElement('span');
   msg.textContent = 'Text looks wrong? This PDF may need OCR to read correctly.';

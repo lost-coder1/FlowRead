@@ -133,18 +133,23 @@ async function parsePDF(arrayBuffer) {
      essentially never embedded inside legitimate English/European words.
      Excluded: ' (apostrophes in contractions), ; (end-of-sentence punctuation),
      % (statistics), & (company names as standalone tokens). */
-  /* Require special chars to be BETWEEN letters — letter+special+letter.
-     This filters out: dates (10/2024 → digit/digit), citation numbers ([1] →
-     no letter before [), URLs (http:// → slash not between letters at that point).
-     KrutiDev patterns like laf{klr (f{k), fl/kkUr (l/k), ys[kd (s[k) all pass. */
+  /* Two complementary patterns for KrutiDev/Indic legacy encoding:
+     A) Special char BETWEEN letters: laf{klr→f{k, ckS/n→S/n, ys[kd→s[k
+        Filters dates (10/2024), citations ([1]), URLs (http://) which have
+        digits or non-letters adjacent to the special char.
+     B) Word STARTS with /letter or #letter: /kEe, /keZ, #ikarj
+        KrutiDev uses / heavily at word start for vowel matras. These never
+        appear at the start of real English words. */
   const INDIC_EMBEDDED = /[A-Za-z][\/\{\[\]@#\^\\][A-Za-z]/;
+  const INDIC_LEADING  = /^[\/\#][A-Za-z]/;
   let specialInWordCount = 0;
   for (let i = 0; i < words.length; i++) {
     const w = words[i];
-    if (typeof w === 'string' && w.length >= 3 && INDIC_EMBEDDED.test(w)) specialInWordCount++;
+    if (typeof w !== 'string' || w.length < 2) continue;
+    if (INDIC_EMBEDDED.test(w) || INDIC_LEADING.test(w)) specialInWordCount++;
   }
   const specialInWordRatio = totalTokens > 0 ? specialInWordCount / totalTokens : 0;
-  const hasIndicSpecialChars = totalTokens > 20 && specialInWordRatio > 0.10;
+  const hasIndicSpecialChars = totalTokens > 20 && specialInWordRatio > 0.06;
 
   /* Font name check as secondary signal — pdf.js may return PostScript names
      (Moosa-Bold, KrutiDev) or internal resource names; catches what it can. */
