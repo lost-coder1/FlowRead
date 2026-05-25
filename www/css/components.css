@@ -648,6 +648,7 @@
 .settings-header {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: var(--space-md);
   padding-top: var(--safe-top);
 }
@@ -655,11 +656,8 @@
 .btn-settings-back {
   min-width: 44px;
   min-height: 44px;
-  font-size: 16px;
-  padding: 10px 14px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  font-size: 20px;
+  padding: 10px 12px;
   line-height: 1;
 }
 
@@ -1290,10 +1288,14 @@
   }
   .upload-header-wide,
   .url-panel-row,
-  .settings-header,
   .calibration-controls {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .settings-header {
+    flex-direction: row;
+    align-items: center;
   }
 
   .upload-header-actions,
@@ -1664,6 +1666,15 @@
 
 .action-sheet-item:active {
   background: var(--border);
+}
+
+.action-sheet-item-wide {
+  width: 100%;
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: var(--space-md);
+  min-height: 56px;
+  margin-bottom: var(--space-sm);
 }
 
 .action-sheet-icon {

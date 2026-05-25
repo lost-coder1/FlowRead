@@ -36,8 +36,9 @@ async function parsePDF(arrayBuffer) {
         width: item.width || 0,
       }));
 
+    const pageFontNames = content.items.map(item => item.fontName || '').filter(Boolean);
     const lines = groupIntoLines(items, pageHeight);
-    allPageData.push({ lines, pageHeight });
+    allPageData.push({ lines, pageHeight, fontNames: pageFontNames });
 
     /* Emit progress for loading indicator */
     if (typeof window._pdfParseProgress === 'function') {
@@ -121,13 +122,60 @@ async function parsePDF(arrayBuffer) {
   }
   const totalTokens = realWords + junkWords;
   const junkRatio = totalTokens > 0 ? junkWords / totalTokens : 0;
+
   const textLooksGarbled = totalTokens > 0 && junkRatio > 0.55;
 
+  /* Legacy encoding detection — KrutiDev (Hindi) and Moosa-style fonts map
+     Devanagari/Indic glyphs onto ASCII including special chars like / { [ @ # ; ^
+     These appear INSIDE word tokens — something that almost never happens in real
+     English/European prose. Count tokens that contain these chars. */
+  /* Chars that KrutiDev/Moosa use to encode Devanagari conjuncts but are
+     essentially never embedded inside legitimate English/European words.
+     Excluded: ' (apostrophes in contractions), ; (end-of-sentence punctuation),
+     % (statistics), & (company names as standalone tokens). */
+  /* Two complementary patterns for KrutiDev/Indic legacy encoding:
+     A) Special char BETWEEN letters. Includes ; because KrutiDev uses it
+        for the "ya" matra (fy;s, cuok;k, O;wg). In English ; is always
+        followed by a space — letter;letter without spaces is essentially
+        impossible in normal prose.
+     B) Word STARTS with /letter: /kEe, /keZ — KrutiDev vowel matras at
+        word start. Never occurs in English words.
+     Ratio computed against LETTER-CONTAINING tokens only — ignores pure
+     digit/dash tokens (---145, 19) that dilute the ratio in TOC-style files. */
+  const INDIC_EMBEDDED = /[A-Za-z][\/\{\[\]@#\^\\;][A-Za-z]/;
+  const INDIC_LEADING  = /^\/[A-Za-z]/;
+  let specialInWordCount = 0;
+  let letterTokens = 0;
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    if (typeof w !== 'string' || w.length < 2) continue;
+    if (!/[A-Za-z]/.test(w)) continue; /* skip pure digit/dash/symbol tokens */
+    letterTokens++;
+    if (INDIC_EMBEDDED.test(w) || INDIC_LEADING.test(w)) specialInWordCount++;
+  }
+  const specialInWordRatio = letterTokens > 20 ? specialInWordCount / letterTokens : 0;
+  const hasIndicSpecialChars = specialInWordRatio > 0.06;
+
+  /* Font name check as secondary signal — pdf.js may return PostScript names
+     (Moosa-Bold, KrutiDev) or internal resource names; catches what it can. */
+  const LEGACY_FONT_RE = /moosa|krishna|krutidev|kruti[\s_-]?dev|devlys|dev[\s_-]?lys|shivaji|akruti|chanakya|walkman/i;
+  const allFontNames = allPageData.reduce(function(acc, pd) {
+    return acc + ' ' + (pd.fontNames || []).join(' ');
+  }, '');
+  const hasLegacyFontName = LEGACY_FONT_RE.test(allFontNames);
+
+  const hasLegacyEncoding = hasIndicSpecialChars || hasLegacyFontName;
+
+  /* hasLegacyEncoding intentionally does NOT affect hasTextLayer — forcing OCR
+     on a 500-page English PDF is worse UX than showing a banner after the fact.
+     Instead, upload.js shows a dismissible banner when hasLegacyEncoding is true. */
   const hasTextLayer = !hasScannerWatermark && !textLooksGarbled && avgWordsPerPage >= 30;
 
   console.log('[parsePDF] avgWordsPerPage=' + avgWordsPerPage.toFixed(1)
-    + ' watermark=' + hasScannerWatermark
     + ' junkRatio=' + junkRatio.toFixed(2)
+    + ' specialInWordRatio=' + specialInWordRatio.toFixed(2)
+    + ' hasIndicSpecialChars=' + hasIndicSpecialChars
+    + ' hasLegacyFontName=' + hasLegacyFontName
     + ' hasTextLayer=' + hasTextLayer);
 
   /* ── 6. Detect image-like gaps and insert placeholders ────── */
@@ -141,6 +189,7 @@ async function parsePDF(arrayBuffer) {
       pageCount: numPages,
       wordCount: words.filter(w => typeof w === 'string').length,
       hasTextLayer,
+      hasLegacyEncoding,
       title: '',
     },
     pdfDoc,
