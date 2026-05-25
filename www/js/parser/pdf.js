@@ -37,8 +37,18 @@ async function parsePDF(arrayBuffer) {
       }));
 
     const pageFontNames = content.items.map(item => item.fontName || '').filter(Boolean);
+
+    /* Count RTL vs LTR items — used later to detect Urdu/Arabic content
+       that decoded as Latin due to legacy font encoding */
+    let pageRtl = 0, pageLtr = 0;
+    content.items.forEach(function(item) {
+      if (!item.str || !item.str.trim()) return;
+      if (item.dir === 'rtl') pageRtl++;
+      else pageLtr++;
+    });
+
     const lines = groupIntoLines(items, pageHeight);
-    allPageData.push({ lines, pageHeight, fontNames: pageFontNames });
+    allPageData.push({ lines, pageHeight, fontNames: pageFontNames, rtl: pageRtl, ltr: pageLtr });
 
     /* Emit progress for loading indicator */
     if (typeof window._pdfParseProgress === 'function') {
@@ -144,25 +154,38 @@ async function parsePDF(arrayBuffer) {
 
   const textLooksGarbled = (totalTokens > 0 && junkRatio > 0.55) || hasJunkPage;
 
-  /* Legacy Indic font detection: fonts like Moosa (Urdu) and Krishna/KrutiDev
-     (Hindi) use custom/WinAnsi encoding that maps Indic glyphs to Latin slots.
-     pdf.js extracts Latin garbage instead of real Unicode. OCR is the only fix.
-     Note: pdf.js fontName in getTextContent() items may be an internal name —
-     log it so we can verify what's actually returned for debugging. */
-  const LEGACY_INDIC_FONT_RE = /moosa|krishna|krutidev|kruti[\s_-]?dev|devlys|dev[\s_-]?lys|shivaji|akruti|chanakya|walkman/i;
+  /* Legacy encoding detection — two independent signals, either fires the flag:
+     1. RTL + Latin: Urdu/Arabic PDFs are RTL. If >50% of items are RTL but the
+        decoded text is >70% basic Latin (A-Za-z), the font maps RTL glyphs onto
+        Latin character slots — classic Moosa/Nastaliq legacy encoding.
+     2. Known font names: Moosa, KrutiDev, Krishna etc. via pdf.js fontName.
+        Kept as fallback since pdf.js may return internal names, not PostScript names. */
+  let totalRtl = 0, totalLtr = 0;
+  allPageData.forEach(function(pd) { totalRtl += pd.rtl || 0; totalLtr += pd.ltr || 0; });
+  const rtlRatio = (totalRtl + totalLtr) > 0 ? totalRtl / (totalRtl + totalLtr) : 0;
+  const fullTextNoSpace = fullText.replace(/\s/g, '');
+  const latinRatio = fullTextNoSpace.length > 0
+    ? (fullTextNoSpace.match(/[A-Za-z]/g) || []).length / fullTextNoSpace.length
+    : 0;
+  const isRtlDecodedAsLatin = rtlRatio > 0.5 && latinRatio > 0.7;
+
+  const LEGACY_FONT_RE = /moosa|krishna|krutidev|kruti[\s_-]?dev|devlys|dev[\s_-]?lys|shivaji|akruti|chanakya|walkman/i;
   const allFontNames = allPageData.reduce(function(acc, pd) {
     return acc + ' ' + (pd.fontNames || []).join(' ');
   }, '');
-  const hasLegacyEncoding = LEGACY_INDIC_FONT_RE.test(allFontNames);
+  const hasLegacyFontName = LEGACY_FONT_RE.test(allFontNames);
+
+  const hasLegacyEncoding = isRtlDecodedAsLatin || hasLegacyFontName;
 
   const hasTextLayer = !hasScannerWatermark && !textLooksGarbled && !hasLegacyEncoding && avgWordsPerPage >= 30;
 
   console.log('[parsePDF] avgWordsPerPage=' + avgWordsPerPage.toFixed(1)
-    + ' watermark=' + hasScannerWatermark
     + ' junkRatio=' + junkRatio.toFixed(2)
     + ' hasJunkPage=' + hasJunkPage
-    + ' legacyEncoding=' + hasLegacyEncoding
-    + ' fontNames=' + allFontNames.trim().slice(0, 120)
+    + ' rtlRatio=' + rtlRatio.toFixed(2)
+    + ' latinRatio=' + latinRatio.toFixed(2)
+    + ' isRtlDecodedAsLatin=' + isRtlDecodedAsLatin
+    + ' hasLegacyFontName=' + hasLegacyFontName
     + ' hasTextLayer=' + hasTextLayer);
 
   /* ── 6. Detect image-like gaps and insert placeholders ────── */

@@ -877,8 +877,8 @@ function showScannedPdfModal() {
 
 function showLegacyEncodingModal() {
   showErrorModal(
-    'Font encoding issue',
-    'This PDF uses a legacy font (like Moosa or Kruti Dev) that stores text in a custom encoding FlowRead cannot decode as Unicode. Use Scan → Choose PDF to open it with OCR Vision instead — OCR reads the rendered pixels and gets the correct text.',
+    'Text looks wrong in this PDF',
+    'This PDF\'s text cannot be read directly — it will show garbled characters. OCR Vision can fix this by reading the page visually, the same way you would read a printed page.',
     { actionLabel: 'Unlock OCR Vision', action: function() { showOcrPaywall('scanned-pdf'); } }
   );
 }
@@ -1052,7 +1052,7 @@ async function openImageReader() {
             <line x1="9" y1="13" x2="15" y2="13"/>
             <line x1="9" y1="17" x2="15" y2="17"/>
           </svg>
-          <span>Choose PDF <span style="font-size:12px;color:var(--text-muted);margin-left:6px">For PDFs with font encoding issues</span></span>
+          <span>Choose PDF <span style="font-size:12px;color:var(--text-muted);margin-left:6px">Use if your PDF shows garbled or wrong text</span></span>
         </button>
         <button class="action-sheet-cancel" id="action-cancel" type="button">Cancel</button>
       </div>
