@@ -175,7 +175,10 @@ async function parsePDF(arrayBuffer) {
 
   const hasLegacyEncoding = hasIndicSpecialChars || hasLegacyFontName;
 
-  const hasTextLayer = !hasScannerWatermark && !textLooksGarbled && !hasLegacyEncoding && avgWordsPerPage >= 30;
+  /* hasLegacyEncoding intentionally does NOT affect hasTextLayer — forcing OCR
+     on a 500-page English PDF is worse UX than showing a banner after the fact.
+     Instead, upload.js shows a dismissible banner when hasLegacyEncoding is true. */
+  const hasTextLayer = !hasScannerWatermark && !textLooksGarbled && avgWordsPerPage >= 30;
 
   console.log('[parsePDF] avgWordsPerPage=' + avgWordsPerPage.toFixed(1)
     + ' junkRatio=' + junkRatio.toFixed(2)

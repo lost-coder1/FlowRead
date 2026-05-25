@@ -429,6 +429,10 @@ async function handleFileSelect(file) {
     window._pdfParseProgress = null;
     renderReader();
     switchView('view-reader');
+
+    if (result.metadata.hasLegacyEncoding) {
+      showLegacyEncodingBanner();
+    }
   } catch (err) {
     hideLoading();
     window._pdfParseProgress = null;
@@ -873,6 +877,53 @@ function showScannedPdfModal() {
     'This PDF has no text layer — it\'s a scan or image. OCR Vision can extract the text on-device with no internet required.',
     { actionLabel: 'Unlock OCR Vision', action: function() { showOcrPaywall('scanned-pdf'); } }
   );
+}
+
+function showLegacyEncodingBanner() {
+  /* Non-blocking banner at top of reader — dismiss if text is fine, tap if garbled */
+  const existing = document.getElementById('legacy-encoding-banner');
+  if (existing) return;
+
+  const banner = document.createElement('div');
+  banner.id = 'legacy-encoding-banner';
+  banner.style.cssText = 'position:fixed;top:calc(56px + var(--safe-top,0px));left:0;right:0;z-index:200;background:var(--surface-2);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;color:var(--text)';
+
+  const msg = document.createElement('span');
+  msg.textContent = 'Text looks wrong? This PDF may need OCR to read correctly.';
+  msg.style.flex = '1';
+
+  const actionBtn = document.createElement('button');
+  actionBtn.className = 'btn btn-primary';
+  actionBtn.textContent = 'Fix with OCR';
+  actionBtn.style.cssText = 'font-size:12px;padding:6px 10px;flex-shrink:0';
+  actionBtn.addEventListener('click', async function() {
+    banner.remove();
+    const ocrAccess = await hasOcrAccess();
+    if (!ocrAccess) { showOcrPaywall('scanned-pdf'); return; }
+    qs('#file-input-pdf-scan').click();
+  });
+
+  const dismissBtn = document.createElement('button');
+  dismissBtn.className = 'btn btn-ghost';
+  dismissBtn.textContent = '✕';
+  dismissBtn.style.cssText = 'font-size:14px;padding:4px 8px;flex-shrink:0;color:var(--text-muted)';
+  dismissBtn.addEventListener('click', function() { banner.remove(); });
+
+  banner.appendChild(msg);
+  banner.appendChild(actionBtn);
+  banner.appendChild(dismissBtn);
+  document.body.appendChild(banner);
+
+  /* Auto-dismiss when user leaves reader */
+  const observer = new MutationObserver(function() {
+    const readerView = document.getElementById('view-reader');
+    if (readerView && readerView.classList.contains('hidden')) {
+      banner.remove();
+      observer.disconnect();
+    }
+  });
+  const readerView = document.getElementById('view-reader');
+  if (readerView) observer.observe(readerView, { attributes: true, attributeFilter: ['class'] });
 }
 
 function showLegacyEncodingModal() {
