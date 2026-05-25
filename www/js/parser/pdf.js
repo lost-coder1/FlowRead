@@ -36,8 +36,9 @@ async function parsePDF(arrayBuffer) {
         width: item.width || 0,
       }));
 
+    const pageFontNames = content.items.map(item => item.fontName || '').filter(Boolean);
     const lines = groupIntoLines(items, pageHeight);
-    allPageData.push({ lines, pageHeight });
+    allPageData.push({ lines, pageHeight, fontNames: pageFontNames });
 
     /* Emit progress for loading indicator */
     if (typeof window._pdfParseProgress === 'function') {
@@ -123,11 +124,21 @@ async function parsePDF(arrayBuffer) {
   const junkRatio = totalTokens > 0 ? junkWords / totalTokens : 0;
   const textLooksGarbled = totalTokens > 0 && junkRatio > 0.55;
 
-  const hasTextLayer = !hasScannerWatermark && !textLooksGarbled && avgWordsPerPage >= 30;
+  /* Legacy Indic font detection: fonts like Moosa (Urdu) and Krishna/KrutiDev
+     (Hindi) use custom/WinAnsi encoding that maps Indic glyphs to Latin slots.
+     pdf.js extracts Latin garbage instead of real Unicode. OCR is the only fix. */
+  const LEGACY_INDIC_FONT_RE = /moosa|krishna|krutidev|kruti[\s_-]?dev|devlys|dev[\s_-]?lys|shivaji|akruti|chanakya|walkman/i;
+  const allFontNames = allPageData.reduce(function(acc, pd) {
+    return acc + ' ' + (pd.fontNames || []).join(' ');
+  }, '');
+  const hasLegacyEncoding = LEGACY_INDIC_FONT_RE.test(allFontNames);
+
+  const hasTextLayer = !hasScannerWatermark && !textLooksGarbled && !hasLegacyEncoding && avgWordsPerPage >= 30;
 
   console.log('[parsePDF] avgWordsPerPage=' + avgWordsPerPage.toFixed(1)
     + ' watermark=' + hasScannerWatermark
     + ' junkRatio=' + junkRatio.toFixed(2)
+    + ' legacyEncoding=' + hasLegacyEncoding
     + ' hasTextLayer=' + hasTextLayer);
 
   /* ── 6. Detect image-like gaps and insert placeholders ────── */
@@ -141,6 +152,7 @@ async function parsePDF(arrayBuffer) {
       pageCount: numPages,
       wordCount: words.filter(w => typeof w === 'string').length,
       hasTextLayer,
+      hasLegacyEncoding,
       title: '',
     },
     pdfDoc,

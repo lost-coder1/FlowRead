@@ -89,6 +89,7 @@ function renderUpload() {
       <input type="file" id="file-input-docx" accept=".docx" style="display:none" />
       <input type="file" id="file-input-txt" accept=".txt" style="display:none" />
       <input type="file" id="file-input-image" accept="image/*" multiple style="display:none" />
+      <input type="file" id="file-input-pdf-scan" accept=".pdf" style="display:none" />
 
       <div id="upload-error" class="hidden" style="margin: 0 24px; width: 100%; max-width: 680px;"></div>
 
@@ -132,6 +133,12 @@ function renderUpload() {
   qs('#file-input-image').addEventListener('change', function(event) {
     const files = event.target.files;
     if (files && files.length) handleImageSelect(files);
+    event.target.value = '';
+  });
+
+  qs('#file-input-pdf-scan').addEventListener('change', function(event) {
+    const file = event.target.files && event.target.files[0];
+    if (file) handlePdfScanSelect(file);
     event.target.value = '';
   });
 
@@ -353,7 +360,11 @@ async function handleFileSelect(file) {
       const ocrAccess = await hasOcrAccess();
       if (!ocrAccess) {
         hideLoading();
-        showScannedPdfModal();
+        if (result.metadata.hasLegacyEncoding) {
+          showLegacyEncodingModal();
+        } else {
+          showScannedPdfModal();
+        }
         return;
       }
       /* Run OCR on the scanned PDF */
@@ -864,6 +875,14 @@ function showScannedPdfModal() {
   );
 }
 
+function showLegacyEncodingModal() {
+  showErrorModal(
+    'Font encoding issue',
+    'This PDF uses a legacy font (like Moosa or Kruti Dev) that stores text in a custom encoding FlowRead cannot decode as Unicode. Use Scan → Choose PDF to open it with OCR Vision instead — OCR reads the rendered pixels and gets the correct text.',
+    { actionLabel: 'Unlock OCR Vision', action: function() { showOcrPaywall('scanned-pdf'); } }
+  );
+}
+
 async function openDocxReader() {
   const pro = await hasProAccess();
   if (!pro) {
@@ -1025,6 +1044,15 @@ async function openImageReader() {
             </svg>
             <span>Gallery</span>
           </button>
+          <button class="action-sheet-item" id="action-choose-pdf" type="button">
+            <svg class="action-sheet-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="9" y1="13" x2="15" y2="13"/>
+              <line x1="9" y1="17" x2="15" y2="17"/>
+            </svg>
+            <span>Choose PDF</span>
+          </button>
         </div>
         <button class="action-sheet-cancel" id="action-cancel" type="button">Cancel</button>
       </div>
@@ -1049,10 +1077,95 @@ async function openImageReader() {
     qs('#file-input-image').click();
   });
 
+  qs('#action-choose-pdf').addEventListener('click', function() {
+    closeSheet();
+    qs('#file-input-pdf-scan').click();
+  });
+
   qs('#action-take-photo').addEventListener('click', async function() {
     closeSheet();
     await capturePhotoWithCamera();
   });
+}
+
+async function handlePdfScanSelect(file) {
+  showLoading('Loading PDF…');
+  window._pdfParseProgress = function(current, total) {
+    const msg = qs('#loading-message');
+    if (msg) msg.textContent = 'OCR page ' + current + ' of ' + total + '…';
+  };
+
+  try {
+    const arrayBuffer = await readFileAsArrayBuffer(file);
+    const arrayBufferForStorage = arrayBuffer.slice(0);
+
+    let pdfDoc;
+    try {
+      const data = arrayBuffer instanceof Uint8Array ? arrayBuffer : new Uint8Array(arrayBuffer);
+      pdfDoc = await pdfjsLib.getDocument({ data }).promise;
+    } catch (err) {
+      hideLoading();
+      if (err.name === 'PasswordException' || (err.message && err.message.toLowerCase().includes('password'))) {
+        showUploadError('Password-protected PDF', 'This PDF is password-protected and cannot be opened.');
+      } else {
+        showUploadError('Could not open PDF', 'The file may be corrupted or unsupported.');
+      }
+      return;
+    }
+
+    showLoading('Running OCR…');
+    let ocrResult;
+    try {
+      ocrResult = await parseScannedPDF(pdfDoc, window._pdfParseProgress);
+    } catch (ocrErr) {
+      hideLoading();
+      window._pdfParseProgress = null;
+      showUploadError('OCR failed', 'Could not extract text from this PDF. Try a clearer scan or re-import.');
+      return;
+    }
+
+    if (!ocrResult.metadata.wordCount) {
+      hideLoading();
+      window._pdfParseProgress = null;
+      showUploadError('No text found', 'OCR ran but could not find readable text. The PDF may be too low quality.');
+      return;
+    }
+
+    const fileId = generateFileId(file.name, file.size, file.lastModified || pdfDoc.numPages);
+    AppState.currentFile = {
+      id: fileId,
+      kind: 'pdf',
+      name: file.name,
+      words: ocrResult.words,
+      pageWordIndex: ocrResult.pageWordIndex,
+      rawLines: ocrResult.rawLines,
+      metadata: Object.assign({}, ocrResult.metadata, { sourceType: 'pdf', ocrProcessed: true }),
+      pdfDoc: pdfDoc,
+    };
+    AppState.currentIndex = loadPosition(fileId);
+
+    saveFileToLibrary({
+      id: fileId,
+      kind: 'pdf',
+      name: file.name,
+      wordCount: ocrResult.metadata.wordCount,
+      pageCount: pdfDoc.numPages,
+      lastOpened: Date.now(),
+    });
+    saveFileData(fileId, AppState.currentFile);
+    saveRawPdf(fileId, arrayBufferForStorage).then(function(ok) {
+      if (!ok) console.warn('Raw PDF save failed for', fileId);
+    });
+
+    hideLoading();
+    window._pdfParseProgress = null;
+    renderReader();
+    switchView('view-reader');
+  } catch (err) {
+    hideLoading();
+    window._pdfParseProgress = null;
+    showUploadError('Import failed', 'Could not process this PDF. ' + ((err && err.detail) || (err && err.message) || ''));
+  }
 }
 
 async function capturePhotoWithCamera() {
