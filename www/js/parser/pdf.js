@@ -37,18 +37,8 @@ async function parsePDF(arrayBuffer) {
       }));
 
     const pageFontNames = content.items.map(item => item.fontName || '').filter(Boolean);
-
-    /* Count RTL vs LTR items — used later to detect Urdu/Arabic content
-       that decoded as Latin due to legacy font encoding */
-    let pageRtl = 0, pageLtr = 0;
-    content.items.forEach(function(item) {
-      if (!item.str || !item.str.trim()) return;
-      if (item.dir === 'rtl') pageRtl++;
-      else pageLtr++;
-    });
-
     const lines = groupIntoLines(items, pageHeight);
-    allPageData.push({ lines, pageHeight, fontNames: pageFontNames, rtl: pageRtl, ltr: pageLtr });
+    allPageData.push({ lines, pageHeight, fontNames: pageFontNames });
 
     /* Emit progress for loading indicator */
     if (typeof window._pdfParseProgress === 'function') {
@@ -154,37 +144,36 @@ async function parsePDF(arrayBuffer) {
 
   const textLooksGarbled = (totalTokens > 0 && junkRatio > 0.55) || hasJunkPage;
 
-  /* Legacy encoding detection — two independent signals, either fires the flag:
-     1. RTL + Latin: Urdu/Arabic PDFs are RTL. If >50% of items are RTL but the
-        decoded text is >70% basic Latin (A-Za-z), the font maps RTL glyphs onto
-        Latin character slots — classic Moosa/Nastaliq legacy encoding.
-     2. Known font names: Moosa, KrutiDev, Krishna etc. via pdf.js fontName.
-        Kept as fallback since pdf.js may return internal names, not PostScript names. */
-  let totalRtl = 0, totalLtr = 0;
-  allPageData.forEach(function(pd) { totalRtl += pd.rtl || 0; totalLtr += pd.ltr || 0; });
-  const rtlRatio = (totalRtl + totalLtr) > 0 ? totalRtl / (totalRtl + totalLtr) : 0;
-  const fullTextNoSpace = fullText.replace(/\s/g, '');
-  const latinRatio = fullTextNoSpace.length > 0
-    ? (fullTextNoSpace.match(/[A-Za-z]/g) || []).length / fullTextNoSpace.length
-    : 0;
-  const isRtlDecodedAsLatin = rtlRatio > 0.5 && latinRatio > 0.7;
+  /* Legacy encoding detection — KrutiDev (Hindi) and Moosa-style fonts map
+     Devanagari/Indic glyphs onto ASCII including special chars like / { [ @ # ; ^
+     These appear INSIDE word tokens — something that almost never happens in real
+     English/European prose. Count tokens that contain these chars. */
+  const INDIC_SPECIAL = /[\/\{\[\]@#\^%&;'\\]/;
+  let specialInWordCount = 0;
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i];
+    if (typeof w === 'string' && w.length >= 2 && INDIC_SPECIAL.test(w)) specialInWordCount++;
+  }
+  const specialInWordRatio = totalTokens > 0 ? specialInWordCount / totalTokens : 0;
+  const hasIndicSpecialChars = totalTokens > 20 && specialInWordRatio > 0.12;
 
+  /* Font name check as secondary signal — pdf.js may return PostScript names
+     (Moosa-Bold, KrutiDev) or internal resource names; catches what it can. */
   const LEGACY_FONT_RE = /moosa|krishna|krutidev|kruti[\s_-]?dev|devlys|dev[\s_-]?lys|shivaji|akruti|chanakya|walkman/i;
   const allFontNames = allPageData.reduce(function(acc, pd) {
     return acc + ' ' + (pd.fontNames || []).join(' ');
   }, '');
   const hasLegacyFontName = LEGACY_FONT_RE.test(allFontNames);
 
-  const hasLegacyEncoding = isRtlDecodedAsLatin || hasLegacyFontName;
+  const hasLegacyEncoding = hasIndicSpecialChars || hasLegacyFontName;
 
   const hasTextLayer = !hasScannerWatermark && !textLooksGarbled && !hasLegacyEncoding && avgWordsPerPage >= 30;
 
   console.log('[parsePDF] avgWordsPerPage=' + avgWordsPerPage.toFixed(1)
     + ' junkRatio=' + junkRatio.toFixed(2)
     + ' hasJunkPage=' + hasJunkPage
-    + ' rtlRatio=' + rtlRatio.toFixed(2)
-    + ' latinRatio=' + latinRatio.toFixed(2)
-    + ' isRtlDecodedAsLatin=' + isRtlDecodedAsLatin
+    + ' specialInWordRatio=' + specialInWordRatio.toFixed(2)
+    + ' hasIndicSpecialChars=' + hasIndicSpecialChars
     + ' hasLegacyFontName=' + hasLegacyFontName
     + ' hasTextLayer=' + hasTextLayer);
 
