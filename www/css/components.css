@@ -1666,6 +1666,15 @@
   background: var(--border);
 }
 
+.action-sheet-item-wide {
+  width: 100%;
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: var(--space-md);
+  min-height: 56px;
+  margin-bottom: var(--space-sm);
+}
+
 .action-sheet-icon {
   width: 28px;
   height: 28px;

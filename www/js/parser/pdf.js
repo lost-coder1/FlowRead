@@ -122,11 +122,33 @@ async function parsePDF(arrayBuffer) {
   }
   const totalTokens = realWords + junkWords;
   const junkRatio = totalTokens > 0 ? junkWords / totalTokens : 0;
-  const textLooksGarbled = totalTokens > 0 && junkRatio > 0.55;
+
+  /* Per-page garbage check: mixed-language PDFs (e.g. Urdu body + English headings)
+     can have a low overall junk ratio even though individual pages are pure garbage.
+     Flag if any page with >= 15 tokens is > 72% junk. */
+  let hasJunkPage = false;
+  for (let pi = 0; pi < allPageData.length; pi++) {
+    let pr = 0, pj = 0;
+    const plines = allPageData[pi].lines;
+    for (let li = 0; li < plines.length; li++) {
+      const tokens = plines[li].text.split(/\s+/).filter(function(t) { return t.length > 0; });
+      for (let ti = 0; ti < tokens.length; ti++) {
+        const s = tokens[ti].replace(/[^A-Za-z]/g, '');
+        if (s.length >= 3 && /[aeiouAEIOU]/.test(s)) pr++;
+        else pj++;
+      }
+    }
+    const pt = pr + pj;
+    if (pt >= 15 && pj / pt > 0.72) { hasJunkPage = true; break; }
+  }
+
+  const textLooksGarbled = (totalTokens > 0 && junkRatio > 0.55) || hasJunkPage;
 
   /* Legacy Indic font detection: fonts like Moosa (Urdu) and Krishna/KrutiDev
      (Hindi) use custom/WinAnsi encoding that maps Indic glyphs to Latin slots.
-     pdf.js extracts Latin garbage instead of real Unicode. OCR is the only fix. */
+     pdf.js extracts Latin garbage instead of real Unicode. OCR is the only fix.
+     Note: pdf.js fontName in getTextContent() items may be an internal name —
+     log it so we can verify what's actually returned for debugging. */
   const LEGACY_INDIC_FONT_RE = /moosa|krishna|krutidev|kruti[\s_-]?dev|devlys|dev[\s_-]?lys|shivaji|akruti|chanakya|walkman/i;
   const allFontNames = allPageData.reduce(function(acc, pd) {
     return acc + ' ' + (pd.fontNames || []).join(' ');
@@ -138,7 +160,9 @@ async function parsePDF(arrayBuffer) {
   console.log('[parsePDF] avgWordsPerPage=' + avgWordsPerPage.toFixed(1)
     + ' watermark=' + hasScannerWatermark
     + ' junkRatio=' + junkRatio.toFixed(2)
+    + ' hasJunkPage=' + hasJunkPage
     + ' legacyEncoding=' + hasLegacyEncoding
+    + ' fontNames=' + allFontNames.trim().slice(0, 120)
     + ' hasTextLayer=' + hasTextLayer);
 
   /* ── 6. Detect image-like gaps and insert placeholders ────── */
