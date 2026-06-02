@@ -18,8 +18,10 @@ function initShareHandler() {
 
 async function _checkPendingPdfOpen() {
   const Preferences = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences;
-  const Filesystem = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
-  if (!Preferences || !Filesystem) return;
+  /* Use FlowReadDeviceSyncPlugin.readFile — it reads an absolute path and
+     returns base64. Same plugin already used for device sync file reading. */
+  const DeviceSync = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.FlowReadDeviceSync;
+  if (!Preferences || !DeviceSync) return;
   try {
     const result = await Preferences.get({ key: 'fr_pending_pdf_open' });
     if (!result || !result.value) return;
@@ -27,12 +29,11 @@ async function _checkPendingPdfOpen() {
     const { path, name } = JSON.parse(result.value);
     if (!path) return;
 
-    const fileResult = await Filesystem.readFile({ path });
+    const fileResult = await DeviceSync.readFile({ path });
     if (!fileResult || !fileResult.data) return;
 
     /* Decode base64 → ArrayBuffer */
-    const base64 = fileResult.data;
-    const binary = atob(base64);
+    const binary = atob(fileResult.data);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
 
