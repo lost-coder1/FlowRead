@@ -5,10 +5,43 @@
 
 function initShareHandler() {
   _checkPendingShare();
+  _checkPendingPdfOpen();
 
   window.addEventListener('flowreadShareIntent', async function() {
     await _checkPendingShare();
   });
+
+  window.addEventListener('flowreadPdfOpen', async function() {
+    await _checkPendingPdfOpen();
+  });
+}
+
+async function _checkPendingPdfOpen() {
+  const Preferences = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences;
+  /* Use FlowReadDeviceSyncPlugin.readFile — it reads an absolute path and
+     returns base64. Same plugin already used for device sync file reading. */
+  const DeviceSync = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.FlowReadDeviceSync;
+  if (!Preferences || !DeviceSync) return;
+  try {
+    const result = await Preferences.get({ key: 'fr_pending_pdf_open' });
+    if (!result || !result.value) return;
+    await Preferences.remove({ key: 'fr_pending_pdf_open' });
+    const { path, name } = JSON.parse(result.value);
+    if (!path) return;
+
+    const fileResult = await DeviceSync.readFile({ path });
+    if (!fileResult || !fileResult.data) return;
+
+    /* Decode base64 → ArrayBuffer */
+    const binary = atob(fileResult.data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+
+    await handlePdfFromIntent(bytes.buffer, name || 'document.pdf');
+  } catch (err) {
+    console.error('PDF open-with handler failed:', err);
+    if (typeof showToast === 'function') showToast('Could not open PDF — try importing it from the home screen.');
+  }
 }
 
 async function _checkPendingShare() {
