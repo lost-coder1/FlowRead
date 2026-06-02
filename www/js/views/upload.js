@@ -452,6 +452,110 @@ async function handleFileSelect(file) {
   }
 }
 
+/* Called by the "Open with" / intent handler — receives raw ArrayBuffer + filename
+   instead of a File object. Runs the same import + open flow as handleFileSelect. */
+async function handlePdfFromIntent(arrayBuffer, fileName) {
+  clearUploadError();
+  showLoading('Reading PDF...');
+
+  window._pdfParseProgress = function(current, total) {
+    const msg = qs('#loading-message');
+    if (msg) msg.textContent = 'Processing page ' + current + ' of ' + total + '...';
+  };
+
+  try {
+    const arrayBufferForStorage = arrayBuffer.slice(0);
+    const result = await parsePDF(arrayBuffer);
+
+    if (!result.metadata.hasTextLayer) {
+      const ocrAccess = await hasOcrAccess();
+      if (!ocrAccess) {
+        hideLoading();
+        if (result.metadata.hasLegacyEncoding) {
+          showLegacyEncodingModal();
+        } else {
+          showScannedPdfModal();
+        }
+        return;
+      }
+      showLoading('Running OCR…');
+      window._pdfParseProgress = function(current, total) {
+        const msg = qs('#loading-message');
+        if (msg) msg.textContent = 'OCR page ' + current + ' of ' + total + '…';
+      };
+      let ocrResult;
+      try {
+        ocrResult = await parseScannedPDF(result.pdfDoc, window._pdfParseProgress);
+      } catch (ocrErr) {
+        hideLoading();
+        window._pdfParseProgress = null;
+        showUploadError('OCR failed', 'Could not extract text from this PDF.');
+        return;
+      }
+      if (!ocrResult.metadata.wordCount) {
+        hideLoading();
+        window._pdfParseProgress = null;
+        showUploadError('No text found', 'OCR ran but could not find readable text.');
+        return;
+      }
+      result.words = ocrResult.words;
+      result.pageWordIndex = ocrResult.pageWordIndex;
+      result.rawLines = ocrResult.rawLines;
+      result.metadata = Object.assign({}, result.metadata, ocrResult.metadata);
+    }
+
+    const fileId = generateFileId(fileName, arrayBufferForStorage.byteLength, result.metadata.pageCount);
+    AppState.currentFile = {
+      id: fileId,
+      kind: 'pdf',
+      name: fileName,
+      words: result.words,
+      pageWordIndex: result.pageWordIndex,
+      rawLines: result.rawLines,
+      metadata: Object.assign({}, result.metadata, { sourceType: 'pdf' }),
+      pdfDoc: result.pdfDoc,
+    };
+    AppState.currentIndex = loadPosition(fileId);
+
+    saveFileToLibrary({
+      id: fileId,
+      kind: 'pdf',
+      name: fileName,
+      wordCount: result.metadata.wordCount,
+      pageCount: result.metadata.pageCount,
+      lastOpened: Date.now(),
+    });
+
+    saveFileData(fileId, AppState.currentFile);
+    saveRawPdf(fileId, arrayBufferForStorage).then(function(ok) {
+      if (!ok) console.warn('Raw PDF save failed for', fileId);
+    });
+
+    hideLoading();
+    window._pdfParseProgress = null;
+    renderReader();
+    switchView('view-reader');
+
+    if (result.metadata.hasLegacyEncoding) {
+      showLegacyEncodingBanner();
+    }
+  } catch (err) {
+    hideLoading();
+    window._pdfParseProgress = null;
+    console.error('PDF intent import error:', err);
+
+    if (err && err.type === 'password') {
+      showUploadError('Password-protected PDF', 'This PDF is password-protected. Please remove the password and re-import.');
+      return;
+    }
+    if (err && err.type === 'corrupted') {
+      showUploadError('Corrupted PDF', 'This file appears to be damaged. Detail: ' + (err.detail || 'unknown') + '.');
+      return;
+    }
+    showUploadError('PDF import failed', 'Could not read this PDF. Error: ' + (err && (err.message || err.detail || JSON.stringify(err))));
+  }
+}
+
 async function handleUrlImport(rawUrl) {
   clearUploadError();
 
