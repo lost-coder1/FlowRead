@@ -14,9 +14,8 @@ import java.io.InputStream;
 
 public class MainActivity extends BridgeActivity {
 
-    // Pending hot-share/open payloads — fired in onResume once WebView is ready.
+    // Pending hot-share text — fired in onResume once WebView is ready.
     private String pendingHotShareText = null;
-    private boolean pendingHotPdf = false;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -30,9 +29,10 @@ public class MainActivity extends BridgeActivity {
         if (sharedText != null) {
             storePendingShare(sharedText);
         }
-        // Cold start from "Open with" — copy PDF to cache, store path for JS.
+        // Cold start from "Open with" — copy PDF off main thread.
+        // JS reads fr_pending_pdf_open from prefs after DOMContentLoaded loads.
         if (isPdfViewIntent(intent)) {
-            storePendingPdf(intent.getData());
+            copyPdfInBackground(intent.getData(), false);
         }
     }
 
@@ -45,9 +45,9 @@ public class MainActivity extends BridgeActivity {
             storePendingShare(sharedText);
             pendingHotShareText = sharedText;
         }
+        // Hot start — copy off main thread; fire event from background thread when done.
         if (isPdfViewIntent(intent)) {
-            storePendingPdf(intent.getData());
-            pendingHotPdf = true;
+            copyPdfInBackground(intent.getData(), true);
         }
     }
 
@@ -60,15 +60,6 @@ public class MainActivity extends BridgeActivity {
                 @Override
                 public void run() {
                     fireShareEvent();
-                }
-            });
-        }
-        if (pendingHotPdf) {
-            pendingHotPdf = false;
-            getBridge().getWebView().post(new Runnable() {
-                @Override
-                public void run() {
-                    firePdfOpenEvent();
                 }
             });
         }
@@ -86,27 +77,46 @@ public class MainActivity extends BridgeActivity {
         return path != null && path.toLowerCase().endsWith(".pdf");
     }
 
-    private void storePendingPdf(Uri uri) {
+    /* Copies the incoming PDF URI to cache on a background thread so the main
+       thread is never blocked. For hot start (app already running), fires the
+       JS event directly once the copy is complete. For cold start, JS reads
+       fr_pending_pdf_open from SharedPreferences after DOMContentLoaded. */
+    private void copyPdfInBackground(final Uri uri, final boolean isHotStart) {
         if (uri == null) return;
-        try {
-            String fileName = resolveFileName(uri);
-            File dest = new File(getCacheDir(), "flowread_open_with.pdf");
-            InputStream in = getContentResolver().openInputStream(uri);
-            if (in == null) return;
-            FileOutputStream out = new FileOutputStream(dest);
-            byte[] buf = new byte[65536];
-            int len;
-            while ((len = in.read(buf)) != -1) out.write(buf, 0, len);
-            in.close();
-            out.close();
-            SharedPreferences prefs = getSharedPreferences("CapacitorStorage", MODE_PRIVATE);
-            // Store as simple JSON so JS can parse path + name without extra deps.
-            String json = "{\"path\":\"" + dest.getAbsolutePath() + "\",\"name\":\""
-                    + fileName.replace("\"", "") + "\"}";
-            prefs.edit().putString("fr_pending_pdf_open", json).apply();
-        } catch (Exception e) {
-            android.util.Log.e("FlowRead", "storePendingPdf failed", e);
-        }
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    String fileName = resolveFileName(uri);
+                    File dest = new File(getCacheDir(), "flowread_open_with.pdf");
+                    InputStream in = getContentResolver().openInputStream(uri);
+                    if (in == null) return;
+                    FileOutputStream out = new FileOutputStream(dest);
+                    byte[] buf = new byte[65536];
+                    int len;
+                    while ((len = in.read(buf)) != -1) out.write(buf, 0, len);
+                    in.close();
+                    out.close();
+                    SharedPreferences prefs = getSharedPreferences("CapacitorStorage", MODE_PRIVATE);
+                    String json = "{\"path\":\"" + dest.getAbsolutePath() + "\",\"name\":\""
+                            + fileName.replace("\"", "") + "\"}";
+                    prefs.edit().putString("fr_pending_pdf_open", json).apply();
+                    // Hot start: JS is already running — fire event now that file is ready.
+                    // Cold start: JS will read from prefs in initShareHandler (runs after
+                    // DOMContentLoaded, well after this thread finishes).
+                    if (isHotStart) {
+                        getBridge().getWebView().post(new Runnable() {
+                            @Override
+                            public void run() {
+                                firePdfOpenEvent();
+                            }
+                        });
+                    }
+                } catch (Exception e) {
+                    android.util.Log.e("FlowRead", "copyPdfInBackground failed", e);
+                }
+            }
+        }).start();
     }
 
     private String resolveFileName(Uri uri) {
