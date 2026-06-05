@@ -371,6 +371,28 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
   - ✅ `_schedule()` now scans the entire chunk slice (all 2–7 words) for `.!?` (strong) and `,;:` (soft) rather than only checking the last word
   - ✅ Uses the strongest pause found anywhere in the chunk — a sentence-ending `?` in word 2 of a 5-word chunk now correctly triggers the 1.8× pause even though word 5 has no punctuation
 
+- [x] **Legacy Indic font encoding detection** (`www/js/parser/pdf.js`, `www/js/views/upload.js`)
+  - ✅ Detects PDFs encoded with KrutiDev/Krishna/Moosa legacy fonts (common Hindi/Urdu publishing workflow) — these map Devanagari/Nastaliq glyphs to Latin/ASCII codepoints, producing garbled text in the reader
+  - ✅ Two-signal detection: (A) `INDIC_EMBEDDED` regex — special chars (`/ { @ # ^ \ ;`) appearing *between* letters, e.g. `fy;s`, `ck/n`, `O;wg` — patterns that never appear in normal English prose; (B) `INDIC_LEADING` regex — words starting with `/letter`, e.g. `/kEe`, `/keZ` (KrutiDev vowel matras at word start). Secondary signal: font PostScript names matched against `LEGACY_FONT_RE` (moosa, krutidev, krishna, devlys, shivaji, akruti, chanakya, walkman).
+  - ✅ Ratio computed against letter-containing tokens only — pure digit/dash tokens (e.g. `---145`) excluded from denominator so TOC-heavy files don't dilute detection below the 6% threshold
+  - ✅ `hasLegacyEncoding` flag returned in PDF metadata. **Does NOT affect `hasTextLayer`** — English PDFs are completely unaffected; the flag only triggers a UI banner
+  - ✅ Non-blocking dismissible banner shown at top of reader when `hasLegacyEncoding` is true. "Fix with OCR" button → triggers the Scan → Choose PDF flow (OCR reads pixels, not encoding). Auto-dismisses when user leaves the reader view.
+  - ✅ Scan card updated to accept `.pdf` files via a hidden `#file-input-pdf-scan` input — `handlePdfScanSelect` runs the full OCR pipeline on the chosen PDF
+  - ✅ `showLegacyEncodingModal()` shown instead of banner when user has no OCR access — "Text looks wrong in this PDF" with upgrade CTA
+
+- [x] **Settings back button UX fix** (`www/js/views/settings.js`, `www/css/components.css`)
+  - ✅ Removed "Back" text label — arrow `←` alone is sufficient affordance
+  - ✅ Pulled `.settings-header` out of the `max-width: 700px` media query that applied `flex-direction: column; align-items: stretch` — on mobile this was stretching the button full-width and centering the arrow, making it look like a centred heading rather than a back button
+  - ✅ Explicit `flex-direction: row; align-items: center` on `.settings-header` at mobile breakpoint keeps button left-aligned at all screen sizes
+
+- [x] **"Open with" PDF intent (Android)** (`android/app/src/main/AndroidManifest.xml`, `MainActivity.java`, `www/js/features/share-handler.js`, `www/js/views/upload.js`)
+  - ✅ `ACTION_VIEW` + `application/pdf` intent filter added — FlowRead now appears in Android's "Open with" list when tapping a PDF in Files, Gmail, WhatsApp, etc.
+  - ✅ `MainActivity.copyPdfInBackground(uri, isHotStart)` — copies incoming content URI to `getCacheDir()/flowread_open_with.pdf` on a **background thread** (avoids ANR). Resolves filename via `ContentResolver` (`OpenableColumns.DISPLAY_NAME`). Stores `{"path":"...","name":"..."}` JSON in SharedPreferences as `fr_pending_pdf_open`.
+  - ✅ Cold start: JS reads `fr_pending_pdf_open` from Preferences in `_checkPendingPdfOpen()` called from `initShareHandler()` — background copy always finishes well before JS initialises (~50ms copy vs ~1500ms JS boot).
+  - ✅ Hot start (app already open): background thread fires `flowreadPdfOpen` window event directly after copy completes — no race condition with `onResume`.
+  - ✅ JS reads file bytes via `FlowReadDeviceSyncPlugin.readFile({ path })` (proven absolute-path reader already used by device sync) — decodes base64 to ArrayBuffer, calls `handlePdfFromIntent(arrayBuffer, fileName)`.
+  - ✅ `handlePdfFromIntent()` in `upload.js` — identical flow to normal PDF import: parse → OCR fallback if needed → save to library → open reader immediately. Legacy encoding banner and scanned PDF modal both apply.
+
 ### Roadmap decisions made during Phase 13
 
 - **EPUB support** — planned as future Pro feature. EPUB is a ZIP of XHTML files; parseable with JSZip + DOMParser, no native plugin needed. High value (universal ebook format). Add post-revenue.
@@ -422,7 +444,7 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
 ## 13. Project Status
 
 - **Current phase:** Phase 13 — Internal Testing Bug Fixes & Polish
-- **Android versionCode:** 15 (versionName "1.1") — published to internal testing
+- **Android versionCode:** 20 (versionName "1.1") — published to internal testing
 - **Target platforms:** Android first, iOS second.
 - **Target launch:** TBD — quality over speed.
 
