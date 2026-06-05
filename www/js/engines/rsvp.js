@@ -195,7 +195,7 @@ const RSVPEngine = (function() {
     const base = 60000 / wpm;
     if (!word || typeof word !== 'string') return base * 2;
     const last = word[word.length - 1];
-    if ('.!?'.includes(last)) return base * 1.8;
+    if ('.!?।'.includes(last)) return base * 1.8;
     if (',;:'.includes(last)) return base * 1.6;
     return base;
   }

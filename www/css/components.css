@@ -255,7 +255,10 @@
   letter-spacing: 0.8px;
   color: var(--accent);
   white-space: nowrap;
-  flex-shrink: 0;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .import-badge-lock {

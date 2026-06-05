@@ -36,7 +36,7 @@ function renderUpload() {
         <button class="import-card import-card-locked" id="btn-image-reader" type="button">
           <span class="import-card-head">
             <strong>Scan</strong>
-            <span class="import-badge import-badge-lock" id="scan-badge">🔒 OCR Add-on</span>
+            <span class="import-badge import-badge-lock" id="scan-badge">🔒 Add-on</span>
           </span>
           <span class="import-card-body">Take a photo or pick images. OCR extracts the text on-device.</span>
         </button>
