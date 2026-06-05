@@ -365,6 +365,22 @@ Next task to handle: **Task 12.1 — Daily reminder notifications**
 - [x] **Chunk mode mid-chunk punctuation** (`www/js/engines/chunk.js`)
   - ✅ `_schedule()` scans the entire chunk slice for `.!?` (strong) and `,;:` (soft) — sentence-ending punctuation anywhere in the chunk triggers the correct pause, not just the last word
 
+- [x] **Legacy Indic font encoding detection** (`www/js/parser/pdf.js`, `www/js/views/upload.js`)
+  - ✅ Detects PDFs encoded with KrutiDev/Krishna/Moosa legacy fonts (common Hindi/Urdu publishing workflow) that map Devanagari/Nastaliq glyphs to Latin/ASCII codepoints, producing garbled text
+  - ✅ Two-signal heuristic: `INDIC_EMBEDDED` (special chars between letters: `fy;s`, `ck/n`) + `INDIC_LEADING` (words starting `/letter`). Secondary: font PostScript name matched against `LEGACY_FONT_RE`. Ratio computed against letter-containing tokens only to avoid TOC dilution.
+  - ✅ `hasLegacyEncoding` flag in PDF metadata. Does NOT affect `hasTextLayer` — English PDFs completely unaffected.
+  - ✅ Non-blocking dismissible banner in reader. "Fix with OCR" → Scan → Choose PDF flow. `showLegacyEncodingModal()` if no OCR access.
+  - ✅ Scan card updated to accept `.pdf` files — `handlePdfScanSelect` runs full OCR pipeline on the chosen PDF.
+
+- [x] **Settings back button UX fix** (`www/js/views/settings.js`, `www/css/components.css`)
+  - ✅ Removed "Back" label — `←` arrow only, left-aligned. Fixed mobile breakpoint that stretched button full-width and centred the arrow.
+
+- [x] **"Open with" PDF intent (Android)** (`AndroidManifest.xml`, `MainActivity.java`, `share-handler.js`, `upload.js`)
+  - ✅ `ACTION_VIEW` + `application/pdf` intent filter — FlowRead appears in Android "Open with" for PDF files in Files, Gmail, WhatsApp, etc.
+  - ✅ `copyPdfInBackground()` in `MainActivity` copies content URI to cache dir on a background thread (avoids ANR). Stores `{"path","name"}` JSON in SharedPreferences as `fr_pending_pdf_open`.
+  - ✅ Cold start: JS reads prefs in `_checkPendingPdfOpen()` via `initShareHandler()`. Hot start: background thread fires `flowreadPdfOpen` event when copy completes.
+  - ✅ File read via `FlowReadDeviceSyncPlugin.readFile({ path })` — proven absolute-path reader. `handlePdfFromIntent()` in upload.js imports to library and opens reader immediately.
+
 ### Roadmap decisions made during Phase 13
 
 - **EPUB support** — planned as future Pro feature. EPUB is a ZIP of XHTML files; parseable with JSZip + DOMParser, no native plugin needed. High value (universal ebook format). Add post-revenue.
@@ -422,7 +438,7 @@ At session start: acknowledge reading AGENTS.md and state the current task. Befo
 ## 14. Project Status
 
 - **Current phase:** Phase 13 — Internal Testing Bug Fixes & Polish
-- **Android versionCode:** 15 (versionName "1.1") — published to internal testing
+- **Android versionCode:** 20 (versionName "1.1") — published to internal testing
 - **Target platforms:** Android first, iOS second.
 - **Target launch:** TBD — quality over speed.
 
