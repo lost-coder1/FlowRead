@@ -97,7 +97,7 @@ const ChunkEngine = (function() {
     if (_index % 30 === 0 && AppState.currentFile) savePosition(AppState.currentFile.id, _index);
     const base = (60000 / AppState.wpm) * _chunkSize;
     const chunkSlice = _words.slice(_index, Math.min(_index + _chunkSize, _words.length));
-    const hasStrong = chunkSlice.some(function(w) { return typeof w === 'string' && '.!?'.includes(w[w.length - 1]); });
+    const hasStrong = chunkSlice.some(function(w) { return typeof w === 'string' && '.!?।'.includes(w[w.length - 1]); });
     const hasSoft   = chunkSlice.some(function(w) { return typeof w === 'string' && ',;:'.includes(w[w.length - 1]); });
     const delay = hasStrong ? base * 1.8 : hasSoft ? base * 1.6 : base;
     const gen = _generation;
