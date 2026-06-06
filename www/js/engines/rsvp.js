@@ -164,6 +164,16 @@ const RSVPEngine = (function() {
       _orpEl.textContent = '';
       _afterEl.textContent = w;
     }
+
+    /* Scale down font if the word is wider than the stage. Accessing scrollWidth
+       forces a synchronous reflow so the measurement is always current. */
+    if (wrap) {
+      const available = wrap.clientWidth;
+      if (available > 0 && wrap.scrollWidth > available) {
+        const scaled = Math.max(16, Math.floor(_fontSize * available / wrap.scrollWidth));
+        wrap.style.fontSize = scaled + 'px';
+      }
+    }
   }
 
   function _updateContext() {

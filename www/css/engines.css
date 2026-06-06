@@ -440,6 +440,7 @@
   gap: var(--space-xs);
   flex-wrap: wrap;
   justify-content: center;
+  align-items: center;
 }
 
 .comfort-btn {
