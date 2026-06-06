@@ -66,6 +66,12 @@ const ChunkEngine = (function() {
       if (placeholder) {
         el.textContent = text;
         el.onclick = function() { openObjectPlaceholder(placeholder); };
+        /* Scale down if placeholder label overflows — canvas measurement may
+           use a stale stageWidth on first render before rAF fires. */
+        if (el.clientWidth > 0 && el.scrollWidth > el.clientWidth) {
+          const cur = parseFloat(el.style.fontSize) || 14;
+          el.style.fontSize = Math.max(11, Math.floor(cur * el.clientWidth / el.scrollWidth)) + 'px';
+        }
       } else {
         el.innerHTML = '';
         el.onclick = null;
