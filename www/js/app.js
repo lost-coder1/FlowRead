@@ -105,8 +105,18 @@ document.addEventListener('DOMContentLoaded', async function() {
 
       const view = AppState.currentView;
 
-      /* 2. Inside reader — same logic as the ← header button */
+      /* 2. Inside reader — if Calm mode is on, back deactivates it first
+            (like exiting fullscreen before exiting the view). Second press
+            then exits the reader normally. */
       if (view === 'view-reader') {
+        if (localStorage.getItem('fr_calm_mode') === 'true') {
+          localStorage.setItem('fr_calm_mode', 'false');
+          const readerEl = document.getElementById('view-reader');
+          if (readerEl) readerEl.classList.remove('reader-calm');
+          const calmBtn = document.getElementById('btn-reader-calm');
+          if (calmBtn) calmBtn.classList.remove('active');
+          return;
+        }
         const backBtn = document.getElementById('btn-reader-back');
         if (backBtn) { backBtn.click(); return; }
       }

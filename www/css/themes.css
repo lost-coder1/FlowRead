@@ -32,6 +32,12 @@ body[data-theme="sepia"] {
   color-scheme: light;
 }
 
+/* Import card titles use a hardcoded off-white in the base CSS — override
+   for Sepia so they are readable against the sandy card background. */
+body[data-theme="sepia"] .import-card strong {
+  color: var(--text);
+}
+
 body[data-theme="high-contrast"] {
   --bg: #101010;
   --surface: #171717;
