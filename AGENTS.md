@@ -381,11 +381,13 @@ Next task to handle: **Task 12.1 — Daily reminder notifications**
   - ✅ Cold start: JS reads prefs in `_checkPendingPdfOpen()` via `initShareHandler()`. Hot start: background thread fires `flowreadPdfOpen` event when copy completes.
   - ✅ File read via `FlowReadDeviceSyncPlugin.readFile({ path })` — proven absolute-path reader. `handlePdfFromIntent()` in upload.js imports to library and opens reader immediately.
 
-- [x] **Calm mode back button fix**
-  - ✅ Hardware back while Calm mode active was exiting the reader. Fixed to follow normal reader-back logic regardless of Calm mode state.
-
-- [x] **Sepia theme white text on import cards**
-  - ✅ Import card `strong` titles rendered white in Sepia theme (unreadable against sandy background). Fixed with explicit colour override in `themes.css`.
+- [x] **Hindi danda sentence pause** (`rsvp.js`, `chunk.js`) — Added `।` (U+0964) to 1.8× strong-pause set. Hindi/Marathi sentences now pause correctly.
+- [x] **OCR Add-on badge overflow** — Shortened to `🔒 Add-on`; `flex-shrink:1` + ellipsis so no badge overflows its card.
+- [x] **Chunk size label alignment** (`engines.css`) — `align-items:center` on `.rsvp-comfort-controls`; label and dropdown now vertically centred.
+- [x] **RSVP long-word overflow** (`rsvp.js`) — Post-render `scrollWidth` check scales font down proportionally (min 16px) when word overflows stage. Normal words unaffected.
+- [x] **Chunk placeholder overflow** (`chunk.js`) — Same `scrollWidth` check after placeholder text set. Catches stale `_stageWidth` on first render. Min 11px.
+- [x] **Calm mode back button fix** (`app.js`) — First back press deactivates Calm mode (removes class, clears flag) and stays in reader. Second press exits normally. Mirrors YouTube fullscreen-exit convention.
+- [x] **Sepia theme white card titles** (`themes.css`) — `.import-card strong` was hardcoded off-white. `body[data-theme="sepia"] .import-card strong { color: var(--text) }` override makes titles dark brown and readable.
 
 ### Roadmap decisions made during Phase 13
 
@@ -454,7 +456,7 @@ At session start: acknowledge reading AGENTS.md and state the current task. Befo
 ## 14. Project Status
 
 - **Current phase:** Phase 13 — Internal Testing Bug Fixes & Polish
-- **Android versionCode:** 22 (versionName "1.1") — published to internal testing
+- **Android versionCode:** 23 (versionName "1.1") — published to internal testing
 - **Target platforms:** Android first, iOS second.
 - **Target launch:** TBD — quality over speed.
 

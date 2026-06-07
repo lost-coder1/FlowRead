@@ -394,10 +394,30 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
   - ✅ `handlePdfFromIntent()` in `upload.js` — identical flow to normal PDF import: parse → OCR fallback if needed → save to library → open reader immediately. Legacy encoding banner and scanned PDF modal both apply.
 
 - [x] **Calm mode back button fix** (`www/js/app.js`)
-  - ✅ Pressing back while Calm mode is active was exiting the reader entirely instead of following the normal reader-back logic. Fixed by ensuring the hardware back button handler checks for open Calm mode state and treats it identically to any other reader state.
+  - ✅ Hardware back while Calm mode active now deactivates Calm mode first (removes `reader-calm` class, sets `fr_calm_mode = false`) and stays in the reader. Second back press then exits normally. Mirrors the convention of exiting fullscreen before leaving a view (e.g. YouTube). Implemented in the `backButton` Capacitor listener before the normal `btn-reader-back` click path.
 
 - [x] **Sepia theme white text on import cards** (`www/css/themes.css`)
-  - ✅ In Sepia theme, import card `strong` titles rendered in white (`var(--text)` was not overridden for cards in Sepia), making them unreadable against the warm sandy card background. Fixed by explicitly setting card title colour for Sepia theme.
+  - ✅ `.import-card strong` uses a hardcoded off-white `rgba(232,228,220,0.88)` in the base CSS — readable on dark cards but near-invisible on Sepia's sandy `#dec79f` surface. Added `body[data-theme="sepia"] .import-card strong { color: var(--text) }` override so titles render in dark brown (`#3e2f23`). All other themes unaffected.
+
+- [x] **Hindi danda sentence pause** (`www/js/engines/rsvp.js`, `www/js/engines/chunk.js`)
+  - ✅ Added `।` (U+0964 DEVANAGARI DANDA) to the 1.8× strong-pause set alongside `.!?` in both RSVP and Chunk engines — Hindi/Marathi sentences now get the same rhythm pause as English.
+
+- [x] **OCR Add-on badge overflow** (`www/js/views/upload.js`, `www/css/components.css`)
+  - ✅ Badge text shortened from `🔒 OCR Add-on` to `🔒 Add-on`. Changed `flex-shrink` from `0` to `1` with `text-overflow: ellipsis` as safety net so no badge can overflow its card regardless of length.
+
+- [x] **Chunk size label alignment** (`www/css/engines.css`)
+  - ✅ Added `align-items: center` to `.rsvp-comfort-controls` — "Chunk size" label and dropdown were top-aligned instead of vertically centred with each other.
+
+- [x] **RSVP long-word overflow** (`www/js/engines/rsvp.js`)
+  - ✅ After setting word text, measures `wrap.scrollWidth` vs `wrap.clientWidth`. If the word overflows (e.g. "incommensurability"), font size is scaled down proportionally (`Math.floor(fontSize * available / scrollWidth)`, minimum 16px). Normal-length words unaffected — check only triggers on actual overflow.
+
+- [x] **Chunk mode placeholder overflow** (`www/js/engines/chunk.js`)
+  - ✅ Same scrollWidth safety check added after placeholder text is set (`[Image — Tap to View]`, `[Table — Tap to View]` etc.). Canvas measurement in `_resolveChunkFontSize` uses a potentially stale `_stageWidth` on first render — the DOM check guarantees fit. Minimum 11px.
+
+- [x] **"Open with" PDF intent** (`android/app/src/main/AndroidManifest.xml`, `MainActivity.java`, `www/js/features/share-handler.js`, `www/js/views/upload.js`)
+  - ✅ `ACTION_VIEW` + `application/pdf` intent filter — FlowRead now appears in Android "Open with" for PDF files in Files, Gmail, WhatsApp, etc.
+  - ✅ `copyPdfInBackground()` copies content URI to cache dir on a background thread (avoids ANR). Stores `{"path","name"}` JSON as `fr_pending_pdf_open` in SharedPreferences.
+  - ✅ JS reads via `FlowReadDeviceSyncPlugin.readFile({ path })`, decodes base64, calls `handlePdfFromIntent()` — imports to library and opens reader immediately.
 
 ### Roadmap decisions made during Phase 13
 
@@ -480,7 +500,7 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
 ## 13. Project Status
 
 - **Current phase:** Phase 13 — Internal Testing Bug Fixes & Polish
-- **Android versionCode:** 22 (versionName "1.1") — published to internal testing
+- **Android versionCode:** 23 (versionName "1.1") — published to internal testing
 - **Target platforms:** Android first, iOS second.
 - **Target launch:** TBD — quality over speed.
 
