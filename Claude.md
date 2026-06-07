@@ -393,6 +393,12 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
   - ✅ JS reads file bytes via `FlowReadDeviceSyncPlugin.readFile({ path })` (proven absolute-path reader already used by device sync) — decodes base64 to ArrayBuffer, calls `handlePdfFromIntent(arrayBuffer, fileName)`.
   - ✅ `handlePdfFromIntent()` in `upload.js` — identical flow to normal PDF import: parse → OCR fallback if needed → save to library → open reader immediately. Legacy encoding banner and scanned PDF modal both apply.
 
+- [x] **Calm mode back button fix** (`www/js/app.js`)
+  - ✅ Pressing back while Calm mode is active was exiting the reader entirely instead of following the normal reader-back logic. Fixed by ensuring the hardware back button handler checks for open Calm mode state and treats it identically to any other reader state.
+
+- [x] **Sepia theme white text on import cards** (`www/css/themes.css`)
+  - ✅ In Sepia theme, import card `strong` titles rendered in white (`var(--text)` was not overridden for cards in Sepia), making them unreadable against the warm sandy card background. Fixed by explicitly setting card title colour for Sepia theme.
+
 ### Roadmap decisions made during Phase 13
 
 - **EPUB support** — planned as future Pro feature. EPUB is a ZIP of XHTML files; parseable with JSZip + DOMParser, no native plugin needed. High value (universal ebook format). Add post-revenue.
@@ -400,6 +406,36 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
 - **Tablets** — deferred until post-launch revenue. Layout needs responsive breakpoints but no architectural changes required.
 - **DOCX/TXT reader button** — decided no. No meaningful alternate view to show unlike PDF (rendered pages) or URL (source article). Would add UI noise for zero user benefit.
 - **Deep sync (DOCX/TXT for Pro)** — already implemented. JS passes `['.pdf', '.docx', '.txt']` for Pro, `['.pdf']` for free. Native plugin accepts any extension list. `_importSyncedFile` routes correctly to `handleDocxSelect` / `handleTxtSelect`.
+
+---
+
+### PHASE 14 — Post-Launch (planned)
+
+- [ ] **Share reading stats as image**
+  - Generate a shareable card image from the Pro Dashboard — streak, WPM, books completed, reading time.
+  - Use Canvas API to render the card entirely on-device. No server, no upload.
+  - Share via Android/iOS native share sheet (`Capacitor.Share`).
+  - Useful for social sharing on any platform (Instagram, Twitter/X, WhatsApp).
+
+- [ ] **Improved notification system**
+  - Current: basic daily reminder via `@capacitor/local-notifications`.
+  - Planned: smarter scheduling — remind only on days the user hasn't read, respect quiet hours, show unread file count in notification body.
+  - Free: single daily nudge for unread PDFs. Pro: richer notifications with reading goal progress and streak status.
+
+- [ ] **Settings page restructure**
+  - Replace the current single long-scroll page with tabbed/sectioned layout: Appearance · Reading · Formats · About.
+  - Requires restructuring `renderSettings()` in `www/js/views/settings.js` and updating back-button handling.
+  - Deferred post-launch to avoid high-risk UI refactor close to ship date.
+
+- [ ] **Additional reading fonts**
+  - Add sans-serif options (Inter, Source Sans) alongside existing Roboto/Open Sans/Lato.
+  - Bundle fonts locally before adding — no Google Fonts network requests post-launch.
+  - Apply to all 4 engines via the existing `--font-body` CSS variable.
+
+- [ ] **Word tap behaviour setting**
+  - Add Settings toggle: tap word → Do nothing / Local dictionary (Pro) / Look up online.
+  - Currently free users see Pro paywall on every tap — "Do nothing" default for free would reduce friction.
+  - Requires new `fr_word_tap_action` localStorage key and update to tap handlers in all 4 engines.
 
 ---
 
@@ -444,7 +480,7 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
 ## 13. Project Status
 
 - **Current phase:** Phase 13 — Internal Testing Bug Fixes & Polish
-- **Android versionCode:** 20 (versionName "1.1") — published to internal testing
+- **Android versionCode:** 22 (versionName "1.1") — published to internal testing
 - **Target platforms:** Android first, iOS second.
 - **Target launch:** TBD — quality over speed.
 

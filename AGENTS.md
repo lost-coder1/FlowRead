@@ -381,6 +381,12 @@ Next task to handle: **Task 12.1 — Daily reminder notifications**
   - ✅ Cold start: JS reads prefs in `_checkPendingPdfOpen()` via `initShareHandler()`. Hot start: background thread fires `flowreadPdfOpen` event when copy completes.
   - ✅ File read via `FlowReadDeviceSyncPlugin.readFile({ path })` — proven absolute-path reader. `handlePdfFromIntent()` in upload.js imports to library and opens reader immediately.
 
+- [x] **Calm mode back button fix**
+  - ✅ Hardware back while Calm mode active was exiting the reader. Fixed to follow normal reader-back logic regardless of Calm mode state.
+
+- [x] **Sepia theme white text on import cards**
+  - ✅ Import card `strong` titles rendered white in Sepia theme (unreadable against sandy background). Fixed with explicit colour override in `themes.css`.
+
 ### Roadmap decisions made during Phase 13
 
 - **EPUB support** — planned as future Pro feature. EPUB is a ZIP of XHTML files; parseable with JSZip + DOMParser, no native plugin needed. High value (universal ebook format). Add post-revenue.
@@ -388,6 +394,16 @@ Next task to handle: **Task 12.1 — Daily reminder notifications**
 - **Tablets** — deferred until post-launch revenue. Layout needs responsive breakpoints but no architectural changes required.
 - **DOCX/TXT reader button** — decided no. No meaningful alternate view to show unlike PDF (rendered pages) or URL (source article). Would add UI noise for zero user benefit.
 - **Deep sync (DOCX/TXT for Pro)** — already implemented. JS passes `['.pdf', '.docx', '.txt']` for Pro, `['.pdf']` for free. Native plugin accepts any extension list. `_importSyncedFile` routes correctly to `handleDocxSelect` / `handleTxtSelect`.
+
+---
+
+### PHASE 14 — Post-Launch (planned)
+
+- [ ] **Share reading stats as image** — Canvas-rendered shareable card (streak, WPM, books completed). Shared via native share sheet (`Capacitor.Share`). Fully on-device, no upload.
+- [ ] **Improved notification system** — Smarter scheduling: skip days user already read, quiet hours, unread count in body. Free: single daily nudge. Pro: goal progress + streak in notification.
+- [ ] **Settings page restructure** — Replace long-scroll with tabbed layout: Appearance · Reading · Formats · About. Requires `renderSettings()` refactor + back-button updates.
+- [ ] **Additional reading fonts** — Sans-serif options (Inter, Source Sans). Bundle locally. Applied via existing `--font-body` CSS variable.
+- [ ] **Word tap behaviour setting** — Toggle: Do nothing / Local dictionary (Pro) / Look up online. New `fr_word_tap_action` key. Reduces paywall friction for free users.
 
 ---
 
@@ -438,7 +454,7 @@ At session start: acknowledge reading AGENTS.md and state the current task. Befo
 ## 14. Project Status
 
 - **Current phase:** Phase 13 — Internal Testing Bug Fixes & Polish
-- **Android versionCode:** 20 (versionName "1.1") — published to internal testing
+- **Android versionCode:** 22 (versionName "1.1") — published to internal testing
 - **Target platforms:** Android first, iOS second.
 - **Target launch:** TBD — quality over speed.
 
