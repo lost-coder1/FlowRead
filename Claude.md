@@ -399,6 +399,27 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
 - [x] **Sepia theme white text on import cards** (`www/css/themes.css`)
   - ✅ `.import-card strong` uses a hardcoded off-white `rgba(232,228,220,0.88)` in the base CSS — readable on dark cards but near-invisible on Sepia's sandy `#dec79f` surface. Added `body[data-theme="sepia"] .import-card strong { color: var(--text) }` override so titles render in dark brown (`#3e2f23`). All other themes unaffected.
 
+- [x] **Google Play rejection fix — MANAGE_EXTERNAL_STORAGE removed** (`android/app/src/main/AndroidManifest.xml`, `android/app/src/main/java/com/flowread/app/FlowReadDeviceSyncPlugin.java`)
+  - ✅ Google Play rejected versionCode 23 because `MANAGE_EXTERNAL_STORAGE` was not considered core functionality for a reading app.
+  - ✅ Removed `MANAGE_EXTERNAL_STORAGE` from manifest entirely.
+  - ✅ `FlowReadDeviceSyncPlugin.java` fully rewritten to use `MediaStore` API instead of recursive filesystem walk:
+    - Android 10+ (API 29+): queries `MediaStore.Downloads.EXTERNAL_CONTENT_URI` (accessible without any permission — covers browser downloads, Gmail attachments, etc.)
+    - Android 10–12 with `READ_EXTERNAL_STORAGE`: also queries `MediaStore.Files.getContentUri("external")` for files outside Downloads
+    - Android 9 and below: falls back to recursive filesystem scan with `READ_EXTERNAL_STORAGE`
+    - Both MIME type filter and `_data LIKE '%ext'` extension fallback used — catches files where MediaStore didn't detect the MIME type
+    - `DATA` column null-fallback: if DATA is missing from cursor, constructs path as `Downloads/<display_name>`
+    - Results deduplicated by absolute path via `LinkedHashMap`
+  - ✅ `READ_EXTERNAL_STORAGE android:maxSdkVersion="32"` retained — still needed for Android 10–12 MediaStore.Files query
+  - ✅ Empty-state toast updated: "No files found in Downloads. For WhatsApp/Telegram PDFs, use 'Open with' → FlowRead."
+  - ⚠️ On Android 13+, sync only finds files in Downloads folder. WhatsApp/Telegram PDFs require "Open with → FlowRead" (already implemented). Re-application strategy for `MANAGE_EXTERNAL_STORAGE` documented in Phase 14.
+
+- [x] **OCR wake lock + backgrounding warning** (`www/js/views/upload.js`)
+  - ✅ `acquireWakeLock()` called at the start of every OCR entry point: `handleFileSelect` (auto-detected scanned PDF), `handlePdfFromIntent` (Open with intent), `handlePdfScanSelect` (explicit Scan card), `handleImageSelect` (camera/gallery images).
+  - ✅ `releaseWakeLock()` called in every exit path — success, empty result, error, and outer catch.
+  - ✅ Toast shown at OCR start: "Keep FlowRead open while scanning — backgrounding pauses OCR."
+  - ✅ Reuses existing `acquireWakeLock` / `releaseWakeLock` from `www/js/features/keep-awake.js` — no new code.
+  - ⚠️ Full background OCR (Foreground Service) deferred to Phase 14 — see roadmap.
+
 - [x] **Hindi danda sentence pause** (`www/js/engines/rsvp.js`, `www/js/engines/chunk.js`)
   - ✅ Added `।` (U+0964 DEVANAGARI DANDA) to the 1.8× strong-pause set alongside `.!?` in both RSVP and Chunk engines — Hindi/Marathi sentences now get the same rhythm pause as English.
 
@@ -426,10 +447,31 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
 - **Tablets** — deferred until post-launch revenue. Layout needs responsive breakpoints but no architectural changes required.
 - **DOCX/TXT reader button** — decided no. No meaningful alternate view to show unlike PDF (rendered pages) or URL (source article). Would add UI noise for zero user benefit.
 - **Deep sync (DOCX/TXT for Pro)** — already implemented. JS passes `['.pdf', '.docx', '.txt']` for Pro, `['.pdf']` for free. Native plugin accepts any extension list. `_importSyncedFile` routes correctly to `handleDocxSelect` / `handleTxtSelect`.
+- **MANAGE_EXTERNAL_STORAGE removed** — Google Play rejected the app because `MANAGE_EXTERNAL_STORAGE` was not classified as core functionality. Replaced with `MediaStore` API (Downloads URI + Files URI + extension fallback). On Android 13+ only the Downloads folder is scanned; WhatsApp/Telegram PDFs require "Open with → FlowRead". Re-application strategy documented in Phase 14.
+- **Device sync scope on Android 13+** — `MediaStore.Downloads.EXTERNAL_CONTENT_URI` is the primary query (accessible without any permission on Android 10+). `MediaStore.Files` added for Android 10–12 with `READ_EXTERNAL_STORAGE`. Recursive filesystem scan retained for Android 9 and below. Empty-state toast now explains the Downloads-only scope and directs users to "Open with".
 
 ---
 
 ### PHASE 14 — Post-Launch (planned)
+
+- [ ] **Re-apply for MANAGE_EXTERNAL_STORAGE (deep device sync)**
+  - The first submission was rejected because the Play Store description framed the app as a "speed reading app" — file discovery looked incidental rather than core.
+  - **Strategy:** Before re-applying, update the Play Store long description to prominently feature: *"FlowRead finds all your readable documents — PDFs from WhatsApp, Telegram, Gmail, Downloads, and anywhere on your device — and brings them into one place."* This reframes the app as a document finder + reader, not just a speed reader.
+  - In the Permissions Declaration Form write explicitly: *"Users store documents across many locations — WhatsApp, Telegram, browser downloads, email attachments, cloud sync folders. Without broad file access, users cannot discover their own documents. Discovering and reading files scattered across device storage IS the core user workflow."*
+  - Reference approved competitors: Adobe Acrobat, Moon+ Reader, ReadEra, Librera all hold this permission.
+  - Re-apply after launch when the app has real users and reviews, which strengthens the case.
+  - Implementation: revert `FlowReadDeviceSyncPlugin.java` to the recursive filesystem walk (the old code is in git history on `master` before versionCode 24). The JS layer requires no changes.
+
+- [ ] **Background OCR (Foreground Service)**
+  - Current limitation: OCR is JS-driven page-by-page. If the user backgrounds the app mid-scan, WebView JS pauses and OCR progress stalls. If Android kills the Activity under memory pressure, all progress is lost.
+  - Pre-launch mitigation already shipped (versionCode 24): `acquireWakeLock()` + dismissible toast warning at all 4 OCR entry points (`handleFileSelect`, `handlePdfFromIntent`, `handlePdfScanSelect`, `handleImageSelect` in `www/js/views/upload.js`).
+  - **Full fix (post-launch):** Create `FlowReadOcrService.java` as an Android Foreground Service with a persistent "Scanning page X of Y" notification. OCR runs entirely off the WebView thread. Results written to a temp JSON file in cache dir; WebView reads on next foreground. Requires: new `<service>` declaration in `AndroidManifest.xml`, `FOREGROUND_SERVICE` permission, new Capacitor bridge plugin for start/stop/query, `LocalBroadcastReceiver` for progress events back to WebView. Estimated ~3 days of native work.
+
+- [ ] **Deep sync via SAF folder picker (alternative to MANAGE_EXTERNAL_STORAGE)**
+  - If re-application for MANAGE_EXTERNAL_STORAGE is rejected again, implement folder picker as fallback.
+  - User taps "Add folder" → `ACTION_OPEN_DOCUMENT_TREE` system picker → selects WhatsApp/Telegram/custom folder → app calls `takePersistableUriPermission()` (survives reboots) → scans via `DocumentFile.fromTreeUri()` on subsequent syncs.
+  - Pro-only feature. Stored granted URIs in Capacitor Preferences.
+  - Trade-off: user must pick each folder once; cannot auto-discover. But works on Android 5–15 with zero policy risk.
 
 - [ ] **Share reading stats as image**
   - Generate a shareable card image from the Pro Dashboard — streak, WPM, books completed, reading time.
@@ -500,7 +542,7 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
 ## 13. Project Status
 
 - **Current phase:** Phase 13 — Internal Testing Bug Fixes & Polish
-- **Android versionCode:** 23 (versionName "1.1") — published to internal testing
+- **Android versionCode:** 24 (versionName "1.2") — Play Store re-submission after MANAGE_EXTERNAL_STORAGE removal
 - **Target platforms:** Android first, iOS second.
 - **Target launch:** TBD — quality over speed.
 
