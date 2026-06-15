@@ -389,6 +389,23 @@ Next task to handle: **Task 12.1 — Daily reminder notifications**
 - [x] **Calm mode back button fix** (`app.js`) — First back press deactivates Calm mode (removes class, clears flag) and stays in reader. Second press exits normally. Mirrors YouTube fullscreen-exit convention.
 - [x] **Sepia theme white card titles** (`themes.css`) — `.import-card strong` was hardcoded off-white. `body[data-theme="sepia"] .import-card strong { color: var(--text) }` override makes titles dark brown and readable.
 
+- [x] **Google Play rejection fix — MANAGE_EXTERNAL_STORAGE removed** (`AndroidManifest.xml`, `FlowReadDeviceSyncPlugin.java`)
+  - ✅ Play Store rejected versionCode 23: `MANAGE_EXTERNAL_STORAGE` not considered core functionality for a reading app.
+  - ✅ Removed permission from manifest. Rewrote `FlowReadDeviceSyncPlugin.java` to use `MediaStore` API:
+    - Android 10+ (API 29+): queries `MediaStore.Downloads.EXTERNAL_CONTENT_URI` — no permission needed, covers browser downloads, Gmail, etc.
+    - Android 10–12 with `READ_EXTERNAL_STORAGE`: also queries `MediaStore.Files.getContentUri("external")` for files outside Downloads
+    - Android 9-: recursive filesystem scan with `READ_EXTERNAL_STORAGE`
+    - Both MIME type + `_data LIKE '%ext'` extension fallback — catches files where MIME type wasn't indexed
+    - `DATA` column null-fallback constructs path as `Downloads/<display_name>` if cursor omits DATA
+    - Results deduplicated by path via `LinkedHashMap`
+  - ✅ Empty-state toast: "No files found in Downloads. For WhatsApp/Telegram PDFs, use 'Open with' → FlowRead."
+  - ⚠️ Android 13+: sync finds Downloads only. Re-application strategy in Phase 14.
+
+- [x] **OCR backgrounding mitigation** (`www/js/views/upload.js`)
+  - ✅ `acquireWakeLock()` at start of all 4 OCR entry points; `releaseWakeLock()` in every exit path (success, empty result, error, outer catch).
+  - ✅ Toast at OCR start: "Keep FlowRead open while scanning — backgrounding pauses OCR."
+  - ⚠️ Full Foreground Service fix deferred to Phase 14.
+
 ### Roadmap decisions made during Phase 13
 
 - **EPUB support** — planned as future Pro feature. EPUB is a ZIP of XHTML files; parseable with JSZip + DOMParser, no native plugin needed. High value (universal ebook format). Add post-revenue.
@@ -396,10 +413,26 @@ Next task to handle: **Task 12.1 — Daily reminder notifications**
 - **Tablets** — deferred until post-launch revenue. Layout needs responsive breakpoints but no architectural changes required.
 - **DOCX/TXT reader button** — decided no. No meaningful alternate view to show unlike PDF (rendered pages) or URL (source article). Would add UI noise for zero user benefit.
 - **Deep sync (DOCX/TXT for Pro)** — already implemented. JS passes `['.pdf', '.docx', '.txt']` for Pro, `['.pdf']` for free. Native plugin accepts any extension list. `_importSyncedFile` routes correctly to `handleDocxSelect` / `handleTxtSelect`.
+- **MANAGE_EXTERNAL_STORAGE re-application** — removed for now to pass Play review. Re-apply post-launch with stronger description (document finder + reader framing) and detailed Permissions Declaration Form. Reference approved competitors: Adobe Acrobat, Moon+ Reader, ReadEra, Librera.
 
 ---
 
 ### PHASE 14 — Post-Launch (planned)
+
+- [ ] **Re-apply for MANAGE_EXTERNAL_STORAGE (full deep sync)**
+  - Update Play Store description to prominently feature document discovery across WhatsApp, Telegram, Gmail, Downloads.
+  - Reframe app as "document finder + speed reader" not just "speed reader".
+  - In Permissions Declaration: *"Users store documents in WhatsApp, Telegram, browser downloads, email attachments, cloud sync. Without broad file access, discovering and reading documents IS the core user workflow."*
+  - Re-apply post-launch when real users + reviews strengthen the case. Revert `FlowReadDeviceSyncPlugin` to recursive walk (git history on `master` pre-versionCode 24).
+
+- [ ] **Background OCR — Android Foreground Service**
+  - Current: OCR is JS-driven; WebView pauses when app backgrounds, stalling OCR. Pre-launch mitigation: wake lock + warning toast (shipped in versionCode 24).
+  - Full fix: `FlowReadOcrService.java` Foreground Service with "Scanning page X of Y" notification. OCR off WebView thread. Results in temp JSON file; WebView reads on foreground.
+  - Requires: `<service>` in manifest, `FOREGROUND_SERVICE` permission, new Capacitor bridge plugin, `LocalBroadcastReceiver` for progress events. ~3 days native work.
+
+- [ ] **Deep sync via SAF folder picker (fallback if MANAGE_EXTERNAL_STORAGE re-app fails)**
+  - `ACTION_OPEN_DOCUMENT_TREE` picker → user selects folder → `takePersistableUriPermission()` persists grant → `DocumentFile.fromTreeUri()` for subsequent scans.
+  - Pro-only. Granted URIs stored in Capacitor Preferences. Works Android 5–15, zero policy risk. Trade-off: user must pick each folder once.
 
 - [ ] **Share reading stats as image** — Canvas-rendered shareable card (streak, WPM, books completed). Shared via native share sheet (`Capacitor.Share`). Fully on-device, no upload.
 - [ ] **Improved notification system** — Smarter scheduling: skip days user already read, quiet hours, unread count in body. Free: single daily nudge. Pro: goal progress + streak in notification.
@@ -456,7 +489,7 @@ At session start: acknowledge reading AGENTS.md and state the current task. Befo
 ## 14. Project Status
 
 - **Current phase:** Phase 13 — Internal Testing Bug Fixes & Polish
-- **Android versionCode:** 23 (versionName "1.1") — published to internal testing
+- **Android versionCode:** 24 (versionName "1.2") — Play Store re-submission after MANAGE_EXTERNAL_STORAGE removal
 - **Target platforms:** Android first, iOS second.
 - **Target launch:** TBD — quality over speed.
 
