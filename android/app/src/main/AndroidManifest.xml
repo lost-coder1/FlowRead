@@ -53,8 +53,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="com.android.vending.BILLING" />
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
-    <!-- Required for Filesystem.readdir on external storage (Android ≤ 12) -->
+    <!-- READ_EXTERNAL_STORAGE needed on Android ≤ 12 for MediaStore document queries; not needed on 13+ -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
     <!-- Required for local notifications (Android 13+) -->

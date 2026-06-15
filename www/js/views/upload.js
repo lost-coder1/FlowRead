@@ -369,6 +369,8 @@ async function handleFileSelect(file) {
       }
       /* Run OCR on the scanned PDF */
       showLoading('Running OCR…');
+      showToast('Keep FlowRead open while scanning — backgrounding pauses OCR.');
+      acquireWakeLock();
       window._pdfParseProgress = function(current, total) {
         const msg = qs('#loading-message');
         if (msg) msg.textContent = 'OCR page ' + current + ' of ' + total + '…';
@@ -378,12 +380,14 @@ async function handleFileSelect(file) {
         ocrResult = await parseScannedPDF(result.pdfDoc, window._pdfParseProgress);
       } catch (ocrErr) {
         hideLoading();
+        releaseWakeLock();
         window._pdfParseProgress = null;
         showUploadError('OCR failed', 'Could not extract text from this PDF. Try a higher-quality scan or re-import.');
         return;
       }
       if (!ocrResult.metadata.wordCount) {
         hideLoading();
+        releaseWakeLock();
         window._pdfParseProgress = null;
         showUploadError('No text found', 'OCR ran but could not find readable text. The scan may be too low quality.');
         return;
@@ -393,6 +397,7 @@ async function handleFileSelect(file) {
       result.pageWordIndex = ocrResult.pageWordIndex;
       result.rawLines = ocrResult.rawLines;
       result.metadata = Object.assign({}, result.metadata, ocrResult.metadata);
+      releaseWakeLock();
     }
 
     const fileId = generateFileId(file.name, file.size, file.lastModified || result.metadata.pageCount);
@@ -479,6 +484,8 @@ async function handlePdfFromIntent(arrayBuffer, fileName) {
         return;
       }
       showLoading('Running OCR…');
+      showToast('Keep FlowRead open while scanning — backgrounding pauses OCR.');
+      acquireWakeLock();
       window._pdfParseProgress = function(current, total) {
         const msg = qs('#loading-message');
         if (msg) msg.textContent = 'OCR page ' + current + ' of ' + total + '…';
@@ -488,12 +495,14 @@ async function handlePdfFromIntent(arrayBuffer, fileName) {
         ocrResult = await parseScannedPDF(result.pdfDoc, window._pdfParseProgress);
       } catch (ocrErr) {
         hideLoading();
+        releaseWakeLock();
         window._pdfParseProgress = null;
         showUploadError('OCR failed', 'Could not extract text from this PDF.');
         return;
       }
       if (!ocrResult.metadata.wordCount) {
         hideLoading();
+        releaseWakeLock();
         window._pdfParseProgress = null;
         showUploadError('No text found', 'OCR ran but could not find readable text.');
         return;
@@ -502,6 +511,7 @@ async function handlePdfFromIntent(arrayBuffer, fileName) {
       result.pageWordIndex = ocrResult.pageWordIndex;
       result.rawLines = ocrResult.rawLines;
       result.metadata = Object.assign({}, result.metadata, ocrResult.metadata);
+      releaseWakeLock();
     }
 
     const fileId = generateFileId(fileName, arrayBufferForStorage.byteLength, result.metadata.pageCount);
@@ -1270,11 +1280,14 @@ async function handlePdfScanSelect(file) {
     }
 
     showLoading('Running OCR…');
+    showToast('Keep FlowRead open while scanning — backgrounding pauses OCR.');
+    acquireWakeLock();
     let ocrResult;
     try {
       ocrResult = await parseScannedPDF(pdfDoc, window._pdfParseProgress);
     } catch (ocrErr) {
       hideLoading();
+      releaseWakeLock();
       window._pdfParseProgress = null;
       showUploadError('OCR failed', 'Could not extract text from this PDF. Try a clearer scan or re-import.');
       return;
@@ -1282,6 +1295,7 @@ async function handlePdfScanSelect(file) {
 
     if (!ocrResult.metadata.wordCount) {
       hideLoading();
+      releaseWakeLock();
       window._pdfParseProgress = null;
       showUploadError('No text found', 'OCR ran but could not find readable text. The PDF may be too low quality.');
       return;
@@ -1314,11 +1328,13 @@ async function handlePdfScanSelect(file) {
     });
 
     hideLoading();
+    releaseWakeLock();
     window._pdfParseProgress = null;
     renderReader();
     switchView('view-reader');
   } catch (err) {
     hideLoading();
+    releaseWakeLock();
     window._pdfParseProgress = null;
     showUploadError('Import failed', 'Could not process this PDF. ' + ((err && err.detail) || (err && err.message) || ''));
   }
@@ -1489,6 +1505,8 @@ async function handleImageSelect(files) {
 
   clearUploadError();
   showLoading('Running OCR…');
+  showToast('Keep FlowRead open while scanning — backgrounding pauses OCR.');
+  acquireWakeLock();
 
   window._pdfParseProgress = function(current, total) {
     const msg = qs('#loading-message');
@@ -1508,6 +1526,7 @@ async function handleImageSelect(files) {
 
     if (!result.metadata.wordCount) {
       hideLoading();
+      releaseWakeLock();
       showUploadError('No text found', 'OCR could not find readable text in the selected image(s). Try a clearer photo.');
       return;
     }
@@ -1541,10 +1560,12 @@ async function handleImageSelect(files) {
     saveFileData(fileId, AppState.currentFile);
 
     hideLoading();
+    releaseWakeLock();
     renderReader();
     switchView('view-reader');
   } catch (err) {
     hideLoading();
+    releaseWakeLock();
     window._pdfParseProgress = null;
     if (err && err.type === 'ocr-unavailable') {
       showUploadError('OCR not available', 'On-device OCR is not available on this device.');
@@ -2025,7 +2046,7 @@ async function _syncDeviceFilesNative(DeviceSync, pro) {
 
     const found = (result && result.files) ? result.files : [];
     if (!found.length) {
-      showToast('No matching files found in accessible device storage.');
+      showToast('No files found in Downloads. For WhatsApp/Telegram PDFs, use "Open with" → FlowRead.');
       return;
     }
 
