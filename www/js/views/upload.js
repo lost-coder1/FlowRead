@@ -2046,7 +2046,7 @@ async function _syncDeviceFilesNative(DeviceSync, pro) {
 
     const found = (result && result.files) ? result.files : [];
     if (!found.length) {
-      showToast('No matching files found in accessible device storage.');
+      showToast('No files found in Downloads. For WhatsApp/Telegram PDFs, use "Open with" → FlowRead.');
       return;
     }
 

@@ -199,12 +199,22 @@ public class FlowReadDeviceSyncPlugin extends Plugin {
 
             int nameCol = cursor.getColumnIndex(MediaStore.Files.FileColumns.DISPLAY_NAME);
             int dataCol = cursor.getColumnIndex(MediaStore.Files.FileColumns.DATA);
-            if (nameCol < 0 || dataCol < 0) return;
+            if (nameCol < 0) return;
+
+            // Fallback path root when DATA column is unavailable (some Android versions)
+            String downloadsRoot = Environment.getExternalStoragePublicDirectory(
+                    Environment.DIRECTORY_DOWNLOADS).getAbsolutePath();
 
             while (cursor.moveToNext()) {
                 String name = cursor.getString(nameCol);
-                String path = cursor.getString(dataCol);
-                if (name == null || path == null) continue;
+                if (name == null) continue;
+
+                String path = (dataCol >= 0) ? cursor.getString(dataCol) : null;
+                // If DATA is null or missing, try constructing path from Downloads root
+                if (path == null || path.isEmpty()) {
+                    path = downloadsRoot + File.separator + name;
+                }
+
                 if (resultMap.containsKey(path)) continue;
 
                 File file = new File(path);
