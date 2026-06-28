@@ -133,8 +133,8 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (backBtn) { backBtn.click(); return; }
       }
 
-      /* 4. Settings or Dashboard — return to home */
-      if (view === 'view-settings' || view === 'view-dashboard') {
+      /* 4. Settings, Dashboard, or Free Books — return to home */
+      if (view === 'view-settings' || view === 'view-dashboard' || view === 'view-free-books') {
         renderUpload();
         switchView('view-upload');
         return;

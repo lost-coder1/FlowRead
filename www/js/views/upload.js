@@ -17,6 +17,15 @@ function renderUpload() {
       </header>
 
       <div class="import-grid" id="import-grid">
+        <!-- Free Books — full-width, always visible, no gate -->
+        <button class="import-card import-card-featured" id="btn-free-books" type="button">
+          <span class="import-card-head">
+            <strong>${t('upload.card.freebooks.title')}</strong>
+            <span class="import-badge">${t('upload.card.freebooks.badge')}</span>
+          </span>
+          <span class="import-card-body">${t('upload.card.freebooks.body')}</span>
+        </button>
+
         <!-- Row 1: PDF | Paste Text (always free, no badge needed) -->
         <button class="import-card" id="upload-zone" role="button" tabindex="0" aria-label="Open PDF">
           <span class="import-card-head">
@@ -153,6 +162,10 @@ function renderUpload() {
     renderSettings();
     const section = qs('.settings-limitations');
     if (section) section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  qs('#btn-free-books').addEventListener('click', function() {
+    renderFreeBooks();
+    switchView('view-free-books');
   });
   qs('#btn-paste-reader').addEventListener('click', openPasteText);
   qs('#btn-url-reader').addEventListener('click', openUrlReader);
