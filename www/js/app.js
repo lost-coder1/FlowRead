@@ -19,9 +19,9 @@ function showErrorCard(message) {
   overlay.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:9999;padding:24px;';
   overlay.innerHTML = [
     '<div style="max-width:360px;width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:24px;text-align:center;">',
-    '<p style="font-family:var(--font-display);font-size:20px;color:var(--text);margin:0 0 12px;">Something went wrong</p>',
-    '<p style="font-family:var(--font-body);font-size:15px;color:var(--text-muted);margin:0 0 24px;line-height:1.5;">' + (message || 'An unexpected error occurred.') + '</p>',
-    '<button id="error-card-home-btn" style="font-family:var(--font-mono);font-size:13px;padding:10px 24px;background:var(--surface-2);border:1px solid var(--border);border-radius:4px;color:var(--text);cursor:pointer;">Go Home</button>',
+    '<p style="font-family:var(--font-display);font-size:20px;color:var(--text);margin:0 0 12px;">' + t('error_card.title') + '</p>',
+    '<p style="font-family:var(--font-body);font-size:15px;color:var(--text-muted);margin:0 0 24px;line-height:1.5;">' + (message || t('error_card.default_msg')) + '</p>',
+    '<button id="error-card-home-btn" style="font-family:var(--font-mono);font-size:13px;padding:10px 24px;background:var(--surface-2);border:1px solid var(--border);border-radius:4px;color:var(--text);cursor:pointer;">' + t('error_card.btn.go_home') + '</button>',
     '</div>',
   ].join('');
   document.body.appendChild(overlay);
@@ -35,17 +35,23 @@ function showErrorCard(message) {
 /* Global error boundaries */
 window.onerror = function(msg, src, line, col, err) {
   console.error('Global error:', msg, err);
-  showErrorCard('Please re-import your file or restart the app.');
+  showErrorCard(t('global_error.generic'));
 };
 
 window.addEventListener('unhandledrejection', function(e) {
   console.error('Unhandled rejection:', e.reason);
-  showErrorCard('Please re-import your file or restart the app.');
+  showErrorCard(t('global_error.generic'));
   e.preventDefault();
 });
 
 /* Boot sequence */
 document.addEventListener('DOMContentLoaded', async function() {
+  await FlowReadI18n.init();
+
+  /* Update the static loading overlay text that was rendered before i18n loaded */
+  const loadingMsg = document.getElementById('loading-message');
+  if (loadingMsg) loadingMsg.textContent = t('loading.default');
+
   const settings = typeof getSettings === 'function' ? getSettings() : {};
   AppState.settings = settings;
   AppState.wpm = settings.defaultWpm || loadWPM();
@@ -90,7 +96,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
   } catch (err) {
     console.error('Boot error:', err);
-    showErrorCard('The app failed to start. Please restart.');
+    showErrorCard(t('global_error.boot_failed'));
     return;
   }
 

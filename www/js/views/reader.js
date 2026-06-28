@@ -46,41 +46,41 @@ function renderReader(options) {
     <div class="reader-header" id="reader-header">
       <button class="btn btn-ghost reader-back" id="btn-reader-back">←</button>
       <p class="reader-filename">${escapeHtml(file.name)}</p>
-      <button class="btn btn-ghost reader-calm-toggle" id="btn-reader-calm">Calm</button>
-      <button class="btn btn-ghost reader-index-toggle" id="btn-reader-index">Index</button>
+      <button class="btn btn-ghost reader-calm-toggle" id="btn-reader-calm">${t('reader.btn.calm')}</button>
+      <button class="btn btn-ghost reader-index-toggle" id="btn-reader-index">${t('reader.btn.index')}</button>
     </div>
 
     <div class="engine-tabs" id="engine-tabs">
-      <button class="engine-tab" data-engine="rsvp">RSVP</button>
-      <button class="engine-tab" data-engine="chunk">Chunk</button>
-      <button class="engine-tab" data-engine="focus">Focus</button>
-      <button class="engine-tab" data-engine="scroll">Scroll</button>
+      <button class="engine-tab" data-engine="rsvp">${t('reader.engine.rsvp')}</button>
+      <button class="engine-tab" data-engine="chunk">${t('reader.engine.chunk')}</button>
+      <button class="engine-tab" data-engine="focus">${t('reader.engine.focus')}</button>
+      <button class="engine-tab" data-engine="scroll">${t('reader.engine.scroll')}</button>
     </div>
 
     <div id="rsvp-container" class="engine-container"></div>
-    ${hasPdfBridge ? '<button class="reader-normal-toggle" id="btn-open-normal" title="Open matching PDF page">PDF</button>' : ''}
-    ${hasPdfLazy ? '<button class="reader-normal-toggle" id="btn-open-normal-lazy" title="Open matching PDF page">PDF</button>' : ''}
-    ${hasPdfDataOnly ? '<button class="reader-normal-toggle reader-normal-toggle-disabled" id="btn-open-normal-hint" title="Re-import PDF to enable Normal View">PDF</button>' : ''}
-    ${hasUrlSource ? '<button class="reader-normal-toggle" id="btn-open-source-url" title="Open source article">URL</button>' : ''}
-    ${hasImgSource ? '<button class="reader-normal-toggle" id="btn-open-img-viewer" title="View source images">IMG</button>' : ''}
+    ${hasPdfBridge ? '<button class="reader-normal-toggle" id="btn-open-normal" title="' + t('reader.btn.pdf.title') + '">PDF</button>' : ''}
+    ${hasPdfLazy ? '<button class="reader-normal-toggle" id="btn-open-normal-lazy" title="' + t('reader.btn.pdf.title') + '">PDF</button>' : ''}
+    ${hasPdfDataOnly ? '<button class="reader-normal-toggle reader-normal-toggle-disabled" id="btn-open-normal-hint" title="' + t('reader.btn.pdf_hint.title') + '">PDF</button>' : ''}
+    ${hasUrlSource ? '<button class="reader-normal-toggle" id="btn-open-source-url" title="' + t('reader.btn.url.title') + '">URL</button>' : ''}
+    ${hasImgSource ? '<button class="reader-normal-toggle" id="btn-open-img-viewer" title="' + t('reader.btn.img.title') + '">IMG</button>' : ''}
 
     <aside class="reader-index-panel hidden" id="reader-index-panel">
       <div class="reader-index-head">
-        <p class="reader-index-title">Index</p>
+        <p class="reader-index-title">${t('reader.index.title')}</p>
         <button class="btn btn-ghost" id="btn-close-index">×</button>
       </div>
 
       <div class="reader-index-seek">
-        <label for="reader-seek-slider">Position</label>
+        <label for="reader-seek-slider">${t('reader.index.position_label')}</label>
         <input type="range" id="reader-seek-slider" min="0" max="${Math.max(0, file.words.length - 1)}" value="${startIndex}" />
         <div class="reader-index-seek-row">
           <span class="reader-index-seek-text" id="reader-seek-text"></span>
-          <button class="btn btn-primary" id="btn-reader-seek-go">Go</button>
+          <button class="btn btn-primary" id="btn-reader-seek-go">${t('reader.index.btn.go')}</button>
         </div>
       </div>
 
       <div class="reader-index-search">
-        <input type="search" id="reader-index-search" class="reader-index-search-input" placeholder="Search chapters" />
+        <input type="search" id="reader-index-search" class="reader-index-search-input" placeholder="${t('reader.index.search.placeholder')}" />
       </div>
 
       <div class="reader-index-list" id="reader-index-list"></div>
@@ -122,7 +122,7 @@ function renderReader(options) {
       _activeEngine.init(file.words, startIndex);
     } catch (err) {
       console.error('Engine init failed:', err);
-      if (typeof showErrorCard === 'function') showErrorCard('Something went wrong — please re-import the file.');
+      if (typeof showErrorCard === 'function') showErrorCard(t('reader.error.engine_failed'));
       return;
     }
     if (opts.autoPlay) {
@@ -142,7 +142,7 @@ function renderReader(options) {
   }
 
   if (startIndex > 0 && !opts.silentResume) {
-    showToast('Resuming from word ' + formatNumber(startIndex) + ' — tap Start Over to reset', 5000);
+    showToast(t('toast.resume', {n: formatNumber(startIndex)}), 5000);
   }
 
   _bindReaderControls();
@@ -219,7 +219,7 @@ function _bindReaderControls() {
   const normalHintButton = qs('#btn-open-normal-hint');
   if (normalHintButton) {
     normalHintButton.addEventListener('click', function() {
-      showToast('Re-import this PDF to enable Normal View.');
+      showToast(t('toast.reimport_normal_view'));
     });
   }
 
@@ -230,12 +230,12 @@ function _bindReaderControls() {
         AppState.currentIndex = _activeEngine.getIndex();
         _activeEngine.pause();
       }
-      showLoading('Loading PDF…');
+      showLoading(t('loading.loading_pdf'));
       try {
         const buf = await loadRawPdf(AppState.currentFile.id);
         if (!buf) {
           hideLoading();
-          showToast('PDF data missing. Please re-import.');
+          showToast(t('toast.pdf_missing'));
           return;
         }
         const result = await parsePDF(buf);
@@ -247,7 +247,7 @@ function _bindReaderControls() {
       } catch (err) {
         console.error('Lazy PDF load failed:', err);
         hideLoading();
-        showToast('Could not open PDF. Please re-import.');
+        showToast(t('toast.pdf_open_failed'));
       }
     });
   }
@@ -262,7 +262,7 @@ function _bindReaderControls() {
       }
       /* AppState.currentFile is used here — file is not in scope (_bindReaderControls is separate from renderReader) */
       const url = AppState.currentFile && AppState.currentFile.sourceUrl;
-      if (!url) { showToast('Source URL not available.'); return; }
+      if (!url) { showToast(t('toast.source_url_unavailable')); return; }
       window.open(url, '_blank');
     });
   }
@@ -276,7 +276,7 @@ function _bindReaderControls() {
         _activeEngine.pause();
       }
       const urls = AppState.currentFile && AppState.currentFile.imageDataUrls;
-      if (!urls || !urls.length) { showToast('Source images not available. Re-import the file to view them.'); return; }
+      if (!urls || !urls.length) { showToast(t('toast.images_unavailable')); return; }
       showImageViewer(urls);
     });
   }
@@ -477,7 +477,7 @@ function _renderIndexList(query) {
   });
 
   if (chapters.length === 0) {
-    list.innerHTML = '<p class="reader-index-empty">No chapters detected for this document.</p>';
+    list.innerHTML = '<p class="reader-index-empty">' + t('reader.index.empty') + '</p>';
     return;
   }
 
@@ -664,7 +664,7 @@ function _switchEngine(key) {
       _syncReaderPosition(currentIndex, AppState.currentFile.words.length);
     } catch (err) {
       console.error('Engine switch failed:', err);
-      if (typeof showErrorCard === 'function') showErrorCard('Something went wrong — please re-import the file.');
+      if (typeof showErrorCard === 'function') showErrorCard(t('reader.error.engine_failed'));
       return;
     } finally {
       if (skipLoadingCard) {
@@ -688,61 +688,40 @@ function _showEngineLoadingCard(container, key, prevKey) {
 }
 
 /* Rotating speed-reading facts shown during the first-build wait.
-   Some are engine-specific; the generic ones can appear for any engine. */
-const _LOADING_FACTS_GENERIC = [
-  'The average adult reads at 200–250 WPM. With training, 400–600 WPM is comfortable.',
-  'Speed reading reduces "saccades" — the rapid eye jumps between words that slow you down.',
-  'Sub-vocalization (silently saying words in your head) caps you around 300 WPM. Beating it is the next jump.',
-  'Comprehension typically drops above 600 WPM. Find your sweet spot.',
-  'The Guinness record for reading is over 1,000 WPM with full comprehension.',
-  'Only about 4% of your reading time is spent absorbing meaning — the rest is eye movement.',
-  'Your eye fixates on a word for ~250ms. Speed reading shortens this window.',
-  'Reading in larger chunks (4–7 words at once) can double your speed without losing meaning.',
-  'A page of dense prose averages ~250 words. Knowing this helps you pace yourself.',
-  'Skimming and speed reading are different — speed reading aims for full comprehension.',
-  'The Optimal Recognition Point (ORP) sits at ~33% of each word, where your eye naturally rests.',
-  'Most people regress 5–15% of the time, re-reading what they already read. Speed modes prevent this.',
-  'Reading on screen is ~25% slower than reading on paper, on average — focus modes close the gap.',
-];
-
-const _LOADING_FACTS_FOCUS = [
-  'Focus highlights the first 40% of each word — your brain fills in the rest from context.',
-  'Bolded prefixes act as visual anchors, helping your eye land precisely on each word.',
-  'The first letters of a word carry more information than the last. Focus mode leans into this.',
-  'Tap a [Tap to view…] placeholder in Focus to see the original image, table, or equation.',
-];
-
-const _LOADING_FACTS_SCROLL = [
-  'Scroll mode is a teleprompter — text flows past while your eyes stay still.',
-  'The yellow centre line is your fixation point. Let words come to you.',
-  'Adjust speed independently of WPM in Scroll mode — handy for skimming.',
-  'Scroll uses GPU-accelerated transforms, so it stays smooth even on long documents.',
-];
+   Indices into the i18n loading_fact.N keys below. */
+const _LOADING_FACT_GENERIC_INDICES = [0,1,2,3,4,5,6,7,8,9,10,11,12];
+const _LOADING_FACT_FOCUS_INDICES   = [13,14,15,16];
+const _LOADING_FACT_SCROLL_INDICES  = [17,18,19,20];
 
 function _pickLoadingFact(engineKey) {
-  let pool = _LOADING_FACTS_GENERIC.slice();
-  if (engineKey === 'focus') pool = pool.concat(_LOADING_FACTS_FOCUS);
-  else if (engineKey === 'scroll') pool = pool.concat(_LOADING_FACTS_SCROLL);
-  return pool[Math.floor(Math.random() * pool.length)];
+  let pool = _LOADING_FACT_GENERIC_INDICES.slice();
+  if (engineKey === 'focus') pool = pool.concat(_LOADING_FACT_FOCUS_INDICES);
+  else if (engineKey === 'scroll') pool = pool.concat(_LOADING_FACT_SCROLL_INDICES);
+  return t('loading_fact.' + pool[Math.floor(Math.random() * pool.length)]);
 }
 
 function _renderEngineLoadingCard(key, prevKey) {
   const file = AppState.currentFile;
   const titles = {
-    focus: 'Building Focus Mode',
-    scroll: 'Setting up the teleprompter',
-    rsvp: 'Loading RSVP',
-    chunk: 'Loading Chunk',
+    focus: t('engine_loading.title.focus'),
+    scroll: t('engine_loading.title.scroll'),
+    rsvp: t('engine_loading.title.rsvp'),
+    chunk: t('engine_loading.title.chunk'),
   };
   const subtitles = {
-    focus: 'Bolding word anchors and laying out pages…',
-    scroll: 'Preparing a continuous text flow for you to glide through…',
+    focus: t('engine_loading.subtitle.focus'),
+    scroll: t('engine_loading.subtitle.scroll'),
     rsvp: '',
     chunk: '',
   };
-  const labels = { focus: 'Focus', scroll: 'Scroll', rsvp: 'RSVP', chunk: 'Chunk' };
+  const labels = {
+    focus: t('reader.engine.focus'),
+    scroll: t('reader.engine.scroll'),
+    rsvp: t('reader.engine.rsvp'),
+    chunk: t('reader.engine.chunk'),
+  };
 
-  const title = titles[key] || 'Loading';
+  const title = titles[key] || t('engine_loading.title.default');
   const subtitle = subtitles[key] || '';
   const tip = _pickLoadingFact(key);
   const pageCount = (file && file.metadata && file.metadata.pageCount) || 0;
@@ -765,7 +744,7 @@ function _renderEngineLoadingCard(key, prevKey) {
         '</div>',
         '<div class="engine-loading-pct" id="engine-loading-pct">0%</div>',
         tip ? '<div class="engine-loading-tip">' + escapeHtml(tip) + '</div>' : '',
-        showCancel ? '<button class="engine-loading-cancel" id="engine-loading-cancel" type="button">Cancel — stay in ' + escapeHtml(prevLabel) + '</button>' : '',
+        showCancel ? '<button class="engine-loading-cancel" id="engine-loading-cancel" type="button">' + escapeHtml(t('engine_loading.cancel', {prevLabel: prevLabel})) + '</button>' : '',
       '</div>',
     '</div>',
   ].join('');
@@ -795,7 +774,7 @@ function showImageViewer(imageDataUrls) {
 
   const title = document.createElement('p');
   title.className = 'img-viewer-title';
-  title.textContent = 'Source images (' + imageDataUrls.length + ')';
+  title.textContent = t('image_viewer.title', {n: imageDataUrls.length});
 
   const closeBtn = document.createElement('button');
   closeBtn.className = 'btn btn-ghost img-viewer-close';
@@ -814,7 +793,7 @@ function showImageViewer(imageDataUrls) {
   imageDataUrls.forEach(function(url, i) {
     const img = document.createElement('img');
     img.src = url;
-    img.alt = 'Image ' + (i + 1);
+    img.alt = t('image_viewer.img.alt', {n: i + 1});
     img.className = 'img-viewer-image';
     scroll.appendChild(img);
   });

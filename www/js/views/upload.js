@@ -8,11 +8,11 @@ function renderUpload() {
       <header class="upload-header upload-header-wide">
         <div>
           <h1 class="app-name">FlowRead</h1>
-          <p class="app-tagline">Read everything faster</p>
+          <p class="app-tagline">${t('upload.tagline')}</p>
         </div>
         <div class="upload-header-actions">
-          <button class="btn btn-ghost" id="btn-scroll-library" type="button">Library</button>
-          <button class="btn btn-ghost" id="btn-open-settings-top" type="button">Settings</button>
+          <button class="btn btn-ghost" id="btn-scroll-library" type="button">${t('btn.library')}</button>
+          <button class="btn btn-ghost" id="btn-open-settings-top" type="button">${t('btn.settings')}</button>
         </div>
       </header>
 
@@ -20,69 +20,69 @@ function renderUpload() {
         <!-- Row 1: PDF | Paste Text (always free, no badge needed) -->
         <button class="import-card" id="upload-zone" role="button" tabindex="0" aria-label="Open PDF">
           <span class="import-card-head">
-            <strong>PDF Reader</strong>
+            <strong>${t('upload.card.pdf.title')}</strong>
           </span>
-          <span class="import-card-body">Tap to open PDF files. All 4 reading engines included.</span>
+          <span class="import-card-body">${t('upload.card.pdf.body')}</span>
         </button>
 
         <button class="import-card" id="btn-paste-reader" type="button">
           <span class="import-card-head">
-            <strong>Paste Text</strong>
+            <strong>${t('upload.card.paste.title')}</strong>
           </span>
-          <span class="import-card-body">Paste or type any text and read it with all 4 engines.</span>
+          <span class="import-card-body">${t('upload.card.paste.body')}</span>
         </button>
 
         <!-- Row 2: Scan | URL Reader -->
         <button class="import-card import-card-locked" id="btn-image-reader" type="button">
           <span class="import-card-head">
-            <strong>Scan</strong>
-            <span class="import-badge import-badge-lock" id="scan-badge">🔒 Add-on</span>
+            <strong>${t('upload.card.scan.title')}</strong>
+            <span class="import-badge import-badge-lock" id="scan-badge">${t('upload.card.scan.badge_locked')}</span>
           </span>
-          <span class="import-card-body">Take a photo or pick images. OCR extracts the text on-device.</span>
+          <span class="import-card-body">${t('upload.card.scan.body')}</span>
         </button>
 
         <button class="import-card import-card-locked" id="btn-url-reader" type="button">
           <span class="import-card-head">
-            <strong>URL Reader</strong>
-            <span class="import-badge import-badge-lock" id="url-reader-badge">🔒 Pro</span>
+            <strong>${t('upload.card.url.title')}</strong>
+            <span class="import-badge import-badge-lock" id="url-reader-badge">${t('upload.card.url.badge_locked')}</span>
           </span>
-          <span class="import-card-body">Paste an article URL. Requires internet.</span>
+          <span class="import-card-body">${t('upload.card.url.body')}</span>
         </button>
 
         <!-- Row 3: DOCX | TXT -->
         <button class="import-card import-card-locked" id="btn-docx-reader" type="button">
           <span class="import-card-head">
-            <strong>DOCX Import</strong>
-            <span class="import-badge import-badge-lock" id="docx-badge">🔒 Pro</span>
+            <strong>${t('upload.card.docx.title')}</strong>
+            <span class="import-badge import-badge-lock" id="docx-badge">${t('upload.card.docx.badge')}</span>
           </span>
-          <span class="import-card-body">Word documents with the same reading engines.</span>
+          <span class="import-card-body">${t('upload.card.docx.body')}</span>
         </button>
 
         <button class="import-card import-card-locked" id="btn-txt-reader" type="button">
           <span class="import-card-head">
-            <strong>TXT Import</strong>
-            <span class="import-badge import-badge-lock" id="txt-badge">🔒 Pro</span>
+            <strong>${t('upload.card.txt.title')}</strong>
+            <span class="import-badge import-badge-lock" id="txt-badge">${t('upload.card.txt.badge')}</span>
           </span>
-          <span class="import-card-body">Plain text import for notes and drafts.</span>
+          <span class="import-card-body">${t('upload.card.txt.body')}</span>
         </button>
 
         <!-- Row 4: Dashboard (full-width) -->
         <button class="import-card import-card-featured import-card-locked" id="btn-dashboard" type="button">
           <span class="import-card-head">
-            <strong>Dashboard</strong>
-            <span class="import-badge import-badge-lock" id="dashboard-badge">🔒 Pro</span>
+            <strong>${t('upload.card.dashboard.title')}</strong>
+            <span class="import-badge import-badge-lock" id="dashboard-badge">${t('upload.card.dashboard.badge_locked')}</span>
           </span>
-          <span class="import-card-body">Reading stats, streaks, and future analytics.</span>
+          <span class="import-card-body">${t('upload.card.dashboard.body')}</span>
         </button>
       </div>
 
       <section class="url-panel hidden" id="url-panel">
-        <label class="url-panel-label" for="url-input">Paste article URL</label>
+        <label class="url-panel-label" for="url-input">${t('upload.url_panel.label')}</label>
         <div class="url-panel-row">
-          <input class="url-input" id="url-input" type="url" inputmode="url" placeholder="https://example.com/article" />
-          <button class="btn btn-primary" id="btn-import-url" type="button">Import</button>
+          <input class="url-input" id="url-input" type="url" inputmode="url" placeholder="${t('upload.url_panel.placeholder')}" />
+          <button class="btn btn-primary" id="btn-import-url" type="button">${t('upload.url_panel.btn')}</button>
         </div>
-        <p class="url-panel-note">Pro feature. Requires internet. Parsing stays on this device.</p>
+        <p class="url-panel-note">${t('upload.url_panel.note')}</p>
       </section>
 
       <input type="file" id="file-input" accept=".pdf" style="display:none" />
@@ -98,9 +98,9 @@ function renderUpload() {
       </div>
 
       <footer class="upload-footer">
-        <button class="btn btn-ghost" id="btn-sync-files">Sync files</button>
-        <button class="btn btn-ghost" id="btn-open-settings">Settings</button>
-        <button class="btn btn-ghost" id="btn-open-limitations">Limitations</button>
+        <button class="btn btn-ghost" id="btn-sync-files">${t('btn.sync_files')}</button>
+        <button class="btn btn-ghost" id="btn-open-settings">${t('btn.settings')}</button>
+        <button class="btn btn-ghost" id="btn-open-limitations">${t('btn.limitations')}</button>
       </footer>
     </div>
   `;
@@ -180,12 +180,12 @@ async function hydrateUploadSurface() {
   if (!button || !badge || !panel) return;
 
   if (pro) {
-    badge.textContent = 'Online';
+    badge.textContent = t('upload.card.url.badge_unlocked');
     badge.classList.remove('import-badge-lock');
     button.classList.remove('import-card-locked');
     button.classList.add('import-card-live');
   } else {
-    badge.textContent = '🔒 Pro';
+    badge.textContent = t('upload.card.url.badge_locked');
     badge.classList.add('import-badge-lock');
     panel.classList.add('hidden');
     button.classList.remove('import-card-live');
@@ -247,7 +247,7 @@ async function hydrateUploadSurface() {
       dashboardCard.classList.remove('import-card-locked');
       dashboardCard.classList.add('import-card-live');
       const badge = dashboardCard.querySelector('.import-badge');
-      if (badge) { badge.textContent = 'Analytics'; badge.classList.remove('import-badge-lock'); }
+      if (badge) { badge.textContent = t('upload.card.dashboard.badge_unlocked'); badge.classList.remove('import-badge-lock'); }
     }
   } else {
     if (docxCard) docxCard.classList.add('import-card-locked');
@@ -260,7 +260,7 @@ async function hydrateUploadSurface() {
       imageCard.classList.remove('import-card-locked');
       imageCard.classList.add('import-card-live');
       const badge = imageCard.querySelector('.import-badge');
-      if (badge) { badge.textContent = 'On-Device'; badge.classList.remove('import-badge-lock'); }
+      if (badge) { badge.textContent = t('upload.card.scan.badge_unlocked'); badge.classList.remove('import-badge-lock'); }
     } else {
       imageCard.classList.add('import-card-locked');
     }
@@ -272,16 +272,16 @@ function openPasteText() {
     <div class="paste-modal-overlay" id="paste-modal-overlay">
       <div class="paste-modal">
         <div class="paste-modal-header">
-          <p class="paste-modal-title">Paste or type text</p>
+          <p class="paste-modal-title">${t('paste_modal.title')}</p>
           <button class="btn btn-ghost paste-modal-close" id="paste-modal-close" type="button">×</button>
         </div>
         <div class="paste-modal-body">
-          <input type="text" id="paste-title-input" class="paste-title-input" placeholder="Untitled paste (optional)" />
-          <textarea id="paste-text-input" class="paste-text-input" placeholder="Paste or type text here…" spellcheck="true"></textarea>
+          <input type="text" id="paste-title-input" class="paste-title-input" placeholder="${t('paste_modal.title_placeholder')}" />
+          <textarea id="paste-text-input" class="paste-text-input" placeholder="${t('paste_modal.text_placeholder')}" spellcheck="true"></textarea>
         </div>
         <div class="paste-modal-footer">
-          <button class="btn btn-secondary" id="paste-modal-cancel" type="button">Cancel</button>
-          <button class="btn btn-primary" id="paste-modal-read" type="button">Read Now</button>
+          <button class="btn btn-secondary" id="paste-modal-cancel" type="button">${t('btn.cancel')}</button>
+          <button class="btn btn-primary" id="paste-modal-read" type="button">${t('btn.read_now')}</button>
         </div>
       </div>
     </div>
@@ -304,11 +304,11 @@ function openPasteText() {
   });
 
   qs('#paste-modal-read').addEventListener('click', function() {
-    const title = titleInput.value.trim() || 'Pasted text';
+    const title = titleInput.value.trim() || t('paste_modal.default_title');
     const text = textInput.value.trim();
 
     if (text.length < 10) {
-      showToast('Please paste at least 10 characters to read.');
+      showToast(t('paste_modal.error.too_short'));
       return;
     }
 
@@ -337,16 +337,16 @@ async function openUrlReader() {
 
 async function handleFileSelect(file) {
   if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
-    showUploadError('Unsupported file', 'Please select a PDF file (.pdf).');
+    showUploadError(t('upload_error.unsupported_file.title'), t('upload_error.unsupported_file.pdf.msg'));
     return;
   }
 
   clearUploadError();
-  showLoading('Reading PDF...');
+  showLoading(t('loading.reading_pdf'));
 
   window._pdfParseProgress = function(current, total) {
     const msg = qs('#loading-message');
-    if (msg) msg.textContent = 'Processing page ' + current + ' of ' + total + '...';
+    if (msg) msg.textContent = t('loading.processing_page', {current: current, total: total});
   };
 
   try {
@@ -368,12 +368,12 @@ async function handleFileSelect(file) {
         return;
       }
       /* Run OCR on the scanned PDF */
-      showLoading('Running OCR…');
-      showToast('Keep FlowRead open while scanning — backgrounding pauses OCR.');
+      showLoading(t('loading.running_ocr'));
+      showToast(t('toast.ocr_keep_open'));
       acquireWakeLock();
       window._pdfParseProgress = function(current, total) {
         const msg = qs('#loading-message');
-        if (msg) msg.textContent = 'OCR page ' + current + ' of ' + total + '…';
+        if (msg) msg.textContent = t('loading.ocr_page', {current: current, total: total});
       };
       let ocrResult;
       try {
@@ -382,14 +382,14 @@ async function handleFileSelect(file) {
         hideLoading();
         releaseWakeLock();
         window._pdfParseProgress = null;
-        showUploadError('OCR failed', 'Could not extract text from this PDF. Try a higher-quality scan or re-import.');
+        showUploadError(t('upload_error.ocr_failed.title'), t('upload_error.ocr_failed.msg'));
         return;
       }
       if (!ocrResult.metadata.wordCount) {
         hideLoading();
         releaseWakeLock();
         window._pdfParseProgress = null;
-        showUploadError('No text found', 'OCR ran but could not find readable text. The scan may be too low quality.');
+        showUploadError(t('upload_error.no_text.title'), t('upload_error.no_text.msg'));
         return;
       }
       /* Swap in OCR result and continue the normal import flow */
@@ -444,16 +444,16 @@ async function handleFileSelect(file) {
     console.error('PDF parse error — type:', err && err.type, '| detail:', err && err.detail, '| raw:', err);
 
     if (err && err.type === 'password') {
-      showUploadError('Password-protected PDF', 'This PDF is password-protected. Please remove the password and re-import.');
+      showUploadError(t('upload_error.password.title'), t('upload_error.password.msg'));
       return;
     }
 
     if (err && err.type === 'corrupted') {
-      showUploadError('Corrupted PDF', 'This file appears to be damaged. Try opening it in another PDF viewer to confirm it is readable. Detail: ' + (err.detail || 'unknown') + '.');
+      showUploadError(t('upload_error.corrupted.title'), t('upload_error.corrupted.msg', {detail: err.detail || 'unknown'}));
       return;
     }
 
-    showUploadError('PDF import failed', 'Could not read this PDF. Error: ' + (err && (err.message || err.detail || JSON.stringify(err))));
+    showUploadError(t('upload_error.pdf_failed.title'), t('upload_error.pdf_failed.msg', {err: String(err && (err.message || err.detail || JSON.stringify(err)))}));
   }
 }
 
@@ -461,11 +461,11 @@ async function handleFileSelect(file) {
    instead of a File object. Runs the same import + open flow as handleFileSelect. */
 async function handlePdfFromIntent(arrayBuffer, fileName) {
   clearUploadError();
-  showLoading('Reading PDF...');
+  showLoading(t('loading.reading_pdf'));
 
   window._pdfParseProgress = function(current, total) {
     const msg = qs('#loading-message');
-    if (msg) msg.textContent = 'Processing page ' + current + ' of ' + total + '...';
+    if (msg) msg.textContent = t('loading.processing_page', {current: current, total: total});
   };
 
   try {
@@ -483,12 +483,12 @@ async function handlePdfFromIntent(arrayBuffer, fileName) {
         }
         return;
       }
-      showLoading('Running OCR…');
-      showToast('Keep FlowRead open while scanning — backgrounding pauses OCR.');
+      showLoading(t('loading.running_ocr'));
+      showToast(t('toast.ocr_keep_open'));
       acquireWakeLock();
       window._pdfParseProgress = function(current, total) {
         const msg = qs('#loading-message');
-        if (msg) msg.textContent = 'OCR page ' + current + ' of ' + total + '…';
+        if (msg) msg.textContent = t('loading.ocr_page', {current: current, total: total});
       };
       let ocrResult;
       try {
@@ -497,14 +497,14 @@ async function handlePdfFromIntent(arrayBuffer, fileName) {
         hideLoading();
         releaseWakeLock();
         window._pdfParseProgress = null;
-        showUploadError('OCR failed', 'Could not extract text from this PDF.');
+        showUploadError(t('upload_error.ocr_failed.title'), t('upload_error.ocr_failed.intent.msg'));
         return;
       }
       if (!ocrResult.metadata.wordCount) {
         hideLoading();
         releaseWakeLock();
         window._pdfParseProgress = null;
-        showUploadError('No text found', 'OCR ran but could not find readable text.');
+        showUploadError(t('upload_error.no_text.title'), t('upload_error.no_text.pdf.msg'));
         return;
       }
       result.words = ocrResult.words;
@@ -555,14 +555,14 @@ async function handlePdfFromIntent(arrayBuffer, fileName) {
     console.error('PDF intent import error:', err);
 
     if (err && err.type === 'password') {
-      showUploadError('Password-protected PDF', 'This PDF is password-protected. Please remove the password and re-import.');
+      showUploadError(t('upload_error.password.title'), t('upload_error.password.msg'));
       return;
     }
     if (err && err.type === 'corrupted') {
-      showUploadError('Corrupted PDF', 'This file appears to be damaged. Detail: ' + (err.detail || 'unknown') + '.');
+      showUploadError(t('upload_error.corrupted.title'), t('upload_error.corrupted.intent.msg', {detail: err.detail || 'unknown'}));
       return;
     }
-    showUploadError('PDF import failed', 'Could not read this PDF. Error: ' + (err && (err.message || err.detail || JSON.stringify(err))));
+    showUploadError(t('upload_error.pdf_failed.title'), t('upload_error.pdf_failed.msg', {err: String(err && (err.message || err.detail || JSON.stringify(err)))}));
   }
 }
 
@@ -578,11 +578,11 @@ async function handleUrlImport(rawUrl) {
   }
 
   if (navigator.onLine === false) {
-    showErrorModal('No internet connection', 'URL Reader requires internet for the initial fetch. Connect to the internet and try again.');
+    showErrorModal(t('error_modal.no_internet.title'), t('error_modal.no_internet.msg'));
     return;
   }
 
-  showLoading('Fetching article...');
+  showLoading(t('loading.fetching_article'));
 
   try {
     const article = await fetchReadableArticle(parsedUrl);
@@ -636,11 +636,11 @@ function validateArticleUrl(rawUrl) {
   try {
     parsed = new URL((rawUrl || '').trim());
   } catch (_) {
-    throw new Error('Enter a full article URL that starts with http:// or https://.');
+    throw new Error(t('url_error.invalid_url.http_only'));
   }
 
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new Error('Only http:// and https:// article URLs are supported.');
+    throw new Error(t('url_error.invalid_url.protocol'));
   }
 
   return parsed.toString();
@@ -828,52 +828,14 @@ function containsLoginLanguage(text) {
 function normalizeUrlImportError(err) {
   const code = err && err.code;
 
-  if (code === 'timed-out') {
-    return {
-      title: 'Request timed out',
-      message: 'The site took too long to respond. Try again on a stronger connection or try a different article.',
-    };
-  }
+  if (code === 'timed-out') return { title: t('url_error.timed_out.title'), message: t('url_error.timed_out.msg') };
+  if (code === 'blocked') return { title: t('url_error.blocked.title'), message: t('url_error.blocked.msg') };
+  if (code === 'paywalled') return { title: t('url_error.paywalled.title'), message: t('url_error.paywalled.msg') };
+  if (code === 'login-required') return { title: t('url_error.login_required.title'), message: t('url_error.login_required.msg') };
+  if (code === 'unsupported-structure') return { title: t('url_error.unsupported_structure.title'), message: t('url_error.unsupported_structure.msg') };
+  if (code === 'empty-extraction') return { title: t('url_error.empty_extraction.title'), message: t('url_error.empty_extraction.msg') };
 
-  if (code === 'blocked') {
-    return {
-      title: 'Blocked by site',
-      message: 'This site denied direct fetching from the app, or the WebView could not access it. Some sites block import even when internet is available.',
-    };
-  }
-
-  if (code === 'paywalled') {
-    return {
-      title: 'Paywalled article',
-      message: 'This article appears to be behind a paywall or subscriber gate, so FlowRead cannot import the readable text.',
-    };
-  }
-
-  if (code === 'login-required') {
-    return {
-      title: 'Login required',
-      message: 'This page appears to require signing in before the article text is available.',
-    };
-  }
-
-  if (code === 'unsupported-structure') {
-    return {
-      title: 'Unsupported page structure',
-      message: 'FlowRead fetched the page but could not find a stable article body to import. Some site layouts are not supported yet.',
-    };
-  }
-
-  if (code === 'empty-extraction') {
-    return {
-      title: 'No readable article text found',
-      message: 'The page loaded, but FlowRead could not extract enough readable text to start the reader.',
-    };
-  }
-
-  return {
-    title: 'URL import failed',
-    message: 'FlowRead could not import this URL. Try another article or a direct article page instead.',
-  };
+  return { title: t('url_error.default.title'), message: t('url_error.default.msg') };
 }
 
 function readFileAsArrayBuffer(file) {
@@ -899,7 +861,7 @@ function showUploadError(title, message, options) {
       <p>${escapeHtml(message)}</p>
       <div class="error-card-actions">
         ${actionHtml}
-        <button class="btn btn-ghost error-dismiss" id="btn-upload-error-dismiss">Dismiss</button>
+        <button class="btn btn-ghost error-dismiss" id="btn-upload-error-dismiss">${t('upload_error.btn.dismiss')}</button>
       </div>
     </div>
   `;
@@ -959,7 +921,7 @@ function showErrorModal(title, message, options) {
 
   const dismissBtn = document.createElement('button');
   dismissBtn.className = 'btn btn-ghost';
-  dismissBtn.textContent = 'Dismiss';
+  dismissBtn.textContent = t('error_modal.btn.dismiss');
 
   function close() {
     if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
@@ -987,9 +949,9 @@ function showErrorModal(title, message, options) {
 
 function showScannedPdfModal() {
   showErrorModal(
-    'Scanned PDF',
-    'This PDF has no text layer — it\'s a scan or image. OCR Vision can extract the text on-device with no internet required.',
-    { actionLabel: 'Unlock OCR Vision', action: function() { showOcrPaywall('scanned-pdf'); } }
+    t('error_modal.scanned_pdf.title'),
+    t('error_modal.scanned_pdf.msg'),
+    { actionLabel: t('error_modal.scanned_pdf.action'), action: function() { showOcrPaywall('scanned-pdf'); } }
   );
 }
 
@@ -1004,12 +966,12 @@ function showLegacyEncodingBanner() {
   banner.style.cssText = 'position:fixed;top:' + (56 + safeTop) + 'px;left:0;right:0;z-index:9999;background:#1c1c1c;border-bottom:1px solid #2a2a2a;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;color:#e8e4dc';
 
   const msg = document.createElement('span');
-  msg.textContent = 'Text looks wrong? This PDF may need OCR to read correctly.';
+  msg.textContent = t('banner.legacy_encoding.msg');
   msg.style.flex = '1';
 
   const actionBtn = document.createElement('button');
   actionBtn.className = 'btn btn-primary';
-  actionBtn.textContent = 'Fix with OCR';
+  actionBtn.textContent = t('banner.legacy_encoding.btn.fix');
   actionBtn.style.cssText = 'font-size:12px;padding:6px 10px;flex-shrink:0';
   actionBtn.addEventListener('click', async function() {
     banner.remove();
@@ -1020,7 +982,7 @@ function showLegacyEncodingBanner() {
 
   const dismissBtn = document.createElement('button');
   dismissBtn.className = 'btn btn-ghost';
-  dismissBtn.textContent = '✕';
+  dismissBtn.textContent = t('banner.legacy_encoding.btn.dismiss');
   dismissBtn.style.cssText = 'font-size:14px;padding:4px 8px;flex-shrink:0;color:var(--text-muted)';
   dismissBtn.addEventListener('click', function() { banner.remove(); });
 
@@ -1043,9 +1005,9 @@ function showLegacyEncodingBanner() {
 
 function showLegacyEncodingModal() {
   showErrorModal(
-    'Text looks wrong in this PDF',
-    'This PDF\'s text cannot be read directly — it will show garbled characters. OCR Vision can fix this by reading the page visually, the same way you would read a printed page.',
-    { actionLabel: 'Unlock OCR Vision', action: function() { showOcrPaywall('scanned-pdf'); } }
+    t('error_modal.legacy_encoding.title'),
+    t('error_modal.legacy_encoding.msg'),
+    { actionLabel: t('error_modal.legacy_encoding.action'), action: function() { showOcrPaywall('scanned-pdf'); } }
   );
 }
 
@@ -1079,12 +1041,12 @@ async function openDashboard() {
 
 async function handleDocxSelect(file) {
   if (!file.name.toLowerCase().endsWith('.docx') && file.type !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-    showUploadError('Unsupported file', 'Please select a .docx file.');
+    showUploadError(t('upload_error.unsupported_file.title'), t('upload_error.unsupported_file.docx.msg'));
     return;
   }
 
   clearUploadError();
-  showLoading('Reading DOCX...');
+  showLoading(t('loading.reading_docx'));
 
   try {
     const arrayBuffer = await readFileAsArrayBuffer(file);
@@ -1092,7 +1054,7 @@ async function handleDocxSelect(file) {
 
     if (!result.metadata.hasTextLayer) {
       hideLoading();
-      showUploadError('Empty document', 'This DOCX appears to contain no readable text.');
+      showUploadError(t('upload_error.empty_doc.title'), t('upload_error.empty_doc.docx.msg'));
       return;
     }
 
@@ -1126,21 +1088,21 @@ async function handleDocxSelect(file) {
   } catch (err) {
     hideLoading();
     if (err && err.type === 'empty-document') {
-      showUploadError('Empty document', 'This DOCX contains no readable text.');
+      showUploadError(t('upload_error.empty_doc.title'), t('upload_error.empty_doc.docx2.msg'));
       return;
     }
-    showUploadError('DOCX import failed', 'Could not read this file. ' + ((err && err.detail) || (err && err.message) || ''));
+    showUploadError(t('upload_error.docx_failed.title'), t('upload_error.docx_failed.msg', {detail: (err && err.detail) || (err && err.message) || ''}));
   }
 }
 
 async function handleTxtSelect(file) {
   if (!file.name.toLowerCase().endsWith('.txt') && file.type !== 'text/plain') {
-    showUploadError('Unsupported file', 'Please select a .txt file.');
+    showUploadError(t('upload_error.unsupported_file.title'), t('upload_error.unsupported_file.txt.msg'));
     return;
   }
 
   clearUploadError();
-  showLoading('Reading TXT...');
+  showLoading(t('loading.reading_txt'));
 
   try {
     const arrayBuffer = await readFileAsArrayBuffer(file);
@@ -1176,10 +1138,10 @@ async function handleTxtSelect(file) {
   } catch (err) {
     hideLoading();
     if (err && err.type === 'empty-document') {
-      showUploadError('Empty file', 'This TXT file contains no readable text.');
+      showUploadError(t('upload_error.empty_file.title'), t('upload_error.empty_file.msg'));
       return;
     }
-    showUploadError('TXT import failed', 'Could not read this file. ' + ((err && err.detail) || (err && err.message) || ''));
+    showUploadError(t('upload_error.txt_failed.title'), t('upload_error.txt_failed.msg', {detail: (err && err.detail) || (err && err.message) || ''}));
   }
 }
 
@@ -1200,7 +1162,7 @@ async function openImageReader() {
               <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
               <circle cx="12" cy="13" r="4"/>
             </svg>
-            <span>Take Photo</span>
+            <span>${t('action_sheet.take_photo')}</span>
           </button>
           <button class="action-sheet-item" id="action-choose-gallery" type="button">
             <svg class="action-sheet-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -1208,7 +1170,7 @@ async function openImageReader() {
               <circle cx="8.5" cy="8.5" r="1.5"/>
               <polyline points="21 15 16 10 5 21"/>
             </svg>
-            <span>Gallery</span>
+            <span>${t('action_sheet.gallery')}</span>
           </button>
         </div>
         <button class="action-sheet-item action-sheet-item-wide" id="action-choose-pdf" type="button">
@@ -1218,9 +1180,9 @@ async function openImageReader() {
             <line x1="9" y1="13" x2="15" y2="13"/>
             <line x1="9" y1="17" x2="15" y2="17"/>
           </svg>
-          <span>Choose PDF <span style="font-size:12px;color:var(--text-muted);margin-left:6px">Use if your PDF shows garbled or wrong text</span></span>
+          <span>${t('action_sheet.choose_pdf')} <span style="font-size:12px;color:var(--text-muted);margin-left:6px">${t('action_sheet.choose_pdf.hint')}</span></span>
         </button>
-        <button class="action-sheet-cancel" id="action-cancel" type="button">Cancel</button>
+        <button class="action-sheet-cancel" id="action-cancel" type="button">${t('action_sheet.cancel')}</button>
       </div>
     </div>
   `;
@@ -1255,10 +1217,10 @@ async function openImageReader() {
 }
 
 async function handlePdfScanSelect(file) {
-  showLoading('Loading PDF…');
+  showLoading(t('loading.loading_pdf'));
   window._pdfParseProgress = function(current, total) {
     const msg = qs('#loading-message');
-    if (msg) msg.textContent = 'OCR page ' + current + ' of ' + total + '…';
+    if (msg) msg.textContent = t('loading.ocr_page', {current: current, total: total});
   };
 
   try {
@@ -1272,15 +1234,15 @@ async function handlePdfScanSelect(file) {
     } catch (err) {
       hideLoading();
       if (err.name === 'PasswordException' || (err.message && err.message.toLowerCase().includes('password'))) {
-        showUploadError('Password-protected PDF', 'This PDF is password-protected and cannot be opened.');
+        showUploadError(t('upload_error.password.title'), t('upload_error.password_open.msg'));
       } else {
-        showUploadError('Could not open PDF', 'The file may be corrupted or unsupported.');
+        showUploadError(t('upload_error.open_failed.title'), t('upload_error.open_failed.msg'));
       }
       return;
     }
 
-    showLoading('Running OCR…');
-    showToast('Keep FlowRead open while scanning — backgrounding pauses OCR.');
+    showLoading(t('loading.running_ocr'));
+    showToast(t('toast.ocr_keep_open'));
     acquireWakeLock();
     let ocrResult;
     try {
@@ -1289,7 +1251,7 @@ async function handlePdfScanSelect(file) {
       hideLoading();
       releaseWakeLock();
       window._pdfParseProgress = null;
-      showUploadError('OCR failed', 'Could not extract text from this PDF. Try a clearer scan or re-import.');
+      showUploadError(t('upload_error.ocr_failed.title'), t('upload_error.ocr_failed.scan.msg'));
       return;
     }
 
@@ -1297,7 +1259,7 @@ async function handlePdfScanSelect(file) {
       hideLoading();
       releaseWakeLock();
       window._pdfParseProgress = null;
-      showUploadError('No text found', 'OCR ran but could not find readable text. The PDF may be too low quality.');
+      showUploadError(t('upload_error.no_text.title'), t('upload_error.no_text.pdf.msg'));
       return;
     }
 
@@ -1336,20 +1298,20 @@ async function handlePdfScanSelect(file) {
     hideLoading();
     releaseWakeLock();
     window._pdfParseProgress = null;
-    showUploadError('Import failed', 'Could not process this PDF. ' + ((err && err.detail) || (err && err.message) || ''));
+    showUploadError(t('upload_error.import_failed.title'), t('upload_error.import_failed.msg', {detail: (err && err.detail) || (err && err.message) || ''}));
   }
 }
 
 async function capturePhotoWithCamera() {
   if (!window.Capacitor || !Capacitor.isNativePlatform()) {
-    showToast('Camera is only available on native devices.');
+    showToast(t('toast.camera_native_only'));
     return;
   }
 
   try {
     const { Camera } = Capacitor.Plugins;
     if (!Camera || typeof Camera.getPhoto !== 'function') {
-      showToast('Camera plugin not available. Choose from Gallery instead.');
+      showToast(t('toast.camera_plugin_unavailable'));
       return;
     }
 
@@ -1363,7 +1325,7 @@ async function capturePhotoWithCamera() {
     });
 
     if (!photo || !photo.dataUrl) {
-      showToast('Failed to capture photo.');
+      showToast(t('toast.failed_capture'));
       return;
     }
 
@@ -1377,7 +1339,7 @@ async function capturePhotoWithCamera() {
       return;
     }
     console.error('Camera error:', err);
-    showToast('Could not capture photo.');
+    showToast(t('toast.could_not_capture'));
   }
 }
 
@@ -1394,7 +1356,7 @@ function dataUrlToBlob(dataUrl) {
 
 async function handlePasteTextImport(title, text) {
   clearUploadError();
-  showLoading('Processing text…');
+  showLoading(t('loading.processing_text'));
 
   try {
     /* Normalize line endings */
@@ -1456,7 +1418,7 @@ async function handlePasteTextImport(title, text) {
 
     if (words.length < 10) {
       hideLoading();
-      showUploadError('Not enough text', 'Please paste at least 10 words to read.');
+      showUploadError(t('upload_error.not_enough_text.title'), t('upload_error.not_enough_text.msg'));
       return;
     }
 
@@ -1495,7 +1457,7 @@ async function handlePasteTextImport(title, text) {
     switchView('view-reader');
   } catch (err) {
     hideLoading();
-    showUploadError('Error', 'Could not process the pasted text.');
+    showUploadError(t('upload_error.paste_error.title'), t('upload_error.paste_error.msg'));
   }
 }
 
@@ -1504,13 +1466,13 @@ async function handleImageSelect(files) {
   const fileList = Array.prototype.slice.call(files);
 
   clearUploadError();
-  showLoading('Running OCR…');
-  showToast('Keep FlowRead open while scanning — backgrounding pauses OCR.');
+  showLoading(t('loading.running_ocr'));
+  showToast(t('toast.ocr_keep_open'));
   acquireWakeLock();
 
   window._pdfParseProgress = function(current, total) {
     const msg = qs('#loading-message');
-    if (msg) msg.textContent = 'Processing image ' + current + ' of ' + total + '…';
+    if (msg) msg.textContent = t('loading.processing_image', {current: current, total: total});
   };
 
   try {
@@ -1527,7 +1489,7 @@ async function handleImageSelect(files) {
     if (!result.metadata.wordCount) {
       hideLoading();
       releaseWakeLock();
-      showUploadError('No text found', 'OCR could not find readable text in the selected image(s). Try a clearer photo.');
+      showUploadError(t('upload_error.no_text_image.title'), t('upload_error.no_text_image.msg'));
       return;
     }
 
@@ -1568,10 +1530,10 @@ async function handleImageSelect(files) {
     releaseWakeLock();
     window._pdfParseProgress = null;
     if (err && err.type === 'ocr-unavailable') {
-      showUploadError('OCR not available', 'On-device OCR is not available on this device.');
+      showUploadError(t('upload_error.ocr_unavailable.title'), t('upload_error.ocr_unavailable.msg'));
       return;
     }
-    showUploadError('Image import failed', 'Could not process the image(s). ' + ((err && err.detail) || (err && err.message) || ''));
+    showUploadError(t('upload_error.image_failed.title'), t('upload_error.image_failed.msg', {detail: (err && err.detail) || (err && err.message) || ''}));
   }
 }
 
@@ -1595,12 +1557,12 @@ async function renderLibrary() {
 
   if (pro) {
     if (recentLib.length > 0) {
-      sections.push('<section class="library-subsection"><h2 class="library-heading">Recent</h2><div class="library-grid" id="recent-library-grid"></div></section>');
+      sections.push('<section class="library-subsection"><h2 class="library-heading">' + t('library.section.recent') + '</h2><div class="library-grid" id="recent-library-grid"></div></section>');
     }
   } else {
     if (recentLib.length > 0) {
       sections.push('<section class="library-subsection">' + [
-        '<h2 class="library-heading">Recent</h2>',
+        '<h2 class="library-heading">' + t('library.section.recent') + '</h2>',
         '<ul class="library-list">',
         recentLib.map(function(item) {
           const pct = getFileProgress(item);
@@ -1616,8 +1578,8 @@ async function renderLibrary() {
             '<div class="library-progress-fill" style="width:' + pct + '%"></div>',
             '</div></div>',
             '<div class="library-item-actions">',
-            '<button class="btn btn-ghost btn-mark-read" type="button" data-mark-read-id="' + escapeHtml(item.id) + '" data-mark-read-wc="' + (item.wordCount || 0) + '">Mark read</button>',
-            '<button class="btn btn-ghost btn-remove-file" type="button" data-remove-id="' + escapeHtml(item.id) + '">Remove</button>',
+            '<button class="btn btn-ghost btn-mark-read" type="button" data-mark-read-id="' + escapeHtml(item.id) + '" data-mark-read-wc="' + (item.wordCount || 0) + '">' + t('btn.mark_read') + '</button>',
+            '<button class="btn btn-ghost btn-remove-file" type="button" data-remove-id="' + escapeHtml(item.id) + '">' + t('btn.remove') + '</button>',
             '</div>',
             '</li>',
           ].join('');
@@ -1630,7 +1592,7 @@ async function renderLibrary() {
   if (readLib.length > 0) {
     sections.push('<section class="library-subsection library-subsection-read">' + [
       '<button class="library-collapse-toggle" id="btn-read-toggle" type="button" aria-expanded="' + (!readCollapsed) + '">',
-      '<span class="library-heading">Read</span>',
+      '<span class="library-heading">' + t('library.section.read') + '</span>',
       '<span class="library-collapse-count">' + formatNumber(readLib.length) + '</span>',
       '<span class="library-collapse-icon">' + (readCollapsed ? '▸' : '▾') + '</span>',
       '</button>',
@@ -1651,7 +1613,7 @@ async function renderLibrary() {
             '<div class="library-item-progress"><div class="library-progress-bar">',
             '<div class="library-progress-fill" style="width:' + pct + '%"></div>',
             '</div></div>',
-            '<div class="library-item-actions"><button class="btn btn-ghost btn-mark-unread" type="button" data-mark-unread-id="' + escapeHtml(item.id) + '">Mark unread</button></div>',
+            '<div class="library-item-actions"><button class="btn btn-ghost btn-mark-unread" type="button" data-mark-unread-id="' + escapeHtml(item.id) + '">' + t('btn.mark_unread') + '</button></div>',
             '</li>',
           ].join('');
         }).join(''),
@@ -1664,7 +1626,7 @@ async function renderLibrary() {
   if (deviceFiles.length > 0) {
     sections.push('<section class="library-subsection library-subsection-device">' + [
       '<button class="library-collapse-toggle" id="btn-device-toggle" type="button" aria-expanded="' + (!deviceCollapsed) + '">',
-      '<span class="library-heading">Readable files on device</span>',
+      '<span class="library-heading">' + t('library.section.device') + '</span>',
       '<span class="library-collapse-count">' + formatNumber(deviceFiles.length) + '</span>',
       '<span class="library-collapse-icon">' + (deviceCollapsed ? '▸' : '▾') + '</span>',
       '</button>',
@@ -1703,8 +1665,8 @@ async function renderLibrary() {
         '<p class="library-card-meta">' + escapeHtml(formatDate(item.lastOpened)) + (pct > 0 ? ' · ' + pct + '%' : '') + '</p>',
         '<div class="library-card-progress"><div class="library-card-progress-fill" style="width:' + pct + '%"></div></div>',
         '<div class="library-item-actions">',
-        '<button class="btn btn-ghost btn-mark-read" type="button" data-mark-read-id="' + escapeHtml(item.id) + '" data-mark-read-wc="' + (item.wordCount || 0) + '">Mark read</button>',
-        '<button class="btn btn-ghost btn-remove-file" type="button" data-remove-id="' + escapeHtml(item.id) + '">Remove</button>',
+        '<button class="btn btn-ghost btn-mark-read" type="button" data-mark-read-id="' + escapeHtml(item.id) + '" data-mark-read-wc="' + (item.wordCount || 0) + '">' + t('btn.mark_read') + '</button>',
+        '<button class="btn btn-ghost btn-remove-file" type="button" data-remove-id="' + escapeHtml(item.id) + '">' + t('btn.remove') + '</button>',
         '</div>',
       ].join('');
       card.addEventListener('click', function() { resumeFromLibrary(item); });
@@ -1740,7 +1702,7 @@ async function renderLibrary() {
           '<p class="library-card-name">' + escapeHtml(item.name) + '</p>',
           '<p class="library-card-meta">' + escapeHtml(formatDate(item.lastOpened)) + (pct > 0 ? ' · ' + pct + '%' : '') + '</p>',
           '<div class="library-card-progress"><div class="library-card-progress-fill" style="width:' + pct + '%"></div></div>',
-          '<div class="library-item-actions"><button class="btn btn-ghost btn-mark-unread" type="button" data-mark-unread-id="' + escapeHtml(item.id) + '">Mark unread</button></div>',
+          '<div class="library-item-actions"><button class="btn btn-ghost btn-mark-unread" type="button" data-mark-unread-id="' + escapeHtml(item.id) + '">' + t('btn.mark_unread') + '</button></div>',
         ].join('');
         card.addEventListener('click', function() { resumeFromLibrary(item); });
         const unreadBtn = qs('[data-mark-unread-id]', card);
@@ -1844,9 +1806,9 @@ function _confirmRemoveFile(fileId) {
     renderLibrary();
     return;
   }
-  row.innerHTML = '<div class="library-item-confirm"><span>Remove this file?</span>' +
-    '<button class="btn btn-ghost btn-confirm-yes" type="button">Yes, remove</button>' +
-    '<button class="btn btn-ghost btn-confirm-no" type="button">Cancel</button></div>';
+  row.innerHTML = '<div class="library-item-confirm"><span>' + t('library.confirm.remove') + '</span>' +
+    '<button class="btn btn-ghost btn-confirm-yes" type="button">' + t('btn.yes_remove') + '</button>' +
+    '<button class="btn btn-ghost btn-confirm-no" type="button">' + t('btn.cancel') + '</button></div>';
 
   qs('.btn-confirm-yes', row).addEventListener('click', function(event) {
     event.stopPropagation(); /* prevent bubbling to parent library-item click handler */
@@ -1861,12 +1823,12 @@ function _confirmRemoveFile(fileId) {
 
 async function resumeFromLibrary(entry, source) {
   AppState.readerSource = source || 'upload';
-  showLoading('Loading ' + entry.name + '...');
+  showLoading(t('loading.loading_file', {filename: entry.name}));
   try {
     const data = await loadFileData(entry.id);
     if (!data || !data.words || data.words.length === 0) {
       hideLoading();
-      showToast('File not cached — please re-import to read.');
+      showToast(t('toast.file_not_cached'));
       return;
     }
 
@@ -1897,7 +1859,7 @@ async function resumeFromLibrary(entry, source) {
     switchView('view-reader');
   } catch (_) {
     hideLoading();
-    showToast('Could not load file — please re-import.');
+    showToast(t('toast.could_not_load_file'));
   }
 }
 
@@ -1961,7 +1923,7 @@ async function syncDeviceFiles() {
   }
 
   if (!Filesystem || typeof Filesystem.readdir !== 'function') {
-    showToast('File scanning is only available on device — use the file picker instead.');
+    showToast(t('toast.file_scan_unavailable'));
     return;
   }
 
@@ -1974,7 +1936,7 @@ async function syncDeviceFiles() {
     }
   } catch (_) {}
 
-  showLoading('Scanning device files…');
+  showLoading(t('loading.scanning'));
 
   const extensions = pro ? ['.pdf', '.docx', '.txt'] : ['.pdf'];
   const found = [];
@@ -2000,14 +1962,14 @@ async function syncDeviceFiles() {
   hideLoading();
 
   if (found.length === 0) {
-    showToast('No files found. Check that PDFs are in Downloads or Documents.');
+    showToast(t('toast.no_files_found'));
     return;
   }
 
   localStorage.setItem('fr_device_section_collapsed', 'true');
   saveDeviceSyncedFiles(found);
   renderLibrary();
-  showToast(formatNumber(found.length) + ' readable file' + (found.length === 1 ? '' : 's') + ' added to home.');
+  showToast(t('toast.files_added', {n: formatNumber(found.length)}));
 }
 
 async function _syncDeviceFilesNative(DeviceSync, pro) {
@@ -2016,20 +1978,20 @@ async function _syncDeviceFilesNative(DeviceSync, pro) {
   try {
     const access = await DeviceSync.requestAccess();
     if (access && access.openedSettings && !access.granted) {
-      showToast('Allow file access in Android settings, then tap Sync files again.');
+      showToast(t('toast.allow_access_settings'));
       return;
     }
 
     if (access && access.granted === false) {
-      showToast('File access is required to scan device storage.');
+      showToast(t('toast.file_access_required'));
       return;
     }
   } catch (_) {
-    showToast('Could not request file access.');
+    showToast(t('toast.could_not_request_access'));
     return;
   }
 
-  showLoading('Scanning device files…');
+  showLoading(t('loading.scanning'));
 
   try {
     const result = await DeviceSync.scanFiles({
@@ -2040,24 +2002,24 @@ async function _syncDeviceFilesNative(DeviceSync, pro) {
     hideLoading();
 
     if (result && result.accessRequired) {
-      showToast('Allow file access in Android settings, then tap Sync files again.');
+      showToast(t('toast.allow_access_settings'));
       return;
     }
 
     const found = (result && result.files) ? result.files : [];
     if (!found.length) {
-      showToast('No files found in Downloads. For WhatsApp/Telegram PDFs, use "Open with" → FlowRead.');
+      showToast(t('toast.no_files_whatsapp'));
       return;
     }
 
     localStorage.setItem('fr_device_section_collapsed', 'true');
     saveDeviceSyncedFiles(found);
     renderLibrary();
-    showToast(formatNumber(found.length) + ' readable file' + (found.length === 1 ? '' : 's') + ' added to home.');
+    showToast(t('toast.files_added', {n: formatNumber(found.length)}));
   } catch (err) {
     hideLoading();
     console.error('Native device sync failed:', err);
-    showToast('Could not scan device storage.');
+    showToast(t('toast.could_not_scan'));
   }
 }
 
@@ -2080,14 +2042,14 @@ function _showSyncSheet(files, isPro) {
 
   const hasNonPdf = files.some(function(f) { return !f.name.toLowerCase().endsWith('.pdf'); });
   const noteHtml = (!isPro && hasNonPdf)
-    ? '<p class="sync-sheet-note">DOCX and TXT files require Pro.</p>'
+    ? '<p class="sync-sheet-note">' + t('library.sync_note.non_pdf') + '</p>'
     : '';
 
   sheet.innerHTML = [
     '<div class="sync-sheet-backdrop"></div>',
     '<div class="sync-sheet-panel">',
     '<div class="sync-sheet-header">',
-    '<p class="sync-sheet-title">Files found on device</p>',
+    '<p class="sync-sheet-title">' + t('library.sync_sheet.title') + '</p>',
     '<button class="btn btn-ghost" id="btn-sync-close">✕</button>',
     '</div>',
     '<ul class="sync-sheet-list">' + itemsHtml + '</ul>',
@@ -2117,7 +2079,7 @@ async function _importSyncedFile(fileDesc) {
     return;
   }
 
-  showLoading('Reading ' + fileDesc.name + '…');
+  showLoading(t('loading.loading_file', {filename: fileDesc.name}));
   try {
     let result;
     if (fileDesc.path && !fileDesc.dir && DeviceSync && typeof DeviceSync.readFile === 'function') {
@@ -2139,9 +2101,9 @@ async function _importSyncedFile(fileDesc) {
     if (ext === 'pdf') handleFileSelect(syntheticFile);
     else if (ext === 'docx') handleDocxSelect(syntheticFile);
     else if (ext === 'txt') handleTxtSelect(syntheticFile);
-    else showToast('Unsupported file type: ' + ext);
+    else showToast(t('toast.unsupported_type', {ext: ext}));
   } catch (_) {
     hideLoading();
-    showToast('Could not read file: ' + fileDesc.name);
+    showToast(t('toast.could_not_read_file', {filename: fileDesc.name}));
   }
 }

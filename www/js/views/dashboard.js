@@ -38,10 +38,10 @@ function last7DaysAvgWpm(sessions) {
 function formatTotalTime(sessions) {
   const totalMs = sessions.reduce(function(acc, s) { return acc + (s.durationMs || 0); }, 0);
   const totalMin = Math.floor(totalMs / 60000);
-  if (totalMin < 60) return totalMin + ' min';
+  if (totalMin < 60) return t('dashboard.time.min', {n: totalMin});
   const h = Math.floor(totalMin / 60);
   const m = totalMin % 60;
-  return h + 'h ' + m + 'm';
+  return t('dashboard.time.hm', {h: h, m: m});
 }
 
 function lastNSessions(sessions, n) {
@@ -70,10 +70,10 @@ function estimateReadTime(item, avgWpm) {
   const wordsRemaining = Math.max(0, item.wordCount - pos);
   if (wordsRemaining <= 0) return '';
   const min = Math.round(wordsRemaining / avgWpm);
-  if (min < 60) return '~' + min + 'm left';
+  if (min < 60) return t('dashboard.time_left.min', {n: min});
   const h = Math.floor(min / 60);
   const m = min % 60;
-  return '~' + h + 'h ' + (m > 0 ? m + 'm ' : '') + 'left';
+  return t('dashboard.time_left.hm', {h: h, m: m > 0 ? m : 0});
 }
 
 function getHeatmapIntensity(words) {
@@ -131,7 +131,7 @@ function wpmTrend(sessions) {
 
 function renderWpmChartSvg(sessions) {
   if (sessions.length === 0) {
-    return '<p class="dashboard-chart-empty">Not enough sessions yet — keep reading to see your trend.</p>';
+    return '<p class="dashboard-chart-empty">' + t('dashboard.chart.empty') + '</p>';
   }
 
   const data = sessions.map(function(s) { return s.wpm; });
@@ -155,7 +155,7 @@ function renderWpmChartSvg(sessions) {
   const areaPath = polylinePath + ' L ' + points[points.length - 1].x + ' ' + height + ' L ' + padding + ' ' + height + ' Z';
 
   const trend = wpmTrend(sessions);
-  const trendLabels = { up: '↑ Improving', down: '↓ Declining', steady: '→ Steady' };
+  const trendLabels = { up: t('trend.up'), down: t('trend.down'), steady: t('trend.steady') };
 
   return `
     <div class="dashboard-chart-container">
@@ -186,7 +186,7 @@ function renderHeatmapHtml(heatmapData) {
       <div class="dashboard-heatmap-grid">
         ${heatmapHtml}
       </div>
-      <p class="dashboard-heatmap-legend">Yellow intensity shows reading activity. Darker = more words read.</p>
+      <p class="dashboard-heatmap-legend">${t('dashboard.heatmap.legend')}</p>
     </div>
   `;
 }
@@ -227,47 +227,48 @@ function renderDashboard() {
       <div class="dashboard-header">
         <button class="btn btn-ghost" id="btn-dashboard-back">←</button>
         <div>
-          <p class="settings-kicker">Pro</p>
-          <h1 class="settings-title">Dashboard</h1>
+          <p class="settings-kicker">${t('dashboard.kicker')}</p>
+          <h1 class="settings-title">${t('dashboard.title')}</h1>
         </div>
       </div>
 
       <div class="dashboard-kpi-grid">
         <div class="dashboard-kpi-card">
-          <p class="dashboard-kpi-label">Total words read</p>
+          <p class="dashboard-kpi-label">${t('dashboard.kpi.total_words')}</p>
           <p class="dashboard-kpi-value">${formatNumber(totalWords)}</p>
         </div>
         <div class="dashboard-kpi-card">
-          <p class="dashboard-kpi-label">Today</p>
-          <p class="dashboard-kpi-value">${formatNumber(todayWords)} words</p>
+          <p class="dashboard-kpi-label">${t('dashboard.kpi.today')}</p>
+          <p class="dashboard-kpi-value">${t('dashboard.kpi.today.value', {n: formatNumber(todayWords)})}</p>
         </div>
         <div class="dashboard-kpi-card">
-          <p class="dashboard-kpi-label">Current streak</p>
-          <p class="dashboard-kpi-value">${streak} day${streak !== 1 ? 's' : ''}</p>
+          <p class="dashboard-kpi-label">${t('dashboard.kpi.streak')}</p>
+          <p class="dashboard-kpi-value">${t(streak !== 1 ? 'dashboard.kpi.streak.value.other' : 'dashboard.kpi.streak.value.one', {n: streak})}</p>
         </div>
         <div class="dashboard-kpi-card">
-          <p class="dashboard-kpi-label">Avg WPM (7 days)</p>
+          <p class="dashboard-kpi-label">${t('dashboard.kpi.avg_wpm')}</p>
           <p class="dashboard-kpi-value">${avgWpm > 0 ? formatWPM(avgWpm) : '—'}</p>
+          <p class="dashboard-kpi-hint">${t('dashboard.kpi.avg_wpm.hint')}</p>
         </div>
         <div class="dashboard-kpi-card dashboard-kpi-card-wide">
-          <p class="dashboard-kpi-label">Total reading time</p>
+          <p class="dashboard-kpi-label">${t('dashboard.kpi.total_time')}</p>
           <p class="dashboard-kpi-value">${totalTime}</p>
         </div>
       </div>
 
       ${sessions.length > 0 ? `
         <section class="dashboard-section">
-          <h2 class="section-heading">WPM Progress (Last 7 Sessions)</h2>
+          <h2 class="section-heading">${t('dashboard.section.wpm_progress')}</h2>
           ${wpmChartHtml}
         </section>
       ` : ''}
 
       ${lib.length > 0 ? `
         <section class="dashboard-section">
-          <h2 class="section-heading">Files Completed</h2>
+          <h2 class="section-heading">${t('dashboard.section.files_completed')}</h2>
           ${totalCompletedFiles > 0 ? `
             <div class="dashboard-completion-card">
-              <p class="dashboard-completion-label">${totalCompletedFiles} completed</p>
+              <p class="dashboard-completion-label">${t('dashboard.completion.label', {n: totalCompletedFiles})}</p>
               <div class="dashboard-completion-bar">
                 ${completedByKind.pdf > 0 ? '<div class="dashboard-completion-segment" style="flex: ' + completedByKind.pdf + '; background: var(--accent);"></div>' : ''}
                 ${completedByKind.docx > 0 ? '<div class="dashboard-completion-segment" style="flex: ' + completedByKind.docx + '; background: var(--accent-2);"></div>' : ''}
@@ -284,21 +285,21 @@ function renderDashboard() {
               </div>
             </div>
           ` : `
-            <p class="dashboard-empty-section">No files completed yet. Finish a file to see your progress.</p>
+            <p class="dashboard-empty-section">${t('dashboard.completion.empty')}</p>
           `}
         </section>
       ` : ''}
 
       ${sessions.length > 0 ? `
         <section class="dashboard-section">
-          <h2 class="section-heading">Reading Streak Heatmap (Last 91 Days)</h2>
+          <h2 class="section-heading">${t('dashboard.section.heatmap')}</h2>
           ${heatmapHtml}
         </section>
       ` : ''}
 
       ${activeLib.length > 0 ? `
         <section class="dashboard-section">
-          <h2 class="library-heading">Your Library</h2>
+          <h2 class="library-heading">${t('dashboard.section.library')}</h2>
           <div class="library-grid">
             ${activeLib.map(function(item) {
               const pct = item.wordCount ? Math.min(100, Math.round((loadPosition(item.id) / item.wordCount) * 100)) : 0;
@@ -320,7 +321,7 @@ function renderDashboard() {
       ${readLib.length > 0 ? `
         <section class="dashboard-section">
           <button class="library-collapse-toggle" id="btn-dash-read-toggle" type="button">
-            <span class="library-heading">Read</span>
+            <span class="library-heading">${t('dashboard.section.read')}</span>
             <span class="library-collapse-count">${formatNumber(readLib.length)}</span>
             <span class="library-collapse-icon" id="dash-read-icon">▸</span>
           </button>
@@ -343,7 +344,7 @@ function renderDashboard() {
       ` : ''}
 
       ${sessions.length === 0 ? `
-        <p class="dashboard-empty">No reading sessions recorded yet. Start reading to see your stats.</p>
+        <p class="dashboard-empty">${t('dashboard.empty')}</p>
       ` : ''}
     </div>
   `;
