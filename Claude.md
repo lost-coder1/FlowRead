@@ -52,8 +52,9 @@ Every limitation shown upfront in onboarding. Never silently fail. Errors explai
 www/
   index.html
   css/   base.css · components.css · engines.css · themes.css
+  i18n/  en.json · hi.json
   js/
-    app.js · state.js · storage.js
+    app.js · state.js · storage.js · i18n.js (language loader + global t() helper)
     parser/  pdf.js · docx.js · txt.js
     engines/ rsvp.js · chunk.js · scroll.js · focusbold.js
     views/   upload.js · reader.js · normal.js · dashboard.js · settings.js
@@ -191,7 +192,7 @@ Acquire: on entering any reading view, on play. Release: on exit to home/dashboa
 
 ## 11. Active Phase
 
-Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
+Phases 0–14 are complete. Current work is Phase 15.
 
 ### PHASE 11 — Share Extension & Deeper Sync (Completed)
 
@@ -479,27 +480,214 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
   - Share via Android/iOS native share sheet (`Capacitor.Share`).
   - Useful for social sharing on any platform (Instagram, Twitter/X, WhatsApp).
 
-- [ ] **Improved notification system**
-  - Current: basic daily reminder via `@capacitor/local-notifications`.
-  - Planned: smarter scheduling — remind only on days the user hasn't read, respect quiet hours, show unread file count in notification body.
-  - Free: single daily nudge for unread PDFs. Pro: richer notifications with reading goal progress and streak status.
-
-- [ ] **Settings page restructure**
-  - Replace the current single long-scroll page with tabbed/sectioned layout: Appearance · Reading · Formats · About.
-  - Requires restructuring `renderSettings()` in `www/js/views/settings.js` and updating back-button handling.
-  - Deferred post-launch to avoid high-risk UI refactor close to ship date.
-
-- [ ] **Additional reading fonts**
-  - Add sans-serif options (Inter, Source Sans) alongside existing Roboto/Open Sans/Lato.
-  - Bundle fonts locally before adding — no Google Fonts network requests post-launch.
-  - Apply to all 4 engines via the existing `--font-body` CSS variable.
-
-- [ ] **Word tap behaviour setting**
-  - Add Settings toggle: tap word → Do nothing / Local dictionary (Pro) / Look up online.
-  - Currently free users see Pro paywall on every tap — "Do nothing" default for free would reduce friction.
-  - Requires new `fr_word_tap_action` localStorage key and update to tap handlers in all 4 engines.
 
 ---
+
+### PHASE 15 — Feedback-Driven UX & India Market Expansion (current)
+
+Items originate from: (a) tester feedback from Reddit closed testing — settings structure, font options, word-tap behaviour — and (b) India market expansion with Hindi UI and a curated free-books feature.
+
+- [x] **Task 15.6 — Hindi UI Localization (i18n)** (Completed)
+  - ✅ `www/js/i18n.js` — `FlowReadI18n.init()` async loader + global `t(key, vars)` helper with `{placeholder}` interpolation. Falls back to key name when translation missing — makes gaps visible during testing.
+  - ✅ `www/i18n/en.json` — ~240 keys covering every user-facing string across all views and features.
+  - ✅ `www/i18n/hi.json` — Full informal Hindi translation by product owner (native speaker). All strings including onboarding, import cards, toasts, error messages, paywall, dashboard, limitations, and all 21 loading facts translated.
+  - ✅ `i18n.js` loaded in `index.html` before all view scripts; `FlowReadI18n.init()` called as first async step in app.js boot. Static loading overlay text updated post-init.
+  - ✅ All 7 JS files fully refactored to use `t()`: `app.js`, `upload.js`, `reader.js`, `settings.js`, `dashboard.js`, `normal.js`, `purchase.js`.
+  - ✅ Language auto-detected from `navigator.language` on first launch (defaults to Hindi if locale starts `hi`, else English). Persisted in `fr_app_language` (localStorage).
+  - ✅ Language selector added in Settings — switches language live (re-renders settings immediately) without app restart.
+  - ✅ Noto Sans Devanagari already loaded via Google Fonts link in `index.html` (added in an earlier phase for OCR content rendering) — no additional font work required for Hindi UI chrome.
+  - ✅ Terms kept in English per product owner direction: WPM, PDF, DOCX, TXT, OCR, RSVP, and all engine mode names (Chunk, Focus Bold, Scroll).
+  - ✅ Dashboard Avg WPM card now shows a small hint line below the value: "Words Per Minute — how fast you read" / "Words Per Minute — पढ़ने की रफ़्तार". Uses `.dashboard-kpi-hint` CSS class (11px, `var(--text-muted)`).
+
+### i18n rules for future Phase 15 work
+- Every new UI string must use `t('key')` — never hardcode English in view files.
+- Add new keys to both `en.json` and `hi.json` at the same time. Product owner supplies Hindi.
+- Dynamic strings use `{placeholder}` syntax: `t('key', {n: count})`.
+- `t()` global is available in all scripts (defined in `i18n.js`, loaded first).
+
+- [ ] **Task 15.1 — Settings Page Restructure** (Moved from Phase 14 stub — same item, unchanged scope.)
+
+
+Replace the current single long-scroll settings page (www/js/views/settings.js) with sectioned groups: Appearance · Reading · Notifications · Library · About & Help.
+"Supported Formats & Known Limitations" (Section 9 content) moves to the bottom of About & Help as a collapsed-by-default accordion. Break its 10 items into individually collapsible sub-rows rather than one continuous block.
+Each section is a labelled group, standard mobile row pattern (label left, control/value right). Pro-locked rows keep the existing inline lock-icon pattern already used elsewhere (see import card badges in Phase 13) rather than hiding the row.
+Update back-button handling to match the existing hardware-back priority chain in app.js (settings/dashboard → renderUpload() + switchView('view-upload')).
+Confirm the "Settings back button UX fix" from Phase 13 (row layout, arrow-only back affordance) is preserved through the restructure.
+
+
+15.2 — Additional Reading Fonts
+
+(Moved from Phase 14 stub — same item, unchanged scope.)
+
+
+Add sans-serif options alongside the existing bundled fonts (Roboto, Open Sans, Lato, DM Mono). Suggested addition: Inter or Source Sans, bundled locally — no Google Fonts network requests, consistent with the existing "bundle fonts before launch" decision in Section 1.1.
+Apply via the existing --font-body CSS variable across all reading engines (RSVP, Chunk, Focus Bold, Scroll, and the new Page mode in 15.5).
+Surface as a font-family selector in the new Appearance settings section (15.1).
+
+
+15.3 — Word-Tap Action Setting
+
+(Moved from Phase 14 stub. Original stub assumed free users always see a Pro paywall on tap — confirmed current behaviour per Section 12.5: single tap on any word in RSVP/Chunk/Scroll/Focus Bold opens the dictionary modal for Pro users, or the upgrade prompt for free users, with playback auto-pausing on open. This task makes that behaviour configurable rather than fixed.)
+
+New setting in Reading section: "When you tap a word while reading" — three options:
+
+
+Nothing — tap performs no word action (freed up for other gestures)
+Open dictionary — existing Pro single-tap behaviour, unchanged
+Show unlock prompt — existing free-tier single-tap behaviour, unchanged
+
+
+New toggle: "Use long-press for dictionary instead of tap" — when enabled, tap performs the "Nothing" behaviour regardless of the setting above, and long-press triggers the existing dictionary modal (Pro) or upgrade prompt (free).
+
+
+Recommended defaults: tap = "Nothing", long-press toggle = ON for both Pro and free users — this directly addresses the tester complaint that tapping while reading "becomes annoying after a while, especially when you're just trying to navigate the screen."
+New localStorage key fr_word_tap_action (values: none | dictionary | upgrade_prompt) and fr_word_tap_longpress (boolean) — both UI state, not purchase state, so localStorage is correct per Section 12 storage rules (not Capacitor Preferences).
+Apply consistently across all four existing engines' tap handlers, and the new Page mode (15.5) once built. The existing dictionary auto-pause-on-open behaviour (Section 12.5) is unchanged — it still applies whenever the dictionary modal opens, regardless of which gesture triggered it.
+
+
+15.4 — Notification System Redesign
+
+(Moved from Phase 14 stub, expanded with full mechanic per product discussion.)
+
+Current behaviour (per Phase 14 stub): basic daily reminder via @capacitor/local-notifications, fixed hourly window, not tied to actual reading behaviour. Replace with a single daily habit reminder plus an optional streak-protection nudge.
+
+Primary daily reminder:
+
+
+One notification per day at a user-configurable time (settings picker, constrained to a sensible range, e.g. 6am–11pm, to avoid accidental late-night/early-morning scheduling). Suggested default: 9:00 PM.
+Message content selected at fire-time from local state already tracked by the existing Pro Dashboard (streak count, per-file completion percentage — see Section 11, Task 12.6): reference an active streak if one exists, reference an in-progress file's completion percentage if one exists, otherwise a generic prompt.
+Do not fire if the user has already met a minimal daily reading threshold that day (reuse existing reading-time/word-count tracking from the dashboard's streak heatmap data).
+
+
+Streak-protection nudge (secondary, toggleable separately):
+
+
+A second, conditional local notification scheduled roughly 30–60 minutes after the primary reminder time, firing only if the user has an active streak above a minimum threshold (e.g. 3+ days) and has not yet read that day.
+Cancelled immediately if the user reads before it would fire.
+Maximum two notifications per day total, never more.
+
+
+Implementation notes:
+
+
+Continue using @capacitor/local-notifications (already in stack, Section 2) — no new plugin dependency.
+Reschedule on every read-session completion (cancel stale streak-nudge once read) and on any change to the relevant settings.
+Streak/completion data already exists from Task 12.6 (Pro Dashboard) — reuse, do not duplicate the tracking logic.
+Free tier: primary daily reminder + streak nudge (drives retention, should not be paywalled). Pro-locked (optional, can defer): multiple custom reminder times, "streak freeze" (skip a day without breaking streak), richer streak insights — note Section 10's Pro/Free table should be updated if these ship.
+Update the notification icon/colour convention already set in Phase 13 (smallIcon: "ic_launcher_foreground", iconColor: "#E8C547") — no change needed, just confirm new notification types use the same channel/config.
+
+
+15.5 — Fifth Reading Mode: "Page"
+
+New, not present in any prior phase. Adds a 5th mode to the existing engine row (RSVP · Chunk · Focus Bold · Scroll · Page), addressing tester feedback requesting a non-speed-reading option ("I think you should remove RSVP and Chunks modes... most users will want to use those modes for more than a few minutes before their eyes get tired"). Rather than removing engines, Page mode adds a calm, reflowed reading option alongside them.
+
+Architecture constraint (critical): Page mode must operate on the same word-array/pageWordIndex[] position system shared by the four existing engines — not a second tracking mechanism. Switching to Page mode from any engine at word index N must render the reflowed page containing word N. Reading forward in Page mode and switching to another engine must resume from the correct word index, computed from scroll/swipe position — same pattern already used by Scroll mode's position tracking.
+
+Distinct from the existing Bridge/Normal view: The existing Normal PDF view (Section 6, www/js/views/normal.js) remains unchanged — it renders the true original PDF page and is the destination for the existing bridge ("▶ Read from here" / floating button / tappable [Table/Image/Equation — Tap to View] placeholders). Page mode is a new, separate reflowed-text view built from the same cleaned word stream as the other engines — it must not be confused with or replace the Normal view in code or UI labelling.
+
+Tappable placeholders: Because Page mode renders the same word stream, it inherits the existing placeholder objects ([Table — Tap to View] etc., Section 5.5) at the same word positions with no special-case logic. Tapping one routes to the existing Normal view at the correct page (existing bridge logic, Section 6); returning must restore Page mode at the same word index, not force a different engine.
+
+Visual/UX treatment:
+
+
+Use the existing dark surface variables (--bg, --surface) with a subtle warm tone behind the text block rather than a stark white page — consistent with Section 8's "no pure white anywhere text appears" rule.
+Default interaction: swipe page-to-page (not continuous scroll) to differentiate from the existing Scroll engine. Smooth transition, no skeuomorphic page-curl.
+Implement tap-to-toggle chrome: minimal UI by default, tap reveals mode tabs/page indicator/bridge button, fades back out after inactivity or a second tap.
+Calm mode (existing feature) applies identically. Word-tap setting (15.3) applies identically. Wake lock (Section 7) acquires/releases identically to the other four engines.
+Respect existing typography settings (font from 15.2, OpenDyslexic, line height — Pro typography controls) since this is a primary reading surface for users who want a non-speed-reading experience.
+
+
+Pagination logic: Compute page-like breaks from the cleaned word stream based on approximate character/word count per screen at the current font size — a reflow similar to EPUB pagination, not tied to the original PDF's actual page boundaries.
+
+Update Section 4 (Reading Engines) with a new subsection once built, and update the engine-row UI/CSS (engines.css) to accommodate a 5th tab.
+
+15.6 — Hindi UI Localization (i18n)
+
+New. Scope is UI chrome only — confirmed per Section 12.3's language support reference and the legacy-Indic-encoding work in Phase 13, the reading engines, cleaning pipeline, and OCR already correctly handle Devanagari content (Hindi/Marathi PDFs, ML Kit Devanagari OCR, KrutiDev legacy-encoding detection, danda । sentence-pause handling). This task does not touch any of that — it covers translating the app's own interface (buttons, labels, settings, onboarding, paywall copy) into Hindi.
+
+Architecture:
+
+www/i18n/en.json
+www/i18n/hi.json
+
+Flat key-value JSON per language. Minimal loader, no new dependency:
+
+javascriptlet strings = {};
+async function loadLanguage(lang) {
+  const res = await fetch(`i18n/${lang}.json`);
+  strings = await res.json();
+}
+function t(key) {
+  return strings[key] || key; // never blank — falls back to key, makes missing translations visible during testing
+}
+
+Replace hardcoded UI strings across www/js/views/*.js with t('key_name') calls. This is a refactor touching every view file — recommend doing this before other Phase 15 UI work lands, so new settings/library UI is built with t() calls from the start rather than retrofitted.
+
+Detection & persistence:
+
+
+On first launch, read device locale via existing Capacitor plugin access pattern (consistent with how KeepAwake is accessed per Phase 13's fix — confirm correct Capacitor 6 accessor for the Device plugin). Default to Hindi if locale starts hi, else English.
+Store active language in localStorage as fr_app_language (UI state, not purchase state — per Section 12 storage rules). Stored preference takes priority over device locale on subsequent launches.
+Manual override: language dropdown in the new Appearance settings section (15.1) — English / हिंदी — calls loadLanguage(), persists choice, re-renders visible UI text without requiring app restart.
+
+
+Translation content: Hindi strings supplied directly by product owner (native speaker) — do not machine-translate. Build the key/loader system complete and ready to accept a full hi.json; prioritise keys in this order: onboarding → home screen import cards → Free Books library (15.7) → reading view controls/engine tabs (including the new Page mode label) → settings labels → paywall/unlock copy → common error messages (password-protected, scanned-PDF prompt, legacy-encoding banner from Phase 13) → notification message templates (15.4) → limitations accordion (lowest priority).
+
+Terms to keep in English/Roman regardless of UI language (per product owner direction): WPM, PDF, DOCX, TXT, OCR, RSVP, and the engine mode names themselves (RSVP, Chunk, Focus Bold, Scroll, Page).
+
+Font requirement: None of the currently bundled fonts (Roboto, Open Sans, Lato, DM Mono) include Devanagari glyphs for UI chrome rendering — Roboto/Open Sans's Cyrillic/Greek coverage noted in Section 12.3 does not extend to Devanagari. Bundle Noto Sans Devanagari (UI) as an additional local font, loaded only when Hindi UI is active or when Hindi-language book titles/content need rendering outside the reading engines (which already handle Devanagari body text correctly per existing work). Implement as a fallback chain rather than a hard switch, since mixed Hindi/English UI strings are expected.
+
+15.7 — Free Books Library
+
+New. A curated, hand-verified directory of links to legally free books — public domain works or officially-hosted-free sources (e.g. government-published PDFs) — not a hosted/bundled library. The app downloads a file from its verified external source on user request and saves it into the existing local file storage exactly as any imported file, after which it is fully offline like any other library item.
+
+Legal constraint (do not violate): No copyrighted file may be bundled into the APK or redistributed by the app directly. Every catalog entry's source URL must resolve to a direct file download (not an HTML landing page, and not a borrow/lending-only item if sourced from an archive) from a verified public-domain or officially-free source. Catalog entries are manually curated and supplied by the product owner — the app must not auto-scrape or auto-populate this list.
+
+Entry point: New home-screen import card, consistent with the existing card grid pattern (Phase 13's "2-column import grid," card badge conventions). Label: "Free Books" (English) / "मुफ़्त किताबें" (Hindi, via 15.6). For new users, prioritise surfacing this card prominently — onboarding or home-screen placement should make it one of the first things visible, not buried.
+
+Catalog data structure — static bundled JSON for launch (fetch-from-URL for catalog updates without app updates is a possible later enhancement, not required for launch):
+
+json{
+  "books": [
+    {
+      "id": "unique_id",
+      "title": "string",
+      "author": "string",
+      "language": "hi" | "en",
+      "category": "social_justice" | "constitution_law" | "philosophy" | "classics" | "buddhism" | "biography_history",
+      "coverImage": "local asset path or null",
+      "sourceUrl": "direct file URL — verified, not a landing page",
+      "fileType": "pdf" | "epub" | "txt",
+      "approxLength": "optional string"
+    }
+  ]
+}
+
+UI components:
+
+
+Language tabs (Hindi / English / All) at top.
+Category filter chips, horizontal scroll, max 6–7 categories — keep minimal for a small curated catalog.
+Search bar (title/author, client-side over the bundled JSON).
+Book cards: cover (or text-based placeholder if no image), title, author, language tag, download-state indicator (not-downloaded → downloading → downloaded/open → failed-with-retry, following the existing app-wide "never fail silently, plain-language error" rule from Section 1.5 / Section 12 UX rules).
+
+
+Region-aware ordering, not filtering: Determine device region/locale on screen load. India-associated locale sorts social_justice/constitution_law categories and Hindi entries to the top of the default (unfiltered) view; other locales sort philosophy/classics and English entries to the top. This is ordering only — every category/entry remains accessible to every user via the filter chips regardless of detected region. Do not hide or block content by region.
+
+Download mechanics: On tap, fetch the file from sourceUrl, save via the existing file-import storage path (same mechanism as any manually imported PDF/DOCX/TXT — confirm this reuses the same library/dashboard entry creation as Section 11's device-sync import, so downloaded books appear in "Your Library" / dashboard stats identically). Handle network failure with the existing plain-language error pattern; never fail silently.
+
+Initial catalog content: Product owner supplies the verified book list and source URLs separately, after legal verification of each entry (see open question below). Build the screen and data structure ready to accept this list — do not invent or guess source URLs.
+
+15.8 — India Custom Store Listing
+
+New. Google Play supports custom store listings (CSL): a default listing for the global audience and a separate, country-targeted listing with different name/icon/description/screenshots, both pointing to the same APK/AAB (no separate build, no app-code changes — this is a Play Console configuration task, not a code task, included here for roadmap completeness).
+
+
+Default listing (existing): leads with offline/privacy/no-subscription/no-account positioning for the global audience — unchanged from current store presence.
+India-targeted CSL (new): leads with free-books access and reading-habit messaging rather than privacy/offline framing, reflecting the India market expansion. Requires localized screenshots showing the Free Books library (15.7) and, if ready, Hindi UI (15.6).
+Contact details, privacy policy, and app category remain shared across both listings per Play Console constraints — only name, icon, description, and graphic assets differ.
+Each country may only be assigned to one custom listing; India → India CSL, all other countries → default listing.
+Play Console reports listing performance per variant separately — use this to compare conversion between the two messaging strategies once live.
 
 ## 12. Code Rules
 
@@ -541,7 +729,7 @@ Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
 
 ## 13. Project Status
 
-- **Current phase:** Phase 13 — Internal Testing Bug Fixes & Polish
+- **Current phase:** Phase 15 — Feedback-Driven UX & India Market Expansion
 - **Android versionCode:** 24 (versionName "1.2") — Play Store re-submission after MANAGE_EXTERNAL_STORAGE removal
 - **Target platforms:** Android first, iOS second.
 - **Target launch:** TBD — quality over speed.

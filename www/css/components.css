@@ -871,6 +871,14 @@
   line-height: 1.1;
 }
 
+.dashboard-kpi-hint {
+  font-family: var(--font-body);
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  line-height: 1.3;
+}
+
 .dashboard-section {
   display: flex;
   flex-direction: column;

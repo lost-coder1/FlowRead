@@ -62,39 +62,15 @@ const FlowReadContent = {
 };
 
 const FlowReadThemes = [
-  {
-    key: 'oled-black',
-    label: 'OLED Black',
-    proOnly: false,
-  },
-  {
-    key: 'sepia',
-    label: 'Sepia',
-    proOnly: true,
-  },
-  {
-    key: 'high-contrast',
-    label: 'High Contrast',
-    proOnly: true,
-  },
+  { key: 'oled-black',    label: 'OLED Black',    labelKey: 'theme.oled_black',    proOnly: false },
+  { key: 'sepia',         label: 'Sepia',          labelKey: 'theme.sepia',          proOnly: true  },
+  { key: 'high-contrast', label: 'High Contrast',  labelKey: 'theme.high_contrast',  proOnly: true  },
 ];
 
 const FlowReadTypographyPresets = [
-  {
-    key: 'roboto',
-    label: 'Roboto',
-    proOnly: false,
-  },
-  {
-    key: 'open-sans',
-    label: 'Open Sans',
-    proOnly: true,
-  },
-  {
-    key: 'lato',
-    label: 'Lato',
-    proOnly: true,
-  },
+  { key: 'roboto',    label: 'Roboto',    labelKey: 'font.roboto',    proOnly: false },
+  { key: 'open-sans', label: 'Open Sans', labelKey: 'font.open_sans', proOnly: true  },
+  { key: 'lato',      label: 'Lato',      labelKey: 'font.lato',      proOnly: true  },
 ];
 
 function getDefaultSettings() {
@@ -170,9 +146,8 @@ function syncThemeChips() {
     button.disabled = locked;
     button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     button.setAttribute('aria-disabled', locked ? 'true' : 'false');
-    button.textContent = FlowReadThemes.find(function(item) {
-      return item.key === themeKey;
-    }).label + (locked ? ' 🔒' : '');
+    const themeItem = FlowReadThemes.find(function(item) { return item.key === themeKey; });
+    button.textContent = t(themeItem.labelKey) + (locked ? ' 🔒' : '');
   });
 }
 
@@ -188,9 +163,8 @@ function syncTypographyChips() {
     button.disabled = locked;
     button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     button.setAttribute('aria-disabled', locked ? 'true' : 'false');
-    button.textContent = FlowReadTypographyPresets.find(function(item) {
-      return item.key === fontKey;
-    }).label + (locked ? ' 🔒' : '');
+    const fontItem = FlowReadTypographyPresets.find(function(item) { return item.key === fontKey; });
+    button.textContent = t(fontItem.labelKey) + (locked ? ' 🔒' : '');
   });
 }
 
@@ -208,11 +182,11 @@ function renderOnboarding(stepIndex) {
     view.innerHTML = `
       <div class="onboarding-screen">
         <div class="onboarding-card">
-          <p class="onboarding-kicker">First Launch</p>
-          <h1 class="onboarding-title">Read everything faster.</h1>
-          <p class="onboarding-body">No subscription. No cloud. No account. Your files stay on this device.</p>
+          <p class="onboarding-kicker">${t('onboarding.step0.kicker')}</p>
+          <h1 class="onboarding-title">${t('onboarding.step0.title')}</h1>
+          <p class="onboarding-body">${t('onboarding.step0.body')}</p>
           <div class="onboarding-actions">
-            <button class="btn btn-primary" id="btn-onboarding-next">Continue</button>
+            <button class="btn btn-primary" id="btn-onboarding-next">${t('btn.continue')}</button>
           </div>
         </div>
       </div>
@@ -221,21 +195,21 @@ function renderOnboarding(stepIndex) {
     view.innerHTML = `
       <div class="onboarding-screen">
         <div class="onboarding-card">
-          <p class="onboarding-kicker">What It Can Read</p>
-          <h1 class="onboarding-title">Read anything, your way.</h1>
+          <p class="onboarding-kicker">${t('onboarding.step1.kicker')}</p>
+          <h1 class="onboarding-title">${t('onboarding.step1.title')}</h1>
           <ul class="onboarding-list">
-            <li><strong>PDF</strong> — Digital PDFs with selectable text. Normal view + jump-to-page sync. Free.</li>
-            <li><strong>Paste Text</strong> — Paste or type any text and read it. Free.</li>
-            <li><strong>URL Reader</strong> — Fetch any article from the web and read it offline. Pro.</li>
-            <li><strong>DOCX</strong> — Word documents with the same 4 reading engines. Pro.</li>
-            <li><strong>TXT</strong> — Plain text files and notes. Pro.</li>
-            <li><strong>Image / Scan</strong> — On-device OCR from camera or gallery. Pro + OCR Vision add-on.</li>
-            <li>All 4 engines: RSVP, Chunk, Focus Bold, and Simple Scroll.</li>
-            <li>Chapter detection, resume position, and local progress — fully offline.</li>
+            <li><strong>PDF</strong> — ${escapeHtml(t('onboarding.step1.pdf').replace(/^PDF — /, ''))}</li>
+            <li><strong>Paste Text</strong> — ${escapeHtml(t('onboarding.step1.paste').replace(/^Paste Text — /, ''))}</li>
+            <li><strong>URL Reader</strong> — ${escapeHtml(t('onboarding.step1.url').replace(/^URL Reader — /, ''))}</li>
+            <li><strong>DOCX</strong> — ${escapeHtml(t('onboarding.step1.docx').replace(/^DOCX — /, ''))}</li>
+            <li><strong>TXT</strong> — ${escapeHtml(t('onboarding.step1.txt').replace(/^TXT — /, ''))}</li>
+            <li><strong>Image / Scan</strong> — ${escapeHtml(t('onboarding.step1.image').replace(/^Image \/ Scan — /, ''))}</li>
+            <li>${escapeHtml(t('onboarding.step1.engines'))}</li>
+            <li>${escapeHtml(t('onboarding.step1.features'))}</li>
           </ul>
           <div class="onboarding-actions">
-            <button class="btn btn-ghost" id="btn-onboarding-back">Back</button>
-            <button class="btn btn-primary" id="btn-onboarding-next">Continue</button>
+            <button class="btn btn-ghost" id="btn-onboarding-back">${t('btn.back')}</button>
+            <button class="btn btn-primary" id="btn-onboarding-next">${t('btn.continue')}</button>
           </div>
         </div>
       </div>
@@ -244,16 +218,18 @@ function renderOnboarding(stepIndex) {
     view.innerHTML = `
       <div class="onboarding-screen">
         <div class="onboarding-card onboarding-card-wide">
-          <p class="onboarding-kicker">Known Limitations</p>
-          <h1 class="onboarding-title">What this app cannot do yet.</h1>
+          <p class="onboarding-kicker">${t('onboarding.step2.kicker')}</p>
+          <h1 class="onboarding-title">${t('onboarding.step2.title')}</h1>
           <ol class="limitations-list">
-            ${FlowReadContent.limitations.map(function(item) {
-              return `<li><strong>${escapeHtml(item.title)}</strong> — ${escapeHtml(item.body)}</li>`;
+            ${FlowReadContent.limitations.map(function(item, i) {
+              const bodyKey = 'limitations.' + (i+1) + '.body';
+              const bodyText = t(bodyKey);
+              return `<li><strong>${escapeHtml(t('limitations.' + (i+1) + '.title'))}</strong> — ${escapeHtml(bodyText === bodyKey ? item.body : bodyText)}</li>`;
             }).join('')}
           </ol>
           <div class="onboarding-actions">
-            <button class="btn btn-ghost" id="btn-onboarding-back">Back</button>
-            <button class="btn btn-primary" id="btn-onboarding-next">Continue</button>
+            <button class="btn btn-ghost" id="btn-onboarding-back">${t('btn.back')}</button>
+            <button class="btn btn-primary" id="btn-onboarding-next">${t('btn.continue')}</button>
           </div>
         </div>
       </div>
@@ -262,9 +238,9 @@ function renderOnboarding(stepIndex) {
     view.innerHTML = `
       <div class="onboarding-screen">
         <div class="onboarding-card onboarding-card-wide">
-          <p class="onboarding-kicker">Reading Speed</p>
-          <h1 class="onboarding-title">Pick a comfortable starting pace.</h1>
-          <p class="onboarding-body">Watch words flash at your chosen speed. Adjust until it feels easy to read.</p>
+          <p class="onboarding-kicker">${t('onboarding.step3.kicker')}</p>
+          <h1 class="onboarding-title">${t('onboarding.step3.title')}</h1>
+          <p class="onboarding-body">${t('onboarding.step3.body')}</p>
           <div class="calibration-rsvp-container">
             <div class="calibration-rsvp-stage" id="calibration-rsvp-stage">
               <span class="calibration-rsvp-word" id="calibration-rsvp-word">—</span>
@@ -277,8 +253,8 @@ function renderOnboarding(stepIndex) {
             <span class="wpm-display" id="calibration-display">${formatWPM(AppState.onboardingCalibrationWpm)}</span>
           </div>
           <div class="onboarding-actions">
-            <button class="btn btn-ghost" id="btn-onboarding-back">Back</button>
-            <button class="btn btn-primary" id="btn-onboarding-finish">Finish</button>
+            <button class="btn btn-ghost" id="btn-onboarding-back">${t('btn.back')}</button>
+            <button class="btn btn-primary" id="btn-onboarding-finish">${t('btn.finish')}</button>
           </div>
         </div>
       </div>
@@ -400,41 +376,41 @@ function renderSettings() {
       <div class="settings-header">
         <button class="btn btn-ghost btn-settings-back" id="btn-settings-back">←</button>
         <div>
-          <p class="settings-kicker">Settings</p>
-          <h1 class="settings-title">Preferences</h1>
+          <p class="settings-kicker">${t('settings.kicker')}</p>
+          <h1 class="settings-title">${t('settings.title')}</h1>
         </div>
       </div>
 
       <section class="settings-section">
-        <h2>Reading</h2>
+        <h2>${t('settings.section.reading')}</h2>
         <label class="settings-field">
-          <span>Default WPM</span>
+          <span>${t('settings.field.default_wpm')}</span>
           <input type="range" id="settings-wpm" min="120" max="800" step="10" value="${AppState.settings.defaultWpm}" />
           <strong id="settings-wpm-value">${formatWPM(AppState.settings.defaultWpm)}</strong>
         </label>
         <label class="settings-field">
-          <span>Default chunk size</span>
+          <span>${t('settings.field.chunk_size')}</span>
           <select id="settings-chunk-size">
             ${[2, 3, 4, 5, 7].map(function(size) {
-              return `<option value="${size}" ${AppState.settings.defaultChunkSize === size ? 'selected' : ''}>${size} words</option>`;
+              return `<option value="${size}" ${AppState.settings.defaultChunkSize === size ? 'selected' : ''}>${t('settings.chunk_size.option', {n: size})}</option>`;
             }).join('')}
           </select>
         </label>
         <label class="settings-field">
-          <span>Default mode</span>
+          <span>${t('settings.field.default_mode')}</span>
           <select id="settings-default-mode">
-            <option value="rsvp" ${AppState.settings.defaultMode === 'rsvp' ? 'selected' : ''}>RSVP</option>
-            <option value="chunk" ${AppState.settings.defaultMode === 'chunk' ? 'selected' : ''}>Chunk</option>
-            <option value="focus" ${AppState.settings.defaultMode === 'focus' ? 'selected' : ''}>Focus Bold</option>
-            <option value="scroll" ${AppState.settings.defaultMode === 'scroll' ? 'selected' : ''}>Simple Scroll</option>
+            <option value="rsvp" ${AppState.settings.defaultMode === 'rsvp' ? 'selected' : ''}>${t('settings.mode.rsvp')}</option>
+            <option value="chunk" ${AppState.settings.defaultMode === 'chunk' ? 'selected' : ''}>${t('settings.mode.chunk')}</option>
+            <option value="focus" ${AppState.settings.defaultMode === 'focus' ? 'selected' : ''}>${t('settings.mode.focus')}</option>
+            <option value="scroll" ${AppState.settings.defaultMode === 'scroll' ? 'selected' : ''}>${t('settings.mode.scroll')}</option>
           </select>
         </label>
       </section>
 
       <section class="settings-section">
-        <h2>Display</h2>
+        <h2>${t('settings.section.display')}</h2>
         <label class="settings-field">
-          <span>Font scale</span>
+          <span>${t('settings.field.font_scale')}</span>
           <input type="range" id="settings-font-scale" min="0.85" max="1.25" step="0.05" value="${AppState.settings.fontScale}" />
           <strong id="settings-font-scale-value">${Math.round(AppState.settings.fontScale * 100)}%</strong>
         </label>
@@ -449,7 +425,7 @@ function renderSettings() {
                 data-font-value="${font.key}"
                 aria-pressed="${active ? 'true' : 'false'}"
                 ${locked ? 'disabled aria-disabled="true"' : ''}
-              >${font.label}${locked ? ' 🔒' : ''}</button>
+              >${t(font.labelKey)}${locked ? ' 🔒' : ''}</button>
             `;
           }).join('')}
         </div>
@@ -464,53 +440,55 @@ function renderSettings() {
                 data-theme-value="${theme.key}"
                 aria-pressed="${active ? 'true' : 'false'}"
                 ${locked ? 'disabled aria-disabled="true"' : ''}
-              >${theme.label}${locked ? ' 🔒' : ''}</button>
+              >${t(theme.labelKey)}${locked ? ' 🔒' : ''}</button>
             `;
           }).join('')}
         </div>
       </section>
 
       <section class="settings-section">
-        <h2>Comfort</h2>
+        <h2>${t('settings.section.comfort')}</h2>
         <label class="settings-toggle">
-          <span>ORP highlight on by default</span>
+          <span>${t('settings.toggle.orp')}</span>
           <input type="checkbox" id="settings-orp" ${AppState.settings.orpDefault ? 'checked' : ''} />
         </label>
         <label class="settings-toggle">
-          <span>Context line on by default</span>
+          <span>${t('settings.toggle.context')}</span>
           <input type="checkbox" id="settings-context" ${AppState.settings.contextDefault ? 'checked' : ''} />
         </label>
         <label class="settings-toggle">
-          <span>Calm mode on by default</span>
+          <span>${t('settings.toggle.calm')}</span>
           <input type="checkbox" id="settings-calm" ${AppState.settings.calmModeDefault ? 'checked' : ''} />
         </label>
       </section>
 
       <section class="settings-section">
-        <h2>Supported Formats & Known Limitations</h2>
+        <h2>${t('settings.section.limitations')}</h2>
         <ol class="limitations-list settings-limitations">
-          ${FlowReadContent.limitations.map(function(item) {
-            return `<li><strong>${escapeHtml(item.title)}</strong> — ${escapeHtml(item.body)}</li>`;
+          ${FlowReadContent.limitations.map(function(item, i) {
+            const bk = 'limitations.' + (i+1) + '.body';
+            const bt = t(bk);
+            return `<li><strong>${escapeHtml(t('limitations.' + (i+1) + '.title'))}</strong> — ${escapeHtml(bt === bk ? item.body : bt)}</li>`;
           }).join('')}
         </ol>
       </section>
 
       <section class="settings-section">
-        <h2>About</h2>
-        <p class="settings-copy">Version 1.1.0</p>
-        <p class="settings-copy">This app collects no data. There is no account, no analytics backend, and no file upload to any server we control.</p>
-        <p class="settings-copy">URL Reader is Pro-only and clearly marked when it requires internet.</p>
-        <button class="btn btn-ghost settings-restore-btn" id="btn-settings-restore">Restore Purchases</button>
+        <h2>${t('settings.section.about')}</h2>
+        <p class="settings-copy">${t('settings.about.version')}</p>
+        <p class="settings-copy">${t('settings.about.privacy')}</p>
+        <p class="settings-copy">${t('settings.about.url_note')}</p>
+        <button class="btn btn-ghost settings-restore-btn" id="btn-settings-restore">${t('settings.btn.restore')}</button>
       </section>
 
       <section class="settings-section">
-        <h2>Notifications</h2>
+        <h2>${t('settings.section.notifications')}</h2>
         <label class="settings-toggle">
-          <span>Daily reading reminder</span>
+          <span>${t('settings.toggle.reminder')}</span>
           <input type="checkbox" id="settings-reminder-enabled" ${AppState.settings.reminderEnabled ? 'checked' : ''} />
         </label>
         <div class="settings-field${AppState.settings.reminderEnabled ? '' : ' hidden'}" id="settings-reminder-time-row">
-          <label class="settings-label" for="settings-reminder-hour">Reminder time</label>
+          <label class="settings-label" for="settings-reminder-hour">${t('settings.reminder.time_label')}</label>
           <select id="settings-reminder-hour" class="settings-select">
             ${[7,8,9,12,17,18,19,20,21,22].map(function(h) {
               const label = h < 12 ? h + ':00 AM' : h === 12 ? '12:00 PM' : (h - 12) + ':00 PM';
@@ -519,8 +497,19 @@ function renderSettings() {
           </select>
         </div>
         <p class="settings-copy text-muted" id="settings-reminder-note" style="${AppState.settings.reminderEnabled ? '' : 'display:none'}">
-          ${AppState.isPro ? 'Reminds you about all unread items.' : 'Free: reminds about unread PDFs only. Upgrade to Pro for all file types.'}
+          ${AppState.isPro ? t('settings.reminder.note.pro') : t('settings.reminder.note.free')}
         </p>
+      </section>
+
+      <section class="settings-section">
+        <h2>${t('settings.section.language')}</h2>
+        <label class="settings-field">
+          <span>${t('settings.field.language')}</span>
+          <select id="settings-language">
+            <option value="en" ${FlowReadI18n.currentLang() === 'en' ? 'selected' : ''}>${t('settings.language.en')}</option>
+            <option value="hi" ${FlowReadI18n.currentLang() === 'hi' ? 'selected' : ''}>${t('settings.language.hi')}</option>
+          </select>
+        </label>
       </section>
 
     </div>
@@ -629,6 +618,16 @@ function bindSettings() {
       updateSetting('reminderHour', h);
       localStorage.setItem('fr_reminder_hour', h);
       if (typeof NotificationsFeature !== 'undefined') NotificationsFeature.scheduleIfNeeded();
+    });
+  }
+
+  const langSelect = qs('#settings-language');
+  if (langSelect) {
+    langSelect.addEventListener('change', async function() {
+      const lang = this.value;
+      localStorage.setItem('fr_app_language', lang);
+      await FlowReadI18n.loadLanguage(lang);
+      renderSettings();
     });
   }
 }

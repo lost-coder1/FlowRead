@@ -28,11 +28,11 @@ const NormalView = (function() {
             <span class="normal-page-total">/ ${file.pdfDoc.numPages}</span>
           </div>
           <button class="btn btn-ghost" id="btn-normal-next">›</button>
-          <button class="btn btn-ghost" id="btn-normal-zoom-out">A−</button>
+          <button class="btn btn-ghost" id="btn-normal-zoom-out">${t('normal.btn.zoom_out')}</button>
           <button class="btn btn-ghost normal-zoom-readout" id="normal-zoom-readout">${Math.round(AppState.normalZoom * 100)}%</button>
-          <button class="btn btn-ghost" id="btn-normal-zoom-in">A+</button>
-          <button class="btn btn-ghost" id="btn-normal-fit">Fit Width</button>
-          <button class="btn btn-primary" id="btn-normal-read-here">▶ Read from here</button>
+          <button class="btn btn-ghost" id="btn-normal-zoom-in">${t('normal.btn.zoom_in')}</button>
+          <button class="btn btn-ghost" id="btn-normal-fit">${t('normal.btn.fit_width')}</button>
+          <button class="btn btn-primary" id="btn-normal-read-here">${t('normal.btn.read_here')}</button>
         </div>
         <div class="normal-scroll" id="normal-scroll">
           <div class="normal-pages" id="normal-pages">
@@ -62,9 +62,9 @@ const NormalView = (function() {
       html += `
         <section class="normal-page-shell" data-page="${page}">
           <div class="normal-page-card">
-            <div class="normal-page-label">Page ${page}</div>
+            <div class="normal-page-label">${t('normal.page.label', {n: page})}</div>
             <div class="normal-page-canvas-wrap" data-page-wrap="${page}">
-              <div class="normal-page-placeholder">Preparing page…</div>
+              <div class="normal-page-placeholder">${t('normal.page.placeholder')}</div>
             </div>
           </div>
         </section>
@@ -112,7 +112,7 @@ const NormalView = (function() {
 
     qs('#btn-normal-read-here').addEventListener('click', function() {
       const targetIndex = pageToWordIndex(AppState.normalPage);
-      this.textContent = '✓ Jumping...';
+      this.textContent = t('normal.btn.read_here.jumping');
       this.disabled = true;
       setTimeout(() => {
         if (_observer) _observer.disconnect();
@@ -203,7 +203,7 @@ const NormalView = (function() {
       shell.classList.remove('is-rendering');
     } catch (err) {
       console.error('Normal page render failed:', err);
-      wrap.innerHTML = '<div class="normal-page-placeholder">Could not render this page.</div>';
+      wrap.innerHTML = '<div class="normal-page-placeholder">' + t('normal.page.render_error') + '</div>';
       shell.classList.remove('is-rendering');
     }
   }
@@ -225,7 +225,7 @@ const NormalView = (function() {
     applyScaleToShells();
     _renderedPages.clear();
     qsa('[data-page-wrap]').forEach(function(wrap) {
-      wrap.innerHTML = '<div class="normal-page-placeholder">Preparing page…</div>';
+      wrap.innerHTML = '<div class="normal-page-placeholder">' + t('normal.page.placeholder') + '</div>';
     });
     requestAnimationFrame(function() {
       renderVisibleWindow(token);

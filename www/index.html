@@ -55,7 +55,7 @@
   <!-- Global loading overlay -->
   <div id="loading-overlay" class="hidden">
     <div class="loading-spinner"></div>
-    <p id="loading-message">Loading...</p>
+    <p id="loading-message" data-i18n="loading.default">Loading...</p>
   </div>
 
   <!-- Global toast container -->
@@ -63,6 +63,9 @@
 
   <!-- Global modal root -->
   <div id="modal-root"></div>
+
+  <!-- i18n: must load before all app scripts so t() is available globally -->
+  <script src="js/i18n.js"></script>
 
   <!-- Static library assets — loaded before app code -->
   <script src="assets/lib/pdf.min.js"></script>

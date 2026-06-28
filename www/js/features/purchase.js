@@ -70,7 +70,7 @@ async function hasOcrAccess() {
 /* ─── Purchase flows ───────────────────────────────────────────────────── */
 async function buyPro() {
   const btn = qs('#btn-modal-unlock');
-  if (btn) { btn.disabled = true; btn.textContent = 'Opening store…'; }
+  if (btn) { btn.disabled = true; btn.textContent = t('iap.btn.opening_store'); }
 
   try {
     await _ensureIap();
@@ -89,13 +89,13 @@ async function buyPro() {
       syncThemeChips();
       syncTypographyChips();
       closeActiveModal();
-      showToast('Pro unlocked. Thank you!');
+      showToast(t('iap.toast.pro_unlocked'));
       if (typeof hydrateUploadSurface === 'function' && AppState.currentView === 'view-upload') {
         hydrateUploadSurface();
       }
     }
   } catch (err) {
-    _handlePurchaseError(err, btn, 'Unlock Pro');
+    _handlePurchaseError(err, btn, t('iap.btn.unlock', {tier: t('paywall.pro.tier')}));
   }
 }
 
@@ -108,7 +108,7 @@ async function buyOcr() {
   }
 
   const btn = qs('#btn-modal-unlock');
-  if (btn) { btn.disabled = true; btn.textContent = 'Opening store…'; }
+  if (btn) { btn.disabled = true; btn.textContent = t('iap.btn.opening_store'); }
 
   try {
     await _ensureIap();
@@ -122,20 +122,20 @@ async function buyOcr() {
     if (productIds.indexOf('ocr_vision') !== -1) {
       await savePurchaseState('ocr', 'true');
       closeActiveModal();
-      showToast('OCR Vision unlocked. Thank you!');
+      showToast(t('iap.toast.ocr_unlocked'));
       if (typeof hydrateUploadSurface === 'function' && AppState.currentView === 'view-upload') {
         hydrateUploadSurface();
       }
     }
   } catch (err) {
-    _handlePurchaseError(err, btn, 'Unlock OCR Vision');
+    _handlePurchaseError(err, btn, t('iap.btn.unlock', {tier: t('paywall.ocr.tier')}));
   }
 }
 
 /* ─── restorePurchases ─────────────────────────────────────────────────── */
 async function restorePurchases() {
   const btn = qs('#btn-modal-restore') || qs('#btn-settings-restore');
-  if (btn) { btn.disabled = true; btn.textContent = 'Restoring…'; }
+  if (btn) { btn.disabled = true; btn.textContent = t('iap.btn.restoring'); }
 
   try {
     await _ensureIap();
@@ -170,34 +170,34 @@ async function restorePurchases() {
       syncThemeChips();
       syncTypographyChips();
       closeActiveModal();
-      showToast(labels.join(' + ') + ' restored successfully.');
+      showToast(t('iap.toast.restored', {labels: labels.join(' + ')}));
       if (typeof hydrateUploadSurface === 'function' && AppState.currentView === 'view-upload') {
         hydrateUploadSurface();
       }
     } else {
-      showToast('No previous purchases found for this account.');
-      if (btn) { btn.disabled = false; btn.textContent = btn.id === 'btn-settings-restore' ? 'Restore Purchases' : 'Restore Purchases'; }
+      showToast(t('iap.toast.no_purchases'));
+      if (btn) { btn.disabled = false; btn.textContent = t('btn.restore_purchases'); }
     }
   } catch (err) {
     console.warn('[IAP] restorePurchases error:', err);
-    showToast('Could not restore purchases. Please check your connection and try again.');
-    if (btn) { btn.disabled = false; btn.textContent = 'Restore Purchases'; }
+    showToast(t('iap.toast.restore_failed'));
+    if (btn) { btn.disabled = false; btn.textContent = t('btn.restore_purchases'); }
   }
 }
 
 /* ─── Paywall modals ───────────────────────────────────────────────────── */
 function showProPaywall(source) {
   showPaywall({
-    tier: 'Pro',
+    tier: t('paywall.pro.tier'),
     productId: 'pro_lifetime',
-    title: 'Unlock Pro',
-    subtitle: 'DOCX, TXT, URL Reader, dashboard, themes, and future pro tools.',
+    title: t('paywall.pro.title'),
+    subtitle: t('paywall.pro.subtitle'),
     source: source || 'unknown',
     features: [
-      'URL Reader for compatible articles',
-      'DOCX and TXT import',
-      'Dashboard, themes, and advanced tools',
-      'One-time purchase. No subscription.',
+      t('paywall.pro.feature1'),
+      t('paywall.pro.feature2'),
+      t('paywall.pro.feature3'),
+      t('paywall.pro.feature4'),
     ],
     onUnlock: buyPro,
   });
@@ -205,16 +205,16 @@ function showProPaywall(source) {
 
 function showOcrPaywall(source) {
   showPaywall({
-    tier: 'OCR Vision',
+    tier: t('paywall.ocr.tier'),
     productId: 'ocr_vision',
-    title: 'Unlock OCR Vision',
-    subtitle: 'Read scanned and image-based PDFs on this device.',
+    title: t('paywall.ocr.title'),
+    subtitle: t('paywall.ocr.subtitle'),
     source: source || 'unknown',
     features: [
-      'Scanned PDF support (Latin + Hindi/Devanagari)',
-      'Fully on-device — no internet required',
-      'One-time purchase. No subscription.',
-      'Requires Pro (' + _prices['pro_lifetime'] + ') + OCR Vision (' + _prices['ocr_vision'] + ').',
+      t('paywall.ocr.feature1'),
+      t('paywall.ocr.feature2'),
+      t('paywall.ocr.feature3'),
+      t('paywall.ocr.feature4', {pro_price: _prices['pro_lifetime'], ocr_price: _prices['ocr_vision']}),
     ],
     onUnlock: buyOcr,
   });
@@ -236,7 +236,7 @@ function showPaywall(options) {
 
   const price = _prices[options.productId] || '';
   const priceHtml = price
-    ? '<p class="modal-price">' + escapeHtml(price) + ' — one-time</p>'
+    ? '<p class="modal-price">' + escapeHtml(price) + ' ' + t('iap.price_suffix') + '</p>'
     : '';
 
   root.innerHTML = `
@@ -250,10 +250,10 @@ function showPaywall(options) {
         </ul>
         ${priceHtml}
         <div class="modal-actions">
-          <button class="btn btn-ghost" id="btn-modal-close">Not now</button>
-          <button class="btn btn-primary" id="btn-modal-unlock">Unlock ${escapeHtml(options.tier)}</button>
+          <button class="btn btn-ghost" id="btn-modal-close">${t('btn.not_now')}</button>
+          <button class="btn btn-primary" id="btn-modal-unlock">${t('iap.btn.unlock', {tier: escapeHtml(options.tier)})}</button>
         </div>
-        <button class="btn btn-link modal-restore-btn" id="btn-modal-restore">Restore Purchases</button>
+        <button class="btn btn-link modal-restore-btn" id="btn-modal-restore">${t('btn.restore_purchases')}</button>
       </div>
     </div>
   `;
@@ -283,10 +283,10 @@ function _handlePurchaseError(err, btn, btnLabel) {
   if (btn) { btn.disabled = false; btn.textContent = btnLabel; }
 
   if (errStr === 'billing_unavailable' || errStr === 'no_plugin') {
-    showToast('Store is not available. Please check your connection.');
+    showToast(t('iap.toast.store_unavailable'));
   } else if (errStr.indexOf('not found') !== -1 || errStr.indexOf('queryProducts') !== -1) {
-    showToast('Product not found. Please try again later.');
+    showToast(t('iap.toast.product_not_found'));
   } else {
-    showToast('Purchase could not be completed. Please try again.');
+    showToast(t('iap.toast.purchase_failed'));
   }
 }

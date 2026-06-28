@@ -52,8 +52,9 @@ Every limitation shown upfront in onboarding. Never silently fail. Errors explai
 www/
   index.html
   css/   base.css · components.css · engines.css · themes.css
+  i18n/  en.json · hi.json
   js/
-    app.js · state.js · storage.js
+    app.js · state.js · storage.js · i18n.js (language loader + global t() helper)
     parser/  pdf.js · docx.js · txt.js
     engines/ rsvp.js · chunk.js · scroll.js · focusbold.js
     views/   upload.js · reader.js · normal.js · dashboard.js · settings.js
@@ -191,7 +192,7 @@ Acquire: on entering any reading view, on play. Release: on exit to home/dashboa
 
 ## 12. Active Phase
 
-Phases 0–10 are complete. Phase 11 is complete. Current work is Phase 12.
+Phases 0–14 are complete. Current work is Phase 15.
 
 ### PHASE 11 — Share Extension & Deeper Sync (Completed)
 
@@ -442,6 +443,30 @@ Next task to handle: **Task 12.1 — Daily reminder notifications**
 
 ---
 
+### PHASE 15 — Feedback-Driven UX & India Market Expansion (current)
+
+- [x] **Task 15.6 — Hindi UI Localization (i18n)** (Completed)
+  - ✅ `www/js/i18n.js` — `FlowReadI18n.init()` async loader + global `t(key, vars)` helper with `{placeholder}` interpolation. Falls back to key name if translation missing.
+  - ✅ `www/i18n/en.json` — ~240 keys covering every user-facing string (toasts, errors, modals, onboarding, settings, dashboard, paywall, loading facts).
+  - ✅ `www/i18n/hi.json` — Full informal Hindi translation by product owner. All strings including limitations, paywall, dashboard, all 21 loading facts.
+  - ✅ `i18n.js` loaded first in `index.html`; `FlowReadI18n.init()` is the first async call in app.js boot.
+  - ✅ All 7 JS view/feature files refactored: `app.js`, `upload.js`, `reader.js`, `settings.js`, `dashboard.js`, `normal.js`, `purchase.js`.
+  - ✅ Language detected from `navigator.language` on first launch; stored in `fr_app_language` (localStorage).
+  - ✅ Language selector in Settings — live switch, no restart required.
+  - ✅ Dashboard Avg WPM card shows hint text: "Words Per Minute — how fast you read" / "Words Per Minute — पढ़ने की रफ़्तार".
+
+**i18n rule for all future Phase 15 work:** Every new UI string must use `t('key')`. Add keys to both `en.json` and `hi.json` together. Dynamic strings: `t('key', {n: value})`.
+
+- [ ] **Task 15.1 — Settings Page Restructure**
+- [ ] **Task 15.2 — Additional Reading Fonts**
+- [ ] **Task 15.3 — Word-Tap Action Setting**
+- [ ] **Task 15.4 — Notification System Redesign**
+- [ ] **Task 15.5 — Fifth Reading Mode: Page**
+- [ ] **Task 15.7 — Free Books Library**
+- [ ] **Task 15.8 — India Custom Store Listing**
+
+---
+
 ## 12. Code Rules
 
 ### Architecture
@@ -488,7 +513,7 @@ At session start: acknowledge reading AGENTS.md and state the current task. Befo
 
 ## 14. Project Status
 
-- **Current phase:** Phase 13 — Internal Testing Bug Fixes & Polish
+- **Current phase:** Phase 15 — Feedback-Driven UX & India Market Expansion
 - **Android versionCode:** 24 (versionName "1.2") — Play Store re-submission after MANAGE_EXTERNAL_STORAGE removal
 - **Target platforms:** Android first, iOS second.
 - **Target launch:** TBD — quality over speed.
