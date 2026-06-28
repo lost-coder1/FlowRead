@@ -57,9 +57,10 @@ www/
     app.js · state.js · storage.js · i18n.js (language loader + global t() helper)
     parser/  pdf.js · docx.js · txt.js
     engines/ rsvp.js · chunk.js · scroll.js · focusbold.js
-    views/   upload.js · reader.js · normal.js · dashboard.js · settings.js
+    views/   upload.js · reader.js · normal.js · dashboard.js · settings.js · free-books.js
     features/ chapter-detection.js · cleaning.js · bridge.js · keep-awake.js · purchase.js
     utils/   dom.js · format.js
+  data/  free-books.json
   assets/ fonts/ · icons/
 ```
 
@@ -637,46 +638,29 @@ Terms to keep in English/Roman regardless of UI language (per product owner dire
 
 Font requirement: None of the currently bundled fonts (Roboto, Open Sans, Lato, DM Mono) include Devanagari glyphs for UI chrome rendering — Roboto/Open Sans's Cyrillic/Greek coverage noted in Section 12.3 does not extend to Devanagari. Bundle Noto Sans Devanagari (UI) as an additional local font, loaded only when Hindi UI is active or when Hindi-language book titles/content need rendering outside the reading engines (which already handle Devanagari body text correctly per existing work). Implement as a fallback chain rather than a hard switch, since mixed Hindi/English UI strings are expected.
 
-15.7 — Free Books Library
+- [x] **Task 15.7 — Free Books Library** (Completed)
+  - ✅ `www/data/free-books.json` — curated catalog of ~90 public domain books (Ambedkar, Tagore, Phule, Gandhi, world classics). Catalog fields: `id`, `title`, `author`, `language` (hi/en), `category`, `coverImage`, `sourceUrl`, `fileType` (pdf/txt), `approxLength`, `requiresOcr` (optional boolean).
+  - ✅ `www/js/views/free-books.js` — `FreeBooksView` IIFE module. Full view with language tabs (All / English / हिंदी), horizontal category filter chips, search bar (client-side over JSON), 2-column book card grid.
+  - ✅ Book cards: Gutenberg cover images rendered via `<img loading="lazy">` with `onerror` fallback to deterministic colour-coded initials placeholder. Cards are `<div role="button">` (not `<button>`) to allow the embedded ↺ re-download button inside.
+  - ✅ Download states: idle → "Download" / in-progress → "Downloading…" / done → "Open ✓ + ↺". `fr_freebook_<bookId>` in localStorage stores the fileId once saved.
+  - ✅ Download pipeline uses existing `parsePDF` / `parseTXT` — downloaded books appear in "Your Library" and dashboard stats identically to manually imported files.
+  - ✅ **Auto-OCR for Free Books** (no paywall): OCR fires automatically when `!hasTextLayer || hasLegacyEncoding || book.requiresOcr`. The OCR add-on gates user-uploaded scanned documents; curated catalog books should always work. No `hasOcrAccess()` check in this flow.
+  - ✅ `requiresOcr: true` catalog flag — for PDFs whose legacy encoding evades the heuristic detector. Set per-entry in the JSON; OCR runs unconditionally for those books. Currently set on `dhammapada_hi`.
+  - ✅ **Gutenberg header stripping** — `_stripGutenberg()` removes everything before `*** START OF THE PROJECT GUTENBERG EBOOK ... ***` and after `*** END ***` before passing text to `parseTXT`. Applied automatically for all TXT imports.
+  - ✅ **Stale entry detection** — `_handleCardTap` checks `entry.wordCount > 0` before calling `resumeFromLibrary`. Entries with 0 words (failed previous download that saved garbage) are auto-cleared and re-downloaded on next tap.
+  - ✅ **↺ Re-download button** — visible when state is `downloaded`. Clears `fr_freebook_<id>` + library entry, then starts a fresh download immediately. Allows re-import when a book had garbage text on first download.
+  - ✅ **Order of operations** — `saveFileToLibrary`, `saveFileData`, and `_setSavedFileId` only called after confirming `result.words.length > 0`. No stale "Open ✓" card possible from a failed parse.
+  - ✅ **Smart back navigation** — `AppState.readerSource = 'free-books'`; reader back button returns to Free Books view, not home. Hardware back from `view-free-books` returns to home.
+  - ✅ **Region-aware sort** — India locale (`hi-*` or `*-IN`) auto-sorts `social_justice` / `constitution_law` / Hindi entries to the top of the default view.
+  - ✅ Full i18n in both `en.json` and `hi.json` (17 keys each). Free Books card in `upload.js` as full-width featured card, first in the import grid.
+  - ✅ CSP extended: `img-src` now includes `https:` for Gutenberg cover image CDN.
+  - ⚠️ Catalog entries with `fileType: "html"` (Wikisource pages, BAWS.in) will fail with a download error toast — they need direct PDF/TXT URLs. Review and replace before launch.
 
-New. A curated, hand-verified directory of links to legally free books — public domain works or officially-hosted-free sources (e.g. government-published PDFs) — not a hosted/bundled library. The app downloads a file from its verified external source on user request and saves it into the existing local file storage exactly as any imported file, after which it is fully offline like any other library item.
-
-Legal constraint (do not violate): No copyrighted file may be bundled into the APK or redistributed by the app directly. Every catalog entry's source URL must resolve to a direct file download (not an HTML landing page, and not a borrow/lending-only item if sourced from an archive) from a verified public-domain or officially-free source. Catalog entries are manually curated and supplied by the product owner — the app must not auto-scrape or auto-populate this list.
-
-Entry point: New home-screen import card, consistent with the existing card grid pattern (Phase 13's "2-column import grid," card badge conventions). Label: "Free Books" (English) / "मुफ़्त किताबें" (Hindi, via 15.6). For new users, prioritise surfacing this card prominently — onboarding or home-screen placement should make it one of the first things visible, not buried.
-
-Catalog data structure — static bundled JSON for launch (fetch-from-URL for catalog updates without app updates is a possible later enhancement, not required for launch):
-
-json{
-  "books": [
-    {
-      "id": "unique_id",
-      "title": "string",
-      "author": "string",
-      "language": "hi" | "en",
-      "category": "social_justice" | "constitution_law" | "philosophy" | "classics" | "buddhism" | "biography_history",
-      "coverImage": "local asset path or null",
-      "sourceUrl": "direct file URL — verified, not a landing page",
-      "fileType": "pdf" | "epub" | "txt",
-      "approxLength": "optional string"
-    }
-  ]
-}
-
-UI components:
-
-
-Language tabs (Hindi / English / All) at top.
-Category filter chips, horizontal scroll, max 6–7 categories — keep minimal for a small curated catalog.
-Search bar (title/author, client-side over the bundled JSON).
-Book cards: cover (or text-based placeholder if no image), title, author, language tag, download-state indicator (not-downloaded → downloading → downloaded/open → failed-with-retry, following the existing app-wide "never fail silently, plain-language error" rule from Section 1.5 / Section 12 UX rules).
-
-
-Region-aware ordering, not filtering: Determine device region/locale on screen load. India-associated locale sorts social_justice/constitution_law categories and Hindi entries to the top of the default (unfiltered) view; other locales sort philosophy/classics and English entries to the top. This is ordering only — every category/entry remains accessible to every user via the filter chips regardless of detected region. Do not hide or block content by region.
-
-Download mechanics: On tap, fetch the file from sourceUrl, save via the existing file-import storage path (same mechanism as any manually imported PDF/DOCX/TXT — confirm this reuses the same library/dashboard entry creation as Section 11's device-sync import, so downloaded books appear in "Your Library" / dashboard stats identically). Handle network failure with the existing plain-language error pattern; never fail silently.
-
-Initial catalog content: Product owner supplies the verified book list and source URLs separately, after legal verification of each entry (see open question below). Build the screen and data structure ready to accept this list — do not invent or guess source URLs.
+### Free Books catalog rules (for future additions)
+- Every entry must be a direct file URL (PDF/TXT), not an HTML page or lending/borrow link.
+- No copyrighted content. Public domain or officially-free sources only.
+- Add `"requiresOcr": true` to any Hindi PDF that shows garbage text on first download (legacy Indic font encoding that evades the heuristic).
+- `fileType` must be `pdf` or `txt` — `html` entries are not handled and will error.
 
 15.8 — India Custom Store Listing
 

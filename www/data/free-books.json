@@ -151,7 +151,7 @@
       "category": "buddhism",
       "coverImage": null,
       "sourceUrl": "https://sbibengalcouncil.com/Buddha-or-karl-marx.pdf",
-      "fileType": "html",
+      "fileType": "pdf",
       "approxLength": "~40 pages"
     },
     {
@@ -176,17 +176,7 @@
       "fileType": "pdf",
       "approxLength": "~470 pages"
     },
-    {
-      "id": "constitution_india_hi",
-      "title": "भारत का संविधान",
-      "author": "भारत सरकार",
-      "language": "hi",
-      "category": "constitution_law",
-      "coverImage": null,
-      "sourceUrl": "https://cdnbbsr.s3waas.gov.in/s380537a945c7aaa788ccfcdf1b99b5d8f/uploads/2023/05/2023050186.pdf",
-      "fileType": "pdf",
-      "approxLength": "~470 pages"
-    },
+  
     {
       "id": "gulamgiri_en",
       "title": "Gulamgiri",
