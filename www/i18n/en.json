@@ -405,5 +405,27 @@
   "dict.pro_prompt": "Look up any word as you read.",
   "dict.upgrade_cta": "Upgrade to Pro to enable the offline dictionary.",
 
-  "calibration.sample": "FlowRead is built for readers who want less friction and more momentum. The goal of this calibration is not to impress you with a big number — it’s to find the pace where reading feels effortless. Start slow, watch the words land, and nudge the speed up until it feels natural."
+  "calibration.sample": "FlowRead is built for readers who want less friction and more momentum. The goal of this calibration is not to impress you with a big number — it’s to find the pace where reading feels effortless. Start slow, watch the words land, and nudge the speed up until it feels natural.",
+
+  "upload.card.freebooks.title": "Free Books",
+  "upload.card.freebooks.badge": "Free",
+  "upload.card.freebooks.body": "Public domain classics, philosophy, and more. Download once, read offline.",
+
+  "freebooks.title": "Free Books",
+  "freebooks.lang.all": "All",
+  "freebooks.search.placeholder": "Search title or author…",
+  "freebooks.cat.all": "All",
+  "freebooks.cat.social_justice": "Social Justice",
+  "freebooks.cat.constitution_law": "Constitution & Law",
+  "freebooks.cat.philosophy": "Philosophy",
+  "freebooks.cat.classics": "Classics",
+  "freebooks.cat.buddhism": "Buddhism",
+  "freebooks.cat.biography_history": "Biography & History",
+  "freebooks.state.download": "Download",
+  "freebooks.state.downloading": "Downloading…",
+  "freebooks.state.open": "Open ✓",
+  "freebooks.loading.downloading": "Downloading {title}…",
+  "freebooks.error.download_failed": "Could not download '{title}'. Check your connection and try again.",
+  "freebooks.empty": "No books match your filters.",
+  "freebooks.legal": "All titles are public domain or officially free. Downloaded files are saved on your device."
 }

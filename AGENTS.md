@@ -462,7 +462,18 @@ Next task to handle: **Task 12.1 — Daily reminder notifications**
 - [ ] **Task 15.3 — Word-Tap Action Setting**
 - [ ] **Task 15.4 — Notification System Redesign**
 - [ ] **Task 15.5 — Fifth Reading Mode: Page**
-- [ ] **Task 15.7 — Free Books Library**
+- [x] **Task 15.7 — Free Books Library** (Completed)
+  - ✅ `www/data/free-books.json` — curated catalog (~90 public domain books: Ambedkar, Tagore, Phule, Gandhi, world classics). Fields: `id`, `title`, `author`, `language` (hi/en), `category`, `coverImage`, `sourceUrl`, `fileType` (pdf/txt), `approxLength`, `requiresOcr` (optional boolean override).
+  - ✅ `www/js/views/free-books.js` — `FreeBooksView` IIFE. Language tabs, category chips, search, 2-column grid. Smart back: `AppState.readerSource = 'free-books'` routes reader back button to Free Books, not home.
+  - ✅ Cards are `<div role="button">` (not `<button>`) so the embedded ↺ re-download button is valid HTML. Gutenberg cover images with `onerror` fallback to colour-coded initials.
+  - ✅ Download states: idle / downloading / done ("Open ✓ + ↺"). `fr_freebook_<bookId>` in localStorage stores fileId.
+  - ✅ **Auto-OCR, no paywall** — fires when `!hasTextLayer || hasLegacyEncoding || book.requiresOcr`. No `hasOcrAccess()` check. The OCR add-on gates user-uploaded docs; curated books always work.
+  - ✅ `requiresOcr: true` flag in catalog — for PDFs whose encoding evades the heuristic detector. Currently set on `dhammapada_hi`.
+  - ✅ Gutenberg TXT header stripping (`_stripGutenberg`) — removes boilerplate before `*** START ***` and after `*** END ***` markers before `parseTXT`.
+  - ✅ Stale entry guard — `entry.wordCount > 0` checked before `resumeFromLibrary`. 0-word entries auto-cleared and re-downloaded.
+  - ✅ Persist-after-validate order — `saveFileToLibrary` / `saveFileData` / `_setSavedFileId` only called after `result.words.length > 0`.
+  - ✅ CSP `img-src` extended with `https:` for Gutenberg cover CDN.
+  - ⚠️ `fileType: "html"` catalog entries are not handled — replace with direct PDF/TXT URLs before launch.
 - [ ] **Task 15.8 — India Custom Store Listing**
 
 ---

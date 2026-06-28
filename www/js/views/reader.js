@@ -196,6 +196,9 @@ function _bindReaderControls() {
     if (src === 'dashboard') {
       renderDashboard();
       switchView('view-dashboard');
+    } else if (src === 'free-books') {
+      renderFreeBooks();
+      switchView('view-free-books');
     } else {
       renderUpload();
       switchView('view-upload');

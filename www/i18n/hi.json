@@ -376,5 +376,27 @@
   "dict.no_definition": "“{word}” की definition नहीं मिली।",
   "dict.pro_prompt": "पढ़ते समय किसी भी word का meaning देखें।",
   "dict.upgrade_cta": "Offline dictionary चालू करने के लिए Pro upgrade करें।",
-  "calibration.sample": "FlowRead उन readers के लिए बना है जो कम friction और ज्यादा momentum चाहते हैं। इस calibration का goal कोई बड़ा number दिखाना नहीं है — goal है वह speed ढूँढना जहाँ पढ़ना effortless लगे। धीरे शुरू करें, words को settle होते देखें, और speed तब तक बढ़ाएँ जब तक natural न लगे।"
+  "calibration.sample": "FlowRead उन readers के लिए बना है जो कम friction और ज्यादा momentum चाहते हैं। इस calibration का goal कोई बड़ा number दिखाना नहीं है — goal है वह speed ढूँढना जहाँ पढ़ना effortless लगे। धीरे शुरू करें, words को settle होते देखें, और speed तब तक बढ़ाएँ जब तक natural न लगे।",
+
+  "upload.card.freebooks.title": "मुफ़्त किताबें",
+  "upload.card.freebooks.badge": "मुफ़्त",
+  "upload.card.freebooks.body": "Public domain की क्लासिक, दर्शन, और अधिक। एक बार download करें, offline पढ़ें।",
+
+  "freebooks.title": "मुफ़्त किताबें",
+  "freebooks.lang.all": "सभी",
+  "freebooks.search.placeholder": "नाम या लेखक खोजें…",
+  "freebooks.cat.all": "सभी",
+  "freebooks.cat.social_justice": "सामाजिक न्याय",
+  "freebooks.cat.constitution_law": "संविधान & कानून",
+  "freebooks.cat.philosophy": "दर्शन",
+  "freebooks.cat.classics": "क्लासिक्स",
+  "freebooks.cat.buddhism": "बौद्ध धर्म",
+  "freebooks.cat.biography_history": "जीवनी & इतिहास",
+  "freebooks.state.download": "Download",
+  "freebooks.state.downloading": "Download हो रहा है…",
+  "freebooks.state.open": "खोलें ✓",
+  "freebooks.loading.downloading": "{title} download हो रहा है…",
+  "freebooks.error.download_failed": "'{title}' download नहीं हो पाई। इंटरनेट जाँचें और फिर कोशिश करें।",
+  "freebooks.empty": "कोई किताब नहीं मिली।",
+  "freebooks.legal": "सभी किताबें public domain या officially free हैं। Download की गई फाइलें आपके फोन पर ही रहती हैं।"
 }
