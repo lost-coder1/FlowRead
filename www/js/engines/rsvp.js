@@ -78,6 +78,28 @@ const RSVPEngine = (function() {
     _bindComfortControls();
   }
 
+  /* Long-press on the RSVP stage — bound once per render, after DOM rebuild */
+  let _rsvpLpTimer = null;
+  let _rsvpLpFired = false;
+
+  function _bindWordTapOnStage() {
+    _stageEl.addEventListener('touchstart', function() {
+      _rsvpLpFired = false;
+      if (!WordTapFeature.isLongpress()) return;
+      _rsvpLpTimer = setTimeout(function() {
+        _rsvpLpFired = true;
+        const w = ((_beforeEl.textContent || '') + (_orpEl.textContent || '') + (_afterEl.textContent || '')).trim();
+        if (w && typeof DictionaryFeature !== 'undefined') DictionaryFeature.showDictionaryModal(w);
+      }, 500);
+    }, { passive: true });
+    _stageEl.addEventListener('touchend', function() {
+      clearTimeout(_rsvpLpTimer); _rsvpLpTimer = null;
+    }, { passive: true });
+    _stageEl.addEventListener('touchmove', function() {
+      clearTimeout(_rsvpLpTimer); _rsvpLpTimer = null;
+    }, { passive: true });
+  }
+
   function _bindComfortControls() {
     qs('#btn-font-dec').addEventListener('click', function() {
       _fontSize = Math.max(24, _fontSize - 4);
@@ -103,6 +125,7 @@ const RSVPEngine = (function() {
       _contextEl && _contextEl.classList.toggle('hidden', !_contextEnabled);
       if (_contextEnabled) _updateContext();
     });
+    _bindWordTapOnStage();
   }
 
   function _applyFontSize() {
@@ -139,10 +162,12 @@ const RSVPEngine = (function() {
     if (wrap) wrap.classList.remove('placeholder-mode');
     if (wrap) wrap.style.fontSize = _fontSize + 'px';
     _stageEl.onclick = function() {
-      const word = (_beforeEl.textContent || '') + (_orpEl.textContent || '') + (_afterEl.textContent || '');
-      if (typeof DictionaryFeature !== 'undefined') DictionaryFeature.showDictionaryModal(word.trim());
+      if (_rsvpLpFired) { _rsvpLpFired = false; return; }
+      if (!WordTapFeature.shouldActOnTap()) return;
+      const w = (_beforeEl.textContent || '') + (_orpEl.textContent || '') + (_afterEl.textContent || '');
+      if (typeof DictionaryFeature !== 'undefined') DictionaryFeature.showDictionaryModal(w.trim());
     };
-    _stageEl.style.cursor = 'pointer';
+    _stageEl.style.cursor = WordTapFeature.shouldActOnTap() || WordTapFeature.isLongpress() ? 'pointer' : 'default';
     _afterEl.style.color = '';
     _afterEl.style.fontSize = '';
 

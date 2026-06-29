@@ -145,10 +145,7 @@ const ScrollEngine = (function() {
         if (typeof w === 'string') {
           span.textContent = w + ' ';
           (function(captured) {
-            span.addEventListener('click', function(e) {
-              e.stopPropagation();
-              if (typeof DictionaryFeature !== 'undefined') DictionaryFeature.showDictionaryModal(captured);
-            });
+            WordTapFeature.bindWord(span, captured);
           })(w);
         } else {
           span.textContent = ((w && w.label) || '[Content]') + ' ';
