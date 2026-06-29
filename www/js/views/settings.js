@@ -86,8 +86,9 @@ function getDefaultSettings() {
     orpDefault: true,
     contextDefault: false,
     calmModeDefault: false,
-    reminderEnabled: false,
-    reminderHour: 20,
+    reminderEnabled: true,
+    reminderTime: '21:00',
+    streakNudgeEnabled: true,
     wordTapAction: 'none',
     wordTapLongpress: true,
   };
@@ -491,15 +492,14 @@ function renderSettings() {
         </label>
         <div class="settings-row${AppState.settings.reminderEnabled ? '' : ' hidden'}" id="settings-reminder-time-row">
           <span class="settings-row-label">${t('settings.reminder.time_label')}</span>
-          <select id="settings-reminder-hour" class="settings-select">
-            ${[7,8,9,12,17,18,19,20,21,22].map(function(h) {
-              const label = h < 12 ? h + ':00 AM' : h === 12 ? '12:00 PM' : (h - 12) + ':00 PM';
-              return '<option value="' + h + '"' + (AppState.settings.reminderHour === h ? ' selected' : '') + '>' + label + '</option>';
-            }).join('')}
-          </select>
+          <input type="time" id="settings-reminder-time" class="settings-time-input" value="${escapeHtml(AppState.settings.reminderTime || '21:00')}" />
         </div>
+        <label class="settings-toggle${AppState.settings.reminderEnabled ? '' : ' hidden'}" id="settings-streak-nudge-row">
+          <span>${t('settings.toggle.streak_nudge')}</span>
+          <input type="checkbox" id="settings-streak-nudge-enabled" ${AppState.settings.streakNudgeEnabled !== false ? 'checked' : ''} />
+        </label>
         <p class="settings-copy text-muted" id="settings-reminder-note" style="${AppState.settings.reminderEnabled ? '' : 'display:none'}">
-          ${AppState.isPro ? t('settings.reminder.note.pro') : t('settings.reminder.note.free')}
+          ${t('settings.reminder.note')}
         </p>
       </section>
 
@@ -623,27 +623,44 @@ function bindSettings() {
 
   const reminderToggle = qs('#settings-reminder-enabled');
   if (reminderToggle) {
-    reminderToggle.addEventListener('change', function() {
+    reminderToggle.addEventListener('change', async function() {
       const enabled = this.checked;
       updateSetting('reminderEnabled', enabled);
       localStorage.setItem('fr_reminder_enabled', enabled);
       const timeRow = qs('#settings-reminder-time-row');
       const note = qs('#settings-reminder-note');
+      const nudgeRow = qs('#settings-streak-nudge-row');
       if (timeRow) timeRow.classList.toggle('hidden', !enabled);
       if (note) note.style.display = enabled ? '' : 'none';
+      if (nudgeRow) nudgeRow.classList.toggle('hidden', !enabled);
       if (typeof NotificationsFeature !== 'undefined') {
-        enabled ? NotificationsFeature.scheduleIfNeeded() : NotificationsFeature.cancel();
+        if (enabled) {
+          await NotificationsFeature.requestPermission();
+          NotificationsFeature.reschedule();
+        } else {
+          NotificationsFeature.cancelAll();
+        }
       }
     });
   }
 
-  const reminderHour = qs('#settings-reminder-hour');
-  if (reminderHour) {
-    reminderHour.addEventListener('change', function() {
-      const h = parseInt(this.value, 10);
-      updateSetting('reminderHour', h);
-      localStorage.setItem('fr_reminder_hour', h);
-      if (typeof NotificationsFeature !== 'undefined') NotificationsFeature.scheduleIfNeeded();
+  const reminderTime = qs('#settings-reminder-time');
+  if (reminderTime) {
+    reminderTime.addEventListener('change', function() {
+      const value = /^\d{2}:\d{2}$/.test(this.value) ? this.value : '21:00';
+      updateSetting('reminderTime', value);
+      localStorage.setItem('fr_reminder_time', value);
+      if (typeof NotificationsFeature !== 'undefined') NotificationsFeature.reschedule();
+    });
+  }
+
+  const streakNudgeToggle = qs('#settings-streak-nudge-enabled');
+  if (streakNudgeToggle) {
+    streakNudgeToggle.addEventListener('change', function() {
+      const enabled = this.checked;
+      updateSetting('streakNudgeEnabled', enabled);
+      localStorage.setItem('fr_notif_streak_nudge', enabled);
+      if (typeof NotificationsFeature !== 'undefined') NotificationsFeature.reschedule();
     });
   }
 

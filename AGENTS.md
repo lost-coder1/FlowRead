@@ -461,7 +461,15 @@ Next task to handle: **Task 12.1 — Daily reminder notifications**
 - [x] **Task 15.1 — Settings Page Restructure** (Completed)
 - [x] **Task 15.2 — Additional Reading Fonts** (Completed)
 - [x] **Task 15.3 — Word-Tap Action Setting** (Completed)
-- [ ] **Task 15.4 — Notification System Redesign**
+- [x] **Task 15.4 — Notification System Redesign** (Implementation complete · device testing pending)
+  - ✅ `www/js/features/notifications.js` rewritten — two IDs (`1001` primary, `1002` streak nudge). Reschedules on boot, on every Settings change in the Notifications section, and after every successful `saveReadingSession()` in `reader.js`.
+  - ✅ Primary reminder: user-chosen HH:MM. Copy chosen at schedule time by priority — active streak (≥2) → in-progress file (5–95%) → generic motivational. Pools in EN + HI (6 generic / 3 streak / 3 progress).
+  - ✅ Streak-protection nudge: +45 min after primary, only when streak ≥3 AND user hasn't read today AND nudge stays on same calendar day. Separate toggle in Settings.
+  - ✅ Daily read threshold (≥100 words OR ≥60 s today): skips primary on next reschedule, cancels nudge mid-day when crossed.
+  - ✅ Native HH:MM picker (`<input type="time">` with `color-scheme: dark`). Storage migrated from `fr_reminder_hour` (int) to `fr_reminder_time` (HH:MM) — one-time auto-migration in `_getReminderTime()`.
+  - ✅ First-boot permission prompt — defaults seeded (`reminderEnabled=true`, `streakNudge=true`, `time='21:00'`), `requestPermissions()` called once, `fr_notif_first_boot=done` flag set. Permission re-requested if user re-enables the primary toggle after disabling.
+  - ✅ 22 new i18n keys in `en.json` / `hi.json`. Channel `flowread_reminder` and Phase 13 icon convention unchanged.
+  - ⏳ Device testing pending — verify over several days: first-boot prompt, time-picker UX, primary suppression after threshold, nudge firing at +45 min, mid-day nudge cancellation, locale 12/24h display.
 - [ ] **Task 15.5 — Fifth Reading Mode: Page**
 - [x] **Task 15.7 — Free Books Library** (Completed)
   - ✅ `www/data/free-books.json` — curated catalog (~90 public domain books: Ambedkar, Tagore, Phule, Gandhi, world classics). Fields: `id`, `title`, `author`, `language` (hi/en), `category`, `coverImage`, `sourceUrl`, `fileType` (pdf/txt), `approxLength`, `requiresOcr` (optional boolean override).
