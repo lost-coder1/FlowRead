@@ -771,6 +771,24 @@
   accent-color: var(--accent);
 }
 
+.settings-time-input {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 14px;
+  font-family: var(--font-mono);
+  accent-color: var(--accent);
+  color-scheme: dark;
+  min-width: 110px;
+}
+
+.settings-time-input::-webkit-calendar-picker-indicator {
+  filter: invert(0.7) sepia(0.3) saturate(2) hue-rotate(10deg);
+  cursor: pointer;
+}
+
 .settings-slider {
   width: 100%;
   accent-color: var(--accent);

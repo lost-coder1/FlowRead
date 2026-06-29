@@ -327,9 +327,33 @@
   "settings.btn.restore": "Restore Purchases",
   "settings.section.notifications": "Notifications",
   "settings.toggle.reminder": "Daily reading reminder",
+  "settings.toggle.streak_nudge": "Streak protection",
   "settings.reminder.time_label": "Reminder time",
-  "settings.reminder.note.pro": "Reminds you about all unread items.",
-  "settings.reminder.note.free": "Free: reminds about unread PDFs only. Upgrade to Pro for all file types.",
+  "settings.reminder.note": "One reminder at your chosen time. If you have a streak going and haven't read yet, a gentle follow-up nudge fires 45 minutes later. Max two per day.",
+
+  "notif.title.generic": "FlowRead",
+  "notif.title.streak": "Keep your streak alive",
+  "notif.title.progress": "You're not done yet",
+  "notif.title.nudge": "Streak about to break",
+
+  "notif.generic.1": "Five minutes today. That's all it takes to stay sharp.",
+  "notif.generic.2": "One page is a win. Start small, finish strong.",
+  "notif.generic.3": "The book you opened is still waiting for you.",
+  "notif.generic.4": "Readers think clearer. Open something good.",
+  "notif.generic.5": "Today's pages become tomorrow's edge.",
+  "notif.generic.6": "Less scrolling. More reading. Pick up where you left off.",
+
+  "notif.streak.1": "{n} days strong 🔥 Don't break the chain tonight.",
+  "notif.streak.2": "{n}-day streak. One short session keeps it alive.",
+  "notif.streak.3": "Day {next} is one tap away. Show up for yourself.",
+
+  "notif.progress.1": "You're {pct}% through \"{title}\". Finish what you started.",
+  "notif.progress.2": "\"{title}\" — {pct}% done. The ending is closer than you think.",
+  "notif.progress.3": "{pct}% of \"{title}\" is behind you. Push through tonight.",
+
+  "notif.nudge.1": "Your {n}-day streak ends at midnight. One session saves it.",
+  "notif.nudge.2": "Don't lose {n} days of progress. Just a few pages.",
+  "notif.nudge.3": "{n} days. One tap. Save the streak.",
 
   "settings.section.language": "Language",
   "settings.field.language": "App language",

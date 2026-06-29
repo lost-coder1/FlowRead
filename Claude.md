@@ -539,36 +539,17 @@ Items originate from: (a) tester feedback from Reddit closed testing — setting
   - ✅ 5 new i18n keys in `en.json` and `hi.json`.
 
 
-15.4 — Notification System Redesign
-
-(Moved from Phase 14 stub, expanded with full mechanic per product discussion.)
-
-Current behaviour (per Phase 14 stub): basic daily reminder via @capacitor/local-notifications, fixed hourly window, not tied to actual reading behaviour. Replace with a single daily habit reminder plus an optional streak-protection nudge.
-
-Primary daily reminder:
-
-
-One notification per day at a user-configurable time (settings picker, constrained to a sensible range, e.g. 6am–11pm, to avoid accidental late-night/early-morning scheduling). Suggested default: 9:00 PM.
-Message content selected at fire-time from local state already tracked by the existing Pro Dashboard (streak count, per-file completion percentage — see Section 11, Task 12.6): reference an active streak if one exists, reference an in-progress file's completion percentage if one exists, otherwise a generic prompt.
-Do not fire if the user has already met a minimal daily reading threshold that day (reuse existing reading-time/word-count tracking from the dashboard's streak heatmap data).
-
-
-Streak-protection nudge (secondary, toggleable separately):
-
-
-A second, conditional local notification scheduled roughly 30–60 minutes after the primary reminder time, firing only if the user has an active streak above a minimum threshold (e.g. 3+ days) and has not yet read that day.
-Cancelled immediately if the user reads before it would fire.
-Maximum two notifications per day total, never more.
-
-
-Implementation notes:
-
-
-Continue using @capacitor/local-notifications (already in stack, Section 2) — no new plugin dependency.
-Reschedule on every read-session completion (cancel stale streak-nudge once read) and on any change to the relevant settings.
-Streak/completion data already exists from Task 12.6 (Pro Dashboard) — reuse, do not duplicate the tracking logic.
-Free tier: primary daily reminder + streak nudge (drives retention, should not be paywalled). Pro-locked (optional, can defer): multiple custom reminder times, "streak freeze" (skip a day without breaking streak), richer streak insights — note Section 10's Pro/Free table should be updated if these ship.
-Update the notification icon/colour convention already set in Phase 13 (smallIcon: "ic_launcher_foreground", iconColor: "#E8C547") — no change needed, just confirm new notification types use the same channel/config.
+- [x] **Task 15.4 — Notification System Redesign** (Implementation complete · device testing pending)
+  - ✅ `www/js/features/notifications.js` fully rewritten — two notification IDs (`1001` primary, `1002` streak nudge), reschedules itself on every state change.
+  - ✅ **Primary daily reminder** — one per day at user-chosen time (HH:MM). Copy chosen at schedule time from three pools by priority: active streak (≥2 days) → in-progress file (5–95% complete) → generic motivational. 6 generic, 3 streak, 3 progress variants in EN + HI.
+  - ✅ **Streak-protection nudge** — fires 45 min after primary, only when streak ≥3 days AND user still hasn't read today AND nudge stays on the same calendar day. Toggleable separately in Settings.
+  - ✅ **Daily read threshold** — ≥100 words OR ≥60 s in any session today. If met, today's primary is skipped on next reschedule; if crossed mid-day, the streak nudge is cancelled automatically.
+  - ✅ **Reschedule triggers** — app boot, every Settings change in the Notifications section, every successful `saveReadingSession()` call in `reader.js`. Stable IDs ensure no notification pile-up.
+  - ✅ **Permission flow** — on first boot, defaults are seeded (`fr_reminder_enabled=true`, `fr_notif_streak_nudge=true`, `fr_reminder_time='21:00'`) and `requestPermissions()` is called once. Users can flip both toggles in Settings → Notifications afterwards; permission is re-requested when the primary toggle is turned on.
+  - ✅ **HH:MM time picker** — native `<input type="time">` with `color-scheme: dark`, locale-aware 12/24h format, accent-tinted picker indicator. Replaces the old 10-option hour dropdown. Storage key migrated from `fr_reminder_hour` (integer) to `fr_reminder_time` (HH:MM string) with one-time auto-migration in `_getReminderTime()`.
+  - ✅ **i18n** — 22 new keys in `en.json` / `hi.json` (4 titles + 6 generic + 3 streak + 3 progress + 3 nudge + settings strings). Hindi keeps WPM/PDF/streak in English per CLAUDE.md rules. `t()` `{placeholder}` interpolation used for `{n}`, `{pct}`, `{title}`, `{next}`.
+  - ✅ Channel `flowread_reminder` reused; inherits Phase 13's `ic_launcher_foreground` + `#E8C547` icon convention.
+  - ⏳ **Device testing pending** — verify on real Android device over several days: first-boot permission prompt, time-picker UX, primary suppression after daily threshold, streak nudge firing at +45 min, nudge cancellation when user reads in the gap, locale-aware 12/24h display on the time picker.
 
 
 15.5 — Fifth Reading Mode: "Page"

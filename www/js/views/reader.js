@@ -572,6 +572,11 @@ function _flushSessionIfActive() {
       wpm: AppState.wpm,
       fileId: AppState.currentFile.id,
     });
+    /* Reschedule reminders — may cancel today's primary/nudge if user crossed
+     * today's threshold, or pick fresher progress/streak copy for tomorrow. */
+    if (typeof NotificationsFeature !== 'undefined') {
+      try { NotificationsFeature.reschedule(); } catch (_) {}
+    }
   }
 
   _sessionState = null;
