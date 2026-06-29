@@ -70,7 +70,7 @@ const FlowReadThemes = [
 const FlowReadTypographyPresets = [
   { key: 'roboto',       label: 'Roboto',        labelKey: 'font.roboto',       proOnly: false },
   { key: 'inter',        label: 'Inter',          labelKey: 'font.inter',        proOnly: true  },
-  { key: 'source-sans',  label: 'Source Sans 3',  labelKey: 'font.source_sans',  proOnly: true  },
+  { key: 'source-sans',  label: 'Sans Serif',     labelKey: 'font.source_sans',  proOnly: true  },
   { key: 'open-sans',    label: 'Open Sans',      labelKey: 'font.open_sans',    proOnly: true  },
   { key: 'lato',         label: 'Lato',           labelKey: 'font.lato',         proOnly: true  },
 ];
