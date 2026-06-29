@@ -45,7 +45,7 @@ Every limitation shown upfront in onboarding. Never silently fail. Errors explai
 - **Storage:** Capacitor Preferences (Keychain/EncryptedSharedPrefs) for purchase state. Capacitor Filesystem for file data. localStorage for UI state (all keys prefixed `fr_`).
 - **Screen wake:** @capacitor-community/keep-awake@5
 - **IAP:** Custom native Capacitor plugin `FlowReadIapPlugin` wrapping Google Play Billing Library 7.1.1 (`android/app/src/main/java/com/flowread/app/FlowReadIapPlugin.java`). Do NOT use @capacitor-community/in-app-purchases — it is behind on Billing 7 API and not installed.
-- **Fonts:** Roboto, Open Sans, Lato, DM Mono
+- **Fonts:** Roboto (free), Inter · Sans Serif (Source Sans 3) · Open Sans · Lato (all Pro), DM Mono (labels). Inter and Source Sans 3 bundled locally in `www/assets/fonts/`. All others via Google Fonts (cached after first load).
 
 **Key folder paths:**
 ```
@@ -57,10 +57,11 @@ www/
     app.js · state.js · storage.js · i18n.js (language loader + global t() helper)
     parser/  pdf.js · docx.js · txt.js
     engines/ rsvp.js · chunk.js · scroll.js · focusbold.js
-    views/   upload.js · reader.js · normal.js · dashboard.js · settings.js
-    features/ chapter-detection.js · cleaning.js · bridge.js · keep-awake.js · purchase.js
+    views/   upload.js · reader.js · normal.js · dashboard.js · settings.js · free-books.js
+    features/ chapter-detection.js · cleaning.js · bridge.js · keep-awake.js · purchase.js · dictionary.js · word-tap.js
     utils/   dom.js · format.js
-  assets/ fonts/ · icons/
+  assets/ fonts/inter/ · fonts/source-sans/ · icons/
+  data/  free-books.json
 ```
 
 ---
@@ -457,9 +458,9 @@ Next task to handle: **Task 12.1 — Daily reminder notifications**
 
 **i18n rule for all future Phase 15 work:** Every new UI string must use `t('key')`. Add keys to both `en.json` and `hi.json` together. Dynamic strings: `t('key', {n: value})`.
 
-- [ ] **Task 15.1 — Settings Page Restructure**
-- [ ] **Task 15.2 — Additional Reading Fonts**
-- [ ] **Task 15.3 — Word-Tap Action Setting**
+- [x] **Task 15.1 — Settings Page Restructure** (Completed)
+- [x] **Task 15.2 — Additional Reading Fonts** (Completed)
+- [x] **Task 15.3 — Word-Tap Action Setting** (Completed)
 - [ ] **Task 15.4 — Notification System Redesign**
 - [ ] **Task 15.5 — Fifth Reading Mode: Page**
 - [x] **Task 15.7 — Free Books Library** (Completed)

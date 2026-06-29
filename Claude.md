@@ -152,7 +152,7 @@ Acquire: on entering any reading view, on play. Release: on exit to home/dashboa
 - **No pure black (#000) or pure white (#fff) anywhere text appears.**
 - Border radius 2–4px on small elements, max 6px. No pill buttons.
 - Animations: 0.12–0.2s hover, 0.3s view transitions. No bounce. No RSVP flash.
-- Fonts: Roboto (default UI/reading), Open Sans (alternate reading), Lato (alternate reading), DM Mono (labels/numbers).
+- Fonts: Roboto (free default), Inter · Sans Serif (Source Sans 3) · Open Sans · Lato (Pro, bundled), DM Mono (labels/numbers).
 
 ---
 
@@ -506,44 +506,37 @@ Items originate from: (a) tester feedback from Reddit closed testing — setting
 - Dynamic strings use `{placeholder}` syntax: `t('key', {n: count})`.
 - `t()` global is available in all scripts (defined in `i18n.js`, loaded first).
 
-- [ ] **Task 15.1 — Settings Page Restructure** (Moved from Phase 14 stub — same item, unchanged scope.)
+- [x] **Task 15.1 — Settings Page Restructure** (Completed)
+  - ✅ Replaced single long-scroll page with 5 labelled sections: Appearance · Reading · Notifications · Library · About & Help
+  - ✅ Mobile row pattern throughout (label left, value/control right). Sliders span full width below their label row.
+  - ✅ Appearance: language selector, font scale slider, font chips, theme chips
+  - ✅ Reading: WPM, default mode, chunk size, divider, ORP/context/calm toggles + new word-tap controls (15.3)
+  - ✅ Notifications: daily reminder toggle + time picker row
+  - ✅ Library: local-storage privacy note + Restore Purchases button
+  - ✅ About & Help: version/privacy copy + Known Limitations as two-level collapsible accordion (outer toggle collapses all 11 items; each item individually collapsible)
+  - ✅ Phase 13 back-button fix (arrow-only, left-aligned) preserved. New CSS: `.settings-row`, `.settings-select`, `.settings-slider`, `.settings-chip-label`, `.settings-divider`, `.settings-accordion-*`, `.settings-limitation-*`
+  - ✅ 6 new i18n keys in `en.json` and `hi.json`
 
+- [x] **Task 15.2 — Additional Reading Fonts** (Completed)
+  - ✅ **Inter** (v20, variable font) — bundled as `www/assets/fonts/inter/inter-latin.woff2` + `inter-latin-ext.woff2` (~130KB). `font-weight: 100 900` range covers Regular/Medium/Bold from a single file. Pro-only.
+  - ✅ **Sans Serif** (Source Sans 3, v19, variable font) — bundled as `www/assets/fonts/source-sans/source-sans-latin.woff2` + `source-sans-latin-ext.woff2` (~87KB). Pro-only.
+  - ✅ Both added to `FlowReadTypographyPresets` with `proOnly: true`. Roboto remains the only free font.
+  - ✅ `@font-face` declarations in `base.css`; `body[data-font="inter"]` and `body[data-font="source-sans"]` set `--font-display` and `--font-body`. All engines pick up font via the existing CSS variable — no engine changes needed.
+  - ✅ `font.inter` and `font.source_sans` i18n keys added. Display label is "Inter" and "Sans Serif".
+  - ✅ No network request — fully offline. CSP unchanged (`font-src 'self'` already present).
 
-Replace the current single long-scroll settings page (www/js/views/settings.js) with sectioned groups: Appearance · Reading · Notifications · Library · About & Help.
-"Supported Formats & Known Limitations" (Section 9 content) moves to the bottom of About & Help as a collapsed-by-default accordion. Break its 10 items into individually collapsible sub-rows rather than one continuous block.
-Each section is a labelled group, standard mobile row pattern (label left, control/value right). Pro-locked rows keep the existing inline lock-icon pattern already used elsewhere (see import card badges in Phase 13) rather than hiding the row.
-Update back-button handling to match the existing hardware-back priority chain in app.js (settings/dashboard → renderUpload() + switchView('view-upload')).
-Confirm the "Settings back button UX fix" from Phase 13 (row layout, arrow-only back affordance) is preserved through the restructure.
-
-
-15.2 — Additional Reading Fonts
-
-(Moved from Phase 14 stub — same item, unchanged scope.)
-
-
-Add sans-serif options alongside the existing bundled fonts (Roboto, Open Sans, Lato, DM Mono). Suggested addition: Inter or Source Sans, bundled locally — no Google Fonts network requests, consistent with the existing "bundle fonts before launch" decision in Section 1.1.
-Apply via the existing --font-body CSS variable across all reading engines (RSVP, Chunk, Focus Bold, Scroll, and the new Page mode in 15.5).
-Surface as a font-family selector in the new Appearance settings section (15.1).
-
-
-15.3 — Word-Tap Action Setting
-
-(Moved from Phase 14 stub. Original stub assumed free users always see a Pro paywall on tap — confirmed current behaviour per Section 12.5: single tap on any word in RSVP/Chunk/Scroll/Focus Bold opens the dictionary modal for Pro users, or the upgrade prompt for free users, with playback auto-pausing on open. This task makes that behaviour configurable rather than fixed.)
-
-New setting in Reading section: "When you tap a word while reading" — three options:
-
-
-Nothing — tap performs no word action (freed up for other gestures)
-Open dictionary — existing Pro single-tap behaviour, unchanged
-Show unlock prompt — existing free-tier single-tap behaviour, unchanged
-
-
-New toggle: "Use long-press for dictionary instead of tap" — when enabled, tap performs the "Nothing" behaviour regardless of the setting above, and long-press triggers the existing dictionary modal (Pro) or upgrade prompt (free).
-
-
-Recommended defaults: tap = "Nothing", long-press toggle = ON for both Pro and free users — this directly addresses the tester complaint that tapping while reading "becomes annoying after a while, especially when you're just trying to navigate the screen."
-New localStorage key fr_word_tap_action (values: none | dictionary | upgrade_prompt) and fr_word_tap_longpress (boolean) — both UI state, not purchase state, so localStorage is correct per Section 12 storage rules (not Capacitor Preferences).
-Apply consistently across all four existing engines' tap handlers, and the new Page mode (15.5) once built. The existing dictionary auto-pause-on-open behaviour (Section 12.5) is unchanged — it still applies whenever the dictionary modal opens, regardless of which gesture triggered it.
+- [x] **Task 15.3 — Word-Tap Action Setting** (Completed)
+  - ✅ New module `www/js/features/word-tap.js` (`WordTapFeature` IIFE) — centralises tap/long-press logic for all engines.
+  - ✅ **Long-press toggle** (default ON): tap does nothing; 500ms long-press opens local dictionary. Addresses tester complaint about accidental taps while navigating.
+  - ✅ **Word tap action select** (visible when long-press toggle is OFF): Nothing / Open dictionary / Look up online.
+    - *Nothing* — no action on tap.
+    - *Open dictionary* — `DictionaryFeature.showDictionaryModal(word)`: Pro users see definition, free users see upgrade prompt (existing gate).
+    - *Look up online* — pauses reading, opens `google.com/search?q=define+word` in system browser via `DictionaryFeature.openDeviceDictionary()`. Free for all users.
+  - ✅ Long-press always opens local dictionary regardless of tap action setting.
+  - ✅ Chunk, Scroll, FocusBold: replaced direct `DictionaryFeature` calls with `WordTapFeature.bindWord(span, word)`.
+  - ✅ RSVP: long-press bound once per render in `_bindWordTapOnStage()`; per-frame `onclick` checks `WordTapFeature.shouldActOnTap()` and `_rsvpLpFired` flag to prevent double-fire.
+  - ✅ New localStorage keys: `fr_word_tap_longpress` (boolean, default true), `fr_word_tap_action` (none|dictionary|lookup_online, default none).
+  - ✅ 5 new i18n keys in `en.json` and `hi.json`.
 
 
 15.4 — Notification System Redesign
@@ -602,37 +595,6 @@ Pagination logic: Compute page-like breaks from the cleaned word stream based on
 
 Update Section 4 (Reading Engines) with a new subsection once built, and update the engine-row UI/CSS (engines.css) to accommodate a 5th tab.
 
-15.6 — Hindi UI Localization (i18n)
-
-New. Scope is UI chrome only — confirmed per Section 12.3's language support reference and the legacy-Indic-encoding work in Phase 13, the reading engines, cleaning pipeline, and OCR already correctly handle Devanagari content (Hindi/Marathi PDFs, ML Kit Devanagari OCR, KrutiDev legacy-encoding detection, danda । sentence-pause handling). This task does not touch any of that — it covers translating the app's own interface (buttons, labels, settings, onboarding, paywall copy) into Hindi.
-
-Architecture:
-
-www/i18n/en.json
-www/i18n/hi.json
-
-Flat key-value JSON per language. Minimal loader, no new dependency:
-
-javascriptlet strings = {};
-async function loadLanguage(lang) {
-  const res = await fetch(`i18n/${lang}.json`);
-  strings = await res.json();
-}
-function t(key) {
-  return strings[key] || key; // never blank — falls back to key, makes missing translations visible during testing
-}
-
-Replace hardcoded UI strings across www/js/views/*.js with t('key_name') calls. This is a refactor touching every view file — recommend doing this before other Phase 15 UI work lands, so new settings/library UI is built with t() calls from the start rather than retrofitted.
-
-Detection & persistence:
-
-
-On first launch, read device locale via existing Capacitor plugin access pattern (consistent with how KeepAwake is accessed per Phase 13's fix — confirm correct Capacitor 6 accessor for the Device plugin). Default to Hindi if locale starts hi, else English.
-Store active language in localStorage as fr_app_language (UI state, not purchase state — per Section 12 storage rules). Stored preference takes priority over device locale on subsequent launches.
-Manual override: language dropdown in the new Appearance settings section (15.1) — English / हिंदी — calls loadLanguage(), persists choice, re-renders visible UI text without requiring app restart.
-
-
-Translation content: Hindi strings supplied directly by product owner (native speaker) — do not machine-translate. Build the key/loader system complete and ready to accept a full hi.json; prioritise keys in this order: onboarding → home screen import cards → Free Books library (15.7) → reading view controls/engine tabs (including the new Page mode label) → settings labels → paywall/unlock copy → common error messages (password-protected, scanned-PDF prompt, legacy-encoding banner from Phase 13) → notification message templates (15.4) → limitations accordion (lowest priority).
 
 Terms to keep in English/Roman regardless of UI language (per product owner direction): WPM, PDF, DOCX, TXT, OCR, RSVP, and the engine mode names themselves (RSVP, Chunk, Focus Bold, Scroll, Page).
 
