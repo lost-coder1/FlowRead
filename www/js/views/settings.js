@@ -69,6 +69,7 @@ const FlowReadThemes = [
 
 const FlowReadTypographyPresets = [
   { key: 'roboto',    label: 'Roboto',    labelKey: 'font.roboto',    proOnly: false },
+  { key: 'inter',     label: 'Inter',     labelKey: 'font.inter',     proOnly: false },
   { key: 'open-sans', label: 'Open Sans', labelKey: 'font.open_sans', proOnly: true  },
   { key: 'lato',      label: 'Lato',      labelKey: 'font.lato',      proOnly: true  },
 ];
