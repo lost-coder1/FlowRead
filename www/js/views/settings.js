@@ -402,7 +402,7 @@ function renderSettings() {
           <span class="settings-row-label">${t('settings.field.font_scale')}</span>
           <strong id="settings-font-scale-value" class="settings-row-value">${Math.round(AppState.settings.fontScale * 100)}%</strong>
         </div>
-        <input type="range" class="settings-slider" id="settings-font-scale" min="0.85" max="1.25" step="0.05" value="${AppState.settings.fontScale}" />
+        <input type="range" class="settings-slider" id="settings-font-scale" min="0.85" max="1.5" step="0.05" value="${AppState.settings.fontScale}" />
 
         <span class="settings-chip-label">${t('settings.field.font')}</span>
         <div class="settings-font-list">
