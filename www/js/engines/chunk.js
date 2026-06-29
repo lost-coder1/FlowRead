@@ -80,10 +80,7 @@ const ChunkEngine = (function() {
           const span = document.createElement('span');
           span.className = 'chunk-word';
           span.textContent = w + (i < stringWords.length - 1 ? ' ' : '');
-          span.addEventListener('click', function(e) {
-            e.stopPropagation();
-            if (typeof DictionaryFeature !== 'undefined') DictionaryFeature.showDictionaryModal(w);
-          });
+          WordTapFeature.bindWord(span, w);
           el.appendChild(span);
         });
       }

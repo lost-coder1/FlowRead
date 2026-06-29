@@ -256,10 +256,7 @@ const FocusBoldEngine = (function() {
     span.appendChild(rest);
     span.appendChild(document.createTextNode(' '));
     (function(w) {
-      span.addEventListener('click', function(e) {
-        e.stopPropagation();
-        if (typeof DictionaryFeature !== 'undefined') DictionaryFeature.showDictionaryModal(w);
-      });
+      WordTapFeature.bindWord(span, w);
     })(word);
     return span;
   }

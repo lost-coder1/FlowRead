@@ -88,6 +88,8 @@ function getDefaultSettings() {
     calmModeDefault: false,
     reminderEnabled: false,
     reminderHour: 20,
+    wordTapAction: 'none',
+    wordTapLongpress: true,
   };
 }
 
@@ -463,6 +465,21 @@ function renderSettings() {
           <span>${t('settings.toggle.calm')}</span>
           <input type="checkbox" id="settings-calm" ${AppState.settings.calmModeDefault ? 'checked' : ''} />
         </label>
+
+        <div class="settings-divider"></div>
+
+        <label class="settings-toggle">
+          <span>${t('settings.toggle.word_tap_longpress')}</span>
+          <input type="checkbox" id="settings-word-tap-longpress" ${AppState.settings.wordTapLongpress ? 'checked' : ''} />
+        </label>
+        <div class="settings-row${AppState.settings.wordTapLongpress ? ' hidden' : ''}" id="settings-word-tap-action-row">
+          <span class="settings-row-label">${t('settings.field.word_tap_action')}</span>
+          <select id="settings-word-tap-action" class="settings-select">
+            <option value="none" ${AppState.settings.wordTapAction === 'none' ? 'selected' : ''}>${t('settings.word_tap.none')}</option>
+            <option value="dictionary" ${AppState.settings.wordTapAction === 'dictionary' ? 'selected' : ''}>${t('settings.word_tap.dictionary')}</option>
+            <option value="upgrade_prompt" ${AppState.settings.wordTapAction === 'upgrade_prompt' ? 'selected' : ''}>${t('settings.word_tap.upgrade_prompt')}</option>
+          </select>
+        </div>
       </section>
 
       <!-- NOTIFICATIONS -->
@@ -637,6 +654,25 @@ function bindSettings() {
       localStorage.setItem('fr_app_language', lang);
       await FlowReadI18n.loadLanguage(lang);
       renderSettings();
+    });
+  }
+
+  /* Word tap settings */
+  const wordTapLongpress = qs('#settings-word-tap-longpress');
+  const wordTapActionRow = qs('#settings-word-tap-action-row');
+  if (wordTapLongpress) {
+    wordTapLongpress.addEventListener('change', function() {
+      const enabled = this.checked;
+      updateSetting('wordTapLongpress', enabled);
+      localStorage.setItem('fr_word_tap_longpress', enabled);
+      if (wordTapActionRow) wordTapActionRow.classList.toggle('hidden', enabled);
+    });
+  }
+  const wordTapAction = qs('#settings-word-tap-action');
+  if (wordTapAction) {
+    wordTapAction.addEventListener('change', function() {
+      updateSetting('wordTapAction', this.value);
+      localStorage.setItem('fr_word_tap_action', this.value);
     });
   }
 
