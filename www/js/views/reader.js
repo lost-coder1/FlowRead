@@ -14,6 +14,7 @@ const _engineMap = {
   chunk: ChunkEngine,
   focus: FocusBoldEngine,
   scroll: ScrollEngine,
+  page: PageEngine,
 };
 
 function renderReader(options) {
@@ -55,6 +56,7 @@ function renderReader(options) {
       <button class="engine-tab" data-engine="chunk">${t('reader.engine.chunk')}</button>
       <button class="engine-tab" data-engine="focus">${t('reader.engine.focus')}</button>
       <button class="engine-tab" data-engine="scroll">${t('reader.engine.scroll')}</button>
+      <button class="engine-tab" data-engine="page">${t('reader.engine.page')}</button>
     </div>
 
     <div id="rsvp-container" class="engine-container"></div>
@@ -530,13 +532,22 @@ function _syncReaderPosition(index, total) {
 function _applyEngineChrome(key) {
   const wpmBar = qs('#wpm-bar');
   if (wpmBar) wpmBar.style.display = key === 'scroll' ? 'none' : '';
+  /* Page mode hides #wpm-bar + #playback-bar entirely (handled in CSS via body class)
+     and renders its own bottom nav bar. Toggle the class here so the standard bars
+     don't flash on the first frame before PageEngine.init() runs. */
+  document.body.classList.toggle('engine-page', key === 'page');
 }
 
 function _applyCalmMode() {
   const calmEnabled = localStorage.getItem('fr_calm_mode') === 'true';
   const reader = qs('#view-reader');
   const calmBtn = qs('#btn-reader-calm');
-  if (reader) reader.classList.toggle('reader-calm', calmEnabled);
+  if (reader) {
+    reader.classList.toggle('reader-calm', calmEnabled);
+    /* Page mode's chrome auto-hide is calm-mode-only — when the user turns calm
+       mode off, restore chrome immediately so tabs/nav are accessible. */
+    if (!calmEnabled) reader.classList.remove('page-chrome-hidden');
+  }
   if (calmBtn) calmBtn.classList.toggle('active', calmEnabled);
 }
 
@@ -715,18 +726,21 @@ function _renderEngineLoadingCard(key, prevKey) {
     scroll: t('engine_loading.title.scroll'),
     rsvp: t('engine_loading.title.rsvp'),
     chunk: t('engine_loading.title.chunk'),
+    page: t('engine_loading.title.page'),
   };
   const subtitles = {
     focus: t('engine_loading.subtitle.focus'),
     scroll: t('engine_loading.subtitle.scroll'),
     rsvp: '',
     chunk: '',
+    page: t('engine_loading.subtitle.page'),
   };
   const labels = {
     focus: t('reader.engine.focus'),
     scroll: t('reader.engine.scroll'),
     rsvp: t('reader.engine.rsvp'),
     chunk: t('reader.engine.chunk'),
+    page: t('reader.engine.page'),
   };
 
   const title = titles[key] || t('engine_loading.title.default');
