@@ -381,73 +381,74 @@ function renderSettings() {
         </div>
       </div>
 
+      <!-- APPEARANCE -->
+      <section class="settings-section">
+        <h2>${t('settings.section.appearance')}</h2>
+
+        <div class="settings-row">
+          <span class="settings-row-label">${t('settings.field.language')}</span>
+          <select id="settings-language" class="settings-select">
+            <option value="en" ${FlowReadI18n.currentLang() === 'en' ? 'selected' : ''}>${t('settings.language.en')}</option>
+            <option value="hi" ${FlowReadI18n.currentLang() === 'hi' ? 'selected' : ''}>${t('settings.language.hi')}</option>
+          </select>
+        </div>
+
+        <div class="settings-row">
+          <span class="settings-row-label">${t('settings.field.font_scale')}</span>
+          <strong id="settings-font-scale-value" class="settings-row-value">${Math.round(AppState.settings.fontScale * 100)}%</strong>
+        </div>
+        <input type="range" class="settings-slider" id="settings-font-scale" min="0.85" max="1.25" step="0.05" value="${AppState.settings.fontScale}" />
+
+        <span class="settings-chip-label">${t('settings.field.font')}</span>
+        <div class="settings-font-list">
+          ${FlowReadTypographyPresets.map(function(font) {
+            const locked = !isTypographyPresetUnlocked(font.key, AppState.isPro);
+            const active = font.key === activeFont;
+            return `<button class="settings-font-chip${active ? ' active' : ''}${locked ? ' locked' : ''}" type="button" data-font-value="${font.key}" aria-pressed="${active ? 'true' : 'false'}" ${locked ? 'disabled aria-disabled="true"' : ''}>${t(font.labelKey)}${locked ? ' 🔒' : ''}</button>`;
+          }).join('')}
+        </div>
+
+        <span class="settings-chip-label">${t('settings.field.theme')}</span>
+        <div class="settings-theme-list">
+          ${FlowReadThemes.map(function(theme) {
+            const locked = !isThemeUnlocked(theme.key, AppState.isPro);
+            const active = theme.key === activeTheme;
+            return `<button class="settings-theme-chip${active ? ' active' : ''}${locked ? ' locked' : ''}" type="button" data-theme-value="${theme.key}" aria-pressed="${active ? 'true' : 'false'}" ${locked ? 'disabled aria-disabled="true"' : ''}>${t(theme.labelKey)}${locked ? ' 🔒' : ''}</button>`;
+          }).join('')}
+        </div>
+      </section>
+
+      <!-- READING -->
       <section class="settings-section">
         <h2>${t('settings.section.reading')}</h2>
-        <label class="settings-field">
-          <span>${t('settings.field.default_wpm')}</span>
-          <input type="range" id="settings-wpm" min="120" max="800" step="10" value="${AppState.settings.defaultWpm}" />
-          <strong id="settings-wpm-value">${formatWPM(AppState.settings.defaultWpm)}</strong>
-        </label>
-        <label class="settings-field">
-          <span>${t('settings.field.chunk_size')}</span>
-          <select id="settings-chunk-size">
-            ${[2, 3, 4, 5, 7].map(function(size) {
-              return `<option value="${size}" ${AppState.settings.defaultChunkSize === size ? 'selected' : ''}>${t('settings.chunk_size.option', {n: size})}</option>`;
-            }).join('')}
-          </select>
-        </label>
-        <label class="settings-field">
-          <span>${t('settings.field.default_mode')}</span>
-          <select id="settings-default-mode">
+
+        <div class="settings-row">
+          <span class="settings-row-label">${t('settings.field.default_wpm')}</span>
+          <strong id="settings-wpm-value" class="settings-row-value">${formatWPM(AppState.settings.defaultWpm)}</strong>
+        </div>
+        <input type="range" class="settings-slider" id="settings-wpm" min="120" max="800" step="10" value="${AppState.settings.defaultWpm}" />
+
+        <div class="settings-row">
+          <span class="settings-row-label">${t('settings.field.default_mode')}</span>
+          <select id="settings-default-mode" class="settings-select">
             <option value="rsvp" ${AppState.settings.defaultMode === 'rsvp' ? 'selected' : ''}>${t('settings.mode.rsvp')}</option>
             <option value="chunk" ${AppState.settings.defaultMode === 'chunk' ? 'selected' : ''}>${t('settings.mode.chunk')}</option>
             <option value="focus" ${AppState.settings.defaultMode === 'focus' ? 'selected' : ''}>${t('settings.mode.focus')}</option>
             <option value="scroll" ${AppState.settings.defaultMode === 'scroll' ? 'selected' : ''}>${t('settings.mode.scroll')}</option>
           </select>
-        </label>
-      </section>
-
-      <section class="settings-section">
-        <h2>${t('settings.section.display')}</h2>
-        <label class="settings-field">
-          <span>${t('settings.field.font_scale')}</span>
-          <input type="range" id="settings-font-scale" min="0.85" max="1.25" step="0.05" value="${AppState.settings.fontScale}" />
-          <strong id="settings-font-scale-value">${Math.round(AppState.settings.fontScale * 100)}%</strong>
-        </label>
-        <div class="settings-font-list">
-          ${FlowReadTypographyPresets.map(function(font) {
-            const locked = !isTypographyPresetUnlocked(font.key, AppState.isPro);
-            const active = font.key === activeFont;
-            return `
-              <button
-                class="settings-font-chip${active ? ' active' : ''}${locked ? ' locked' : ''}"
-                type="button"
-                data-font-value="${font.key}"
-                aria-pressed="${active ? 'true' : 'false'}"
-                ${locked ? 'disabled aria-disabled="true"' : ''}
-              >${t(font.labelKey)}${locked ? ' 🔒' : ''}</button>
-            `;
-          }).join('')}
         </div>
-        <div class="settings-theme-list">
-          ${FlowReadThemes.map(function(theme) {
-            const locked = !isThemeUnlocked(theme.key, AppState.isPro);
-            const active = theme.key === activeTheme;
-            return `
-              <button
-                class="settings-theme-chip${active ? ' active' : ''}${locked ? ' locked' : ''}"
-                type="button"
-                data-theme-value="${theme.key}"
-                aria-pressed="${active ? 'true' : 'false'}"
-                ${locked ? 'disabled aria-disabled="true"' : ''}
-              >${t(theme.labelKey)}${locked ? ' 🔒' : ''}</button>
-            `;
-          }).join('')}
-        </div>
-      </section>
 
-      <section class="settings-section">
-        <h2>${t('settings.section.comfort')}</h2>
+        <div class="settings-row">
+          <span class="settings-row-label">${t('settings.field.chunk_size')}</span>
+          <select id="settings-chunk-size" class="settings-select">
+            ${[2, 3, 4, 5, 7].map(function(size) {
+              return `<option value="${size}" ${AppState.settings.defaultChunkSize === size ? 'selected' : ''}>${t('settings.chunk_size.option', {n: size})}</option>`;
+            }).join('')}
+          </select>
+        </div>
+
+        <div class="settings-divider"></div>
+
         <label class="settings-toggle">
           <span>${t('settings.toggle.orp')}</span>
           <input type="checkbox" id="settings-orp" ${AppState.settings.orpDefault ? 'checked' : ''} />
@@ -462,33 +463,15 @@ function renderSettings() {
         </label>
       </section>
 
-      <section class="settings-section">
-        <h2>${t('settings.section.limitations')}</h2>
-        <ol class="limitations-list settings-limitations">
-          ${FlowReadContent.limitations.map(function(item, i) {
-            const bk = 'limitations.' + (i+1) + '.body';
-            const bt = t(bk);
-            return `<li><strong>${escapeHtml(t('limitations.' + (i+1) + '.title'))}</strong> — ${escapeHtml(bt === bk ? item.body : bt)}</li>`;
-          }).join('')}
-        </ol>
-      </section>
-
-      <section class="settings-section">
-        <h2>${t('settings.section.about')}</h2>
-        <p class="settings-copy">${t('settings.about.version')}</p>
-        <p class="settings-copy">${t('settings.about.privacy')}</p>
-        <p class="settings-copy">${t('settings.about.url_note')}</p>
-        <button class="btn btn-ghost settings-restore-btn" id="btn-settings-restore">${t('settings.btn.restore')}</button>
-      </section>
-
+      <!-- NOTIFICATIONS -->
       <section class="settings-section">
         <h2>${t('settings.section.notifications')}</h2>
         <label class="settings-toggle">
           <span>${t('settings.toggle.reminder')}</span>
           <input type="checkbox" id="settings-reminder-enabled" ${AppState.settings.reminderEnabled ? 'checked' : ''} />
         </label>
-        <div class="settings-field${AppState.settings.reminderEnabled ? '' : ' hidden'}" id="settings-reminder-time-row">
-          <label class="settings-label" for="settings-reminder-hour">${t('settings.reminder.time_label')}</label>
+        <div class="settings-row${AppState.settings.reminderEnabled ? '' : ' hidden'}" id="settings-reminder-time-row">
+          <span class="settings-row-label">${t('settings.reminder.time_label')}</span>
           <select id="settings-reminder-hour" class="settings-select">
             ${[7,8,9,12,17,18,19,20,21,22].map(function(h) {
               const label = h < 12 ? h + ':00 AM' : h === 12 ? '12:00 PM' : (h - 12) + ':00 PM';
@@ -501,15 +484,41 @@ function renderSettings() {
         </p>
       </section>
 
+      <!-- LIBRARY -->
       <section class="settings-section">
-        <h2>${t('settings.section.language')}</h2>
-        <label class="settings-field">
-          <span>${t('settings.field.language')}</span>
-          <select id="settings-language">
-            <option value="en" ${FlowReadI18n.currentLang() === 'en' ? 'selected' : ''}>${t('settings.language.en')}</option>
-            <option value="hi" ${FlowReadI18n.currentLang() === 'hi' ? 'selected' : ''}>${t('settings.language.hi')}</option>
-          </select>
-        </label>
+        <h2>${t('settings.section.library')}</h2>
+        <p class="settings-copy">${t('settings.library.local_only')}</p>
+        <button class="btn btn-ghost settings-restore-btn" id="btn-settings-restore">${t('settings.btn.restore')}</button>
+      </section>
+
+      <!-- ABOUT & HELP -->
+      <section class="settings-section">
+        <h2>${t('settings.section.about_help')}</h2>
+        <p class="settings-copy">${t('settings.about.version')}</p>
+        <p class="settings-copy">${t('settings.about.privacy')}</p>
+        <p class="settings-copy">${t('settings.about.url_note')}</p>
+
+        <div class="settings-accordion">
+          <button class="settings-accordion-header" id="btn-limitations-toggle" aria-expanded="false">
+            <span>${t('settings.section.limitations')}</span>
+            <span class="settings-accordion-chevron">›</span>
+          </button>
+          <div class="settings-accordion-body hidden" id="settings-limitations-body">
+            ${FlowReadContent.limitations.map(function(item, i) {
+              const titleKey = 'limitations.' + (i + 1) + '.title';
+              const bodyKey = 'limitations.' + (i + 1) + '.body';
+              const bodyText = t(bodyKey);
+              return `
+                <div class="settings-limitation-item">
+                  <button class="settings-limitation-header" data-lim="${i}" aria-expanded="false">
+                    <span>${escapeHtml(t(titleKey))}</span>
+                    <span class="settings-accordion-chevron">›</span>
+                  </button>
+                  <p class="settings-limitation-body hidden">${escapeHtml(bodyText === bodyKey ? item.body : bodyText)}</p>
+                </div>`;
+            }).join('')}
+          </div>
+        </div>
       </section>
 
     </div>
@@ -549,7 +558,6 @@ function bindSettings() {
   qsa('[data-font-value]').forEach(function(button) {
     button.addEventListener('click', function() {
       if (this.disabled) return;
-
       const fontPreset = this.dataset.fontValue;
       updateSetting('fontPreset', fontPreset);
       applyTypography(fontPreset);
@@ -580,7 +588,6 @@ function bindSettings() {
   qsa('[data-theme-value]').forEach(function(button) {
     button.addEventListener('click', function() {
       if (this.disabled) return;
-
       const theme = this.dataset.themeValue;
       updateSetting('theme', theme);
       applyTheme(theme);
@@ -630,4 +637,25 @@ function bindSettings() {
       renderSettings();
     });
   }
+
+  /* Limitations top-level accordion */
+  const limToggle = qs('#btn-limitations-toggle');
+  const limBody = qs('#settings-limitations-body');
+  if (limToggle && limBody) {
+    limToggle.addEventListener('click', function() {
+      const expanded = this.getAttribute('aria-expanded') === 'true';
+      this.setAttribute('aria-expanded', String(!expanded));
+      limBody.classList.toggle('hidden', expanded);
+    });
+  }
+
+  /* Individual limitation items */
+  qsa('[data-lim]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      const expanded = this.getAttribute('aria-expanded') === 'true';
+      this.setAttribute('aria-expanded', String(!expanded));
+      const body = this.nextElementSibling;
+      if (body) body.classList.toggle('hidden', expanded);
+    });
+  });
 }
