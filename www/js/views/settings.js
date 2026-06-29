@@ -477,7 +477,7 @@ function renderSettings() {
           <select id="settings-word-tap-action" class="settings-select">
             <option value="none" ${AppState.settings.wordTapAction === 'none' ? 'selected' : ''}>${t('settings.word_tap.none')}</option>
             <option value="dictionary" ${AppState.settings.wordTapAction === 'dictionary' ? 'selected' : ''}>${t('settings.word_tap.dictionary')}</option>
-            <option value="upgrade_prompt" ${AppState.settings.wordTapAction === 'upgrade_prompt' ? 'selected' : ''}>${t('settings.word_tap.upgrade_prompt')}</option>
+            <option value="lookup_online" ${AppState.settings.wordTapAction === 'lookup_online' ? 'selected' : ''}>${t('settings.word_tap.lookup_online')}</option>
           </select>
         </div>
       </section>

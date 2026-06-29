@@ -17,8 +17,15 @@ const WordTapFeature = (function() {
   }
 
   function _trigger(word) {
-    if (typeof DictionaryFeature !== 'undefined') {
-      DictionaryFeature.showDictionaryModal((word || '').trim());
+    if (typeof DictionaryFeature === 'undefined') return;
+    const clean = (word || '').trim();
+    if (!clean) return;
+    const action = getAction();
+    if (action === 'lookup_online') {
+      document.dispatchEvent(new CustomEvent('fr-reading-pause'));
+      DictionaryFeature.openDeviceDictionary(clean);
+    } else {
+      DictionaryFeature.showDictionaryModal(clean);
     }
   }
 
@@ -33,7 +40,8 @@ const WordTapFeature = (function() {
       if (!isLongpress()) return;
       timer = setTimeout(function() {
         lpFired = true;
-        _trigger(word);
+        /* Long-press always opens local dictionary regardless of tap action setting */
+        if (typeof DictionaryFeature !== 'undefined') DictionaryFeature.showDictionaryModal((word || '').trim());
       }, LP_MS);
     }, { passive: true });
 

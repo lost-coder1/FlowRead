@@ -293,7 +293,7 @@
   "settings.field.word_tap_action": "Word tap action",
   "settings.word_tap.none": "कुछ नहीं",
   "settings.word_tap.dictionary": "Dictionary खोलें",
-  "settings.word_tap.upgrade_prompt": "Upgrade prompt दिखाएँ",
+  "settings.word_tap.lookup_online": "Online देखें",
   "settings.section.appearance": "दिखावट",
   "settings.field.font": "Font",
   "settings.field.theme": "Theme",
