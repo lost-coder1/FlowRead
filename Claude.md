@@ -590,10 +590,15 @@ Font requirement: None of the currently bundled fonts (Roboto, Open Sans, Lato, 
   - ✅ **↺ Re-download button** — visible when state is `downloaded`. Clears `fr_freebook_<id>` + library entry, then starts a fresh download immediately. Allows re-import when a book had garbage text on first download.
   - ✅ **Order of operations** — `saveFileToLibrary`, `saveFileData`, and `_setSavedFileId` only called after confirming `result.words.length > 0`. No stale "Open ✓" card possible from a failed parse.
   - ✅ **Smart back navigation** — `AppState.readerSource = 'free-books'`; reader back button returns to Free Books view, not home. Hardware back from `view-free-books` returns to home.
-  - ✅ **Region-aware sort** — India locale (`hi-*` or `*-IN`) auto-sorts `social_justice` / `constitution_law` / Hindi entries to the top of the default view.
+  - ✅ **Region-aware sort + default language tab** — Locale-driven behaviour in `_sorted()` and initial `_langFilter`:
+    - **India** (`hi-*` or `*-IN`): default tab = All; social_justice / constitution_law / Hindi entries surface first.
+    - **Non-India**: default tab = English (Hindi editions still one tap away in the Hindi tab); sort priority `classics → philosophy → biography_history → poetry → history_politics → drama → essays → science_fiction → buddhism → strategy → social_justice → constitution_law`; Hindi entries pushed to the bottom within the All tab. Prevents Ambedkar's caste writings from being the first thing a US/UK user sees.
   - ✅ Full i18n in both `en.json` and `hi.json` (17 keys each). Free Books card in `upload.js` as full-width featured card, first in the import grid.
   - ✅ CSP extended: `img-src` now includes `https:` for Gutenberg cover image CDN.
   - ⚠️ Catalog entries with `fileType: "html"` (Wikisource pages, BAWS.in) will fail with a download error toast — they need direct PDF/TXT URLs. Review and replace before launch.
+
+### Post-1.4 polish (versionCode 28 / versionName 1.4.1)
+- ✅ **Import-card badge truncation fix** (`www/css/components.css`) — `.import-badge` reverted from `flex-shrink: 1` back to `flex-shrink: 0`. The Phase 13 shrink-to-ellipsis safety net was truncating short-and-legitimate badges like "Online" on the URL card to "Onl…" on narrow phones. Titles now wrap to a second line if the badge crowds them (already tested — "URL Reader", "Dashboard" wrap cleanly, "🔒 Add-on" still fits alongside "Scan" without crowding).
 
 ### Free Books catalog rules (for future additions)
 - Every entry must be a direct file URL (PDF/TXT), not an HTML page or lending/borrow link.

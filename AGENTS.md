@@ -497,6 +497,10 @@ Next task to handle: **Task 12.1 — Daily reminder notifications**
   - ⚠️ `fileType: "html"` catalog entries are not handled — replace with direct PDF/TXT URLs before launch.
 - [ ] **Task 15.8 — India Custom Store Listing**
 
+### Post-1.4 polish (versionCode 28 / versionName 1.4.1)
+- ✅ **Free Books region-aware sort + default tab** (`www/js/views/free-books.js`) — non-India locales now default to the English tab and sort classics/philosophy/biography/poetry/history to the top; Hindi and social_justice/constitution_law pushed to the bottom. India logic unchanged (default = All, Ambedkar / Hindi first). Prevents non-India users from opening Free Books and seeing Ambedkar's caste writings before any world classic.
+- ✅ **Import-card badge no longer truncates** (`www/css/components.css`) — `.import-badge` reverted to `flex-shrink: 0`. Fixes "Online" showing as "Onl…" on the URL card for Pro users on narrow phones. Titles wrap to a second line if a badge crowds them.
+
 ---
 
 ## 12. Code Rules

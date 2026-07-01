@@ -2,7 +2,14 @@
 
 var FreeBooksView = (function() {
   var _catalog = null;
-  var _langFilter = 'all';
+  /* Default language tab: India → All (mixed); non-India → English (Hindi editions
+     are still available via the Hindi tab). Once the user changes tabs the choice
+     persists for the session. */
+  var _langFilter = (function() {
+    var lang = (navigator.language || '').toLowerCase();
+    var isIndia = lang.startsWith('hi') || lang.indexOf('-in') !== -1;
+    return isIndia ? 'all' : 'en';
+  })();
   var _catFilter = 'all';
   var _searchQuery = '';
   var _downloading = {};
@@ -52,15 +59,43 @@ var FreeBooksView = (function() {
     });
   }
 
-  /* India locale → sort social_justice/constitution_law + Hindi entries first */
-  function _sorted(books) {
+  function _isIndiaLocale() {
     var lang = (navigator.language || '').toLowerCase();
-    var isIndia = lang.startsWith('hi') || lang.indexOf('-in') !== -1;
-    if (!isIndia) return books;
+    return lang.startsWith('hi') || lang.indexOf('-in') !== -1;
+  }
+
+  /* Region-aware sort.
+     India locale → Ambedkar / social-justice / constitution / Hindi entries first.
+     Non-India → world classics + philosophy + biography + poetry first; push
+     social_justice / constitution_law and Hindi entries to the bottom. */
+  function _sorted(books) {
+    if (_isIndiaLocale()) {
+      return books.slice().sort(function(a, b) {
+        var aScore = (a.category === 'social_justice' || a.category === 'constitution_law' || a.language === 'hi') ? 0 : 1;
+        var bScore = (b.category === 'social_justice' || b.category === 'constitution_law' || b.language === 'hi') ? 0 : 1;
+        return aScore - bScore;
+      });
+    }
+    var priority = {
+      'classics': 0,
+      'philosophy': 1,
+      'biography_history': 2,
+      'poetry': 3,
+      'history_politics': 4,
+      'drama': 5,
+      'essays': 6,
+      'science_fiction': 7,
+      'buddhism': 8,
+      'strategy': 9,
+      'social_justice': 10,
+      'constitution_law': 11,
+    };
     return books.slice().sort(function(a, b) {
-      var aScore = (a.category === 'social_justice' || a.category === 'constitution_law' || a.language === 'hi') ? 0 : 1;
-      var bScore = (b.category === 'social_justice' || b.category === 'constitution_law' || b.language === 'hi') ? 0 : 1;
-      return aScore - bScore;
+      /* Hindi entries always after English for non-India users */
+      if (a.language !== b.language) return a.language === 'hi' ? 1 : -1;
+      var ap = priority[a.category]; if (ap === undefined) ap = 99;
+      var bp = priority[b.category]; if (bp === undefined) bp = 99;
+      return ap - bp;
     });
   }
 
