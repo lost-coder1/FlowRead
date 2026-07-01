@@ -1,0 +1,48 @@
+<en-US>
+• New Page mode — a fifth reading engine. Swipe through reflowed pages at your own pace, no timer.
+• Free Books library — public-domain classics you can download and read in one tap.
+• Smarter daily reminders with streak protection and motivational nudges.
+• Hindi UI now available throughout the app.
+• Two new reading fonts (Inter, Sans Serif) and a redesigned Settings page.
+• Word-tap dictionary controls, larger font scale (up to 150%), and lots of polish.
+</en-US>
+<de-DE>
+• Neu: Page-Modus — ein fünfter Lesemodus. Wische in deinem Tempo durch neu formatierte Seiten, ohne Timer.
+• Free Books — gemeinfreie Klassiker mit einem Tipp herunterladen und lesen.
+• Bessere tägliche Erinnerungen mit Streak-Schutz und motivierender Sprache.
+• Hindi-Oberfläche jetzt in der ganzen App verfügbar.
+• Zwei neue Leseschriften (Inter, Sans Serif) und ein überarbeitetes Einstellungsmenü.
+• Wörterbuch per Tippen, größere Schriftskala (bis 150 %) und viele kleine Verbesserungen.
+</de-DE>
+<es-419>
+• Nuevo modo Page — un quinto motor de lectura. Desliza páginas reformateadas a tu ritmo, sin cronómetro.
+• Biblioteca Free Books: clásicos de dominio público, un toque para descargar y leer.
+• Recordatorios diarios más inteligentes con protección de racha y mensajes motivadores.
+• Interfaz en hindi en toda la app.
+• Dos nuevas tipografías (Inter, Sans Serif) y pantalla de Ajustes rediseñada.
+• Diccionario al tocar, escala hasta 150 % y muchos ajustes.
+</es-419>
+<es-ES>
+• Nuevo modo Page: un quinto motor de lectura. Desliza páginas reajustadas a tu ritmo, sin temporizador.
+• Free Books: clásicos de dominio público, un toque para descargar y leer.
+• Recordatorios diarios más inteligentes con protección de racha y mensajes motivadores.
+• Interfaz en hindi en toda la app.
+• Dos nuevas tipografías (Inter, Sans Serif) y pantalla de Ajustes rediseñada.
+• Diccionario al tocar, escala hasta el 150 % y muchos retoques.
+</es-ES>
+<ja-JP>
+• 新しい「Page」モード。5つ目のリーディングエンジンとして、タイマーなしで再フローされたページを自分のペースでスワイプできます。
+• Free Books ライブラリ。パブリックドメインの名作をワンタップでダウンロードして読めます。
+• ストリーク保護と前向きなメッセージ付きの、より賢い毎日のリマインダー。
+• アプリ全体で新たにヒンディー語UIに対応。
+• 新しい2つの読書用フォント (Inter、Sans Serif) と、刷新された「設定」画面。
+• タップ辞書の設定、最大150%まで拡大できるフォント、その他多数の改善。
+</ja-JP>
+<pt-BR>
+• Novo modo Page — um quinto motor de leitura. Deslize páginas remontadas no seu ritmo, sem cronômetro.
+• Free Books: clássicos de domínio público, baixe e leia com um toque.
+• Lembretes diários mais inteligentes com proteção de sequência e mensagens motivadoras.
+• Interface em hindi em todo o app.
+• Duas novas fontes (Inter, Sans Serif) e uma tela de Configurações redesenhada.
+• Dicionário ao tocar, escala até 150% e diversos ajustes.
+</pt-BR>
