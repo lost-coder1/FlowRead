@@ -1,0 +1,36 @@
+<en-US>
+• Free Books downloads now show live progress (percentage or MB) so you can see something is happening.
+• Sepia theme now renders Page mode on a warm paper background instead of dark — matches the other engines.
+• Loading messages with long book titles no longer touch the screen edges or break at awkward places.
+• Page mode loading label is clearer: "Creating Pages" instead of "Paginating".
+</en-US>
+<de-DE>
+• Free-Books-Downloads zeigen jetzt den Fortschritt live (Prozent oder MB), damit du siehst, dass etwas passiert.
+• Sepia-Design zeigt den Page-Modus jetzt auf einem warmen Papier-Hintergrund statt in Dunkel — passend zu den anderen Modi.
+• Ladehinweise mit langen Buchtiteln stoßen nicht mehr an den Bildschirmrand und brechen nicht mehr an merkwürdigen Stellen.
+• Die Ladeanzeige im Page-Modus heißt jetzt „Creating Pages" statt „Paginating".
+</de-DE>
+<es-419>
+• Las descargas de Free Books ahora muestran el progreso en vivo (porcentaje o MB) para que veas que algo está pasando.
+• El tema Sepia ahora muestra el modo Page sobre un fondo cálido de papel, en vez de oscuro — igual que los demás motores.
+• Los mensajes de carga con títulos largos ya no tocan los bordes ni se cortan en lugares raros.
+• La etiqueta de carga del modo Page es más clara: "Creating Pages" en vez de "Paginating".
+</es-419>
+<es-ES>
+• Las descargas de Free Books ahora muestran el progreso en vivo (porcentaje o MB) para que veas que algo está pasando.
+• El tema Sepia ahora muestra el modo Page sobre un fondo cálido de papel, en lugar de oscuro — igual que los demás motores.
+• Los mensajes de carga con títulos largos ya no tocan los bordes ni se rompen en sitios raros.
+• La etiqueta de carga del modo Page es más clara: "Creating Pages" en lugar de "Paginating".
+</es-ES>
+<ja-JP>
+• Free Books のダウンロードで進捗（パーセントまたは MB）がリアルタイムに表示されるようになり、何が起きているかひと目でわかります。
+• Sepia テーマの Page モードが、暗い背景ではなく温かみのある紙色の背景で表示されるようになりました — 他のエンジンと統一感が出ます。
+• 長い書名を含むローディングメッセージが画面端に触れたり、変な位置で改行されなくなりました。
+• Page モードの読み込みラベルを "Paginating" から "Creating Pages" に変更し、より分かりやすくしました。
+</ja-JP>
+<pt-BR>
+• Downloads na Free Books agora mostram o progresso ao vivo (porcentagem ou MB), então você vê que algo está acontecendo.
+• Tema Sépia agora exibe o modo Page com um fundo quente de papel em vez de escuro — combina com os outros motores.
+• Mensagens de carregamento com títulos longos não tocam mais nas bordas nem quebram em lugares estranhos.
+• Rótulo de carregamento do modo Page ficou mais claro: "Creating Pages" em vez de "Paginating".
+</pt-BR>

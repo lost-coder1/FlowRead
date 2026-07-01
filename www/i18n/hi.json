@@ -436,6 +436,8 @@
   "freebooks.state.downloading": "Download हो रहा है…",
   "freebooks.state.open": "खोलें ✓",
   "freebooks.loading.downloading": "{title} download हो रहा है…",
+  "freebooks.loading.downloading_pct": "{title} download हो रहा है… {pct}%",
+  "freebooks.loading.downloading_mb": "{title} download हो रहा है… {mb} MB",
   "freebooks.error.download_failed": "'{title}' download नहीं हो पाई। इंटरनेट जाँचें और फिर कोशिश करें।",
   "freebooks.empty": "कोई किताब नहीं मिली।",
   "freebooks.legal": "सभी किताबें public domain या officially free हैं। Download की गई फाइलें आपके फोन पर ही रहती हैं।"

@@ -194,7 +194,7 @@
   "reader.engine.focus": "Focus",
   "reader.engine.scroll": "Scroll",
   "reader.engine.page": "Page",
-  "engine_loading.title.page": "Paginating",
+  "engine_loading.title.page": "Creating Pages",
   "engine_loading.subtitle.page": "Laying out reflowed pages at your font size",
   "reader.index.title": "Index",
   "reader.index.search.placeholder": "Search chapters",
@@ -465,6 +465,8 @@
   "freebooks.state.downloading": "Downloading…",
   "freebooks.state.open": "Open ✓",
   "freebooks.loading.downloading": "Downloading {title}…",
+  "freebooks.loading.downloading_pct": "Downloading {title}… {pct}%",
+  "freebooks.loading.downloading_mb": "Downloading {title}… {mb} MB",
   "freebooks.error.download_failed": "Could not download '{title}'. Check your connection and try again.",
   "freebooks.empty": "No books match your filters.",
   "freebooks.legal": "All titles are public domain or officially free. Downloaded files are saved on your device."

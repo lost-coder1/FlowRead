@@ -304,6 +304,12 @@ a:hover {
   font-size: 13px;
   color: var(--text-muted);
   font-weight: 300;
+  max-width: min(420px, calc(100vw - 2 * var(--space-xl)));
+  padding: 0 var(--space-md);
+  text-align: center;
+  line-height: 1.5;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 /* ── Toast container ────────────────────────────────────────── */

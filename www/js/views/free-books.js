@@ -256,11 +256,12 @@ var FreeBooksView = (function() {
       var response = await fetch(book.sourceUrl);
       if (!response.ok) throw new Error('HTTP ' + response.status);
 
+      var buffer = await _readWithProgress(response, book);
+
       if (book.fileType === 'txt') {
-        var text = await response.text();
+        var text = new TextDecoder('utf-8').decode(buffer);
         await _importTxt(book, text);
       } else {
-        var buffer = await response.arrayBuffer();
         await _importPdf(book, buffer);
       }
     } catch (_) {
@@ -269,6 +270,50 @@ var FreeBooksView = (function() {
       _refreshAction(book.id);
       showToast(t('freebooks.error.download_failed', { title: book.title }));
     }
+  }
+
+  /* Stream response body, updating loading message with download progress.
+     Falls back to arrayBuffer() if streaming unavailable (older WebViews). */
+  async function _readWithProgress(response, book) {
+    var msg = document.getElementById('loading-message');
+    var lenHeader = response.headers.get('Content-Length');
+    var total = lenHeader ? parseInt(lenHeader, 10) : 0;
+
+    if (!response.body || !response.body.getReader) {
+      return await response.arrayBuffer();
+    }
+
+    var reader = response.body.getReader();
+    var chunks = [];
+    var received = 0;
+    var lastUpdate = 0;
+
+    while (true) {
+      var res = await reader.read();
+      if (res.done) break;
+      chunks.push(res.value);
+      received += res.value.length;
+
+      var now = Date.now();
+      if (msg && now - lastUpdate > 100) {
+        lastUpdate = now;
+        if (total > 0) {
+          var pct = Math.min(99, Math.floor((received / total) * 100));
+          msg.textContent = t('freebooks.loading.downloading_pct', { title: book.title, pct: pct });
+        } else {
+          var mb = (received / (1024 * 1024)).toFixed(1);
+          msg.textContent = t('freebooks.loading.downloading_mb', { title: book.title, mb: mb });
+        }
+      }
+    }
+
+    var buffer = new Uint8Array(received);
+    var offset = 0;
+    for (var i = 0; i < chunks.length; i++) {
+      buffer.set(chunks[i], offset);
+      offset += chunks[i].length;
+    }
+    return buffer.buffer;
   }
 
   async function _importPdf(book, arrayBuffer) {
