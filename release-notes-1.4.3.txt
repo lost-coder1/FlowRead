@@ -1,0 +1,24 @@
+<en-US>
+• PDF cleaner no longer strips chapter titles or body lines that sit near the top or bottom of a page. Only truly repeating headers and footers are removed now.
+• Running headers/footers that shift vertically from page to page are detected more reliably.
+</en-US>
+<de-DE>
+• Der PDF-Cleaner entfernt keine Kapitelüberschriften oder Textzeilen mehr, die oben oder unten auf einer Seite stehen. Nur wirklich wiederkehrende Kopf- und Fußzeilen werden entfernt.
+• Kopf-/Fußzeilen, die von Seite zu Seite leicht verrutschen, werden zuverlässiger erkannt.
+</de-DE>
+<es-419>
+• El limpiador de PDF ya no elimina títulos de capítulo ni líneas de texto que estén cerca del borde superior o inferior de la página. Solo se quitan los encabezados y pies realmente repetidos.
+• Los encabezados/pies que se mueven verticalmente entre páginas ahora se detectan de forma más confiable.
+</es-419>
+<es-ES>
+• El limpiador de PDF ya no elimina títulos de capítulo ni líneas de texto que estén cerca del borde superior o inferior de la página. Solo se quitan los encabezados y pies que realmente se repiten.
+• Los encabezados/pies que se desplazan verticalmente entre páginas ahora se detectan con más fiabilidad.
+</es-ES>
+<ja-JP>
+• PDFクリーナーが、ページ上部や下部にある章タイトルや本文行を誤って削除しなくなりました。本当に繰り返し出現するヘッダー・フッターのみが削除されます。
+• ページごとに垂直位置がずれるランニングヘッダー／フッターも、より確実に検出されるようになりました。
+</ja-JP>
+<pt-BR>
+• O limpador de PDF não remove mais títulos de capítulo nem linhas de texto próximas do topo ou do rodapé de uma página. Só cabeçalhos e rodapés que realmente se repetem são removidos.
+• Cabeçalhos/rodapés que variam verticalmente de página para página agora são detectados com mais confiabilidade.
+</pt-BR>
