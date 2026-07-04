@@ -48,6 +48,7 @@ async function parsePDF(arrayBuffer) {
 
   /* ── 3. Detect repeating headers and footers ──────────────── */
   const headerFooterSet = detectHeadersFooters(allPageData, numPages);
+  console.log('[parsePDF] stripping headers/footers:', Array.from(headerFooterSet));
 
   /* ── 4. Build word array with pageWordIndex ───────────────── */
   const words = [];
@@ -64,7 +65,6 @@ async function parsePDF(arrayBuffer) {
 
     for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
       const line = lines[lineIdx];
-      if (line.isHeader || line.isFooter) continue;
 
       const tableRange = tableRanges[tableRangeCursor];
       if (tableRange && lineIdx >= tableRange.start && lineIdx <= tableRange.end) {
@@ -234,8 +234,8 @@ function finishLine(items, y, pageHeight) {
     text,
     y,
     yPct: pctFromTop,
-    isHeader: pctFromTop <= 0.14,
-    isFooter: pctFromTop >= 0.86,
+    isHeader: pctFromTop <= 0.22,
+    isFooter: pctFromTop >= 0.78,
     itemCount: items.length,
     wordCount: lineMetrics.wordCount,
     numericTokenCount: lineMetrics.numericTokenCount,
@@ -317,6 +317,10 @@ function detectHeadersFooters(allPageData, numPages) {
   for (const { lines } of allPageData) {
     for (const line of lines) {
       if (!line.isHeader && !line.isFooter) continue;
+      /* Headers/footers are short by nature — guard against long body
+         paragraphs that occasionally sit in the widened band and would
+         otherwise get flagged as recurring content. */
+      if (line.wordCount > 12) continue;
       const norm = normalizeLine(line.text);
       if (!norm) continue;
       freq[norm] = (freq[norm] || 0) + 1;
