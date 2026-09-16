@@ -2,37 +2,53 @@
 
 > **READ THIS ENTIRE FILE BEFORE WRITING ANY CODE.**
 > Single source of truth. If something isn't covered here, ask the user before improvising.
+> This document was substantially rewritten to reflect a strategic pivot (see Section 0.1) and to capture urgent Play Store compliance requirements (Section 3). Older phase-by-phase implementation notes for already-shipped work have been compressed into Section 18 ("Work Completed So Far") — the code itself is the source of truth for exact implementation details of completed work; this file specifies what's still being built and why.
 
 ---
 
 ## 0. Project Identity
 
-**Name:** FlowRead (final name TBD before store submission)
-**Pitch:** Read everything faster. No subscription, no cloud, no account.
-**What:** Privacy-first, fully offline speed reading app. PDF → high-speed reading via 4 engines. Built with Capacitor (HTML/CSS/Vanilla JS → native Android/iOS).
-**Target user:** Adult readers who consume PDFs — students, researchers, professionals, self-learners.
+**Name:** FlowRead
+**Pitch (current):** Build a daily reading habit. FlowRead nudges you to read instead of scroll — pick the apps that distract you, get a gentle prompt to read first, you're always in control.
+**What:** A reading-habit app for Android. Speed reading (5 engines), a curated free-books library, and a habit-interception system that gently redirects time spent in distracting apps (Instagram, Reddit, etc.) toward reading. Privacy-first — offline reading, no account, files never leave the device.
+**Target user:** Anyone who wants to read more and scroll less. Broader than the original target — no longer positioned as a tool specifically for PDF power-readers, though that use case is fully retained.
+
+### 0.1 The Pivot — Why This Changed
+
+FlowRead launched as a speed-reading app for PDFs ("Read everything faster. No subscription, no cloud, no account."). Real-world results after launch showed this positioning had a low ceiling:
+
+**What did NOT change:** the underlying reading engines, the cleaning engine, the bridge feature, the Free Books library, offline-first architecture, no-account principle, and privacy-by-architecture. All of this is retained and remains genuinely differentiated — no direct competitor combines PDF-native reading + a two-way original-document bridge + a habit-interception mechanic.
+
+**What changed:** the headline positioning (habit-building, not speed-reading), the addition of a habit-interception ("nudge") system as a new core mechanic, the onboarding flow (Section 10), and the business model (lifetime purchase retained, but a subscription tier is now also offered — see Section 4).
+
+**Explicit non-goal:** this is not a hard app-blocker. Every nudge must have a visible, one-tap escape hatch. The product philosophy is "gentle redirect," not "forced compliance" — see Section 9 for the full specification and the reasoning behind this distinction.
 
 ---
 
 ## 1. Core Principles (Non-Negotiable)
 
-### 1.1 100% Offline (except URL fetch in Pro)
-- No backend. No cloud APIs. No analytics phoning home.
-- All parsing client-side (pdf.js, mammoth.js). All data stored locally.
-- Only network request in free app: Google Fonts on first load (cached forever). Will bundle fonts before launch.
-- Pro URL reader: single fetch per article — labelled "requires internet" in UI.
+### 1.1 Offline-First (not "100% offline" — be precise)
+- No backend for reading. No cloud APIs for parsing. No analytics phoning home for reading behavior.
+- All parsing client-side (pdf.js, mammoth.js). All reading data stored locally.
+- Exceptions requiring internet, all already true pre-pivot: Pro URL reader (single fetch per article, labelled "requires internet"), Free Books library downloads (one-time fetch from source, then offline forever), Google Play/App Store billing (inherent to IAP).
+- **New exception from the pivot:** anonymous, non-personal usage pings (app-opened, book-downloaded, purchase events) to a lightweight analytics endpoint — see Section 9.6. This is opt-out-safe-by-design (fails silently with no internet, never blocks any user-facing action) and sends no personal identifiers.
 
 ### 1.2 No Accounts, Ever
-No sign-up, login, email, password. Fully functional 1 second after first launch. Pro verified via App Store / Play Store receipt only.
+No sign-up, login, email, password. Fully functional 1 second after first launch. Pro/Subscription verified via App Store / Play Store receipt only.
 
-### 1.3 No Subscriptions
-One-time payments only. Pro and OCR Vision are lifetime. New paid features = new one-time purchases, never recurring.
+### 1.3 Payment Model — Lifetime AND Subscription (changed from original "no subscriptions" principle)
+Original principle was one-time-payment-only. **This has changed as part of the pivot.** Reasoning: the subscription tier's value (monthly curated book drops, full habit-interception customization) is recurring by nature — new content and ongoing personalization can't honestly be sold as a one-time purchase. See Section 4 for the full tier breakdown.
+- The lifetime purchase option (`pro_lifetime`, `ocr_vision`) is retained and must never be removed — it remains the answer for subscription-averse users and is an explicit differentiator against subscription-only competitors (e.g., Lummi, which offers no lifetime option and no free tier).
+- No dark patterns: no hidden trial-to-paid auto-conversion tricks, no forced annual-only pricing, cancellation must be genuinely one tap via platform billing settings.
 
 ### 1.4 Privacy By Architecture
-Files never touch any server. We log nothing, track nothing, collect nothing. This is architecture, not a marketing claim.
+Files never touch any server. No reading-content tracking. No file uploads. This is architecture, not a marketing claim. (Usage-pattern pings per 1.1 are the one deliberate, minimal, anonymous exception — never extend this to reading content, file names, or any personal identifier.)
 
 ### 1.5 Honest Limitations
 Every limitation shown upfront in onboarding. Never silently fail. Errors explained in plain language.
+
+### 1.6 The Nudge Is a Nudge, Not a Wall
+Every habit-interception moment must have an immediate, visible, one-tap way to proceed to the original app anyway. No dark patterns to make the escape hatch hard to find. No guilt-based copy. No countdown timers designed to create anxiety. See Section 9.
 
 ---
 
@@ -40,12 +56,16 @@ Every limitation shown upfront in onboarding. Never silently fail. Errors explai
 
 - **Framework:** Capacitor 6+
 - **UI:** Vanilla HTML + CSS + JavaScript. No React, Vue, Svelte, Alpine, or any framework. No build step.
-- **PDF parsing:** pdf.js 3.11.174 (legacy UMD build — pdfjs-dist 4.x removed UMD)
+- **PDF parsing:** pdf.js 3.11.174 (legacy UMD build)
 - **DOCX parsing:** mammoth.js 1.8.0
-- **Storage:** Capacitor Preferences (Keychain/EncryptedSharedPrefs) for purchase state. Capacitor Filesystem for file data. localStorage for UI state (all keys prefixed `fr_`).
+- **Storage:** Capacitor Preferences (Keychain/EncryptedSharedPrefs) for purchase/subscription state. Capacitor Filesystem for file data. localStorage for UI state (all keys prefixed `fr_`).
 - **Screen wake:** @capacitor-community/keep-awake@5
-- **IAP:** Custom native Capacitor plugin `FlowReadIapPlugin` wrapping Google Play Billing Library 7.1.1 (`android/app/src/main/java/com/flowread/app/FlowReadIapPlugin.java`). Do NOT use @capacitor-community/in-app-purchases — it is behind on Billing 7 API and not installed.
-- **Fonts:** Roboto, Open Sans, Lato, DM Mono
+- **Network detection (NEW):** @capacitor/network — official Capacitor plugin, needed for Section 11's offline-triggered reading notification. Read-only network status listener, no other use.
+- **IAP:** Custom native Capacitor plugin `FlowReadIapPlugin` wrapping Google Play Billing Library. **Must be upgraded off the current version — see Section 3, this is time-sensitive.** Must also be extended for subscription products (Section 4). Do NOT use @capacitor/in-app-purchases.
+- **Habit interception (Android):** Requires either `UsageStatsManager` (usage-stats permission, simpler, polling-based, lower battery cost) or `AccessibilityService` (real-time app-open detection, higher reliability, more invasive permission ask, higher Play Store review scrutiny). **Default to `UsageStatsManager` first.** Needs a new custom Capacitor plugin — see Section 9.
+- **Home screen widget (NEW, Android):** Native `AppWidgetProvider` + `RemoteViews` — see Section 12. Runs outside the WebView/JS process; reads data the JS side writes via a small native bridge whenever reading position changes.
+- **Analytics/attribution:** Anonymous event pings via `fetch()` to a Cloudflare Worker endpoint. No SDK dependency — plain fetch, wrapped in try/catch, silent failure.
+- **Fonts:** Roboto (free default), Inter · Source Sans 3 · Open Sans · Lato (Pro/Subscriber, bundled), DM Mono (labels/numbers), Noto Sans Devanagari (UI + content, loaded via Google Fonts link).
 
 **Key folder paths:**
 ```
@@ -54,612 +74,338 @@ www/
   css/   base.css · components.css · engines.css · themes.css
   i18n/  en.json · hi.json
   js/
-    app.js · state.js · storage.js · i18n.js (language loader + global t() helper)
+    app.js · state.js · storage.js · i18n.js
     parser/  pdf.js · docx.js · txt.js
-    engines/ rsvp.js · chunk.js · scroll.js · focusbold.js
-    views/   upload.js · reader.js · normal.js · dashboard.js · settings.js · free-books.js
-    features/ chapter-detection.js · cleaning.js · bridge.js · keep-awake.js · purchase.js
-    utils/   dom.js · format.js
-  data/  free-books.json
-  assets/ fonts/ · icons/
+    engines/ rsvp.js · chunk.js · scroll.js · focusbold.js · page.js
+    views/
+      upload.js · reader.js · normal.js · dashboard.js · settings.js · free-books.js
+      onboarding.js  — exact current location TBD, onboarding logic may currently live
+                        inside app.js/upload.js; confirm actual structure before editing,
+                        do not assume this file already exists as a standalone module
+    features/
+      chapter-detection.js · cleaning.js · bridge.js · keep-awake.js
+      purchase.js  (upgrade billing library + extend for subscription products — Section 3, 4)
+      notifications.js  (extend with offline-triggered type — Section 11)
+      word-tap.js
+      nudge.js            — NEW, Section 9 core logic
+      nudge-apps.js       — NEW, target-app picker UI + storage
+      analytics-ping.js   — NEW, Section 9.6 anonymous event pings
+      share-stats.js      — NEW, Section 15 shareable stats card
+      leaderboard.js      — NEW, Section 14 opt-in leaderboard + badges
+      widget-bridge.js    — NEW, Section 12, pushes reading-position data to the native widget
+android/
+  app/src/main/java/com/flowread/app/
+    FlowReadIapPlugin.java        — upgrade billing library version (Section 3), add subscription support (Section 4)
+    FlowReadOcrPlugin.java
+    FlowReadDeviceSyncPlugin.java
+    FlowReadNudgePlugin.java      — NEW, Section 9, wraps UsageStatsManager
+    FlowReadWidgetProvider.java   — NEW, Section 12, AppWidgetProvider
+  build.gradle — targetSdk/compileSdk must move to API 36 (Section 3)
 ```
 
 ---
 
-## 3. Business Model
+## 3. Urgent Store Compliance — Do This First, Before Other Phase 16 Work
 
-| Tier | US Launch Price | Notes |
+Two Play Console notices received. Both carry hard deadlines and both **block all future app updates** if missed — meaning missing these would also block shipping the pivot itself (Section 0.1). Treat this section as higher priority than the feature work in Sections 9–15, though the Billing Library item should be done *together with* Task in Section 4 (subscription IAP) since both touch the same file.
+
+### 3.1 Google Play Billing Library Deprecation
+Play Console warning: the currently-integrated Billing Library version will be deprecated; updates will be rejected after **August 31, 2026** unless upgraded.
+
+- Upgrade `FlowReadIapPlugin.java` to the current supported Google Play Billing Library version before that date. Check the latest stable version at implementation time — do not assume a specific version number without verifying against current Play Billing documentation, since this project has already been burned once by a dependency going stale.
+- **Do this as one pass together with Section 4's subscription-support work** — both require touching the same purchase flow code, and the newer Billing Library version is what natively supports subscription products alongside the existing one-time products (`pro_lifetime`, `ocr_vision`).
+- Regression-test all existing purchase flows after the upgrade: `pro_lifetime` purchase, `ocr_vision` purchase, restore purchases, and the existing silent-cancel handling (USER_CANCELED must still not show an error toast) — all previously working behavior per Section 18's summary of completed work.
+
+### 3.2 Target API Level — Android 16 (API 36)
+Play Console requirement: app must target API level 36 or higher. Current `targetSdk`/`compileSdk` is API 35 (bumped there for a prior Play Store requirement per Section 18).
+
+- Bump `targetSdk` and `compileSdk` to API 36 in `build.gradle`.
+- **Regression-test every native plugin after the bump**, not just billing: `FlowReadOcrPlugin`, `FlowReadDeviceSyncPlugin`, and especially the new `FlowReadNudgePlugin` (Section 9) — major Android version bumps frequently change permission models and background-execution restrictions, and `UsageStatsManager`/`AccessibilityService` behavior is exactly the kind of surface that tends to shift between API levels. Test nudge detection specifically after this bump, not just assume it still works.
+- `MANAGE_EXTERNAL_STORAGE` re-application (Section 18, still open) and any new permission asks (nudge system, widget) should be evaluated against API 36's current policy, not the API 35-era understanding this project was built under.
+
+### 3.3 Sequencing
+Both items have the same deadline and touching-adjacent-code overlap with Section 4 and Section 9. Suggested order: (1) API 36 bump first, fix whatever breaks across existing plugins, (2) Billing Library upgrade as part of building subscription support, (3) proceed with the rest of Phase 16 only once both compliance items are confirmed working on a real device.
+
+---
+
+## 4. Business Model
+
+### Tiers
+
+| Tier | Price | What It Unlocks |
 |---|---|---|
-| **Free** | $0 | Unlimited PDFs, all 4 engines, all core features |
-| **Pro** | $9.99 Android / $14.99 iOS intro | Intro price is time-based, not user-count-based. Move to a higher anchor after launch if needed. |
-| **OCR Vision** | $4.99 Android / $7.99 iOS intro | Separate one-time add-on. Keep it available only to Pro users. |
+| **Free** | $0 | Unlimited PDFs, all 5 reading engines, Free Books library (full catalog, all languages/categories), bridge, dictionary, calm mode, basic dashboard, nudge system limited to **1 selected app**, opt-in leaderboard participation (view only, no badges) |
+| **Lifetime Pro** | $9.99 one-time (launch price; PPP-adjusted regionally) | DOCX/TXT/URL support, full dashboard, extra themes/fonts, Google Drive sync, device sync, share extension. Does **not** include unlimited nudge-app selection or monthly book drops — those are subscription-exclusive. |
+| **OCR Add-on** | $4.99 one-time (Pro required) | On-device OCR, Latin + Devanagari |
+| **Subscription** | TBD monthly/annual price (open item — ask product owner, do not hardcode a number) | Everything in Lifetime Pro + OCR, **plus**: unlimited nudge-app selection (vs 1 for free), nudge scheduling (time-of-day rules), nudge "strict mode," monthly curated book drops (5 books/month placeholder, from legal sources only — Section 13.2), opt-in leaderboard badges + monthly recognition |
 
-PPP structure:
-- Tier A: US, Canada, UK, Australia, Western Europe at 100% of launch price.
-- Tier B: LATAM, Eastern Europe, Southeast Asia at roughly 50% to 70%.
-- Tier C: India, Indonesia, Philippines, Vietnam, Pakistan, Egypt at roughly 25% to 45%.
+**Design intent behind the split:** the free tier must remain genuinely generous. Subscription value must be *recurring* value, never a re-labeling of static value. Lifetime Pro exists permanently as the non-recurring option and must never be discontinued or degraded to push subscription uptake.
 
-Implementation:
-- Use App Store Connect and Google Play Console regional pricing rather than hardcoding local prices in the app.
-- Keep `pro_lifetime` and `ocr_vision` as fixed product IDs across all regions.
-- Show the store-returned localized price in the paywall UI.
-- Avoid pricing by number of users; use launch windows and regional pricing instead.
+### Subscription Value Stack (decided; do not add scope beyond this without asking)
+1. Unlimited apps selectable for nudge interception (free tier: 1 app only)
+2. Nudge scheduling — active only during user-defined hours/days
+3. Nudge "strict mode" — longer/harder bypass for users who want more resistance than the default gentle nudge
+4. Monthly curated book drops from legal sources (rotating, not cumulative; exact count TBD)
+5. Opt-in leaderboard badges + monthly recognition (free users can view/participate in the leaderboard itself, but badges are subscriber-exclusive)
 
-Store fees: iOS 30% (15% under $1M via SBP). Android 15% on first $1M.
+**Explicitly rejected, do not build:** priority book request fulfillment, early access windows to new Free Books catalog additions, in-app advertising of any kind, Z-Library or any non-legal book sourcing (see Section 13.2 — legal exposure, non-negotiable).
 
----
+### Task — Subscription IAP (Phase 16)
+Extend `FlowReadIapPlugin` and `purchase.js` for a subscription product alongside the existing lifetime products, as part of the Section 3.1 billing-library upgrade pass. Requires: new subscription SKU in Play Console, subscription-state checks distinct from lifetime-purchase checks throughout the paywall/gating logic (a user can have Lifetime Pro without a subscription, or a subscription without ever buying Lifetime Pro — independent entitlements, except where this table says subscription includes everything Lifetime Pro includes). **Final subscription price is an open item — ask product owner before hardcoding.**
 
-## 4. Reading Engines
 
-### RSVP
-- One word at a time, fixed centre position.
-- `60000/wpm` ms per word. 1.8× pause on `.!?`, 1.3× on `,;:`.
-- ORP (fixation letter) at ~33%, amber `#b8995a`. **No flash animation — instant swap only.**
-- Warm dark stage `#161410`. Crimson Pro 400, default 48px (24–80px range).
-- Comfort controls: A−/A+, ORP toggle, Context (prev 4 words), Calm mode (dims chrome to 15%).
-
-### Chunk Mode
-- 2–7 words per flash (user-selectable, default 3). Delay = `(60000/wpm) × chunkSize`.
-
-### Focus Bold (page-mode bionic)
-- Full page of text. First 40% of each word bold. Highlight advances word-by-word at WPM.
-- Pages pre-built on init (DOM measurement + word-count fallback). Playback = pure class-toggle, no DOM writes.
-- Page crossfade 0.15s on page boundary. Do NOT call it "Bionic Reading" (trademarked).
-
-### Simple Scroll (teleprompter)
-- CSS `transform: translateY()` — GPU-composited, no layout reflow.
-- Independent speed multiplier 0.25×–4×. Amber centre line, adjustable 1–10px.
-- `pxPerMs = (wpm / 60000) × 28 / 8 × multiplier`. Delta capped 50ms.
 
 ---
 
-## 5. PDF Cleaning Engine (`www/js/parser/pdf.js`)
+## 5. Reading Engines
 
-1. Extract text with x/y positions page-by-page.
-2. Group into lines by y-coordinate tolerance. Sort top→bottom, left→right.
-3. Detect headers (top 14% of page, appears on 12%+ of pages) and footers (bottom 14%).
-4. Strip page numbers, ISBN/ISSN/DOI lines, bare URLs, null bytes.
-5. Tables → `[Table — Tap to View]` placeholder. Images → `[Image — Tap to View]`. Equations → `[Equation — Tap to View]`. Each stores its source page for Normal View jump.
-6. Build `pageWordIndex[]` — array indexed by page, value = word index where page starts. Critical for bi-directional sync.
+Unchanged from pre-pivot. Five engines, all built on the same word-array/`pageWordIndex[]` position system, fully interchangeable mid-read with no position loss.
 
----
+**RSVP** — one word at a time, fixed centre position. `60000/wpm` ms per word. 1.8× pause on `.!?` and Devanagari danda `।`, 1.6× on `,;:`. ORP at ~33%, amber `#b8995a`. No flash animation. Comfort controls: A−/A+, ORP toggle, Context, Calm mode.
 
-## 6. Bridge System
+**Chunk Mode** — 2–7 words per flash (default 3). Delay = `(60000/wpm) × chunkSize`. Scans entire chunk for strongest punctuation pause.
 
-**Speed → Normal:** Floating button (bottom right) → reverse-lookup `pageWordIndex` → open Normal view at nearest page.
-**Normal → Speed:** "▶ Read from here" button → `pageWordIndex[currentPage]` → switch to RSVP at that word.
+**Focus Bold** — full page, first 40% of each word bold, highlight advances word-by-word. Do NOT call it "Bionic Reading" (trademarked).
+
+**Simple Scroll** — CSS `transform: translateY()`, GPU-composited. Speed multiplier 0.25×–4×.
+
+**Page** (added Phase 15) — same word stream/position system, rendered as swipeable, paginated normal-reading pages. DOM-measured pagination, cached per file/font/viewport. **Default landing engine for any read initiated via the nudge system (Section 9)** — RSVP/Chunk are too high-effort for the moment right after someone was redirected from a distracting app.
 
 ---
 
-## 7. Screen Wake Lock (`www/js/features/keep-awake.js`)
+## 6. PDF Cleaning Engine
 
-Acquire: on entering any reading view, on play. Release: on exit to home/dashboard/settings, on 5-min idle pause, on background. Never hold outside reading views.
+Unchanged. Extracts text with positions, groups into lines, detects/strips headers/footers/page numbers/ISBN-DOI/bare URLs, converts tables/images/equations to tappable placeholders, builds `pageWordIndex[]`.
 
 ---
 
-## 8. UI Design System
+## 7. Bridge System
+
+Unchanged. Speed→Normal: floating button, reverse-lookup, opens Normal view at nearest page. Normal→Speed: "▶ Read from here" button. Page mode carries its own embedded bridge button.
+
+---
+
+## 8. Screen Wake Lock
+
+Unchanged. Acquire on entering any reading view / on play. Release on exit, 5-min idle pause, background. Never held outside reading views.
+
+---
+
+## 9. Reading Habit Interception System ("Nudge") — Core Pivot Feature
+
+### 9.1 Philosophy — Nudge, Not Block (non-negotiable)
+Explicitly not a hard app-blocker. A soft interception with an always-visible, one-tap escape hatch. Closest reference point: One Sec's model — pause and reconsider, never a wall. Every nudge screen must contain, without exception, a clear one-tap "Continue to [App Name] anyway" action, always visible, never hidden behind a timer or multiple taps. No guilt-based, shaming, or anxiety-inducing copy.
+
+### 9.2 Core Flow
+1. User selects target app(s) from installed apps (free: 1 app; subscriber: unlimited).
+2. `FlowReadNudgePlugin` monitors for target app(s) being opened.
+3. Nudge does not fire on every open — see 9.3.
+4. On trigger, show a calm nudge screen ("Read a bit before [App]?") with a "Start reading" action into Page mode (resuming current book, or the Free Books library if none in progress) and the always-visible escape hatch.
+5. If reading: track against a user-configurable threshold (default TBD — pages or minutes, expose as a setting, don't hardcode).
+6. Once met, **only the originally-requested target app opens**, not the user's whole nudge list (scoped unlock, 9.7).
+7. Skipping at any point does not fail or penalize the user — no guilt copy, no broken-streak framing.
+
+### 9.3 Dynamic Triggering — Not Every Open
+Track cumulative daily time per target app. Trigger only after a threshold (e.g., 15–20 minutes already spent that day, or 3rd+ open). Daily nudge cap per app. Back off for the rest of the day after 3 consecutive dismissals.
+
+### 9.4 Android Implementation Notes
+Default to `UsageStatsManager` (special permission via system settings, not a runtime dialog — onboarding must walk the user to the correct settings page, see Section 10). Poll at a battery-conscious interval; do not poll aggressively. `AccessibilityService` is a fallback only, requiring explicit product-owner sign-off before implementing, given this project's Play Store review history (see Section 18's `MANAGE_EXTERNAL_STORAGE` precedent). No iOS implementation planned.
+
+### 9.5 Reading Mode on Nudge-Entry
+Lands in Page mode by default (Section 5). Resumes in-progress book, or opens Free Books library if none — avoids the "empty import screen" drop-off.
+
+### 9.6 Anonymous Event Pings
+`analytics-ping.js` — `logEvent(eventName, meta)`, fire-and-forget `fetch()` to a Cloudflare Worker. Never includes a user/device identifier, file name, or reading content. Minimum event set: `app_opened`, `nudge_shown`, `nudge_read_started`, `nudge_read_completed`, `nudge_skipped`, `free_book_downloaded`, `pro_purchased`, `subscription_started`, `subscription_cancelled`. Privacy policy must disclose this.
+
+### 9.7 Scoped App Unlock
+When the read-threshold is met, only the specific requested app unlocks — other configured target apps remain subject to their own independent thresholds.
+
+---
+
+## 10. Onboarding Redesign — NEW
+
+The current onboarding (RSVP calibration screen, adaptive difficulty text, speed-reading-first framing per Section 18) was built entirely under the pre-pivot identity. It must be redesigned to match Section 0.1's new positioning. This is a full-surface redesign, not a copy tweak.
+
+### 10.1 Requirements
+- **Lead with the reading-habit pitch**, not speed reading. RSVP/Chunk/etc. remain in the app and can still be introduced, but de-emphasized relative to the previous version where RSVP calibration was the centerpiece.
+- **Explain the nudge system concept early**, in plain language, before any permission ask — the user needs to understand *why* FlowRead wants to watch for app-opens before being sent to a system settings page to grant the Usage Stats permission. Poor framing here will tank permission-grant rates and trust.
+- **Defer the actual permission grant + target-app selection to a "set up later" step if it improves conversion** — getting a special settings-page permission during first-run onboarding is high-friction; consider showing value first (the Free Books library, a first successful read) and prompting the nudge setup once, clearly, but not necessarily blocking the rest of onboarding on it. This is a design judgment call for whoever builds it — flag it, don't force a single approach without testing.
+- **Free Books library as the "start reading immediately" moment** — onboarding should end with the user either already reading something or one tap away from it, not staring at an empty import screen.
+- **Fully localized in Hindi from day one of the rebuild** — every onboarding string goes through `t()` into both `en.json` and `hi.json` from the start, not retrofitted after an English-only build (see Section 17, i18n rules).
+- **Retain the honest-limitations principle** (Section 1.5) — a limitations screen still belongs somewhere in or right after onboarding, just repositioned to fit the new narrative rather than removed.
+
+### 10.2 Open Design Question
+Whether the nudge permission ask is inline in first-run onboarding or deferred to a later "getting started" prompt is not decided — implement with this as a configurable/testable point, not a hardcoded assumption, and flag for product-owner review before considering this task done.
+
+---
+
+## 11. Offline-Triggered Reading Notification — NEW
+
+Extends the existing notification system (`notifications.js`, already shipping two types: primary daily reminder id `1001`, streak-protection nudge id `1002` — see Section 18). Adds a third trigger type, based on connectivity rather than time-of-day.
+
+### Requirements
+- Use `@capacitor/network` (new dependency, Section 2) to listen for a transition to offline status.
+- On detecting offline, show a local notification along the lines of "No internet? Good time to read." — exact copy TBD, keep it light, not preachy, consistent with the "nudge not wall" tone (Section 1.6) even though this is a notification rather than the in-app nudge screen.
+- **Must not spam.** Apply the same discipline already established for the existing notification types: throttle to a reasonable maximum (e.g., once per few hours, not on every brief connectivity blip), suppress if the user already met their daily reading threshold (reuse the existing suppression logic from the primary daily reminder), and do not fire if the app is currently open/in foreground.
+- Use a new notification ID (e.g., `1003`) distinct from the existing two, and follow the same reschedule/cancel patterns already established in `notifications.js`.
+- New i18n keys in both `en.json` and `hi.json`.
+
+---
+
+## 12. Home Screen Widget — NEW, Android Only
+
+### Requirements
+- Android home-screen widget (`AppWidgetProvider` + `RemoteViews`) showing the user's most recent in-progress book — title, and reasonable progress indication (percentage or similar, keep it simple/legible at widget scale).
+- Tapping the widget deep-links directly into the app, opening that specific book at its last saved position, in the user's preferred/last-used reading engine — not just opening the app to the home screen. This needs a deep-link/intent-extra mechanism so `app.js` can detect on cold start "opened from widget with fileId X" and route straight to the reader.
+- **Data flow:** the widget process runs outside the WebView/JS context and cannot read app state directly. The JS side (`widget-bridge.js`) pushes the current in-progress book's data to native storage via a small bridge method whenever reading position saves (event-driven, not polled — battery-friendly, consistent with the project's existing performance discipline in Section 17).
+- New native component `FlowReadWidgetProvider.java`.
+- Android only — no iOS equivalent planned (consistent with the project's current Android-first status, Section 22).
+
+### Open Implementation Decision
+Classic `AppWidgetProvider`/`RemoteViews` vs. Jetpack Glance — default to the classic approach for consistency with the project's existing native-plugin style (Java, no additional Jetpack/Compose dependencies introduced elsewhere in the codebase), but flag this as worth a quick evaluation before committing, not a forced decision.
+
+---
+
+## 13. Free Books Library
+
+### 13.1 Status
+Implemented (Phase 15). ~90 curated books, region-aware sorting, language tabs, category filters, auto-OCR for catalog entries, full i18n.
+
+
+### 13.3 Known Issue
+Catalog entries with `fileType: "html"` currently fail with a download error — needs review/replacement with direct file URLs. How to fix this?
+
+---
+
+## 14. Leaderboard & Badges — Planned, Not Yet Built
+
+**Opt-in only, never default-shown.** Monthly reset, no permanent ranking. Free users can view/opt into the leaderboard; badges are subscriber-exclusive (Section 4). Explicitly rejected: default-visible leaderboards, permanent rankings, competitive-pressure framing.
+
+Badges tie to the monthly curated book drops — start with 1-2 badge types, expand only if usage data supports it. A Lummi-style mascot/persona-leveling layer was considered and rejected as tonally inconsistent with FlowRead's calmer brand and its more serious catalog content (Ambedkar, Phule, etc.) — if gamified identity is revisited, tie it to *what a user reads*, not a generic unrelated game mechanic. Not scoped for current implementation.
+
+**Needs a lightweight backend beyond the anonymous analytics pings (Section 9.6)** — a leaderboard requires actual opt-in, user-chosen-name records, not just anonymous counts. Clarify with product owner whether this reuses the same Cloudflare Worker infrastructure with a new endpoint, or needs something more structured.
+
+---
+
+## 15. Share Stats Feature — Planned, Not Yet Built
+
+Elevated in priority because it doubles as a distribution mechanic, not just retention — relevant given the product's current distribution-bottleneck stage (Section 22).
+
+### Requirements
+- **Two entry points, both required:** (1) a visible "Share" button on the dashboard, always available, not just milestone-triggered; (2) a milestone-triggered prompt (e.g., "You finished [Book] — share it?") for natural completion moments, which convert better than a buried button alone.
+- Generate the card entirely on-device (Canvas API) — no server, no upload.
+- Must include app name/branding on the image itself, tasteful and small, not a loud ad.
+- User-editable before sharing: simple per-item toggle for which books/achievements to include.
+- **Hero-metric framing, not a data dump** — one strong stat per share ("Finished Annihilation of Caste in 4 days 🔥 12-day streak") rather than a dense multi-stat screenshot.
+- **Design with a future "time reclaimed" stat in mind** once Section 9's nudge system is live (e.g., "You chose reading over Reddit 14 times this week") — not required for v1, but the card layout shouldn't need to be rebuilt to add it later.
+- Share via native share sheet (`Capacitor.Share`) — this inherently supports sharing to any installed app the user chooses, no platform-specific restriction needed.
+- Design: warm, on-brand, large readable text, one achievement per share image.
+
+---
+
+## 16. UI Design System
 
 ```css
 :root {
   --bg: #0d0d0d;  --surface: #141414;  --surface-2: #1c1c1c;  --border: #2a2a2a;
   --accent: #e8c547;  --accent-2: #c47a3a;
   --text: #e8e4dc;  --text-muted: #6b6660;  --text-dim: #3a3632;
-  --rsvp-stage-bg: #161410;  --rsvp-orp: #b8995a;
+  --rsvp-stage-bg: #161410;  --page-stage-bg: #161812;  --rsvp-orp: #b8995a;
   --success: #5a9a6a;  --error: #c45a3a;
 }
 ```
 
-- **No pure black (#000) or pure white (#fff) anywhere text appears.**
-- Border radius 2–4px on small elements, max 6px. No pill buttons.
-- Animations: 0.12–0.2s hover, 0.3s view transitions. No bounce. No RSVP flash.
-- Fonts: Roboto (free default), Inter · Sans Serif (Source Sans 3) · Open Sans · Lato (Pro, bundled), DM Mono (labels/numbers).
+No pure black/white anywhere text appears. Border radius 2–4px (max 6px), no pill buttons. Animations 0.12–0.2s hover, 0.3s view transitions, no bounce, no RSVP flash. Fonts per Section 2.
+
+**New surfaces (nudge screen, onboarding, leaderboard, share-card, widget) must follow this system exactly** — no new palette, no new typography scale. The nudge screen especially must feel calm, not alarming — it's interrupting a habitual action; jarring visuals work against the "gentle redirect" philosophy (Section 9.1).
 
 ---
 
-## 9. Known Limitations (shown in Onboarding + Settings)
+## 17. i18n Rules (Permanent — Apply to All Future Work)
 
-1. Scanned PDFs require OCR Vision upgrade.
-2. DRM-protected files (Kindle .azw, Adobe DRM) cannot be read.
-3. Multi-column PDFs (IEEE/ACM format) may have reading-order issues.
-4. Tables/images shown as `[Object — Tap to View]` placeholders; some wide tables not detected.
-5. Math equations skipped or shown as `[Equation — Tap to View]`.
-6. Handwriting not accurately parsed even with OCR.
-7. Password-protected PDFs rejected with clear error.
-8. RTL languages (Arabic, Hebrew, Urdu) not supported in v1.
-9. Pro dictionary: ~150k words; specialised terms may not be found.
-10. URL reader requires internet; some sites blocked by paywalls/bot protection.
+Every new UI string uses `t('key')` — never hardcode English. Add keys to both `en.json` and `hi.json` together; product owner supplies Hindi. Dynamic strings use `{placeholder}` syntax. Terms kept in English/Roman regardless of language: WPM, PDF, DOCX, TXT, OCR, RSVP, and all engine mode names (RSVP, Chunk, Focus Bold, Scroll, Page).
+
+**This applies to every new section in this document** — nudge screen, onboarding rebuild, offline notification, widget, leaderboard, badges, and share-card all need `en.json`/`hi.json` keys from day one of implementation.
 
 ---
 
-## 10. Pro vs Free Reference
+## 18. Work Completed So Far (Summary)
 
-| Feature | Free | Pro |
-|---|---|---|
-| PDF reading (all 4 engines) | ✅ | ✅ |
-| Cleaning, placeholders, bridge, chapters | ✅ | ✅ |
-| Auto-resume, wake lock, progress tracking | ✅ | ✅ |
-| OLED Black theme | ✅ | ✅ |
-| DOCX / TXT support | ❌ | ✅ |
-| URL reader | ❌ | ✅ |
-| Share extension (receive URL from browser) | ❌ | ✅ |
-| Dashboard + reading KPIs | ❌ | ✅ |
-| Device file sync | ❌ | ✅ |
-| Sepia + High Contrast themes | ❌ | ✅ |
-| OpenDyslexic font / Typography controls | ❌ | ✅ |
-| Local WordNet dictionary | ❌ | ✅ |
-| **OCR Vision** | $9.99 add-on | $9.99 add-on |
+Phases 0–15 are functionally complete and shipped (Android versionCode 24–28, versionName 1.2–1.4.1 as last recorded). This section summarizes what exists; consult the codebase for implementation specifics.
 
----
+**Core reading product (Phases 0–10):** PDF/DOCX/TXT/URL import, 4 original reading engines, cleaning engine, bi-directional bridge, chapter detection, auto-resume, screen wake lock, RSVP-calibration onboarding (now superseded — see Section 10).
 
-## 11. Active Phase
+**Phase 11 — Sync & sharing:** Android device file sync (MediaStore-based, after `MANAGE_EXTERNAL_STORAGE` removal per a Play Store policy rejection — re-application strategy documented, still open), share-sheet URL intent, global error boundaries.
 
-Phases 0–14 are complete. Current work is Phase 15.
+**Phase 12 — OCR, dictionary, dashboard:** On-device OCR (ML Kit, Latin + Devanagari, custom plugin), 82k-word offline dictionary, Pro dashboard v1, "Open with PDF" intent, Paste Text reader, camera/gallery import.
 
-### PHASE 11 — Share Extension & Deeper Sync (Completed)
+**Phase 13 — Store launch polish:** Safe-area insets, wake-lock fix, ORP/ligature fixes, hardware back-button handling, real Google Play Billing integration (now needing the Section 3.1 upgrade), legacy Indic font detection with OCR recovery, Hindi danda pause support, numerous smaller fixes. Android store setup complete; iOS store setup not started.
 
-- [x] **Task 11.1 — Widen device sync search**
-  - Implemented native Android storage scan via custom Capacitor plugin.
-  - Scans external storage recursively (depth-limited), free/pro extension gating (`.pdf` for free, `.pdf/.docx/.txt` for pro), and shows source paths.
-  - Results persist on home screen under **Readable files on device**.
+**Phase 14 — Deferred items, still open:** `MANAGE_EXTERNAL_STORAGE` re-application, background OCR Foreground Service, SAF folder-picker fallback. ("Share reading stats" item here is superseded by Section 15 above.)
 
-- [x] **Task 11.2 — Android Share Extension (receive URL from browser)**
-  - Added Android share-sheet intent support.
-  - Share payload bridged to JS, Pro gate enforced, article fetched/saved locally, and opened in reader using default mode.
-  - Shared URL items appear in library/dashboard and support progress tracking.
+**Phase 15 — Feedback-driven UX & India expansion (functionally complete, some device testing still open):** Full Hindi i18n system (~240 keys), settings page restructure, additional reading fonts (Inter, Source Sans 3), word-tap action setting, notification system v1 (daily reminder + streak nudge — now being extended per Section 11), Page mode (fifth engine, device testing pending), Free Books Library (Section 13), India Custom Store Listing plan (not yet executed, messaging needs revision — see below).
 
-- [x] **Task 11.3 — Error boundary**
-  - Global error boundaries in `app.js` now surface plain-language fallback card and return user safely to home.
-
-- [x] **Phase 11 UX follow-ups**
-  - Home library split into `Recent` and collapsible `Read` (100% complete only).
-  - `Readable files on device` section is collapsible and defaults collapsed after each sync.
-  - Top Settings entry point added in upload header for quick access.
-
-- [x] **Important intermittent next task**
-  - Going from any mode to `Scroll` now shows a loading spinner and progress overlay while the rebuild or cache restore completes.
-
-
-### PHASE 12 — Engagement, Navigation, OCR Vision
-
-
-
-- [x] **Task 12.3 — On-device OCR Vision (Android complete)**
-  - ✅ Scope shipped: scanned (image-only) PDFs + standalone image import (JPG/PNG/WEBP). Mixed PDFs deferred.
-  - ✅ Android: custom `FlowReadOcr` Capacitor plugin in `android/app/src/main/java/com/flowread/app/FlowReadOcrPlugin.java`. Wraps ML Kit Text Recognition v2 with explicit `script` parameter (`'latin'` | `'devanagari'`). Replaces the published `@pantrist/capacitor-plugin-ml-kit-text-recognition` package, which hardcoded Latin-only and silently dropped Hindi (Devanagari) characters.
-  - ✅ Gradle deps: `play-services-mlkit-text-recognition:19.0.1` (Latin) + `play-services-mlkit-text-recognition-devanagari:16.0.1` — both bundled into the APK, fully offline.
-  - ✅ JS OCR engine (`www/js/parser/ocr.js`) auto-tries Latin first, falls back to Devanagari if results are thin, and merges both for mixed Hindi+English pages.
-  - ✅ Scanned-PDF detection (`www/js/parser/pdf.js`) now uses three signals: word-count threshold (≥30/page), scanner-app watermark regex (CamScanner, OKEN Scanner, etc.), and garbage-text heuristic — so scanner apps' bad embedded OCR layers no longer bypass our recognizer.
-  - ✅ Image OCR pipeline uses `FileReader.readAsDataURL()` instead of canvas — avoids WebView OOM on 12MP+ phone photos.
-  - ✅ PDF OCR pipeline: 3× scale, max 3000px side, white-fill background, plus fallback that extracts the largest embedded image XObject directly when full-page render returns nothing (handles JBIG2/JPEG2000 scanner outputs).
-  - ✅ "Image / Scan" import card on home screen — multi-select gallery support.
-  - ✅ Gate: Pro + OCR Vision add-on ($4.99 one-time). Free/Pro-only users see upgrade prompt. Dev bypass available in Settings > Developer.
-  - ✅ OCR imports persist locally so files are not reprocessed on every launch.
-  - ⏳ **iOS implementation still required** — use Apple Vision Framework (`VNRecognizeTextRequest`), NOT ML Kit. Apple Vision supports script auto-detection across most languages natively, so a single recognizer call typically covers Latin + Devanagari + CJK + Cyrillic without separate models. Must be wired through an equivalent custom Capacitor plugin in `ios/App/App/`.
-
-- [x] **Task 12.6 — Improve Pro Dashboard** (Completed)
-  - ✅ WPM Progress Chart — SVG line graph showing last 7 sessions with trend badge (↑ Improving / ↓ Declining / → Steady)
-  - ✅ Files Completed — counter + stacked bar chart by type (PDF/DOCX/TXT/URL/OCR). Now tracks image/OCR files.
-  - ✅ Per-card time-to-complete estimates — shows inline in active library cards (e.g., "~3h 22m left")
-  - ✅ Reading Streak Heatmap — 91-day GitHub-style calendar with intensity levels (0–3) based on daily word count
-  - ✅ Library split into "Your Library" (active files) + collapsible "Read" section (100% complete)
-  - ✅ OCR/image files now visible in completion stats with green segment + "OCR" legend
-  - ✅ Smart back navigation — reader returns to Dashboard when file was opened from there (via AppState.readerSource)
-  - ✅ Homepage card reorder — Image/Scan moved above Dashboard; Dashboard given full-width (import-card-featured)
-  - ✅ 2-column import grid on mobile — removed single-column breakpoint so cards lay out as intended
-
-### Language support reference (added during 12.3)
-
-**Normal (text-layer) PDFs:**
-- ✅ Latin + diacritics (English, French, Spanish, German, Italian, Portuguese, Dutch, Polish, Turkish, Vietnamese, etc.) — works out of the box; bundled fonts cover the glyphs.
-- ✅ Cyrillic (Russian, Ukrainian, Bulgarian, Serbian) and Greek — Roboto/Open Sans already include these glyphs.
-- ❌ Devanagari (Hindi, Marathi, Nepali, Sanskrit) — would need to bundle a Devanagari font (Noto Sans Devanagari) for correct rendering; ASCII fallback otherwise.
-- ❌ CJK (Chinese/Japanese/Korean) — needs CJK font (~5–15 MB per script) AND word-segmentation logic (no spaces between words; `split(/\s+/)` produces one giant token per line).
-- ❌ Thai, Khmer, Lao — same word-segmentation issue.
-- ❌ Arabic, Hebrew, Urdu — already excluded in v1 (Section 9, item 8) due to RTL layout work.
-
-**On-device OCR (ML Kit script models, Android):**
-- ✅ Latin — covers ~30 European + SE Asian Latin-script languages (already included).
-- ✅ Devanagari — covers Hindi, Marathi, Nepali, Sanskrit (already included).
-- Available but not yet added (each ~3–5 MB APK overhead):
-  - `play-services-mlkit-text-recognition-chinese` (Simplified + Traditional)
-  - `play-services-mlkit-text-recognition-japanese`
-  - `play-services-mlkit-text-recognition-korean`
-- ❌ ML Kit does NOT support: Cyrillic, Arabic, Hebrew, Thai, Tamil, Bengali. Tesseract.js or a cloud OCR fallback would be required for those markets.
-
-
-
-
-- [x] **Task 12.5 — Internal Dictionary** (Completed)
-  - ✅ 82,559-word local offline dictionary from WordNet 3.1 (Pro feature)
-  - ✅ Single tap on any word in RSVP/Chunk/Scroll/FocusBold → shows definition modal
-  - ✅ Free users see Pro upgrade prompt with "Look up online" fallback
-  - ✅ Dictionary auto-loads in background on reader open (zero delay on first tap)
-  - ✅ Playback auto-pauses when dictionary opens
-  - ✅ Definitions capped at 2 per word, max 120 chars (7.98 MB file, compresses further in APK/IPA)
-
-- [x] **Task 12.6 — Clean Up Tasks** (Completed)
-  - ✅ **Task 1:** URL button in reader — opens source article in system browser (`window.open` → external/system browser on Android)
-  - ✅ **Task 2:** IMG button in reader — fullscreen gallery modal for viewing original OCR source images; fixed CSP to allow `data:` URLs (`img-src data: blob:`); fixed handler scope (`AppState.currentFile` instead of out-of-scope `file`); fixed `resumeFromLibrary` to restore `imageDataUrls` so button works from Recent files
-  - ✅ **Task 3:** Updated OCR accuracy limitation — notes best practices (flat, well-lit, straight-on); accuracy drops with poor conditions
-  - ✅ **Task 4:** Paste Text reader — free feature, card + modal, saves to library, 10-char minimum
-  - ✅ **Task 5:** Camera + Gallery action sheet — 2-column grid layout (Take Photo | Gallery) with stroke SVG icons in accent colour; Cancel spans full width below; camera integration via @capacitor/camera
-  - ✅ **Task 6:** RSVP onboarding calibration — live word-flashing at chosen WPM with ORP fixation letter highlighted in word; adaptive tier texts; slider/buttons update speed and restart preview; removed `transition: font-size` so size changes are frame-instant; added Reset Onboarding toggle in Settings > Developer
-
-### PRE-LAUNCH — Store Setup & In-App Purchase
-
-- [x] **Android store setup (complete)**
-  - ✅ Google Play Console — app created, signed AAB uploaded, published to internal testing
-  - ✅ Release signing configured — keystore at `~/flowread-release.jks`, signing config in `android/keystore.properties` (gitignored). Alias: `flowread`.
-  - ✅ targetSdk / compileSdk bumped to API 35 (Play Store requirement as of 2025)
-  - ✅ IAP products created in Play Console: `pro_lifetime` (one-time, $9.99, Active) and `ocr_vision` (one-time, $4.99, Active)
-  - ✅ License testing configured — internal testers added, license response set to LICENSED
-
-- [x] **Real in-app purchase flow (Android complete)**
-  - ✅ `FlowReadIapPlugin.java` — custom Capacitor plugin wrapping Google Play Billing Library 7.1.1. Methods: `initBilling`, `queryProducts`, `purchaseProduct`, `queryPurchases`, `acknowledgePurchase`. Registered in `MainActivity.java`.
-  - ✅ `purchase.js` fully rewritten — `initIAP()` called at boot (non-blocking), `buyPro()`, `buyOcr()`, `restorePurchases()` all use real Play Billing. `queryProducts()` called explicitly before every purchase to ensure cache is warm.
-  - ✅ Store-localized prices shown in paywall modal (fetched via `queryProducts` at boot, fallback to $9.99 / $4.99)
-  - ✅ "Restore Purchases" button in paywall modals and in Settings → About
-  - ✅ Dev Pro/OCR test toggles removed from Settings — no dev bypass remains in UI or storage
-  - ✅ `loadPurchaseState` reads only from Capacitor Preferences (localStorage dev-bypass path removed)
-  - ✅ USER_CANCELED handled silently — no error toast when user taps back on billing sheet
-  - ✅ Purchase acknowledgment handled in native plugin — auto-retried on `queryPurchases` if missed
-
-- [ ] **iOS store setup (pending)**
-  - [ ] App Store Connect account ($99/year) — create app, add store listing
-  - [ ] Create two non-consumable IAPs: `pro_lifetime` (Tier 15, ~$14.99) and `ocr_vision` (Tier 8, ~$7.99)
-  - [ ] iOS IAP plugin — use StoreKit 2 in a custom Capacitor plugin (`ios/App/App/FlowReadIapPlugin.swift`). Do NOT use the Android FlowReadIapPlugin approach — iOS uses StoreKit 2 (`Product.purchase()` API), not Google Play Billing.
-  - [ ] Submit app + IAPs to App Store review
+**Why Phase 15's India-specific messaging is now superseded:** Phase 15 was built under the original "speed reading + privacy" identity. The Free Books library, Hindi localization, and India CSL plan remain equally or more relevant under the new "reading habit" identity — but the India CSL *copy* originally planned should lead with the habit/nudge angle rather than the original framing, per real-world feedback that the original angle underperformed with a real test audience. Do not treat old India CSL copy drafts as final.
 
 ---
 
-### PHASE 13 — Internal Testing Bug Fixes & Polish (current)
+## 19. Current Phase — Phase 16: Reading Habit Pivot
 
-- [x] **Safe area insets — all views**
-  - ✅ Added `viewport-fit=cover` to viewport meta in `index.html`
-  - ✅ CSS variables `--safe-top`, `--safe-bottom`, `--safe-left`, `--safe-right` defined in `:root` in `base.css`
-  - ✅ `.reader-header`: `padding-top: calc(10px + var(--safe-top))`
-  - ✅ `.playback-bar`: bottom padding includes `var(--safe-bottom)`
-  - ✅ `.scroll-speed-row`: bottom padding includes `var(--safe-bottom)`
-  - ✅ `.normal-toolbar`: top padding includes `var(--safe-top)`
-  - ✅ `.upload-header`, `.settings-header`, `.dashboard-header`: top padding includes `var(--safe-top)`
-  - ✅ `#view-reader`: `height: 100dvh` (dynamic viewport height)
-  - ✅ PDF floating button (`.reader-normal-toggle`): `bottom: calc(185px + var(--safe-bottom))` — raised from 152px which was too tight
-  - ✅ Toast container: `bottom: calc(var(--space-xl) + var(--safe-bottom))`; reader-active sibling rule pushes toast above bar stack: `#view-reader:not(.hidden) ~ #toast-container { bottom: calc(150px + var(--safe-bottom)) }`
-  - ✅ Toast element: `white-space: normal; max-width: calc(100vw - 2 * var(--space-lg)); text-align: center` — long "Resuming from…" text no longer clips left edge
+All items below are net-new, motivated by Section 0.1. **Tasks 16.0a and 16.0b (Section 3) take priority over everything else in this list** due to their hard deadline and blocking consequences.
 
-- [x] **Screen wake lock fix**
-  - ✅ `keep-awake.js` was referencing a non-existent global `CapacitorKeepAwake`. Fixed to use `window.Capacitor.Plugins.KeepAwake` via `_getPlugin()` helper — the correct Capacitor 6 accessor pattern.
+- [ ] **Task 16.0a — API 36 target bump** (Section 3.2)
+- [ ] **Task 16.0b — Billing Library upgrade** (Section 3.1), combined with:
+- [ ] **Task 16.1 — Subscription IAP** (Section 4)
+- [ ] **Task 16.2 — Habit Interception System ("Nudge")** (Section 9) — largest single feature item. Suggested build order: target-app picker UI → `FlowReadNudgePlugin` detection → dynamic trigger logic → nudge screen UI → scoped unlock → analytics pings wired throughout. Get product-owner review of nudge screen copy/tone before finalizing.
+- [ ] **Task 16.3 — Onboarding Redesign** (Section 10)
+- [ ] **Task 16.4 — Monthly Curated Book Drops** (Section 4, Section 13 pipeline) — rotation/update mechanism (bundled vs. remote-fetched catalog) needs product-owner input.
+- [ ] **Task 16.5 — Opt-In Leaderboard & Badges** (Section 14)
+- [ ] **Task 16.6 — Share Stats Feature** (Section 15)
+- [ ] **Task 16.7 — Offline-Triggered Reading Notification** (Section 11)
+- [ ] **Task 16.8 — Home Screen Widget** (Section 12)
+- [ ] **Task 16.9 — Home Screen Reorder (Friction Fix)** — move active/in-progress files to the top of the home screen, above Free Books and the import grid. Small, self-contained, ship independently and early.
+- [ ] **Task 16.10 — India Custom Store Listing (messaging revision)** — Play Console config task, no app code. Revise to lead with the habit/nudge angle. Still needs two missing screenshots (Free Books catalog, Page mode) captured before it can ship.
 
-- [x] **ORP highlighting fixes (`www/js/utils/format.js`)**
-  - ✅ `_normalizeLigatures()` — expands Unicode ligatures (ﬁ→fi, ﬂ→fl, ﬀ→ff, ﬃ→ffi, ﬄ→ffl, ﬅ/ﬆ→st) before ORP position calculation
-  - ✅ `.normalize('NFKD')` applied after manual table — catches remaining Unicode compatibility ligatures (U+FB00–FB06 range)
-  - ✅ `_isLetter(cluster)` using `/\p{L}/u` — after computing target ORP index, walks forward past any non-letter cluster. Fixes: (a) invisible PDF private-use-area glyphs landing at ORP position, (b) hyphens in compound words like "co-worker" being highlighted instead of the adjacent letter
-
-- [x] **Scroll mode speed controls**
-  - ✅ Row overflow on narrow screens: gap reduced 8px→4px, horizontal padding 16px→8px, comfort-btn horizontal padding 12px→8px within the row
-  - ✅ `justify-content: space-evenly` — controls distributed across full row width
-  - ✅ Speed/Line labels: `font-size: 11px; color: var(--text-muted)` → `12px; var(--text)` — clearly readable
-  - ✅ Display span `min-width: 44px` removed — was clipping the `×` character; natural `comfort-btn` padding now sizes it correctly
-
-- [x] **Import card visual redesign**
-  - ✅ "Image / Scan" card renamed to "Scan" (was wrapping across 3 lines)
-  - ✅ `.import-card strong` truncation rules (`white-space: nowrap; overflow: hidden; text-overflow: ellipsis`) removed — was cutting all card titles to ellipsis
-  - ✅ Free users: locked cards at `opacity: 0.6`, badges show `🔒 Pro` / `🔒 OCR Add-on` in muted colour (`.import-badge-lock`)
-  - ✅ PDF Reader and Paste Text badges removed — they're always free, no badge needed
-  - ✅ Pro users: green border removed from unlocked cards (`.import-card-live` no longer sets `border-color`). DOCX/TXT badges cleared. URL → "Online", Scan → "On-Device", Dashboard → "Analytics"
-
-- [x] **Android hardware back button**
-  - ✅ `Capacitor.Plugins.App.addListener('backButton')` wired in `app.js` after boot
-  - Priority order: (1) close open modal → (2) reader view: trigger `#btn-reader-back` click (reuses existing save/release/route logic) → (3) normal PDF view: trigger `#btn-normal-back` → (4) settings/dashboard: `renderUpload()` + `switchView('view-upload')` → (5) home screen: `minimizeApp()`
-
-- [x] **Notification icon**
-  - ✅ `capacitor.config.json`: `LocalNotifications.smallIcon = "ic_launcher_foreground"`, `iconColor = "#E8C547"` — replaces default Capacitor "i" icon with app icon foreground (rendered as white silhouette on Android 5+)
-
-- [x] **Post-purchase home screen refresh** (`www/js/features/purchase.js`)
-  - ✅ After `buyPro()`, `buyOcr()`, and `restorePurchases()` succeed, `hydrateUploadSurface()` is called if the user is on the home view — import cards update immediately without requiring navigation away and back
-
-- [x] **ORP browser ligature rendering fix** (`www/css/engines.css`)
-  - ✅ Added `font-variant-ligatures: none` to `.rsvp-word-wrap` — prevents the browser from merging adjacent letters (fi, ff, ffi etc.) into a single glyph across the before/orp/after span boundary, which was silently hiding the ORP amber colour on words like "officiate", "first", "field", "affixed"
-
-- [x] **Standalone punctuation merge in PDF parser** (`www/js/parser/pdf.js`)
-  - ✅ During word-array building, punctuation-only tokens (e.g. lone `?` or `,` emitted as separate text items by some PDF encoders) are merged into the preceding word rather than pushed as standalone entries — RSVP no longer flashes a bare `?` as its own word
-  - ✅ Merge guard: only applies when the previous entry is a string (not a placeholder object) so table/image placeholders are unaffected
-  - ✅ Detection regex: `/^[^\p{L}\p{N}]+$/u` — tokens containing no Unicode letters or digits
-
-- [x] **Comma/semicolon pause perceptibility** (`www/js/engines/rsvp.js`, `www/js/engines/chunk.js`)
-  - ✅ Raised soft-punctuation (`,;:`) pause multiplier from 1.3× to 1.6× — at 300 WPM this is 320 ms vs 200 ms base (was 260 ms), clearly perceptible as a breath pause without feeling jarring like the 1.8× sentence-end pause
-
-- [x] **Chunk mode mid-chunk punctuation pause** (`www/js/engines/chunk.js`)
-  - ✅ `_schedule()` now scans the entire chunk slice (all 2–7 words) for `.!?` (strong) and `,;:` (soft) rather than only checking the last word
-  - ✅ Uses the strongest pause found anywhere in the chunk — a sentence-ending `?` in word 2 of a 5-word chunk now correctly triggers the 1.8× pause even though word 5 has no punctuation
-
-- [x] **Legacy Indic font encoding detection** (`www/js/parser/pdf.js`, `www/js/views/upload.js`)
-  - ✅ Detects PDFs encoded with KrutiDev/Krishna/Moosa legacy fonts (common Hindi/Urdu publishing workflow) — these map Devanagari/Nastaliq glyphs to Latin/ASCII codepoints, producing garbled text in the reader
-  - ✅ Two-signal detection: (A) `INDIC_EMBEDDED` regex — special chars (`/ { @ # ^ \ ;`) appearing *between* letters, e.g. `fy;s`, `ck/n`, `O;wg` — patterns that never appear in normal English prose; (B) `INDIC_LEADING` regex — words starting with `/letter`, e.g. `/kEe`, `/keZ` (KrutiDev vowel matras at word start). Secondary signal: font PostScript names matched against `LEGACY_FONT_RE` (moosa, krutidev, krishna, devlys, shivaji, akruti, chanakya, walkman).
-  - ✅ Ratio computed against letter-containing tokens only — pure digit/dash tokens (e.g. `---145`) excluded from denominator so TOC-heavy files don't dilute detection below the 6% threshold
-  - ✅ `hasLegacyEncoding` flag returned in PDF metadata. **Does NOT affect `hasTextLayer`** — English PDFs are completely unaffected; the flag only triggers a UI banner
-  - ✅ Non-blocking dismissible banner shown at top of reader when `hasLegacyEncoding` is true. "Fix with OCR" button → triggers the Scan → Choose PDF flow (OCR reads pixels, not encoding). Auto-dismisses when user leaves the reader view.
-  - ✅ Scan card updated to accept `.pdf` files via a hidden `#file-input-pdf-scan` input — `handlePdfScanSelect` runs the full OCR pipeline on the chosen PDF
-  - ✅ `showLegacyEncodingModal()` shown instead of banner when user has no OCR access — "Text looks wrong in this PDF" with upgrade CTA
-
-- [x] **Settings back button UX fix** (`www/js/views/settings.js`, `www/css/components.css`)
-  - ✅ Removed "Back" text label — arrow `←` alone is sufficient affordance
-  - ✅ Pulled `.settings-header` out of the `max-width: 700px` media query that applied `flex-direction: column; align-items: stretch` — on mobile this was stretching the button full-width and centering the arrow, making it look like a centred heading rather than a back button
-  - ✅ Explicit `flex-direction: row; align-items: center` on `.settings-header` at mobile breakpoint keeps button left-aligned at all screen sizes
-
-- [x] **"Open with" PDF intent (Android)** (`android/app/src/main/AndroidManifest.xml`, `MainActivity.java`, `www/js/features/share-handler.js`, `www/js/views/upload.js`)
-  - ✅ `ACTION_VIEW` + `application/pdf` intent filter added — FlowRead now appears in Android's "Open with" list when tapping a PDF in Files, Gmail, WhatsApp, etc.
-  - ✅ `MainActivity.copyPdfInBackground(uri, isHotStart)` — copies incoming content URI to `getCacheDir()/flowread_open_with.pdf` on a **background thread** (avoids ANR). Resolves filename via `ContentResolver` (`OpenableColumns.DISPLAY_NAME`). Stores `{"path":"...","name":"..."}` JSON in SharedPreferences as `fr_pending_pdf_open`.
-  - ✅ Cold start: JS reads `fr_pending_pdf_open` from Preferences in `_checkPendingPdfOpen()` called from `initShareHandler()` — background copy always finishes well before JS initialises (~50ms copy vs ~1500ms JS boot).
-  - ✅ Hot start (app already open): background thread fires `flowreadPdfOpen` window event directly after copy completes — no race condition with `onResume`.
-  - ✅ JS reads file bytes via `FlowReadDeviceSyncPlugin.readFile({ path })` (proven absolute-path reader already used by device sync) — decodes base64 to ArrayBuffer, calls `handlePdfFromIntent(arrayBuffer, fileName)`.
-  - ✅ `handlePdfFromIntent()` in `upload.js` — identical flow to normal PDF import: parse → OCR fallback if needed → save to library → open reader immediately. Legacy encoding banner and scanned PDF modal both apply.
-
-- [x] **Calm mode back button fix** (`www/js/app.js`)
-  - ✅ Hardware back while Calm mode active now deactivates Calm mode first (removes `reader-calm` class, sets `fr_calm_mode = false`) and stays in the reader. Second back press then exits normally. Mirrors the convention of exiting fullscreen before leaving a view (e.g. YouTube). Implemented in the `backButton` Capacitor listener before the normal `btn-reader-back` click path.
-
-- [x] **Sepia theme white text on import cards** (`www/css/themes.css`)
-  - ✅ `.import-card strong` uses a hardcoded off-white `rgba(232,228,220,0.88)` in the base CSS — readable on dark cards but near-invisible on Sepia's sandy `#dec79f` surface. Added `body[data-theme="sepia"] .import-card strong { color: var(--text) }` override so titles render in dark brown (`#3e2f23`). All other themes unaffected.
-
-- [x] **Google Play rejection fix — MANAGE_EXTERNAL_STORAGE removed** (`android/app/src/main/AndroidManifest.xml`, `android/app/src/main/java/com/flowread/app/FlowReadDeviceSyncPlugin.java`)
-  - ✅ Google Play rejected versionCode 23 because `MANAGE_EXTERNAL_STORAGE` was not considered core functionality for a reading app.
-  - ✅ Removed `MANAGE_EXTERNAL_STORAGE` from manifest entirely.
-  - ✅ `FlowReadDeviceSyncPlugin.java` fully rewritten to use `MediaStore` API instead of recursive filesystem walk:
-    - Android 10+ (API 29+): queries `MediaStore.Downloads.EXTERNAL_CONTENT_URI` (accessible without any permission — covers browser downloads, Gmail attachments, etc.)
-    - Android 10–12 with `READ_EXTERNAL_STORAGE`: also queries `MediaStore.Files.getContentUri("external")` for files outside Downloads
-    - Android 9 and below: falls back to recursive filesystem scan with `READ_EXTERNAL_STORAGE`
-    - Both MIME type filter and `_data LIKE '%ext'` extension fallback used — catches files where MediaStore didn't detect the MIME type
-    - `DATA` column null-fallback: if DATA is missing from cursor, constructs path as `Downloads/<display_name>`
-    - Results deduplicated by absolute path via `LinkedHashMap`
-  - ✅ `READ_EXTERNAL_STORAGE android:maxSdkVersion="32"` retained — still needed for Android 10–12 MediaStore.Files query
-  - ✅ Empty-state toast updated: "No files found in Downloads. For WhatsApp/Telegram PDFs, use 'Open with' → FlowRead."
-  - ⚠️ On Android 13+, sync only finds files in Downloads folder. WhatsApp/Telegram PDFs require "Open with → FlowRead" (already implemented). Re-application strategy for `MANAGE_EXTERNAL_STORAGE` documented in Phase 14.
-
-- [x] **OCR wake lock + backgrounding warning** (`www/js/views/upload.js`)
-  - ✅ `acquireWakeLock()` called at the start of every OCR entry point: `handleFileSelect` (auto-detected scanned PDF), `handlePdfFromIntent` (Open with intent), `handlePdfScanSelect` (explicit Scan card), `handleImageSelect` (camera/gallery images).
-  - ✅ `releaseWakeLock()` called in every exit path — success, empty result, error, and outer catch.
-  - ✅ Toast shown at OCR start: "Keep FlowRead open while scanning — backgrounding pauses OCR."
-  - ✅ Reuses existing `acquireWakeLock` / `releaseWakeLock` from `www/js/features/keep-awake.js` — no new code.
-  - ⚠️ Full background OCR (Foreground Service) deferred to Phase 14 — see roadmap.
-
-- [x] **Hindi danda sentence pause** (`www/js/engines/rsvp.js`, `www/js/engines/chunk.js`)
-  - ✅ Added `।` (U+0964 DEVANAGARI DANDA) to the 1.8× strong-pause set alongside `.!?` in both RSVP and Chunk engines — Hindi/Marathi sentences now get the same rhythm pause as English.
-
-- [x] **OCR Add-on badge overflow** (`www/js/views/upload.js`, `www/css/components.css`)
-  - ✅ Badge text shortened from `🔒 OCR Add-on` to `🔒 Add-on`. Changed `flex-shrink` from `0` to `1` with `text-overflow: ellipsis` as safety net so no badge can overflow its card regardless of length.
-
-- [x] **Chunk size label alignment** (`www/css/engines.css`)
-  - ✅ Added `align-items: center` to `.rsvp-comfort-controls` — "Chunk size" label and dropdown were top-aligned instead of vertically centred with each other.
-
-- [x] **RSVP long-word overflow** (`www/js/engines/rsvp.js`)
-  - ✅ After setting word text, measures `wrap.scrollWidth` vs `wrap.clientWidth`. If the word overflows (e.g. "incommensurability"), font size is scaled down proportionally (`Math.floor(fontSize * available / scrollWidth)`, minimum 16px). Normal-length words unaffected — check only triggers on actual overflow.
-
-- [x] **Chunk mode placeholder overflow** (`www/js/engines/chunk.js`)
-  - ✅ Same scrollWidth safety check added after placeholder text is set (`[Image — Tap to View]`, `[Table — Tap to View]` etc.). Canvas measurement in `_resolveChunkFontSize` uses a potentially stale `_stageWidth` on first render — the DOM check guarantees fit. Minimum 11px.
-
-- [x] **"Open with" PDF intent** (`android/app/src/main/AndroidManifest.xml`, `MainActivity.java`, `www/js/features/share-handler.js`, `www/js/views/upload.js`)
-  - ✅ `ACTION_VIEW` + `application/pdf` intent filter — FlowRead now appears in Android "Open with" for PDF files in Files, Gmail, WhatsApp, etc.
-  - ✅ `copyPdfInBackground()` copies content URI to cache dir on a background thread (avoids ANR). Stores `{"path","name"}` JSON as `fr_pending_pdf_open` in SharedPreferences.
-  - ✅ JS reads via `FlowReadDeviceSyncPlugin.readFile({ path })`, decodes base64, calls `handlePdfFromIntent()` — imports to library and opens reader immediately.
-
-### Roadmap decisions made during Phase 13
-
-- **EPUB support** — planned as future Pro feature. EPUB is a ZIP of XHTML files; parseable with JSZip + DOMParser, no native plugin needed. High value (universal ebook format). Add post-revenue.
-- **MOBI/AZW** — permanently skipped. Proprietary Amazon binary format, virtually always DRM-locked, no viable JS parser.
-- **Tablets** — deferred until post-launch revenue. Layout needs responsive breakpoints but no architectural changes required.
-- **DOCX/TXT reader button** — decided no. No meaningful alternate view to show unlike PDF (rendered pages) or URL (source article). Would add UI noise for zero user benefit.
-- **Deep sync (DOCX/TXT for Pro)** — already implemented. JS passes `['.pdf', '.docx', '.txt']` for Pro, `['.pdf']` for free. Native plugin accepts any extension list. `_importSyncedFile` routes correctly to `handleDocxSelect` / `handleTxtSelect`.
-- **MANAGE_EXTERNAL_STORAGE removed** — Google Play rejected the app because `MANAGE_EXTERNAL_STORAGE` was not classified as core functionality. Replaced with `MediaStore` API (Downloads URI + Files URI + extension fallback). On Android 13+ only the Downloads folder is scanned; WhatsApp/Telegram PDFs require "Open with → FlowRead". Re-application strategy documented in Phase 14.
-- **Device sync scope on Android 13+** — `MediaStore.Downloads.EXTERNAL_CONTENT_URI` is the primary query (accessible without any permission on Android 10+). `MediaStore.Files` added for Android 10–12 with `READ_EXTERNAL_STORAGE`. Recursive filesystem scan retained for Android 9 and below. Empty-state toast now explains the Downloads-only scope and directs users to "Open with".
-
----
-
-### PHASE 14 — Post-Launch (planned)
-
-- [ ] **Re-apply for MANAGE_EXTERNAL_STORAGE (deep device sync)**
-  - The first submission was rejected because the Play Store description framed the app as a "speed reading app" — file discovery looked incidental rather than core.
-  - **Strategy:** Before re-applying, update the Play Store long description to prominently feature: *"FlowRead finds all your readable documents — PDFs from WhatsApp, Telegram, Gmail, Downloads, and anywhere on your device — and brings them into one place."* This reframes the app as a document finder + reader, not just a speed reader.
-  - In the Permissions Declaration Form write explicitly: *"Users store documents across many locations — WhatsApp, Telegram, browser downloads, email attachments, cloud sync folders. Without broad file access, users cannot discover their own documents. Discovering and reading files scattered across device storage IS the core user workflow."*
-  - Reference approved competitors: Adobe Acrobat, Moon+ Reader, ReadEra, Librera all hold this permission.
-  - Re-apply after launch when the app has real users and reviews, which strengthens the case.
-  - Implementation: revert `FlowReadDeviceSyncPlugin.java` to the recursive filesystem walk (the old code is in git history on `master` before versionCode 24). The JS layer requires no changes.
-
-- [ ] **Background OCR (Foreground Service)**
-  - Current limitation: OCR is JS-driven page-by-page. If the user backgrounds the app mid-scan, WebView JS pauses and OCR progress stalls. If Android kills the Activity under memory pressure, all progress is lost.
-  - Pre-launch mitigation already shipped (versionCode 24): `acquireWakeLock()` + dismissible toast warning at all 4 OCR entry points (`handleFileSelect`, `handlePdfFromIntent`, `handlePdfScanSelect`, `handleImageSelect` in `www/js/views/upload.js`).
-  - **Full fix (post-launch):** Create `FlowReadOcrService.java` as an Android Foreground Service with a persistent "Scanning page X of Y" notification. OCR runs entirely off the WebView thread. Results written to a temp JSON file in cache dir; WebView reads on next foreground. Requires: new `<service>` declaration in `AndroidManifest.xml`, `FOREGROUND_SERVICE` permission, new Capacitor bridge plugin for start/stop/query, `LocalBroadcastReceiver` for progress events back to WebView. Estimated ~3 days of native work.
-
-- [ ] **Deep sync via SAF folder picker (alternative to MANAGE_EXTERNAL_STORAGE)**
-  - If re-application for MANAGE_EXTERNAL_STORAGE is rejected again, implement folder picker as fallback.
-  - User taps "Add folder" → `ACTION_OPEN_DOCUMENT_TREE` system picker → selects WhatsApp/Telegram/custom folder → app calls `takePersistableUriPermission()` (survives reboots) → scans via `DocumentFile.fromTreeUri()` on subsequent syncs.
-  - Pro-only feature. Stored granted URIs in Capacitor Preferences.
-  - Trade-off: user must pick each folder once; cannot auto-discover. But works on Android 5–15 with zero policy risk.
-
-- [ ] **Share reading stats as image**
-  - Generate a shareable card image from the Pro Dashboard — streak, WPM, books completed, reading time.
-  - Use Canvas API to render the card entirely on-device. No server, no upload.
-  - Share via Android/iOS native share sheet (`Capacitor.Share`).
-  - Useful for social sharing on any platform (Instagram, Twitter/X, WhatsApp).
+### Open items requiring product-owner input during Phase 16
+- Exact nudge default thresholds (screen-time-before-nudge, pages/minutes-to-unlock)
+- Subscription pricing
+- Monthly book-drop count and catalog-update mechanism (bundled vs. remote-fetched)
+- Leaderboard backend approach
+- Whether `AccessibilityService` escalation is ever pursued (explicit sign-off required)
+- Whether the nudge permission ask is inline in onboarding or deferred (Section 10.2)
+- Exact copy/tone for the offline-triggered notification (Section 11)
+- Widget implementation approach — classic AppWidgetProvider vs. Jetpack Glance (Section 12)
 
 
----
-
-### PHASE 15 — Feedback-Driven UX & India Market Expansion (current)
-
-Items originate from: (a) tester feedback from Reddit closed testing — settings structure, font options, word-tap behaviour — and (b) India market expansion with Hindi UI and a curated free-books feature.
-
-- [x] **Task 15.6 — Hindi UI Localization (i18n)** (Completed)
-  - ✅ `www/js/i18n.js` — `FlowReadI18n.init()` async loader + global `t(key, vars)` helper with `{placeholder}` interpolation. Falls back to key name when translation missing — makes gaps visible during testing.
-  - ✅ `www/i18n/en.json` — ~240 keys covering every user-facing string across all views and features.
-  - ✅ `www/i18n/hi.json` — Full informal Hindi translation by product owner (native speaker). All strings including onboarding, import cards, toasts, error messages, paywall, dashboard, limitations, and all 21 loading facts translated.
-  - ✅ `i18n.js` loaded in `index.html` before all view scripts; `FlowReadI18n.init()` called as first async step in app.js boot. Static loading overlay text updated post-init.
-  - ✅ All 7 JS files fully refactored to use `t()`: `app.js`, `upload.js`, `reader.js`, `settings.js`, `dashboard.js`, `normal.js`, `purchase.js`.
-  - ✅ Language auto-detected from `navigator.language` on first launch (defaults to Hindi if locale starts `hi`, else English). Persisted in `fr_app_language` (localStorage).
-  - ✅ Language selector added in Settings — switches language live (re-renders settings immediately) without app restart.
-  - ✅ Noto Sans Devanagari already loaded via Google Fonts link in `index.html` (added in an earlier phase for OCR content rendering) — no additional font work required for Hindi UI chrome.
-  - ✅ Terms kept in English per product owner direction: WPM, PDF, DOCX, TXT, OCR, RSVP, and all engine mode names (Chunk, Focus Bold, Scroll).
-  - ✅ Dashboard Avg WPM card now shows a small hint line below the value: "Words Per Minute — how fast you read" / "Words Per Minute — पढ़ने की रफ़्तार". Uses `.dashboard-kpi-hint` CSS class (11px, `var(--text-muted)`).
-
-### i18n rules for future Phase 15 work
-- Every new UI string must use `t('key')` — never hardcode English in view files.
-- Add new keys to both `en.json` and `hi.json` at the same time. Product owner supplies Hindi.
-- Dynamic strings use `{placeholder}` syntax: `t('key', {n: count})`.
-- `t()` global is available in all scripts (defined in `i18n.js`, loaded first).
-
-- [x] **Task 15.1 — Settings Page Restructure** (Completed)
-  - ✅ Replaced single long-scroll page with 5 labelled sections: Appearance · Reading · Notifications · Library · About & Help
-  - ✅ Mobile row pattern throughout (label left, value/control right). Sliders span full width below their label row.
-  - ✅ Appearance: language selector, font scale slider, font chips, theme chips
-  - ✅ Reading: WPM, default mode, chunk size, divider, ORP/context/calm toggles + new word-tap controls (15.3)
-  - ✅ Notifications: daily reminder toggle + time picker row
-  - ✅ Library: local-storage privacy note + Restore Purchases button
-  - ✅ About & Help: version/privacy copy + Known Limitations as two-level collapsible accordion (outer toggle collapses all 11 items; each item individually collapsible)
-  - ✅ Phase 13 back-button fix (arrow-only, left-aligned) preserved. New CSS: `.settings-row`, `.settings-select`, `.settings-slider`, `.settings-chip-label`, `.settings-divider`, `.settings-accordion-*`, `.settings-limitation-*`
-  - ✅ 6 new i18n keys in `en.json` and `hi.json`
-
-- [x] **Task 15.2 — Additional Reading Fonts** (Completed)
-  - ✅ **Inter** (v20, variable font) — bundled as `www/assets/fonts/inter/inter-latin.woff2` + `inter-latin-ext.woff2` (~130KB). `font-weight: 100 900` range covers Regular/Medium/Bold from a single file. Pro-only.
-  - ✅ **Sans Serif** (Source Sans 3, v19, variable font) — bundled as `www/assets/fonts/source-sans/source-sans-latin.woff2` + `source-sans-latin-ext.woff2` (~87KB). Pro-only.
-  - ✅ Both added to `FlowReadTypographyPresets` with `proOnly: true`. Roboto remains the only free font.
-  - ✅ `@font-face` declarations in `base.css`; `body[data-font="inter"]` and `body[data-font="source-sans"]` set `--font-display` and `--font-body`. All engines pick up font via the existing CSS variable — no engine changes needed.
-  - ✅ `font.inter` and `font.source_sans` i18n keys added. Display label is "Inter" and "Sans Serif".
-  - ✅ No network request — fully offline. CSP unchanged (`font-src 'self'` already present).
-
-- [x] **Task 15.3 — Word-Tap Action Setting** (Completed)
-  - ✅ New module `www/js/features/word-tap.js` (`WordTapFeature` IIFE) — centralises tap/long-press logic for all engines.
-  - ✅ **Long-press toggle** (default ON): tap does nothing; 500ms long-press opens local dictionary. Addresses tester complaint about accidental taps while navigating.
-  - ✅ **Word tap action select** (visible when long-press toggle is OFF): Nothing / Open dictionary / Look up online.
-    - *Nothing* — no action on tap.
-    - *Open dictionary* — `DictionaryFeature.showDictionaryModal(word)`: Pro users see definition, free users see upgrade prompt (existing gate).
-    - *Look up online* — pauses reading, opens `google.com/search?q=define+word` in system browser via `DictionaryFeature.openDeviceDictionary()`. Free for all users.
-  - ✅ Long-press always opens local dictionary regardless of tap action setting.
-  - ✅ Chunk, Scroll, FocusBold: replaced direct `DictionaryFeature` calls with `WordTapFeature.bindWord(span, word)`.
-  - ✅ RSVP: long-press bound once per render in `_bindWordTapOnStage()`; per-frame `onclick` checks `WordTapFeature.shouldActOnTap()` and `_rsvpLpFired` flag to prevent double-fire.
-  - ✅ New localStorage keys: `fr_word_tap_longpress` (boolean, default true), `fr_word_tap_action` (none|dictionary|lookup_online, default none).
-  - ✅ 5 new i18n keys in `en.json` and `hi.json`.
-
-
-- [x] **Task 15.4 — Notification System Redesign** (Implementation complete · device testing pending)
-  - ✅ `www/js/features/notifications.js` fully rewritten — two notification IDs (`1001` primary, `1002` streak nudge), reschedules itself on every state change.
-  - ✅ **Primary daily reminder** — one per day at user-chosen time (HH:MM). Copy chosen at schedule time from three pools by priority: active streak (≥2 days) → in-progress file (5–95% complete) → generic motivational. 6 generic, 3 streak, 3 progress variants in EN + HI.
-  - ✅ **Streak-protection nudge** — fires 45 min after primary, only when streak ≥3 days AND user still hasn't read today AND nudge stays on the same calendar day. Toggleable separately in Settings.
-  - ✅ **Daily read threshold** — ≥100 words OR ≥60 s in any session today. If met, today's primary is skipped on next reschedule; if crossed mid-day, the streak nudge is cancelled automatically.
-  - ✅ **Reschedule triggers** — app boot, every Settings change in the Notifications section, every successful `saveReadingSession()` call in `reader.js`. Stable IDs ensure no notification pile-up.
-  - ✅ **Permission flow** — on first boot, defaults are seeded (`fr_reminder_enabled=true`, `fr_notif_streak_nudge=true`, `fr_reminder_time='21:00'`) and `requestPermissions()` is called once. Users can flip both toggles in Settings → Notifications afterwards; permission is re-requested when the primary toggle is turned on.
-  - ✅ **HH:MM time picker** — native `<input type="time">` with `color-scheme: dark`, locale-aware 12/24h format, accent-tinted picker indicator. Replaces the old 10-option hour dropdown. Storage key migrated from `fr_reminder_hour` (integer) to `fr_reminder_time` (HH:MM string) with one-time auto-migration in `_getReminderTime()`.
-  - ✅ **i18n** — 22 new keys in `en.json` / `hi.json` (4 titles + 6 generic + 3 streak + 3 progress + 3 nudge + settings strings). Hindi keeps WPM/PDF/streak in English per CLAUDE.md rules. `t()` `{placeholder}` interpolation used for `{n}`, `{pct}`, `{title}`, `{next}`.
-  - ✅ Channel `flowread_reminder` reused; inherits Phase 13's `ic_launcher_foreground` + `#E8C547` icon convention.
-  - ⏳ **Device testing pending** — verify on real Android device over several days: first-boot permission prompt, time-picker UX, primary suppression after daily threshold, streak nudge firing at +45 min, nudge cancellation when user reads in the gap, locale-aware 12/24h display on the time picker.
-
-
-- [x] **Task 15.5 — Fifth Reading Mode: "Page"** (Implementation complete · device testing pending)
-  - ✅ New engine `www/js/engines/page.js` — IIFE exporting the same contract as the other four (`init / play / pause / destroy / getIndex / seekTo / onWPMChange / hasCache`). Same word array, same `pageWordIndex[]` semantics — switching engines preserves position to the word, not just the page.
-  - ✅ Registered as `page: PageEngine` in `reader.js:_engineMap`; new tab `<button class="engine-tab" data-engine="page">` after the Scroll tab. Five tabs auto-distribute via existing `flex: 1`; narrow-phone media query (`max-width: 360px`) shrinks tab font to 10px so labels don't wrap.
-  - ✅ **Pagination** — DOM-measured greedy fill: append word spans to an off-screen `.page-leaf-measure` page until `offsetHeight > shell.clientHeight`, then close the page at the previous word and start a new one with the overflowing word. The measurement page is `position: absolute; left: -10000px; height: auto; width: <shell.clientWidth>px` so `offsetHeight` reflects actual content height (initial implementation had it `position: absolute; inset: 0` which made `scrollHeight` always == `clientHeight` and produced one-word pages). Built in chunks of 250 words across `requestAnimationFrame` ticks so the loading spinner keeps animating; `_updateEngineLoadingProgress(pct)` is called on every chunk. Fallback `_paginateByWordCount()` (180 words/page) runs when `shell.clientHeight < 200` so unlaid-out shells degrade gracefully.
-  - ✅ **Cache** — `Map<cacheKey, pages[]>` keyed by `${fileId}|${fontPreset}|${fontScale}|${vw}x${vh}`. Re-entering the same file with unchanged typography/viewport restores the cached DOM instantly. Auto-invalidates when font preset, scale, or viewport changes (Inter ↔ Roboto, font scale 100% ↔ 115%, portrait ↔ landscape) — pages recompute.
-  - ✅ **Navigation** — Horizontal swipe (touchstart/move/end with 25% width OR 0.5 px/ms velocity threshold) + a dedicated bottom nav bar `<div class="page-engine-nav">` with First / Prev / Indicator / Next / Last buttons. Indicator shows `"{current} / {total}"`. Edges damped at corpus boundaries (first/last page) so the pull-back gesture feels physical. Vertical drags ≥ 8px past horizontal cancel the swipe so system back-edge swipes still work.
-  - ✅ **Three-slot sliding window** — Three pages mounted in the shell at any time: prev/current/next with `transform: translateX(±100%/0)`. Snap transition is `transform 0.25s cubic-bezier(0.22, 0.61, 0.36, 1)` applied via the `.page-shell-animating` class so non-animated jumps (seek, init, cache restore) are instant.
-  - ✅ **Tap-to-toggle chrome (calm-mode only)** — When calm mode is ON, a tap on whitespace toggles a `page-chrome-hidden` class on `#view-reader` which fades the header, engine tabs, page nav bar, and floating PDF/URL/IMG buttons to `opacity: 0` for 0.2s; auto-hides after 4 s of inactivity. When calm mode is OFF, taps do nothing and chrome stays permanently visible — tab switching is always one tap away. Turning calm mode off removes `page-chrome-hidden` immediately via `_applyCalmMode()` so users can't get stuck with hidden chrome.
-  - ✅ **Bridge to Normal view** — Placeholder objects render as inline-block `.page-placeholder` chips. Tap stops propagation (no chrome toggle) and calls `openObjectPlaceholder(word)` → Normal PDF view at `word.page`. Returning to the reader lands back in Page mode at the same word index (existing back-stack logic in `reader.js` works unchanged).
-  - ✅ **Word taps + long-press** — Per-word spans get `WordTapFeature.bindWord(span, word)` from Task 15.3. Long-press → dictionary modal (Pro) / upgrade prompt (free); short tap behaves per user's word-tap setting (default: no action, falls through to chrome toggle).
-  - ✅ **Wake lock + reading sessions** — `acquireWakeLock()` on init, `startIdleReleaseTimer()` on destroy. Page mode has no play button, so `init` directly calls reader.js's `_onEnginePlay()` to start session tracking; engine-switch / view-exit / visibilitychange flush the session via existing pathways. Streak heatmap and Task 15.4 streak-nudge reschedule pick up Page-mode reading identically to other engines.
-  - ✅ **Visual** — New CSS var `--page-stage-bg: #161812` (warm-tinted dark, distinct from RSVP's `#161410`). Body text uses `--text` and `--font-body` so Task 15.2 typography presets (Inter, Source Sans, Lato, Roboto) and the font-scale slider both apply automatically — font scale propagated via inline `--font-scale` on the shell.
-  - ✅ **Standard bars hidden** — `body.engine-page` toggled by `_applyEngineChrome('page')` in `reader.js`. CSS rule `body.engine-page #wpm-bar, body.engine-page #playback-bar { display: none !important }` hides them before `PageEngine.init()` runs, avoiding a first-frame flash. Restored automatically on engine switch.
-  - ✅ **Bridge button in nav** — The floating `.reader-normal-toggle` (PDF / URL / IMG) covers reflowed text in non-calm Page mode, so it's hidden in Page mode entirely via `body.engine-page .reader-normal-toggle { display: none !important }`. The page nav bar instead carries a right-aligned bridge button (`PDF` / `URL` / `IMG` — first available variant picked by `_findBridgeButton()`) that proxies the click via `document.getElementById(bridgeId).click()` so reader.js's existing handlers stay bound. Layout: `[⏮ ‹ "12/84" › ⏭ PDF]`.
-  - ✅ **Tabs always above loading** — `.reader-header` and `.engine-tabs` upgraded with `position: relative; z-index: 11; background: var(--bg)` so engine-loading card (z-index 10) inside `.engine-container` never visually swallows them. Users can switch modes during a slow pagination/build.
-  - ✅ **Calm mode** — Existing `body.reader-calm` selector applies; one additional rule dims `.page-engine-nav` to 15% opacity in calm mode.
-  - ✅ Engine-tab name kept as Roman "Page" in both English and Hindi UI per language-rules in §15.6. Two new loading-card i18n keys (`engine_loading.title.page` / `subtitle.page`) added in both locales.
-  - ✅ versionCode 27 / versionName "1.4".
-  - ⏳ **Device testing pending** — verify on a real Android device: pagination across short/medium/long books, position preservation across engine switches, swipe-gesture feel, bottom nav-bar boundaries, placeholder tap → Normal view round-trip, long-press dictionary, calm mode dimming, font-scale change re-pagination, orientation re-pagination, wake lock holding through a 6+ minute idle read, streak/heatmap crediting Page-mode reading.
-
-
-Terms to keep in English/Roman regardless of UI language (per product owner direction): WPM, PDF, DOCX, TXT, OCR, RSVP, and the engine mode names themselves (RSVP, Chunk, Focus Bold, Scroll, Page).
-
-Font requirement: None of the currently bundled fonts (Roboto, Open Sans, Lato, DM Mono) include Devanagari glyphs for UI chrome rendering — Roboto/Open Sans's Cyrillic/Greek coverage noted in Section 12.3 does not extend to Devanagari. Bundle Noto Sans Devanagari (UI) as an additional local font, loaded only when Hindi UI is active or when Hindi-language book titles/content need rendering outside the reading engines (which already handle Devanagari body text correctly per existing work). Implement as a fallback chain rather than a hard switch, since mixed Hindi/English UI strings are expected.
-
-- [x] **Task 15.7 — Free Books Library** (Completed)
-  - ✅ `www/data/free-books.json` — curated catalog of ~90 public domain books (Ambedkar, Tagore, Phule, Gandhi, world classics). Catalog fields: `id`, `title`, `author`, `language` (hi/en), `category`, `coverImage`, `sourceUrl`, `fileType` (pdf/txt), `approxLength`, `requiresOcr` (optional boolean).
-  - ✅ `www/js/views/free-books.js` — `FreeBooksView` IIFE module. Full view with language tabs (All / English / हिंदी), horizontal category filter chips, search bar (client-side over JSON), 2-column book card grid.
-  - ✅ Book cards: Gutenberg cover images rendered via `<img loading="lazy">` with `onerror` fallback to deterministic colour-coded initials placeholder. Cards are `<div role="button">` (not `<button>`) to allow the embedded ↺ re-download button inside.
-  - ✅ Download states: idle → "Download" / in-progress → "Downloading…" / done → "Open ✓ + ↺". `fr_freebook_<bookId>` in localStorage stores the fileId once saved.
-  - ✅ Download pipeline uses existing `parsePDF` / `parseTXT` — downloaded books appear in "Your Library" and dashboard stats identically to manually imported files.
-  - ✅ **Auto-OCR for Free Books** (no paywall): OCR fires automatically when `!hasTextLayer || hasLegacyEncoding || book.requiresOcr`. The OCR add-on gates user-uploaded scanned documents; curated catalog books should always work. No `hasOcrAccess()` check in this flow.
-  - ✅ `requiresOcr: true` catalog flag — for PDFs whose legacy encoding evades the heuristic detector. Set per-entry in the JSON; OCR runs unconditionally for those books. Currently set on `dhammapada_hi`.
-  - ✅ **Gutenberg header stripping** — `_stripGutenberg()` removes everything before `*** START OF THE PROJECT GUTENBERG EBOOK ... ***` and after `*** END ***` before passing text to `parseTXT`. Applied automatically for all TXT imports.
-  - ✅ **Stale entry detection** — `_handleCardTap` checks `entry.wordCount > 0` before calling `resumeFromLibrary`. Entries with 0 words (failed previous download that saved garbage) are auto-cleared and re-downloaded on next tap.
-  - ✅ **↺ Re-download button** — visible when state is `downloaded`. Clears `fr_freebook_<id>` + library entry, then starts a fresh download immediately. Allows re-import when a book had garbage text on first download.
-  - ✅ **Order of operations** — `saveFileToLibrary`, `saveFileData`, and `_setSavedFileId` only called after confirming `result.words.length > 0`. No stale "Open ✓" card possible from a failed parse.
-  - ✅ **Smart back navigation** — `AppState.readerSource = 'free-books'`; reader back button returns to Free Books view, not home. Hardware back from `view-free-books` returns to home.
-  - ✅ **Region-aware sort + default language tab** — Locale-driven behaviour in `_sorted()` and initial `_langFilter`:
-    - **India** (`hi-*` or `*-IN`): default tab = All; social_justice / constitution_law / Hindi entries surface first.
-    - **Non-India**: default tab = English (Hindi editions still one tap away in the Hindi tab); sort priority `classics → philosophy → biography_history → poetry → history_politics → drama → essays → science_fiction → buddhism → strategy → social_justice → constitution_law`; Hindi entries pushed to the bottom within the All tab. Prevents Ambedkar's caste writings from being the first thing a US/UK user sees.
-  - ✅ Full i18n in both `en.json` and `hi.json` (17 keys each). Free Books card in `upload.js` as full-width featured card, first in the import grid.
-  - ✅ CSP extended: `img-src` now includes `https:` for Gutenberg cover image CDN.
-  - ⚠️ Catalog entries with `fileType: "html"` (Wikisource pages, BAWS.in) will fail with a download error toast — they need direct PDF/TXT URLs. Review and replace before launch.
-
-### Post-1.4 polish (versionCode 28 / versionName 1.4.1)
-- ✅ **Import-card badge truncation fix** (`www/css/components.css`) — `.import-badge` reverted from `flex-shrink: 1` back to `flex-shrink: 0`. The Phase 13 shrink-to-ellipsis safety net was truncating short-and-legitimate badges like "Online" on the URL card to "Onl…" on narrow phones. Titles now wrap to a second line if the badge crowds them (already tested — "URL Reader", "Dashboard" wrap cleanly, "🔒 Add-on" still fits alongside "Scan" without crowding).
-
-### Free Books catalog rules (for future additions)
-- Every entry must be a direct file URL (PDF/TXT), not an HTML page or lending/borrow link.
-- No copyrighted content. Public domain or officially-free sources only.
-- Add `"requiresOcr": true` to any Hindi PDF that shows garbage text on first download (legacy Indic font encoding that evades the heuristic).
-- `fileType` must be `pdf` or `txt` — `html` entries are not handled and will error.
-
-15.8 — India Custom Store Listing
-
-New. Google Play supports custom store listings (CSL): a default listing for the global audience and a separate, country-targeted listing with different name/icon/description/screenshots, both pointing to the same APK/AAB (no separate build, no app-code changes — this is a Play Console configuration task, not a code task, included here for roadmap completeness).
-
-
-Default listing (existing): leads with offline/privacy/no-subscription/no-account positioning for the global audience — unchanged from current store presence.
-India-targeted CSL (new): leads with free-books access and reading-habit messaging rather than privacy/offline framing, reflecting the India market expansion. Requires localized screenshots showing the Free Books library (15.7) and, if ready, Hindi UI (15.6).
-Contact details, privacy policy, and app category remain shared across both listings per Play Console constraints — only name, icon, description, and graphic assets differ.
-Each country may only be assigned to one custom listing; India → India CSL, all other countries → default listing.
-Play Console reports listing performance per variant separately — use this to compare conversion between the two messaging strategies once live.
-
-## 12. Code Rules
+## 21. Code Rules
 
 ### Architecture
-- **Vanilla JS only.** No React, Vue, Svelte, Alpine, no build step.
-- **No external runtime dependencies** beyond pdf.js, mammoth.js, and Capacitor plugins in Section 2.
-- **No npm utility packages** (no lodash, moment, date-fns). Write what you need.
-- **No CSS frameworks** (no Tailwind, Bootstrap).
+Vanilla JS only. No frameworks, no build step. No external runtime dependencies beyond pdf.js, mammoth.js, and Capacitor plugins listed in Section 2. No npm utility packages. No CSS frameworks.
 
 ### Storage
-- **Never localStorage for purchase state.** Always Capacitor Preferences.
-- localStorage fine for: position, WPM, theme, UI state.
-- All keys prefixed `fr_`.
+Never localStorage for purchase/subscription state — always Capacitor Preferences. localStorage fine for: position, WPM, theme, UI state, nudge target-app list, nudge thresholds. All keys prefixed `fr_`.
 
 ### Performance
-- No layout thrashing during playback. Word stage must repaint at 600+ WPM (~100ms).
-- Lazy-render PDF canvas pages.
-- Use `requestAnimationFrame` for scroll animation.
-- Build spans once; manipulate classes during playback.
+No layout thrashing during playback; word stage must repaint at 600+ WPM. Lazy-render PDF canvas pages. `requestAnimationFrame` for scroll/page-transition animation. Build spans once, manipulate classes during playback. **Nudge detection must be battery-conscious** — no tight polling loops, no unnecessary wake locks outside active reading views. **Widget updates must be event-driven** (pushed on position-save), not polled.
 
 ### UX
-- **Reading position is sacred.** Every navigation must call `savePosition()`.
-- Never more than one modal at a time.
-- Always show loading state for operations over 200ms.
-- Never show raw exception text to user.
+Reading position is sacred — every navigation calls `savePosition()`. Never more than one modal at a time. Always show loading state for operations over 200ms. Never show raw exception text to user. **Nudge screens must always show the escape hatch (Section 9.1)** — this is a product/legal rule, not a style preference; do not let any future task override it without an explicit logged product-owner decision.
 
 ### Style
-- Functions: verbs (`renderUpload`, `acquireWakeLock`). State: nouns (`words`, `index`).
-- Files single-purpose. Comments explain *why* not *what*.
+Functions: verbs. State: nouns. Files single-purpose. Comments explain *why* not *what*.
 
 ### When to stop and ask
-- Before any new dependency.
-- Before changing palette or typography.
-- Before adding any new file format.
-- Before changing pricing.
-- Before adding features not listed here.
+Before any new dependency. Before changing palette or typography. Before adding any new file format. Before changing pricing (including the undetermined subscription price). Before adding features not listed here. Before escalating nudge detection to `AccessibilityService`. Before sourcing any Free Books/book-drop content from anything other than the verified-legal sources in Section 13.2. Before finalizing the onboarding permission-flow design (Section 10.2) without product-owner review.
 
 ---
 
-## 13. Project Status
+## 22. Project Status
 
-- **Current phase:** Phase 15 — Feedback-Driven UX & India Market Expansion
-- **Android versionCode:** 24 (versionName "1.2") — Play Store re-submission after MANAGE_EXTERNAL_STORAGE removal
-- **Target platforms:** Android first, iOS second.
-- **Target launch:** TBD — quality over speed.
+- **Current phase:** Phase 16 — Reading Habit Pivot (Section 19)
+- **Immediate priority:** Section 3 compliance items (Billing Library upgrade, API 36 target) — hard deadline August 31, 2026, blocking for all future updates.
+- **Android versionCode:** 28 (versionName "1.4.1") as last recorded — verify against actual Play Console/build state before assuming current.
+- **Target platforms:** Android first. iOS store setup not started. No iOS path planned for the nudge system or home screen widget specifically.
+- **Target launch of pivot:** TBD — quality over speed.
+- **Distribution context (for product decisions, not implementation):** the product is currently in a distribution-bottleneck stage, not a retention or monetization-bottleneck stage — this is why the share-stats feature (Section 15) is prioritized partly for distribution value, and why Phase 16 favors mechanics with plausible organic/viral reach alongside pure retention plays.
 
 *This document is the contract. Update it before changing direction, not after.*
