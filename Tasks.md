@@ -61,7 +61,7 @@ Hard deadline **2026-08-31**. Missing it blocks every future app update, includi
 
 ## Task 16.0a — API 36 target bump + toolchain upgrade
 
-**Status:** In progress — builds green, device testing outstanding · **Ref:** §3.2, §3.3 · **Blocked by:** — · **Size:** L (largest risk in Phase 16)
+**Status:** In progress — device-verified on Android 16; only the two items below remain · **Ref:** §3.2, §3.3 · **Blocked by:** — · **Size:** L (largest risk in Phase 16)
 
 **Why:** Play requires targetSdk ≥36. Our toolchain can't compile against 36, so this is a Capacitor/AGP/Gradle upgrade wearing a one-line-bump disguise.
 
@@ -73,12 +73,14 @@ Hard deadline **2026-08-31**. Missing it blocks every future app update, includi
 - [x] Set `compileSdkVersion = 36` and `targetSdkVersion = 36` in `android/variables.gradle`.
 - [x] Update the Gradle wrapper (`android/gradle/wrapper/gradle-wrapper.properties`, currently 8.2.1) and AGP in `android/build.gradle` (currently 8.2.1) to the versions the new Capacitor requires. Confirm the local JDK satisfies it.
 - [x] Rebuild; fix compile breaks across the four native sources.
-- [ ] **Regression-test every native plugin on a real device** (§3.2 is emphatic about this, not just billing):
-  - [ ] `FlowReadDeviceSyncPlugin` — **highest risk.** MediaStore-based, and storage policy is exactly the surface that shifts between API levels.
-  - [ ] `FlowReadOcrPlugin` — ML Kit Latin + Devanagari.
-  - [ ] `FlowReadIapPlugin` — smoke test only here; full billing regression is 16.0b.
-  - [ ] `MainActivity` — share intents, "Open with PDF", hardware back button.
-  - [ ] Local notifications still fire (1001 daily, 1002 streak) — notification policy also shifts between API levels.
+- [x] **Regression-test every native plugin on a real device** (§3.2 is emphatic about this, not just billing) — run 2026-09-16 on a Galaxy S23 FE (SM-S711B) running **Android 16 / API 36**, signed release APK, clean install:
+  - [x] `FlowReadDeviceSyncPlugin` — **highest risk.** MediaStore-based, and storage policy is exactly the surface that shifts between API levels. **Works.** Note `READ_EXTERNAL_STORAGE` is correctly inapplicable at API 36 (`maxSdkVersion=32`); the API 33+ `MediaStore.Downloads` path carries it.
+  - [x] `FlowReadOcrPlugin` — ML Kit Latin + Devanagari. **Works.**
+  - [ ] `FlowReadIapPlugin` — **cannot be tested from a sideloaded APK.** Play Billing is unreachable outside a Play-distributed build, so this moves to the internal-testing track in 16.0b. This is the one genuinely unverified surface.
+  - [~] `MainActivity` — share intent verified with a Wikipedia URL. **"Open with PDF" and the hardware back button were not separately confirmed** — worth a minute each.
+  - [x] Local notifications — `POST_NOTIFICATIONS` granted and `SCHEDULE_EXACT_ALARM: allow`; `dumpsys alarm` shows a real `RTC_WAKEUP` via `TimedNotificationPublisher` for 21:00. Scheduling works; **firing and reboot-persistence not yet observed.**
+  - [x] All five reading engines including Page mode (previously untested per §18). **Work.**
+- [ ] Confirm the two partials above: "Open with PDF" intent, hardware back button, and a notification actually firing (ideally after a reboot, to prove `RECEIVE_BOOT_COMPLETED` rescheduling).
 - [ ] Re-evaluate the still-open `MANAGE_EXTERNAL_STORAGE` re-application against **API 36's** current policy, not the API 35-era understanding (§3.2, §18 Phase 14).
 
 **Files:** `package.json` · `android/variables.gradle` · `android/build.gradle` · `android/gradle/wrapper/gradle-wrapper.properties` · `android/app/build.gradle` · `android/app/src/main/java/com/flowread/app/*.java` · `android/app/src/main/AndroidManifest.xml`
@@ -93,12 +95,18 @@ Hard deadline **2026-08-31**. Missing it blocks every future app update, includi
 
 **Notes:** Expect this to surface permission-model and background-execution changes. Budget for it. Do not fold unrelated changes into this commit — a clean, revertable toolchain commit is worth a lot if something breaks in the wild.
 
+**Latent bug found while verifying (pre-existing, not caused by the API 36 bump — see Task H3):** `notifications.js:196` schedules with `allowWhileIdle: true`, which requires `SCHEDULE_EXACT_ALARM` — denied by default for apps targeting 33+. Line 221 wraps the schedule call in `catch (_) {}`, so on a device where the user has not granted it, **notifications silently never fire and nothing surfaces the failure**. It happened to be granted on the test device, which is exactly why this class of bug survives testing.
+
+**Android Studio note:** building from the terminal works. Android Studio overrides `org.gradle.java.home` with its own Gradle JDK setting and must be pointed at JDK 21 (Settings → Build Tools → Gradle → Gradle JDK). AGP 8.13 also requires Android Studio Narwhal 3 (2025.1.3) or newer. Capacitor 8's `capacitor-android` module sets `sourceCompatibility 21` *without* a toolchain, so Gradle must genuinely run on JDK 21 — `org.gradle.java.installations.paths` alone is not sufficient.
+
 ---
 
 ## Task 16.0b — Google Play Billing Library upgrade
 
-**Status:** In progress — builds green, device testing outstanding · **Ref:** §3.1 · **Blocked by:** 16.0a · **Size:** M
+**Status:** In progress — code complete and building; **billing itself still unverified** · **Ref:** §3.1 · **Blocked by:** 16.0a · **Size:** M
 **Do as one pass with 16.1** — same file, same purchase flow.
+
+**⚠️ The v7→v9 migration is the riskiest change in Block A and is the one thing device testing could not cover.** Play Billing is unreachable from a sideloaded APK — `queryProducts` fails regardless of whether the migration is correct — so verification requires: bump `versionCode` to 32 → `./gradlew bundleRelease` → upload the AAB to the **internal testing** track → add the account as a **licensed tester** → install via the internal-testing link → exercise all four flows below. Play extension granted, runs to **2026-11-01**.
 
 **Why:** BL7 is deprecated; updates get rejected after 2026-08-31. The newer major is also what natively supports subscriptions alongside our one-time products.
 
@@ -335,6 +343,25 @@ Reconnaissance says this is already fixed: `www/data/free-books.json` has 88 boo
 - [ ] Confirm no catalog entry has `fileType: "html"` and no `sourceUrl` returns HTML despite a pdf/txt type.
 - [ ] Spot-check a few downloads end-to-end.
 - [ ] If clean, propose deleting §13.3 from `Claude.md` (see H2).
+
+## Task H3 — Notifications fail silently when exact-alarm permission is denied
+
+**Status:** Not started · **Ref:** §1.5 ("never silently fail"), §11 · **Size:** S · **Found:** 2026-09-16 while device-verifying 16.0a
+
+**Why:** `notifications.js:196` uses `allowWhileIdle: true` (exact alarms). Android denies `SCHEDULE_EXACT_ALARM` by default for apps targeting 33+. Line 221 swallows the resulting failure in `catch (_) {}`, so a user who hasn't granted it gets **no reminders and no indication why**. This directly violates §1.5's "never silently fail" principle. Pre-existing — not introduced by the API 36 bump — but the bump makes it more likely to bite.
+
+**Steps**
+- [ ] Detect whether exact alarms are permitted (`AlarmManager.canScheduleExactAlarms()` on API 31+) before scheduling.
+- [ ] If denied, either fall back to inexact scheduling (a reading reminder does not need to-the-minute precision — this is likely the right answer) or surface a plain-language prompt to the settings page.
+- [ ] Stop swallowing the exception at line 221 — at minimum log it, and reflect the real state in the settings toggle.
+- [ ] Reconsider whether `allowWhileIdle`/exact alarms are warranted at all here. Inexact alarms need no special permission and suit a daily reading nudge.
+- [ ] Any new user-facing string goes into `en.json` + `hi.json` (§17).
+
+**Files:** `www/js/features/notifications.js` · `www/js/views/settings.js` · `www/i18n/*.json`
+
+**Relevant to Task 16.7**, which adds a third notification type on the same machinery — fix this first or inherit the same silent failure.
+
+---
 
 ## Task H2 — Correct stale facts in `Claude.md`
 
