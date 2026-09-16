@@ -105,7 +105,9 @@ The **2026-08-31** deadline had already passed when this work started, leaving t
 
 **Deviation from plan:** `Claude.md` §3.1 wanted this done as one pass with 16.1 (subscription IAP). It was shipped **alone** instead, because the Aug 31 deadline had already passed and the app could not publish anything until this landed. 16.1 remains open.
 
-**Still unverified (carry into 16.1's testing):** paywall price rendering — the path that actually exercises the changed `queryProductDetailsAsync` — plus a fresh purchase of `pro_lifetime` / `ocr_vision` and silent `USER_CANCELED` handling. Restore purchases exercises `queryPurchasesAsync`, which did **not** change in v9, so it is weaker evidence than it appears.
+**Migration now considered verified.** Restore purchases works in production, and the H4 investigation showed Play's `ProxyBillingActivity` opening — which only happens if `queryProductDetailsAsync` (the one changed API) and `launchBillingFlow` both succeeded. The purchase failure in **Task H4 is a separate, pre-existing error-handling defect, not a v9 regression.**
+
+**Still unconfirmed:** silent `USER_CANCELED` handling (§3.1) — check while fixing H4.
 
 **Why:** BL7 is deprecated; updates get rejected after 2026-08-31. The newer major is also what natively supports subscriptions alongside our one-time products.
 
@@ -343,6 +345,55 @@ Reconnaissance says this is already fixed: `www/data/free-books.json` has 88 boo
 - [ ] Spot-check a few downloads end-to-end.
 - [ ] If clean, propose deleting §13.3 from `Claude.md` (see H2).
 
+## Task H4 — Pro purchase fails with a generic error 🔴 REVENUE-BLOCKING
+
+**Status:** Not started · **Ref:** §1.5 ("never silently fail", "errors explained in plain language"), §3.1 · **Size:** S–M · **Found:** 2026-09-16, reported from production on 1.4.5
+
+**Symptom:** Tapping unlock-Pro shows `iap.toast.purchase_failed` — "Purchase could not be completed. Please try again." Purchase does not go through.
+
+**Priority: highest open item.** It blocks revenue on the live build and there is no workaround for affected users.
+
+### What the evidence already rules out
+
+From device logcat at the time of the failure:
+- `com.android.billingclient.api.ProxyBillingActivity` was **created and destroyed** — Play's purchase sheet opened. So `queryProducts` succeeded and `launchBillingFlow` returned OK.
+- **Therefore this is not a regression from the Billing 9 migration.** The changed `queryProductDetailsAsync` path ran fine; it also means paywall price rendering works, closing the open question in 16.0b.
+- The failure therefore came from `onPurchasesUpdated` receiving a non-OK response code.
+- Also seen: `W BillingClient: Billing service disconnected.` and `ActivityManager: Scheduling restart of crashed service com.android.vending/...InAppBillingService` — **Google Play's own billing service crashed** around the same time. May be the cause, may be incidental; the timestamps are about a minute apart.
+
+### Leading hypotheses, most likely first
+
+1. **`ITEM_ALREADY_OWNED`.** Restore purchases was run successfully just before, so the account already owns `pro_lifetime`. Re-purchasing an owned non-consumable returns this code, and `onPurchasesUpdated` collapses it into "Purchase failed. Please try again." **This is the most probable cause and is trivially checkable.**
+2. **`SERVICE_DISCONNECTED` / Play service crash.** `onBillingServiceDisconnected` sets `billingClient = null` and relies on JS re-calling `initBilling` — if the service dies mid-flow, `pendingPurchaseCall` may reject or never resolve.
+3. **Play Console product/licence-tester configuration** rather than app code.
+
+### The defect to fix regardless of which hypothesis holds
+
+`FlowReadIapPlugin.onPurchasesUpdated` funnels every non-OK code into one string:
+
+```java
+if (code != BillingClient.BillingResponseCode.OK || purchases == null || purchases.isEmpty()) {
+    call.reject("Purchase failed. Please try again.");
+}
+```
+
+and `purchase.js:_handlePurchaseError` falls through to the same generic toast. So `ITEM_ALREADY_OWNED`, `SERVICE_DISCONNECTED`, `BILLING_UNAVAILABLE`, `ITEM_UNAVAILABLE` and `DEVELOPER_ERROR` are **indistinguishable to both the user and the developer** — which is why this needed a logcat session to diagnose at all. That is a §1.5 violation ("errors explained in plain language") and the root reason this is hard to debug.
+
+**Steps**
+- [ ] Reproduce with `adb logcat` attached and capture the actual `BillingResponseCode`. Everything else is guesswork until this exists.
+- [ ] Pass the response code through the reject so the JS layer can distinguish cases — reject with a stable machine-readable token, not a prose sentence.
+- [ ] Handle `ITEM_ALREADY_OWNED` properly: it means the user **already owns Pro**. Unlock the entitlement and show a confirmation, never an error — the current behaviour tells a paying customer their purchase failed when it actually succeeded.
+- [ ] Handle `SERVICE_DISCONNECTED` / `SERVICE_UNAVAILABLE` distinctly: re-init billing and invite a retry.
+- [ ] Give each case its own plain-language i18n string in `en.json` + `hi.json` (§17).
+- [ ] Re-check the same collapsing in `queryProducts` ("Could not load product information") and `queryPurchases`.
+- [ ] Re-test: fresh purchase, purchase while already owning, cancel mid-flow (must stay silent — §3.1), and restore.
+
+**Files:** `android/app/src/main/java/com/flowread/app/FlowReadIapPlugin.java` · `www/js/features/purchase.js` (`_handlePurchaseError`, ~L276) · `www/i18n/en.json` + `hi.json`
+
+**Do this together with Task 16.1**, which rewrites the same purchase flow for subscriptions — fixing the error taxonomy first makes 16.1's testing far easier.
+
+---
+
 ## Task H3 — Notifications fail silently when exact-alarm permission is denied
 
 **Status:** Not started · **Ref:** §1.5 ("never silently fail"), §11 · **Size:** S · **Found:** 2026-09-16 while device-verifying 16.0a
@@ -382,8 +433,8 @@ Reconnaissance says this is already fixed: `www/data/free-books.json` has 88 boo
 | **A — Compliance** | ✅ 16.0a, ✅ 16.0b · 16.1 open | Shipped as 1.4.5 / versionCode 32, published 2026-09-16. 16.1 blocked on Q1 to finish, not to start. |
 | **B — Pivot core** | 16.2, 16.3 | Unblocked. 16.2 is the largest item in Phase 16; 16.3 depends on it. |
 | **C — Features** | 16.9, 16.7, 16.6, 16.8, 16.4, 16.5, 16.10 | Unblocked. 16.9 smallest, ship first. 16.4/16.5 need Q4/Q5 answered before starting. |
-| **D — Housekeeping** | ✅ H1, ✅ H2 · H3 open | H3 is a live bug shipping to users and blocks 16.7 cleanly. |
+| **D — Housekeeping** | ✅ H1, ✅ H2 · H3, H4 open | **H4 is revenue-blocking on the live build — highest priority.** H3 is a live bug shipping to users and blocks 16.7 cleanly. |
 
-**Suggested next:** H3 (small, fixes a shipping §1.5 violation, unblocks 16.7) or 16.9 (smallest user-visible win), then 16.1 once pricing lands, then 16.2 as the main pivot effort.
+**Suggested next:** **H4 first** — Pro purchases are failing in production, which outranks everything else on this board. Fold it into 16.1, since both rewrite the same purchase flow. Then H3 (unblocks 16.7), then 16.2 as the main pivot effort.
 
 **Standing rules that apply to every task above:** every new string through `t()` into both `en.json` and `hi.json` from day one (§17) · no new dependencies without asking (§21) · purchase/subscription state in Capacitor Preferences, never localStorage (§21) · `fr_` prefix on all localStorage keys · palette and typography exactly per §16 · the nudge escape hatch is never removed (§9.1, §21).
