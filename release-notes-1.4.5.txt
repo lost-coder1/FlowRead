@@ -1,0 +1,30 @@
+<en-US>
+• Updated FlowRead for Android 16.
+• Rebuilt the in-app purchase system on Google's current billing library. Existing Pro and OCR Vision purchases carry over — nothing to re-buy.
+• Under-the-hood maintenance across the app.
+</en-US>
+<de-DE>
+• FlowRead für Android 16 aktualisiert.
+• Das In-App-Kaufsystem läuft jetzt auf Googles aktueller Billing-Bibliothek. Vorhandene Pro- und OCR-Vision-Käufe bleiben erhalten — du musst nichts erneut kaufen.
+• Wartungsarbeiten unter der Haube in der gesamten App.
+</de-DE>
+<es-419>
+• FlowRead actualizado para Android 16.
+• El sistema de compras dentro de la app ahora usa la biblioteca de facturación actual de Google. Tus compras de Pro y OCR Vision se mantienen: no tienes que volver a comprarlas.
+• Mantenimiento interno en toda la app.
+</es-419>
+<es-ES>
+• FlowRead actualizado para Android 16.
+• El sistema de compras dentro de la app ahora usa la biblioteca de facturación actual de Google. Tus compras de Pro y OCR Vision se conservan: no tienes que volver a comprarlas.
+• Mantenimiento interno en toda la app.
+</es-ES>
+<ja-JP>
+• FlowRead を Android 16 に対応させました。
+• アプリ内購入の仕組みを Google の最新の請求ライブラリで作り直しました。購入済みの Pro と OCR Vision はそのまま引き継がれ、買い直す必要はありません。
+• アプリ全体の内部的な保守を行いました。
+</ja-JP>
+<pt-BR>
+• FlowRead atualizado para o Android 16.
+• O sistema de compras no app foi refeito sobre a biblioteca de faturamento atual do Google. Suas compras de Pro e OCR Vision continuam valendo — não é preciso comprar de novo.
+• Manutenção interna em todo o app.
+</pt-BR>
