@@ -32,6 +32,11 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+
     buildTypes {
         release {
             minifyEnabled false
@@ -62,8 +67,8 @@ dependencies {
     implementation "com.google.android.gms:play-services-mlkit-text-recognition:19.0.1"
     implementation "com.google.android.gms:play-services-mlkit-text-recognition-devanagari:16.0.1"
 
-    // Google Play Billing Library 7 — one-time IAP (pro_lifetime, ocr_vision)
-    implementation "com.android.billingclient:billing:7.1.1"
+    // Google Play Billing Library 9 — one-time IAP (pro_lifetime, ocr_vision) + subscriptions
+    implementation "com.android.billingclient:billing:9.1.0"
 }
 
 apply from: 'capacitor.build.gradle'

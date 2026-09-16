@@ -100,7 +100,7 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
             .setProductList(productList)
             .build();
 
-        billingClient.queryProductDetailsAsync(params, (billingResult, productDetailsList) -> {
+        billingClient.queryProductDetailsAsync(params, (billingResult, productDetailsResult) -> {
             if (billingResult.getResponseCode() != BillingClient.BillingResponseCode.OK) {
                 call.reject("Could not load product information from the store.");
                 return;
@@ -109,7 +109,9 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
             productDetailsCache.clear();
             JSArray products = new JSArray();
 
-            for (ProductDetails details : productDetailsList) {
+            // Billing 8+ wraps the result: products Play could not fetch are reported
+            // separately via getUnfetchedProductList() rather than being silently absent.
+            for (ProductDetails details : productDetailsResult.getProductDetailsList()) {
                 productDetailsCache.put(details.getProductId(), details);
 
                 ProductDetails.OneTimePurchaseOfferDetails offerDetails =
