@@ -3,7 +3,7 @@
 > Working document. `Claude.md` is the contract; this file is how we execute it.
 > Every task references its governing `Claude.md` section. If the two disagree, `Claude.md` wins — and `Claude.md` gets updated *before* we change direction, not after.
 
-**Last updated:** 2026-09-16 — Block A compliance shipped as **1.4.5 (versionCode 32)** and published.
+**Last updated:** 2026-09-16 — **1.4.6 (versionCode 33) bundle built**, awaiting Internal testing verification. Contains H4, H3, 16.9, 16.7. See `RELEASE_NOTES_1.4.6.md` and `BILLING_TEST_PLAN.md`.
 **Status legend:** `Not started` · `In progress` · `Blocked` · `Done`
 
 ---
