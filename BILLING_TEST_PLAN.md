@@ -20,7 +20,17 @@ Getting these wrong produces failures that look like app bugs but aren't.
       This is what makes test purchases free. Without it, Test 2 charges real money.
 - [ ] The device is signed into **that same Google account** (and ideally only that one —
       multiple accounts on a device are a common source of confusing billing results).
-- [ ] JDK 21 is active: `java -version` prints 21.x. Capacitor 8 will not build on anything else.
+- [ ] **JDK 21 is what Gradle actually runs on.** There are *two* independent pins and
+      Android Studio honours the second one:
+      - `android/gradle.properties` → `org.gradle.java.home` (used by terminal builds)
+      - `android/.gradle/config.properties` → `java.home` (used by Android Studio when
+        `gradleJvm=#GRADLE_LOCAL_JAVA_HOME`, which is the default)
+
+      A stale pin in the second file gives `Cause: error: invalid source release: 21` in
+      Studio while `./gradlew` from the terminal succeeds. Both must point at
+      `/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home`. Homebrew installs
+      JDK 21 keg-only, so `/usr/libexec/java_home -V` will not list it and Studio's JDK
+      dropdown will not offer it — add it by path.
 
 **Play Billing does not work in a sideloaded APK.** A build installed over `adb install`
 cannot reach billing at all, so it must come from Play. That's what §2 and §3 are for.

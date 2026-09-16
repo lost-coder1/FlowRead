@@ -139,6 +139,7 @@ Billing **7.1.1 → 9.1.0**. Went past the required v8 minimum because v8 carrie
 - **JDK 21.** Capacitor 8's `capacitor-android` sets `sourceCompatibility 21` *without* a toolchain, so Gradle must genuinely run on 21 — toolchain config alone will not do it.
 - **Node ≥22** for the Capacitor 8 CLI.
 - `android/gradle.properties` pins `org.gradle.java.home` and is **untracked** (machine-specific path), so every new machine and any CI must set it. Android Studio overrides it with its own Gradle JDK setting and must be pointed at JDK 21 separately; AGP 8.13 also needs Android Studio 2025.1.3 or newer.
+- **`android/.gradle/config.properties` is a second, separate JDK pin — and it wins in Android Studio.** When Studio's `gradleJvm` is `#GRADLE_LOCAL_JAVA_HOME` (the default, in `android/.idea/gradle.xml`), it reads `java.home` from that file and **ignores `org.gradle.java.home`**. A stale pin there produces `Cause: error: invalid source release: 21` on a Studio build while the identical terminal build succeeds — which is exactly how it presents, and why it looks like a code error rather than a toolchain one. Hit on 2026-09-16: the file still pointed at JBR 17 from before the Capacitor 8 upgrade. Both files must name JDK 21. Homebrew installs JDK 21 keg-only, so `/usr/libexec/java_home` cannot see it and Studio's JDK dropdown will not list it — add it by path: `/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home`.
 
 ---
 
