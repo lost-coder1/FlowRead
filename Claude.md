@@ -54,14 +54,14 @@ Every habit-interception moment must have an immediate, visible, one-tap way to 
 
 ## 2. Tech Stack
 
-- **Framework:** Capacitor 6+
+- **Framework:** Capacitor 8 (8.5.2 as of 1.4.5). Keep every `@capacitor/*` package on the same major — mixed majors do not work. Requires JDK 21 and Node ≥22 (Section 3.3).
 - **UI:** Vanilla HTML + CSS + JavaScript. No React, Vue, Svelte, Alpine, or any framework. No build step.
 - **PDF parsing:** pdf.js 3.11.174 (legacy UMD build)
 - **DOCX parsing:** mammoth.js 1.8.0
 - **Storage:** Capacitor Preferences (Keychain/EncryptedSharedPrefs) for purchase/subscription state. Capacitor Filesystem for file data. localStorage for UI state (all keys prefixed `fr_`).
-- **Screen wake:** @capacitor-community/keep-awake@5
+- **Screen wake:** @capacitor-community/keep-awake@8
 - **Network detection (NEW):** @capacitor/network — official Capacitor plugin, needed for Section 11's offline-triggered reading notification. Read-only network status listener, no other use.
-- **IAP:** Custom native Capacitor plugin `FlowReadIapPlugin` wrapping Google Play Billing Library. **Must be upgraded off the current version — see Section 3, this is time-sensitive.** Must also be extended for subscription products (Section 4). Do NOT use @capacitor/in-app-purchases.
+- **IAP:** Custom native Capacitor plugin `FlowReadIapPlugin` wrapping Google Play Billing Library **9.1.0** (upgraded from 7.1.1 in 1.4.5, Section 3.1). Still needs extending for subscription products (Section 4). Do NOT use @capacitor/in-app-purchases.
 - **Habit interception (Android):** Requires either `UsageStatsManager` (usage-stats permission, simpler, polling-based, lower battery cost) or `AccessibilityService` (real-time app-open detection, higher reliability, more invasive permission ask, higher Play Store review scrutiny). **Default to `UsageStatsManager` first.** Needs a new custom Capacitor plugin — see Section 9.
 - **Home screen widget (NEW, Android):** Native `AppWidgetProvider` + `RemoteViews` — see Section 12. Runs outside the WebView/JS process; reads data the JS side writes via a small native bridge whenever reading position changes.
 - **Analytics/attribution:** Anonymous event pings via `fetch()` to a Cloudflare Worker endpoint. No SDK dependency — plain fetch, wrapped in try/catch, silent failure.
@@ -79,12 +79,13 @@ www/
     engines/ rsvp.js · chunk.js · scroll.js · focusbold.js · page.js
     views/
       upload.js · reader.js · normal.js · dashboard.js · settings.js · free-books.js
-      onboarding.js  — exact current location TBD, onboarding logic may currently live
-                        inside app.js/upload.js; confirm actual structure before editing,
-                        do not assume this file already exists as a standalone module
+      onboarding.js  — DOES NOT EXIST YET. Onboarding is currently renderOnboarding()
+                        inside views/settings.js, flagged by fr_onboarding_complete
+                        (storage.js) and routed from app.js. Section 10's rebuild should
+                        extract it into this file.
     features/
       chapter-detection.js · cleaning.js · bridge.js · keep-awake.js
-      purchase.js  (upgrade billing library + extend for subscription products — Section 3, 4)
+      purchase.js  (extend for subscription products — Section 4; billing library upgrade done)
       notifications.js  (extend with offline-triggered type — Section 11)
       word-tap.js
       nudge.js            — NEW, Section 9 core logic
@@ -95,36 +96,48 @@ www/
       widget-bridge.js    — NEW, Section 12, pushes reading-position data to the native widget
 android/
   app/src/main/java/com/flowread/app/
-    FlowReadIapPlugin.java        — upgrade billing library version (Section 3), add subscription support (Section 4)
+    FlowReadIapPlugin.java        — on Billing 9.1.0; add subscription support (Section 4)
     FlowReadOcrPlugin.java
     FlowReadDeviceSyncPlugin.java
+    MainActivity.java
     FlowReadNudgePlugin.java      — NEW, Section 9, wraps UsageStatsManager
     FlowReadWidgetProvider.java   — NEW, Section 12, AppWidgetProvider
-  build.gradle — targetSdk/compileSdk must move to API 36 (Section 3)
+  variables.gradle — compileSdk/targetSdk/minSdk live HERE, not in app/build.gradle
+  app/build.gradle — versionCode/versionName, ML Kit + Billing deps
+  gradle.properties — UNTRACKED, pins org.gradle.java.home to JDK 21 (Section 3.3)
+
+NOTE: .gitignore ignores android/ wholesale; hand-edited files are force-added
+individually (git add -f). If you create a new native source file, force-add it or
+it will silently never be committed.
 ```
 
 ---
 
-## 3. Urgent Store Compliance — Do This First, Before Other Phase 16 Work
+## 3. Store Compliance — RESOLVED, shipped in 1.4.5 (versionCode 32), 2026-09-16
 
-Two Play Console notices received. Both carry hard deadlines and both **block all future app updates** if missed — meaning missing these would also block shipping the pivot itself (Section 0.1). Treat this section as higher priority than the feature work in Sections 9–15, though the Billing Library item should be done *together with* Task in Section 4 (subscription IAP) since both touch the same file.
+Both Play Console notices are cleared. Retained as a record of what was done and why, not as outstanding work. **Historical note worth keeping:** the Aug 31 2026 deadline was *missed* — it had already passed when this work began on 2026-09-16, leaving the app unable to publish any update. A Play Console extension (Policy status → extension form, available until Nov 1 2026) covered the gap. The lesson is that a dated compliance item in this document needs acting on well before the date, not at it.
 
-### 3.1 Google Play Billing Library Deprecation
-Play Console warning: the currently-integrated Billing Library version will be deprecated; updates will be rejected after **August 31, 2026** unless upgraded.
+### 3.1 Google Play Billing Library — done
+Billing **7.1.1 → 9.1.0**. Went past the required v8 minimum because v8 carries all the breaking changes and v9 removed no APIs, so the migration cost was identical and the runway longer.
 
-- Upgrade `FlowReadIapPlugin.java` to the current supported Google Play Billing Library version before that date. Check the latest stable version at implementation time — do not assume a specific version number without verifying against current Play Billing documentation, since this project has already been burned once by a dependency going stale.
-- **Do this as one pass together with Section 4's subscription-support work** — both require touching the same purchase flow code, and the newer Billing Library version is what natively supports subscription products alongside the existing one-time products (`pro_lifetime`, `ocr_vision`).
-- Regression-test all existing purchase flows after the upgrade: `pro_lifetime` purchase, `ocr_vision` purchase, restore purchases, and the existing silent-cancel handling (USER_CANCELED must still not show an error toast) — all previously working behavior per Section 18's summary of completed work.
+- Only one source change was required in `FlowReadIapPlugin.java`: `queryProductDetailsAsync` now hands back `QueryProductDetailsResult` rather than `List<ProductDetails>`. Call `getProductDetailsList()`. Products Play cannot fetch are reported separately via `getUnfetchedProductList()` instead of being silently absent — **currently unused; worth surfacing rather than letting a missing product fail silently.**
+- Verified in production: restore purchases resolves existing `pro_lifetime` / `ocr_vision` entitlements.
+- **Still unverified:** a fresh purchase flow, paywall price rendering (the one path that exercises the changed API), and the silent `USER_CANCELED` handling. Confirm these before treating billing as fully regression-tested.
+- Subscription support (Section 4) was **not** folded into this pass, contrary to the original plan here — the compliance fix was shipped alone to stop the bleeding. Task 16.1 remains open.
 
-### 3.2 Target API Level — Android 16 (API 36)
-Play Console requirement: app must target API level 36 or higher. Current `targetSdk`/`compileSdk` is API 35 (bumped there for a prior Play Store requirement per Section 18).
+### 3.2 Target API Level — Android 16 (API 36) — done
+`compileSdk`/`targetSdk` **35 → 36**, shipped and verified on a real Android 16 device.
 
-- Bump `targetSdk` and `compileSdk` to API 36 in `build.gradle`.
-- **Regression-test every native plugin after the bump**, not just billing: `FlowReadOcrPlugin`, `FlowReadDeviceSyncPlugin`, and especially the new `FlowReadNudgePlugin` (Section 9) — major Android version bumps frequently change permission models and background-execution restrictions, and `UsageStatsManager`/`AccessibilityService` behavior is exactly the kind of surface that tends to shift between API levels. Test nudge detection specifically after this bump, not just assume it still works.
-- `MANAGE_EXTERNAL_STORAGE` re-application (Section 18, still open) and any new permission asks (nudge system, widget) should be evaluated against API 36's current policy, not the API 35-era understanding this project was built under.
+- **These live in `android/variables.gradle`, not `android/app/build.gradle`** — the earlier text here was wrong and cost time.
+- This was not a one-line bump. compileSdk 36 needs AGP ≥8.9, which Capacitor 6 does not ship, so it required **Capacitor 6.2.1 → 8.5.2** across every `@capacitor/*` package plus keep-awake, **AGP 8.2.1 → 8.13.0**, **Gradle 8.2.1 → 8.13**, and **Java 17 → 21**. Budget accordingly for the next SDK bump.
+- **`minSdk` 22 → 24** is forced by `org.apache.cordova:framework:14.0.1`, which Capacitor 8 pulls in. Dropped support for API 22–23 (Android 5.1 and 6.0 Marshmallow) — 1,641 device models per Play Console. The Cordova bridge is an empty shell (this project has zero Cordova plugins), so the dependency could in principle be stripped to restore 22, but Capacitor 8 officially requires 24 and `npx cap sync` regenerates the module, so the override would silently revert.
+- Regression-tested on device at API 36: `FlowReadDeviceSyncPlugin` (MediaStore), `FlowReadOcrPlugin` (Latin + Devanagari), share intent, all five engines including Page mode, and notification scheduling. `FlowReadNudgePlugin` does not exist yet — **Section 9 must still test nudge detection against API 36 when built.**
+- `MANAGE_EXTERNAL_STORAGE` re-application (Section 18) is still open and should be evaluated against API 36 policy.
 
-### 3.3 Sequencing
-Both items have the same deadline and touching-adjacent-code overlap with Section 4 and Section 9. Suggested order: (1) API 36 bump first, fix whatever breaks across existing plugins, (2) Billing Library upgrade as part of building subscription support, (3) proceed with the rest of Phase 16 only once both compliance items are confirmed working on a real device.
+### 3.3 Build environment (required to build this project at all)
+- **JDK 21.** Capacitor 8's `capacitor-android` sets `sourceCompatibility 21` *without* a toolchain, so Gradle must genuinely run on 21 — toolchain config alone will not do it.
+- **Node ≥22** for the Capacitor 8 CLI.
+- `android/gradle.properties` pins `org.gradle.java.home` and is **untracked** (machine-specific path), so every new machine and any CI must set it. Android Studio overrides it with its own Gradle JDK setting and must be pointed at JDK 21 separately; AGP 8.13 also needs Android Studio 2025.1.3 or newer.
 
 ---
 
@@ -269,11 +282,10 @@ Classic `AppWidgetProvider`/`RemoteViews` vs. Jetpack Glance — default to the 
 ## 13. Free Books Library
 
 ### 13.1 Status
-Implemented (Phase 15). ~90 curated books, region-aware sorting, language tabs, category filters, auto-OCR for catalog entries, full i18n.
+Implemented (Phase 15). 88 curated books in `www/data/free-books.json`, region-aware sorting, language tabs, category filters, auto-OCR for catalog entries, full i18n.
 
-
-### 13.3 Known Issue
-Catalog entries with `fileType: "html"` currently fail with a download error — needs review/replacement with direct file URLs. How to fix this?
+### 13.3 Known Issue — RESOLVED
+Previously: catalog entries with `fileType: "html"` failed with a download error. The catalog now holds only `pdf` (23) and `txt` (65) entries and `free-books.js` branches on exactly those two, so there is nothing left to fix. **If you add a catalog entry, it must be `pdf` or `txt`** — an `html` entry would hit the PDF parser and fail.
 
 ---
 
@@ -351,11 +363,14 @@ Phases 0–15 are functionally complete and shipped (Android versionCode 24–28
 
 ## 19. Current Phase — Phase 16: Reading Habit Pivot
 
-All items below are net-new, motivated by Section 0.1. **Tasks 16.0a and 16.0b (Section 3) take priority over everything else in this list** due to their hard deadline and blocking consequences.
+All items below are net-new, motivated by Section 0.1. The compliance tasks are done; the rest of the list is open.
 
-- [ ] **Task 16.0a — API 36 target bump** (Section 3.2)
-- [ ] **Task 16.0b — Billing Library upgrade** (Section 3.1), combined with:
-- [ ] **Task 16.1 — Subscription IAP** (Section 4)
+**Day-to-day task tracking lives in `Tasks.md` at the repo root** — status, blockers, per-task steps, decisions log, and the open-questions table. This section stays the authoritative list of *what* Phase 16 contains; `Tasks.md` tracks *where each item stands*. Keep them consistent.
+
+- [x] **Task 16.0a — API 36 target bump** (Section 3.2) — shipped in 1.4.5, versionCode 32, 2026-09-16
+- [x] **Task 16.0b — Billing Library upgrade** (Section 3.1) — shipped in 1.4.5; Billing 9.1.0
+- [ ] **Task 16.1 — Subscription IAP** (Section 4) — was meant to ship with 16.0b but was deliberately deferred so the compliance fix could go out alone. Still blocked on subscription pricing.
+- [ ] **Task H3 — Notifications fail silently when exact-alarm permission is denied.** `notifications.js` schedules with `allowWhileIdle: true` (exact alarms), which Android denies by default for apps targeting 33+, and the failure is swallowed by a bare `catch`. Users without the grant get no reminders and no explanation — a direct violation of Section 1.5. Fix before Task 16.7, which builds on the same machinery.
 - [ ] **Task 16.2 — Habit Interception System ("Nudge")** (Section 9) — largest single feature item. Suggested build order: target-app picker UI → `FlowReadNudgePlugin` detection → dynamic trigger logic → nudge screen UI → scoped unlock → analytics pings wired throughout. Get product-owner review of nudge screen copy/tone before finalizing.
 - [ ] **Task 16.3 — Onboarding Redesign** (Section 10)
 - [ ] **Task 16.4 — Monthly Curated Book Drops** (Section 4, Section 13 pipeline) — rotation/update mechanism (bundled vs. remote-fetched catalog) needs product-owner input.
@@ -401,9 +416,11 @@ Before any new dependency. Before changing palette or typography. Before adding 
 
 ## 22. Project Status
 
-- **Current phase:** Phase 16 — Reading Habit Pivot (Section 19)
-- **Immediate priority:** Section 3 compliance items (Billing Library upgrade, API 36 target) — hard deadline August 31, 2026, blocking for all future updates.
-- **Android versionCode:** 28 (versionName "1.4.1") as last recorded — verify against actual Play Console/build state before assuming current.
+- **Current phase:** Phase 16 — Reading Habit Pivot (Section 19). Task tracking in `Tasks.md`.
+- **Immediate priority:** Task 16.1 (Subscription IAP) closes out the compliance block. Section 3 is resolved and shipped.
+- **Android versionCode:** 32 (versionName "1.4.5"), published 2026-09-16 — targetSdk 36, minSdk 24, Capacitor 8.5.2, Billing 9.1.0. Verify against actual Play Console/build state before assuming current.
+- **Minimum Android:** 7.0 (API 24) as of 1.4.5, raised from 5.1 (API 22). Dropped ~1,641 device models (Section 3.2).
+- **Build requirements:** JDK 21 and Node ≥22 — see Section 3.3 before attempting a build on a new machine.
 - **Target platforms:** Android first. iOS store setup not started. No iOS path planned for the nudge system or home screen widget specifically.
 - **Target launch of pivot:** TBD — quality over speed.
 - **Distribution context (for product decisions, not implementation):** the product is currently in a distribution-bottleneck stage, not a retention or monetization-bottleneck stage — this is why the share-stats feature (Section 15) is prioritized partly for distribution value, and why Phase 16 favors mechanics with plausible organic/viral reach alongside pure retention plays.

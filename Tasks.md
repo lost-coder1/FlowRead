@@ -3,9 +3,7 @@
 > Working document. `Claude.md` is the contract; this file is how we execute it.
 > Every task references its governing `Claude.md` section. If the two disagree, `Claude.md` wins — and `Claude.md` gets updated *before* we change direction, not after.
 
-**Branch:** `phase-16-planning`
-**Last updated:** 2026-09-16
-**Branch in progress:** `phase-16-compliance`
+**Last updated:** 2026-09-16 — Block A compliance shipped as **1.4.5 (versionCode 32)** and published.
 **Status legend:** `Not started` · `In progress` · `Blocked` · `Done`
 
 ---
@@ -41,7 +39,7 @@ Each is tagged with whether it blocks *starting* the task or only *finishing* it
 
 ## Codebase corrections found during planning
 
-Recorded so future sessions don't plan against stale facts. `Claude.md` edits are proposed in Task H2, not applied silently.
+> **HISTORICAL — describes the state *before* 1.4.5 (2026-09-16).** All of these were folded into `Claude.md` in Task H2 and the toolchain rows are now out of date by design (Capacitor is 8.5.2, AGP 8.13.0, Billing 9.1.0, compile/targetSdk 36, minSdk 24, versionCode 32). Kept as a record of what the document got wrong and why the upgrade was larger than it looked. **Do not read the versions below as current.**
 
 - **SDK versions live in `android/variables.gradle`, not `android/app/build.gradle`** as §3.2 states. Current: `compileSdkVersion = 35`, `targetSdkVersion = 35`, `minSdkVersion = 22`.
 - **Toolchain:** AGP 8.2.1, Gradle 8.2.1, Capacitor 6.2.1 across all `@capacitor/*` packages, `@capacitor-community/keep-awake` 5.0.1.
@@ -53,15 +51,15 @@ Recorded so future sessions don't plan against stale facts. `Claude.md` edits ar
 
 ---
 
-# Block A — Compliance (blocking; nothing else starts until this block is verified on a real device)
+# Block A — Compliance ✅ shipped (16.1 still open)
 
-Hard deadline **2026-08-31**. Missing it blocks every future app update, including the pivot itself.
+The **2026-08-31** deadline had already passed when this work started, leaving the app unable to publish any update. A Play Console extension (valid to 2026-11-01) covered the gap, and 1.4.5 cleared both notices on 2026-09-16. 16.1 (Subscription IAP) remains open but gates nothing.
 
 ---
 
 ## Task 16.0a — API 36 target bump + toolchain upgrade
 
-**Status:** In progress — device-verified on Android 16; only the two items below remain · **Ref:** §3.2, §3.3 · **Blocked by:** — · **Size:** L (largest risk in Phase 16)
+**Status:** ✅ Done — shipped in 1.4.5 (versionCode 32), published 2026-09-16 · **Ref:** §3.2, §3.3 · **Size:** L
 
 **Why:** Play requires targetSdk ≥36. Our toolchain can't compile against 36, so this is a Capacitor/AGP/Gradle upgrade wearing a one-line-bump disguise.
 
@@ -76,7 +74,7 @@ Hard deadline **2026-08-31**. Missing it blocks every future app update, includi
 - [x] **Regression-test every native plugin on a real device** (§3.2 is emphatic about this, not just billing) — run 2026-09-16 on a Galaxy S23 FE (SM-S711B) running **Android 16 / API 36**, signed release APK, clean install:
   - [x] `FlowReadDeviceSyncPlugin` — **highest risk.** MediaStore-based, and storage policy is exactly the surface that shifts between API levels. **Works.** Note `READ_EXTERNAL_STORAGE` is correctly inapplicable at API 36 (`maxSdkVersion=32`); the API 33+ `MediaStore.Downloads` path carries it.
   - [x] `FlowReadOcrPlugin` — ML Kit Latin + Devanagari. **Works.**
-  - [ ] `FlowReadIapPlugin` — **cannot be tested from a sideloaded APK.** Play Billing is unreachable outside a Play-distributed build, so this moves to the internal-testing track in 16.0b. This is the one genuinely unverified surface.
+  - [~] `FlowReadIapPlugin` — cannot be tested from a sideloaded APK (Play Billing is unreachable outside a Play-distributed build). Verified post-publish: **restore purchases works in production.** Paywall price rendering and a fresh purchase remain unconfirmed — see 16.0b.
   - [~] `MainActivity` — share intent verified with a Wikipedia URL. **"Open with PDF" and the hardware back button were not separately confirmed** — worth a minute each.
   - [x] Local notifications — `POST_NOTIFICATIONS` granted and `SCHEDULE_EXACT_ALARM: allow`; `dumpsys alarm` shows a real `RTC_WAKEUP` via `TimedNotificationPublisher` for 21:00. Scheduling works; **firing and reboot-persistence not yet observed.**
   - [x] All five reading engines including Page mode (previously untested per §18). **Work.**
@@ -103,10 +101,11 @@ Hard deadline **2026-08-31**. Missing it blocks every future app update, includi
 
 ## Task 16.0b — Google Play Billing Library upgrade
 
-**Status:** In progress — code complete and building; **billing itself still unverified** · **Ref:** §3.1 · **Blocked by:** 16.0a · **Size:** M
-**Do as one pass with 16.1** — same file, same purchase flow.
+**Status:** ✅ Done — shipped in 1.4.5 on Billing **9.1.0**; restore purchases verified in production · **Ref:** §3.1 · **Size:** M
 
-**⚠️ The v7→v9 migration is the riskiest change in Block A and is the one thing device testing could not cover.** Play Billing is unreachable from a sideloaded APK — `queryProducts` fails regardless of whether the migration is correct — so verification requires: bump `versionCode` to 32 → `./gradlew bundleRelease` → upload the AAB to the **internal testing** track → add the account as a **licensed tester** → install via the internal-testing link → exercise all four flows below. Play extension granted, runs to **2026-11-01**.
+**Deviation from plan:** `Claude.md` §3.1 wanted this done as one pass with 16.1 (subscription IAP). It was shipped **alone** instead, because the Aug 31 deadline had already passed and the app could not publish anything until this landed. 16.1 remains open.
+
+**Still unverified (carry into 16.1's testing):** paywall price rendering — the path that actually exercises the changed `queryProductDetailsAsync` — plus a fresh purchase of `pro_lifetime` / `ocr_vision` and silent `USER_CANCELED` handling. Restore purchases exercises `queryPurchasesAsync`, which did **not** change in v9, so it is weaker evidence than it appears.
 
 **Why:** BL7 is deprecated; updates get rejected after 2026-08-31. The newer major is also what natively supports subscriptions alongside our one-time products.
 
@@ -151,9 +150,9 @@ Hard deadline **2026-08-31**. Missing it blocks every future app update, includi
 
 ---
 
-### ⛔ Block A gate
+### ✅ Block A gate — lifted for 16.0a/16.0b
 
-Do not start Block B or C until 16.0a, 16.0b, and 16.1 are confirmed working on a real device (§3.3).
+The toolchain and billing upgrades are shipped and verified in production (1.4.5), so Block B and C work is no longer held behind them. **16.1 is still open** but does not gate the rest: it touches only the purchase flow, not the toolchain everything else builds on.
 
 ---
 
@@ -161,7 +160,7 @@ Do not start Block B or C until 16.0a, 16.0b, and 16.1 are confirmed working on 
 
 ## Task 16.2 — Habit Interception System ("Nudge")
 
-**Status:** Blocked (Block A gate; Q2/Q8/Q9 to finish) · **Ref:** §9, §1.6 · **Size:** XL — largest single feature in Phase 16
+**Status:** Not started — unblocked; Q2/Q8/Q9 needed to finish · **Ref:** §9, §1.6 · **Size:** XL — largest single feature in Phase 16
 
 **Why:** The core mechanic of the pivot (§0.1). Redirects time in distracting apps toward reading.
 
@@ -190,7 +189,7 @@ Do not start Block B or C until 16.0a, 16.0b, and 16.1 are confirmed working on 
 
 ## Task 16.3 — Onboarding redesign
 
-**Status:** Blocked (Block A gate; Q3 to finish) · **Ref:** §10 · **Blocked by:** 16.2 (needs the nudge flow to hand off to) · **Size:** L
+**Status:** Not started — unblocked; Q3 needed to finish · **Ref:** §10 · **Blocked by:** 16.2 (needs the nudge flow to hand off to) · **Size:** L
 
 **Why:** Current onboarding is RSVP-calibration-first, built entirely under the pre-pivot speed-reading identity. Full-surface redesign, not a copy tweak.
 
@@ -213,7 +212,7 @@ Do not start Block B or C until 16.0a, 16.0b, and 16.1 are confirmed working on 
 
 ## Task 16.9 — Home screen reorder (friction fix)
 
-**Status:** Blocked (Block A gate) · **Ref:** §19 · **Size:** S — **ship this first in Block C**
+**Status:** Not started — unblocked · **Ref:** §19 · **Size:** S — **ship this first in Block C**
 
 **Why:** In-progress books sit below the import grid; resuming a read is the most common action and currently requires scrolling past import options.
 
@@ -229,7 +228,7 @@ Do not start Block B or C until 16.0a, 16.0b, and 16.1 are confirmed working on 
 
 ## Task 16.7 — Offline-triggered reading notification
 
-**Status:** Blocked (Block A gate; Q6 to finish) · **Ref:** §11 · **Size:** S–M
+**Status:** Not started — unblocked; Q6 needed to finish · **Ref:** §11 · **Size:** S–M
 
 **Why:** Going offline is a natural reading moment. Third notification type, connectivity-triggered rather than time-of-day.
 
@@ -249,7 +248,7 @@ Do not start Block B or C until 16.0a, 16.0b, and 16.1 are confirmed working on 
 
 ## Task 16.6 — Share stats feature
 
-**Status:** Blocked (Block A gate) · **Ref:** §15 · **Size:** M
+**Status:** Not started — unblocked · **Ref:** §15 · **Size:** M
 Prioritized partly as a **distribution** mechanic — the product's current bottleneck is distribution, not retention (§22).
 
 **Steps**
@@ -270,7 +269,7 @@ Prioritized partly as a **distribution** mechanic — the product's current bott
 
 ## Task 16.8 — Home screen widget (Android only)
 
-**Status:** Blocked (Block A gate; Q7 to finish) · **Ref:** §12 · **Size:** L
+**Status:** Not started — unblocked; Q7 needed to finish · **Ref:** §12 · **Size:** L
 
 **Steps**
 - [ ] Briefly evaluate classic `AppWidgetProvider`/`RemoteViews` vs. Jetpack Glance (Q7). **Default to classic** — consistent with the existing Java, no-Compose native plugin style. Flag if the evaluation says otherwise; don't force it.
@@ -288,7 +287,7 @@ Prioritized partly as a **distribution** mechanic — the product's current bott
 
 ## Task 16.4 — Monthly curated book drops
 
-**Status:** Blocked (Block A gate; **Q4 blocks start**) · **Ref:** §4, §13 · **Size:** M
+**Status:** Blocked — **Q4 blocks start** · **Ref:** §4, §13 · **Size:** M
 
 **Why:** The recurring value that justifies the subscription tier existing at all (§1.3).
 
@@ -305,7 +304,7 @@ Prioritized partly as a **distribution** mechanic — the product's current bott
 
 ## Task 16.5 — Opt-in leaderboard & badges
 
-**Status:** Blocked (Block A gate; **Q5 blocks start**) · **Ref:** §14 · **Size:** L
+**Status:** Blocked — **Q5 blocks start** · **Ref:** §14 · **Size:** L
 Lowest priority in Block C — needs backend work beyond the anonymous pings.
 
 **Steps**
@@ -322,7 +321,7 @@ Lowest priority in Block C — needs backend work beyond the anonymous pings.
 
 ## Task 16.10 — India Custom Store Listing (messaging revision)
 
-**Status:** Blocked (Block A gate) · **Ref:** §19, §18 · **Size:** S — Play Console config, **no app code**
+**Status:** Not started — unblocked · **Ref:** §19, §18 · **Size:** S — Play Console config, **no app code**
 
 **Steps**
 - [ ] Rewrite the CSL copy to lead with the **habit/nudge** angle. The Phase 15 drafts were written under the speed-reading identity, which underperformed with a real test audience — **do not treat old drafts as final** (§18).
@@ -337,7 +336,7 @@ Lowest priority in Block C — needs backend work beyond the anonymous pings.
 
 ## Task H1 — Verify §13.3 html-fileType issue is closed
 
-**Status:** Not started · **Ref:** §13.3 · **Size:** XS
+**Status:** Done (2026-09-16) — catalog confirmed 23 `pdf` + 65 `txt`, zero `html`; `Claude.md` §13.3 updated in H2. · **Ref:** §13.3 · **Size:** XS
 
 Reconnaissance says this is already fixed: `www/data/free-books.json` has 88 books, 23 `pdf` + 65 `txt`, zero `html`.
 - [ ] Confirm no catalog entry has `fileType: "html"` and no `sourceUrl` returns HTML despite a pdf/txt type.
@@ -365,23 +364,26 @@ Reconnaissance says this is already fixed: `www/data/free-books.json` has 88 boo
 
 ## Task H2 — Correct stale facts in `Claude.md`
 
-**Status:** Not started · **Size:** XS · **Requires product-owner approval** — §21 says the contract is updated *before* direction changes, so these are proposed, not applied silently.
+**Status:** Done (2026-09-16)
 
-- [ ] §22: versionCode 28 → **31**, versionName 1.4.1 → **1.4.4**.
-- [ ] §3.2: SDK versions live in `android/variables.gradle`, not `android/app/build.gradle`.
-- [ ] §2: onboarding currently lives in `views/settings.js`, not a standalone `onboarding.js` (until 16.3 extracts it).
-- [ ] §13.3: delete if H1 confirms it's resolved.
-- [ ] §4 / §19: record the three decisions from this session's decisions log.
+- [x] §22: versionCode → **32**, versionName → **1.4.5**; added minSdk and build-requirement lines.
+- [x] §3: rewritten as RESOLVED, with the shipped versions, the fact that the Aug 31 deadline was *missed* and covered by an extension, and a new §3.3 documenting the JDK 21 / Node 22 build requirements.
+- [x] §3.2: SDK versions live in `android/variables.gradle`, not `android/app/build.gradle`.
+- [x] §2: Capacitor 8, keep-awake 8, Billing 9.1.0; onboarding noted as living in `views/settings.js` until 16.3 extracts it; added a warning that `.gitignore` hides `android/` so new native files must be force-added.
+- [x] §13.3: marked resolved, with a note that new catalog entries must be `pdf` or `txt`.
+- [x] §19: 16.0a/16.0b ticked, H3 added, and a pointer to `Tasks.md` as the day-to-day tracker.
 
 ---
 
 ## Summary
 
-| Block | Tasks | Gate |
+| Block | Tasks | State |
 |---|---|---|
-| **A — Compliance** | 16.0a, 16.0b, 16.1 | Hard deadline 2026-08-31. Blocks all releases. |
-| **B — Pivot core** | 16.2, 16.3 | After Block A verified on device. |
-| **C — Features** | 16.9, 16.7, 16.6, 16.8, 16.4, 16.5, 16.10 | After Block A. 16.9 first (smallest). 16.4/16.5 need Q4/Q5 to start. |
-| **D — Housekeeping** | H1, H2 | Unblocked. Do anytime. |
+| **A — Compliance** | ✅ 16.0a, ✅ 16.0b · 16.1 open | Shipped as 1.4.5 / versionCode 32, published 2026-09-16. 16.1 blocked on Q1 to finish, not to start. |
+| **B — Pivot core** | 16.2, 16.3 | Unblocked. 16.2 is the largest item in Phase 16; 16.3 depends on it. |
+| **C — Features** | 16.9, 16.7, 16.6, 16.8, 16.4, 16.5, 16.10 | Unblocked. 16.9 smallest, ship first. 16.4/16.5 need Q4/Q5 answered before starting. |
+| **D — Housekeeping** | ✅ H1, ✅ H2 · H3 open | H3 is a live bug shipping to users and blocks 16.7 cleanly. |
+
+**Suggested next:** H3 (small, fixes a shipping §1.5 violation, unblocks 16.7) or 16.9 (smallest user-visible win), then 16.1 once pricing lands, then 16.2 as the main pivot effort.
 
 **Standing rules that apply to every task above:** every new string through `t()` into both `en.json` and `hi.json` from day one (§17) · no new dependencies without asking (§21) · purchase/subscription state in Capacitor Preferences, never localStorage (§21) · `fr_` prefix on all localStorage keys · palette and typography exactly per §16 · the nudge escape hatch is never removed (§9.1, §21).
