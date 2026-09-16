@@ -5,6 +5,7 @@
 
 **Branch:** `phase-16-planning`
 **Last updated:** 2026-09-16
+**Branch in progress:** `phase-16-compliance`
 **Status legend:** `Not started` · `In progress` · `Blocked` · `Done`
 
 ---
@@ -60,18 +61,18 @@ Hard deadline **2026-08-31**. Missing it blocks every future app update, includi
 
 ## Task 16.0a — API 36 target bump + toolchain upgrade
 
-**Status:** Not started · **Ref:** §3.2, §3.3 · **Blocked by:** — · **Size:** L (largest risk in Phase 16)
+**Status:** In progress — builds green, device testing outstanding · **Ref:** §3.2, §3.3 · **Blocked by:** — · **Size:** L (largest risk in Phase 16)
 
 **Why:** Play requires targetSdk ≥36. Our toolchain can't compile against 36, so this is a Capacitor/AGP/Gradle upgrade wearing a one-line-bump disguise.
 
 **Steps**
-- [ ] Verify which Capacitor major officially supports compileSdk 36 — check Capacitor's Android release notes at implementation time. Do **not** assume a version number (§3.1 explicitly warns this project has been burned by a stale-dependency assumption before).
-- [ ] Upgrade all `@capacitor/*` packages (core, android, cli, app, filesystem, preferences, local-notifications, camera) to that major, together — mixed majors do not work.
-- [ ] Upgrade `@capacitor-community/keep-awake` 5.x to the matching major.
-- [ ] `npx cap sync android`, then reconcile `android/variables.gradle` against what the new Capacitor ships (it rewrites AGP/Gradle expectations).
-- [ ] Set `compileSdkVersion = 36` and `targetSdkVersion = 36` in `android/variables.gradle`.
-- [ ] Update the Gradle wrapper (`android/gradle/wrapper/gradle-wrapper.properties`, currently 8.2.1) and AGP in `android/build.gradle` (currently 8.2.1) to the versions the new Capacitor requires. Confirm the local JDK satisfies it.
-- [ ] Rebuild; fix compile breaks across the four native sources.
+- [x] Verify which Capacitor major officially supports compileSdk 36 — check Capacitor's Android release notes at implementation time. Do **not** assume a version number (§3.1 explicitly warns this project has been burned by a stale-dependency assumption before).
+- [x] Upgrade all `@capacitor/*` packages (core, android, cli, app, filesystem, preferences, local-notifications, camera) to that major, together — mixed majors do not work.
+- [x] Upgrade `@capacitor-community/keep-awake` 5.x to the matching major.
+- [x] `npx cap sync android`, then reconcile `android/variables.gradle` against what the new Capacitor ships (it rewrites AGP/Gradle expectations).
+- [x] Set `compileSdkVersion = 36` and `targetSdkVersion = 36` in `android/variables.gradle`.
+- [x] Update the Gradle wrapper (`android/gradle/wrapper/gradle-wrapper.properties`, currently 8.2.1) and AGP in `android/build.gradle` (currently 8.2.1) to the versions the new Capacitor requires. Confirm the local JDK satisfies it.
+- [x] Rebuild; fix compile breaks across the four native sources.
 - [ ] **Regression-test every native plugin on a real device** (§3.2 is emphatic about this, not just billing):
   - [ ] `FlowReadDeviceSyncPlugin` — **highest risk.** MediaStore-based, and storage policy is exactly the surface that shifts between API levels.
   - [ ] `FlowReadOcrPlugin` — ML Kit Latin + Devanagari.
@@ -84,21 +85,27 @@ Hard deadline **2026-08-31**. Missing it blocks every future app update, includi
 
 **Done when:** A signed release build installs on a real device, all four native plugins exercise clean, notifications fire, and `targetSdkVersion = 36` is live.
 
+**Resolved versions (verified 2026-09-16, not assumed):** Capacitor **8.5.2** (9.0.0 is alpha) · AGP **8.13.0** · Gradle **8.13** · Java **21** · compileSdk/targetSdk **36** · minSdk **24** · Billing **9.1.0**.
+
+**Build result:** `assembleDebug` and signed `assembleRelease` both succeed. `aapt2 dump badging` confirms `targetSdkVersion:'36'`, `compileSdkVersion='36'`. Every Capacitor 8 plugin compiled clean; the only source change the entire upgrade needed was the one Billing v9 signature in 16.0b.
+
+**Environment changes made on this machine:** JDK 21 (`brew install openjdk@21`) and Node 22.23.2 (`brew install node@22`, linked ahead of the Node 18 at `/usr/local/bin/node`, which was left in place). `android/gradle.properties` was repointed to JDK 21 — it stays untracked because it holds a machine-specific path, so **any other machine or CI must set `org.gradle.java.home` itself**.
+
 **Notes:** Expect this to surface permission-model and background-execution changes. Budget for it. Do not fold unrelated changes into this commit — a clean, revertable toolchain commit is worth a lot if something breaks in the wild.
 
 ---
 
 ## Task 16.0b — Google Play Billing Library upgrade
 
-**Status:** Not started · **Ref:** §3.1 · **Blocked by:** 16.0a · **Size:** M
+**Status:** In progress — builds green, device testing outstanding · **Ref:** §3.1 · **Blocked by:** 16.0a · **Size:** M
 **Do as one pass with 16.1** — same file, same purchase flow.
 
 **Why:** BL7 is deprecated; updates get rejected after 2026-08-31. The newer major is also what natively supports subscriptions alongside our one-time products.
 
 **Steps**
-- [ ] Check the current supported Billing Library major against live Play Billing docs. **Verify, don't assume** (§3.1).
-- [ ] Bump `com.android.billingclient:billing` in `android/app/build.gradle` (from 7.1.1).
-- [ ] Fix API breaks in `FlowReadIapPlugin.java` — the query/purchase/acknowledge paths (`queryProducts`, `queryPurchases`, `acknowledgePurchaseAndResolve`, `acknowledgeQuietly`) all touch the changed surface.
+- [x] Check the current supported Billing Library major against live Play Billing docs. **Verify, don't assume** (§3.1).
+- [x] Bump `com.android.billingclient:billing` in `android/app/build.gradle` (from 7.1.1).
+- [x] Fix API breaks in `FlowReadIapPlugin.java` — the query/purchase/acknowledge paths (`queryProducts`, `queryPurchases`, `acknowledgePurchaseAndResolve`, `acknowledgeQuietly`) all touch the changed surface.
 - [ ] **Regression-test all existing flows** (§3.1 names these explicitly):
   - [ ] `pro_lifetime` purchase
   - [ ] `ocr_vision` purchase
