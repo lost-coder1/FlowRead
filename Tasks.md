@@ -214,14 +214,15 @@ The toolchain and billing upgrades are shipped and verified in production (1.4.5
 
 ## Task 16.9 — Home screen reorder (friction fix)
 
-**Status:** Not started — unblocked · **Ref:** §19 · **Size:** S — **ship this first in Block C**
+**Status:** ✅ Code complete (2026-09-16), device check pending · **Ref:** §19 · **Size:** S
 
 **Why:** In-progress books sit below the import grid; resuming a read is the most common action and currently requires scrolling past import options.
 
 **Steps**
-- [ ] In `renderUpload()` (`www/js/views/upload.js:3`), move `#library-section` (currently ~L105) above `.import-grid` (~L19) — and above the Free Books featured card (`#btn-free-books`, ~L21).
-- [ ] Verify `renderLibrary()` (`upload.js:1553`) and the re-render call sites (`upload.js:158`, `:232`) still resolve.
-- [ ] Check spacing/safe-area on a small device; empty-library state must still look intentional.
+- [x] `#library-section` moved directly below `</header>`, above `.import-grid` and the Free Books featured card.
+- [x] `renderLibrary()` and all re-render call sites still resolve — they re-query `#library-section` each time, and the element only moved within the same template.
+- [x] **Empty state fixed.** `.upload-screen` is a flex column with `gap: var(--space-xl)`, so an empty-but-present `#library-section` would have added a second gap under the header on a fresh install. The section now carries `hidden` in the template and `renderLibrary()` toggles `section.hidden` on both paths. No `[hidden]` override exists in the CSS, so the browser default applies.
+- [ ] Eyeball spacing/safe-area on a small device, with and without a library.
 
 **Files:** `www/js/views/upload.js` · `www/css/components.css`
 **Done when:** Home opens with in-progress books first, both with and without a library, on a real device.
@@ -230,18 +231,23 @@ The toolchain and billing upgrades are shipped and verified in production (1.4.5
 
 ## Task 16.7 — Offline-triggered reading notification
 
-**Status:** Not started — unblocked; Q6 needed to finish · **Ref:** §11 · **Size:** S–M
+**Status:** ✅ Code complete (2026-09-16); **Q6 copy still needs sign-off**, device check pending · **Ref:** §11 · **Size:** S–M
 
 **Why:** Going offline is a natural reading moment. Third notification type, connectivity-triggered rather than time-of-day.
 
 **Steps**
-- [ ] `npm i @capacitor/network` (**approved 2026-09-16**) — match the major to whatever 16.0a lands on.
-- [ ] Listen for the online→offline transition. Read-only status listener, no other use (§2).
-- [ ] Add `NOTIF_OFFLINE = 1003` alongside the existing `NOTIF_PRIMARY = 1001` / `NOTIF_STREAK = 1002` (`notifications.js:11`).
-- [ ] **Reuse** the existing helpers rather than writing new logic: `_hasReadToday()` for suppression, `_activeProgressFile()`, `_isSameDay()`, and the established `reschedule()` / `_cancelAll()` patterns.
-- [ ] Anti-spam (§11): throttle to once per few hours, suppress if the daily reading threshold is already met, never fire while the app is foregrounded, ignore brief connectivity blips.
-- [ ] Copy is Q6 — light, not preachy, consistent with "nudge not wall" (§1.6).
-- [ ] New keys in `en.json` + `hi.json`.
+- [x] `@capacitor/network@8.0.1` installed (major matches the Capacitor 8 line) and `npx cap sync android` run — 7 plugins now detected. Adds only `ACCESS_NETWORK_STATE` to the merged manifest.
+- [x] Listens for the online→offline transition via `networkStatusChange`. Read-only, no other use (§2).
+- [x] `NOTIF_OFFLINE = 1003` added alongside 1001 / 1002.
+- [x] Reuses `_hasReadToday()`, `_hasPermission()`, `_pick()`, `CHANNEL_ID` and the same `isExactNotification:false` + `allowWhileIdle:true` scheduling shape H3 established.
+- [x] Anti-spam, all four rules: 4h throttle (`fr_notif_offline_last`); suppressed when `_hasReadToday()`; suppressed when the app is foregrounded (via `App.getState().isActive`, defaulting to "foreground" so an unknown state suppresses rather than fires); brief blips ignored via a 30s confirm window that re-checks `getStatus()` before firing.
+- [x] Only a genuine online→offline **transition** arms the timer — `_wasConnected` prevents repeat offline events from re-arming it.
+- [x] Settings toggle `fr_notif_offline` (default on), with the same permission-denial handling as the daily reminder. Turning it off cancels 1003.
+- [~] Copy is **Q6 — draft only, needs product-owner sign-off.** Three rotating bodies per locale, deliberately light and non-preachy (§1.6): "No signal? Good time for a few pages." / "Nothing to scroll right now. Your book is still here." / "Offline — a quiet moment to read."
+- [x] New keys in `en.json` + `hi.json` (451 keys each, full parity).
+- [ ] Device-verify: airplane-mode toggling fires at most one per throttle window, never when already read today, never in foreground.
+
+**Honest limitation to document (§1.5):** the connectivity listener only runs while the app process is alive, so this catches going offline with FlowRead backgrounded — not after Android has reclaimed the process. It is a bonus trigger, not a guarantee. Noted in a comment above the implementation.
 
 **Files:** `package.json` · `www/js/features/notifications.js` · `www/js/views/settings.js` (toggle) · `www/i18n/*.json`
 **Done when:** Airplane-mode toggling fires at most one notification per throttle window, never when already read today, never in foreground.
@@ -347,7 +353,7 @@ Reconnaissance says this is already fixed: `www/data/free-books.json` has 88 boo
 
 ## Task H4 — Pro purchase fails with a generic error 🔴 REVENUE-BLOCKING
 
-**Status:** Not started · **Ref:** §1.5 ("never silently fail", "errors explained in plain language"), §3.1 · **Size:** S–M · **Found:** 2026-09-16, reported from production on 1.4.5
+**Status:** Code complete, **device verification pending** (2026-09-16) · **Ref:** §1.5 ("never silently fail", "errors explained in plain language"), §3.1 · **Size:** S–M · **Found:** 2026-09-16, reported from production on 1.4.5
 
 **Symptom:** Tapping unlock-Pro shows `iap.toast.purchase_failed` — "Purchase could not be completed. Please try again." Purchase does not go through.
 
@@ -380,13 +386,24 @@ if (code != BillingClient.BillingResponseCode.OK || purchases == null || purchas
 and `purchase.js:_handlePurchaseError` falls through to the same generic toast. So `ITEM_ALREADY_OWNED`, `SERVICE_DISCONNECTED`, `BILLING_UNAVAILABLE`, `ITEM_UNAVAILABLE` and `DEVELOPER_ERROR` are **indistinguishable to both the user and the developer** — which is why this needed a logcat session to diagnose at all. That is a §1.5 violation ("errors explained in plain language") and the root reason this is hard to debug.
 
 **Steps**
-- [ ] Reproduce with `adb logcat` attached and capture the actual `BillingResponseCode`. Everything else is guesswork until this exists.
-- [ ] Pass the response code through the reject so the JS layer can distinguish cases — reject with a stable machine-readable token, not a prose sentence.
-- [ ] Handle `ITEM_ALREADY_OWNED` properly: it means the user **already owns Pro**. Unlock the entitlement and show a confirmation, never an error — the current behaviour tells a paying customer their purchase failed when it actually succeeded.
-- [ ] Handle `SERVICE_DISCONNECTED` / `SERVICE_UNAVAILABLE` distinctly: re-init billing and invite a retry.
-- [ ] Give each case its own plain-language i18n string in `en.json` + `hi.json` (§17).
-- [ ] Re-check the same collapsing in `queryProducts` ("Could not load product information") and `queryPurchases`.
-- [ ] Re-test: fresh purchase, purchase while already owning, cancel mid-flow (must stay silent — §3.1), and restore.
+- [~] Reproduce with `adb logcat` attached and capture the actual `BillingResponseCode`. **Deliberately not gated on** — the fix is correct for every response code, and the app now names the code in plain language itself, so the diagnosis comes from the next user-facing attempt instead of an adb session. Still worth capturing opportunistically.
+- [x] Pass the response code through the reject so the JS layer can distinguish cases. `tokenFor(int)` maps every `BillingResponseCode` to a stable token, emitted as the **Capacitor error code** via the two-arg `call.reject(message, code)`. Applied at every reject site in the plugin.
+- [x] Handle `ITEM_ALREADY_OWNED` properly. `recoverOwnedPurchase()` re-queries INAPP purchases, acknowledges if Play never got an ack, and **resolves as success** so the entitlement unlocks. If the record can't be read back, JS shows an "you already own this" toast and auto-triggers `restorePurchases()` — never a failure message.
+- [x] Handle `SERVICE_DISCONNECTED` / `SERVICE_UNAVAILABLE` distinctly. The plugin now emits a `billingDisconnected` event; JS clears `_iapInitialized` so the next call re-inits instead of dying on `NOT_INITIALIZED` forever.
+- [x] Give each case its own plain-language i18n string in `en.json` + `hi.json` (§17). Seven new `iap.toast.*` keys. **Hindi needs product-owner sign-off** — written in the file's existing Hinglish register, not supplied by the owner.
+- [x] Re-check the same collapsing in `queryProducts` and `queryPurchases` — both now go through `rejectWith()`.
+- [ ] Re-test on a Play-distributed build: fresh purchase, purchase while already owning, cancel mid-flow (must stay silent — §3.1), and restore.
+
+**Also fixed in the same pass**
+- `getUnfetchedProductList()` is now read and returned as `unfetched` (§3.1 flagged it as unused) — a misconfigured Play Console product no longer looks identical to a working one.
+- Pending purchases (`PurchaseState != PURCHASED`) **resolve** with `{pending:true}` instead of rejecting — a delayed payment is a legitimate outcome, not a failure.
+- `resolveSuccessfulPurchase` no longer hardcodes `acknowledged: true` when the ack actually failed.
+- `buyPro`/`buyOcr` no longer dead-end with the unlock button disabled forever when the resolved `productIds` don't contain the requested id.
+- `restorePurchases` labels ('Pro' / 'OCR Vision') were hardcoded English — now `t('paywall.*.tier')`.
+- `_handlePurchaseError` branched on **substrings of English prose**; it now branches on `err.code`, with message matching kept only as a fallback.
+- `SERVICE_TIMEOUT` (-3) is deprecated in Billing 9 and no longer returned — not mapped.
+
+**Verified:** `:app:compileDebugJavaWithJavac` clean, no deprecation warnings; JS syntax clean; en/hi at 445 keys each, full parity.
 
 **Files:** `android/app/src/main/java/com/flowread/app/FlowReadIapPlugin.java` · `www/js/features/purchase.js` (`_handlePurchaseError`, ~L276) · `www/i18n/en.json` + `hi.json`
 
@@ -396,16 +413,35 @@ and `purchase.js:_handlePurchaseError` falls through to the same generic toast. 
 
 ## Task H3 — Notifications fail silently when exact-alarm permission is denied
 
-**Status:** Not started · **Ref:** §1.5 ("never silently fail"), §11 · **Size:** S · **Found:** 2026-09-16 while device-verifying 16.0a
+**Status:** Code complete, **device verification pending** (2026-09-16) · **Ref:** §1.5 ("never silently fail"), §11 · **Size:** S · **Found:** 2026-09-16 while device-verifying 16.0a
 
 **Why:** `notifications.js:196` uses `allowWhileIdle: true` (exact alarms). Android denies `SCHEDULE_EXACT_ALARM` by default for apps targeting 33+. Line 221 swallows the resulting failure in `catch (_) {}`, so a user who hasn't granted it gets **no reminders and no indication why**. This directly violates §1.5's "never silently fail" principle. Pre-existing — not introduced by the API 36 bump — but the bump makes it more likely to bite.
 
+### ⚠️ Correction — the diagnosis above was wrong on Capacitor 8
+
+Verified by reading `@capacitor/local-notifications` 8.x sources. `LocalNotificationManager.setExactIfPossible()` **already guards with `canScheduleExactAlarms()`** and degrades to an inexact alarm with a `Logger.warn`, so `schedule()` never threw a `SecurityException` and the `catch (_) {}` was never swallowing *this* failure. The real problems were:
+
+1. `isExactNotification` defaults to **`true`**, so the app asked for an exact alarm on every schedule and depended on the plugin's fallback.
+2. `allowWhileIdle: true` was actually the **good** half of that config — with inexact it yields `setAndAllowWhileIdle(RTC_WAKEUP)`, which survives Doze. Plain `set(RTC)` does not, so simply deleting `allowWhileIdle` (the original plan) would have made delivery *worse*.
+3. The genuine silent failure is `POST_NOTIFICATIONS` denial: `reschedule()` returned early with no signal, and the settings toggle discarded `requestPermission()`'s boolean — leaving a checked box that promised reminders forever.
+
 **Steps**
-- [ ] Detect whether exact alarms are permitted (`AlarmManager.canScheduleExactAlarms()` on API 31+) before scheduling.
-- [ ] If denied, either fall back to inexact scheduling (a reading reminder does not need to-the-minute precision — this is likely the right answer) or surface a plain-language prompt to the settings page.
-- [ ] Stop swallowing the exception at line 221 — at minimum log it, and reflect the real state in the settings toggle.
-- [ ] Reconsider whether `allowWhileIdle`/exact alarms are warranted at all here. Inexact alarms need no special permission and suit a daily reading nudge.
-- [ ] Any new user-facing string goes into `en.json` + `hi.json` (§17).
+- [x] Stop requesting exact alarms: `isExactNotification: false` on both notifications, **keeping `allowWhileIdle: true`**. Result is `setAndAllowWhileIdle(RTC_WAKEUP)` — Doze-tolerant and needs no special permission.
+- [x] Stop swallowing the schedule exception — it now logs and records a status.
+- [x] `reschedule()` returns `{scheduled, reason}` and persists the reason to `fr_notif_status` (`no_plugin` · `disabled` · `permission_denied` · `schedule_failed`). `lastStatus()` exposes it.
+- [x] `_cancelAll()` logs instead of swallowing.
+- [x] `_ensureFirstBootDefaults()` no longer discards `requestPermission()`'s result.
+- [x] Settings reflects reality: denying the permission **reverts the checkbox** and toasts a plain-language explanation; `#settings-reminder-note` renders the real status via `reminderNoteText()` / `syncReminderNote()`.
+- [x] New strings in `en.json` + `hi.json` (§17): `settings.reminder.note_denied`, `settings.reminder.note_failed`, `notif.toast.permission_denied`. **Hindi needs product-owner sign-off.**
+- [ ] Device-verify: revoke "Alarms & reminders" → reminder still fires; deny notifications → toggle reverts with an explanation; normal path unchanged.
+
+### Manifest — `SCHEDULE_EXACT_ALARM` removed ✅ (signed off 2026-09-16)
+
+The permission is denied by default at API 33+ for non-alarm-clock apps, and nothing requests an exact alarm any more, so it is gone. It is **also declared by the plugin's own manifest** (`node_modules/@capacitor/local-notifications/android/src/main/AndroidManifest.xml:29`), so deleting our line alone would not have worked — it needed `xmlns:tools` on `<manifest>` plus `tools:node="remove"`. **Verified absent from both the debug and release merged manifests**, with `RECEIVE_BOOT_COMPLETED` and `LocalNotificationRestoreReceiver` still intact. This also drops a Play Console permission declaration.
+
+### Correction to the §2e reboot-persistence worry
+
+`RECEIVE_BOOT_COMPLETED` **is** present and `LocalNotificationRestoreReceiver` **does** handle `BOOT_COMPLETED` / `LOCKED_BOOT_COMPLETED` / `QUICKBOOT_POWERON` — both arrive via the plugin's manifest merge (confirmed in `app/build/intermediates/merged_manifest/release/AndroidManifest.xml`). Reboot persistence is handled by the plugin; the earlier "no receiver" reading was a grep artifact from multi-line `<receiver>` elements.
 
 **Files:** `www/js/features/notifications.js` · `www/js/views/settings.js` · `www/i18n/*.json`
 
@@ -432,9 +468,31 @@ and `purchase.js:_handlePurchaseError` falls through to the same generic toast. 
 |---|---|---|
 | **A — Compliance** | ✅ 16.0a, ✅ 16.0b · 16.1 open | Shipped as 1.4.5 / versionCode 32, published 2026-09-16. 16.1 blocked on Q1 to finish, not to start. |
 | **B — Pivot core** | 16.2, 16.3 | Unblocked. 16.2 is the largest item in Phase 16; 16.3 depends on it. |
-| **C — Features** | 16.9, 16.7, 16.6, 16.8, 16.4, 16.5, 16.10 | Unblocked. 16.9 smallest, ship first. 16.4/16.5 need Q4/Q5 answered before starting. |
-| **D — Housekeeping** | ✅ H1, ✅ H2 · H3, H4 open | **H4 is revenue-blocking on the live build — highest priority.** H3 is a live bug shipping to users and blocks 16.7 cleanly. |
+| **C — Features** | ✅ 16.9, ✅ 16.7 (code) · 16.6, 16.8, 16.4, 16.5, 16.10 open | 16.9 and 16.7 code complete 2026-09-16, pending device checks; 16.7 needs Q6 copy sign-off. 16.4/16.5 still need Q4/Q5 before starting. |
+| **D — Housekeeping** | ✅ H1, ✅ H2 · H3, H4 code complete | Both fixed 2026-09-16, **pending device verification**. H4 needs a Play-distributed build to test. |
 
-**Suggested next:** **H4 first** — Pro purchases are failing in production, which outranks everything else on this board. Fold it into 16.1, since both rewrite the same purchase flow. Then H3 (unblocks 16.7), then 16.2 as the main pivot effort.
+**Suggested next:** H4, H3, 16.9 and 16.7 are all code complete (2026-09-16) and batched for one release. H3/16.9/16.7 verify on a sideloaded debug build; **H4 needs an internal-testing track upload**, since Play Billing is unreachable from a sideloaded APK — steps in "H4 device verification" below. **16.1 was deliberately kept out of the H4 pass** (blocked on Q1 pricing; H4 is revenue-blocking now), but H4's error taxonomy is exactly what makes 16.1's testing tractable. After this release ships: 16.2 as the main pivot effort, or 16.6 if distribution stays the priority (§22).
+
+---
+
+## H4 device verification — steps
+
+Play Billing only works in a build Play itself delivered, so a sideloaded APK cannot test this. Internal testing is the fastest track (no review wait, up to 100 testers).
+
+1. **Bump the version.** `android/app/build.gradle`: `versionCode` 32 → 33, `versionName` → `1.4.6`. Play rejects a duplicate `versionCode`.
+2. **Build a signed release bundle:** `cd android && ./gradlew bundleRelease` (JDK 21 — §3.3). Output: `android/app/build/outputs/bundle/release/app-release.aab`.
+3. **Upload:** Play Console → Testing → **Internal testing** → Create new release → upload the `.aab` → add release notes → Save → Review → **Start rollout to Internal testing**.
+4. **Add yourself as a tester** (Testers tab → email list), then open the opt-in URL Play gives you and accept. Use the *same Google account* on the device.
+5. **Install from Play**, not adb — the opt-in link opens the Play listing; install from there. Availability can lag a few minutes after rollout.
+6. **Run the four tests** with `adb logcat -s FlowReadIap:* BillingClient:*` attached:
+   - **Already-owned** (the reported bug): the account already owns `pro_lifetime` → tap Unlock Pro → **must unlock with a confirmation**, never "Purchase could not be completed."
+   - **Fresh purchase:** use a licence tester account that owns nothing (Play Console → Setup → Licence testing) so it charges nothing → completes and unlocks.
+   - **Cancel mid-flow:** open the sheet, back out → **no toast at all** (§3.1 — the easy regression).
+   - **Restore purchases:** resolves both `pro_lifetime` and `ocr_vision`.
+7. **Network case:** airplane mode mid-purchase → a network-specific message, not the generic one.
+8. **Confirm the taxonomy works** — logcat should now show `FlowReadIap: purchase failed: <TOKEN> (code=N)` on any failure. If a generic toast still appears, the token reached JS but `_messageForCode` has no branch for it; the logged token names exactly what to add.
+9. **Then promote** the same bundle to production once the four tests pass — no rebuild needed.
+
+**Prerequisite check:** licence testing must list the test account (Play Console → Setup → Licence testing) for free test purchases, and `pro_lifetime` / `ocr_vision` must both be **Active** under Monetise → Products → In-app products.
 
 **Standing rules that apply to every task above:** every new string through `t()` into both `en.json` and `hi.json` from day one (§17) · no new dependencies without asking (§21) · purchase/subscription state in Capacitor Preferences, never localStorage (§21) · `fr_` prefix on all localStorage keys · palette and typography exactly per §16 · the nudge escape hatch is never removed (§9.1, §21).
