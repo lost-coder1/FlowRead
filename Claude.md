@@ -122,7 +122,8 @@ Billing **7.1.1 → 9.1.0**. Went past the required v8 minimum because v8 carrie
 
 - Only one source change was required in `FlowReadIapPlugin.java`: `queryProductDetailsAsync` now hands back `QueryProductDetailsResult` rather than `List<ProductDetails>`. Call `getProductDetailsList()`. Products Play cannot fetch are reported separately via `getUnfetchedProductList()` instead of being silently absent — **currently unused; worth surfacing rather than letting a missing product fail silently.**
 - Verified in production: restore purchases resolves existing `pro_lifetime` / `ocr_vision` entitlements.
-- **Still unverified:** a fresh purchase flow, paywall price rendering (the one path that exercises the changed API), and the silent `USER_CANCELED` handling. Confirm these before treating billing as fully regression-tested.
+- **Verified:** restore purchases in production, and — via the H4 investigation — the changed `queryProductDetailsAsync` path itself, since Play's purchase sheet (`ProxyBillingActivity`) only opens if product details resolved and `launchBillingFlow` returned OK.
+- **Still unverified:** completing a fresh purchase (blocked by Task H4) and the silent `USER_CANCELED` handling. Confirm both while fixing H4.
 - Subscription support (Section 4) was **not** folded into this pass, contrary to the original plan here — the compliance fix was shipped alone to stop the bleeding. Task 16.1 remains open.
 
 ### 3.2 Target API Level — Android 16 (API 36) — done
@@ -369,6 +370,7 @@ All items below are net-new, motivated by Section 0.1. The compliance tasks are 
 
 - [x] **Task 16.0a — API 36 target bump** (Section 3.2) — shipped in 1.4.5, versionCode 32, 2026-09-16
 - [x] **Task 16.0b — Billing Library upgrade** (Section 3.1) — shipped in 1.4.5; Billing 9.1.0
+- [ ] 🔴 **Task H4 — Pro purchase fails with a generic error. REVENUE-BLOCKING on the live build; highest-priority open item.** Reported 2026-09-16 on 1.4.5: unlocking Pro shows "Purchase could not be completed." **Not a Billing 9 regression** — logcat shows Play's `ProxyBillingActivity` opening, so `queryProductDetailsAsync` and `launchBillingFlow` both succeeded; the non-OK code comes back through `onPurchasesUpdated`. Most likely `ITEM_ALREADY_OWNED` (restore had just run, so the account already owns `pro_lifetime`), which the plugin collapses into a generic failure — meaning a customer who *does* own Pro is told their purchase failed. Root defect: every non-OK `BillingResponseCode` funnels into one string in `FlowReadIapPlugin.onPurchasesUpdated` and again in `purchase.js:_handlePurchaseError`, so failures are indistinguishable to user and developer alike (violates Section 1.5). Fix the error taxonomy, not just the symptom. **Do together with Task 16.1** — same purchase flow. Full detail in `Tasks.md`.
 - [ ] **Task 16.1 — Subscription IAP** (Section 4) — was meant to ship with 16.0b but was deliberately deferred so the compliance fix could go out alone. Still blocked on subscription pricing.
 - [ ] **Task H3 — Notifications fail silently when exact-alarm permission is denied.** `notifications.js` schedules with `allowWhileIdle: true` (exact alarms), which Android denies by default for apps targeting 33+, and the failure is swallowed by a bare `catch`. Users without the grant get no reminders and no explanation — a direct violation of Section 1.5. Fix before Task 16.7, which builds on the same machinery.
 - [ ] **Task 16.2 — Habit Interception System ("Nudge")** (Section 9) — largest single feature item. Suggested build order: target-app picker UI → `FlowReadNudgePlugin` detection → dynamic trigger logic → nudge screen UI → scoped unlock → analytics pings wired throughout. Get product-owner review of nudge screen copy/tone before finalizing.
@@ -417,7 +419,7 @@ Before any new dependency. Before changing palette or typography. Before adding 
 ## 22. Project Status
 
 - **Current phase:** Phase 16 — Reading Habit Pivot (Section 19). Task tracking in `Tasks.md`.
-- **Immediate priority:** Task 16.1 (Subscription IAP) closes out the compliance block. Section 3 is resolved and shipped.
+- **Immediate priority:** 🔴 **Task H4 — Pro purchases are failing in production on 1.4.5 (revenue-blocking).** Do it together with Task 16.1, which rewrites the same purchase flow. Section 3 compliance is resolved and shipped.
 - **Android versionCode:** 32 (versionName "1.4.5"), published 2026-09-16 — targetSdk 36, minSdk 24, Capacitor 8.5.2, Billing 9.1.0. Verify against actual Play Console/build state before assuming current.
 - **Minimum Android:** 7.0 (API 24) as of 1.4.5, raised from 5.1 (API 22). Dropped ~1,641 device models (Section 3.2).
 - **Build requirements:** JDK 21 and Node ≥22 — see Section 3.3 before attempting a build on a new machine.
