@@ -75,6 +75,35 @@ Internal testing has no review wait and allows up to 100 testers.
 
 ---
 
+## 3b. Confirm you are actually running the new build ⚠️
+
+**Do this before anything else.** "I installed it and nothing changed" is almost always Play
+serving the old build, not a broken release — and it looks identical to a failed fix.
+
+From 1.4.7 onward, **Settings → About shows the real version and build number**, read from the
+package rather than a hardcoded string. (Before 1.4.7 it always said "Version 1.1.0" no matter
+what was installed, which made this impossible to check from inside the app.)
+
+- **Settings → About** should read `Version 1.4.7 (34)`.
+- Cross-check outside the app: Android **Settings → Apps → FlowRead**, version at the bottom.
+
+If it shows anything older, you are on the old build and no test below means anything.
+
+### Why Play serves the old build, in order of likelihood
+
+1. **The app was already installed from the production track.** Opting into internal testing
+   does **not** switch an existing install over. Play shows "Open", never "Update".
+   → **Uninstall FlowRead completely first**, then install via the opt-in link.
+2. **The release was saved but never rolled out.** In Play Console the release must read
+   *"Available to internal testers"* — not *Draft*. Saving a release is not publishing it.
+3. **Propagation delay.** Ten minutes to an hour is normal. Force-stop the Play Store and
+   clear its cache, then reopen the opt-in link.
+4. **Wrong account active in the Play Store.** The device may be signed into several Google
+   accounts; Play uses the one selected in its own profile switcher, not the device default.
+   Open Play Store → profile icon → confirm the **tester** account is active.
+
+---
+
 ## 4. Attach logcat before testing
 
 Keep this running in a terminal for the whole session. Every test below should produce a line here.

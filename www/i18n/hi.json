@@ -305,7 +305,7 @@
   "settings.section.about_help": "About & Help",
   "settings.section.limitations": "Supported Formats और Known Limitations",
   "settings.section.about": "About",
-  "settings.about.version": "Version 1.1.0",
+  "settings.about.version": "Version {version}",
   "settings.about.privacy": "यह app कोई data collect नहीं करता। कोई account नहीं, कोई analytics backend नहीं, और आपकी file किसी server पर upload नहीं होती।",
   "settings.about.url_note": "URL Reader Pro-only है और जहाँ internet चाहिए वहाँ साफ बताया जाता है।",
   "settings.btn.restore": "खरीदारी रिस्टोर करें",

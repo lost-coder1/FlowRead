@@ -368,6 +368,22 @@ function stopCalibrationPreview() {
 
 /* Reminder status copy. `reschedule()` records why it could not arm the
  * reminder; the note is where the user finds out, rather than nothing firing. */
+async function syncVersionLabel() {
+  const el = qs('#settings-version');
+  if (!el) return;
+  let label = '';
+  try {
+    const app = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+    if (app && typeof app.getInfo === 'function') {
+      const info = await app.getInfo();
+      if (info && info.version) {
+        label = info.version + (info.build ? ' (' + info.build + ')' : '');
+      }
+    }
+  } catch (_) {}
+  el.textContent = t('settings.about.version', {version: label || '—'});
+}
+
 function reminderNoteText() {
   const status = (typeof NotificationsFeature !== 'undefined'
     && typeof NotificationsFeature.lastStatus === 'function')
@@ -538,7 +554,7 @@ function renderSettings() {
       <!-- ABOUT & HELP -->
       <section class="settings-section">
         <h2>${t('settings.section.about_help')}</h2>
-        <p class="settings-copy">${t('settings.about.version')}</p>
+        <p class="settings-copy" id="settings-version">${t('settings.about.version', {version: '…'})}</p>
         <p class="settings-copy">${t('settings.about.privacy')}</p>
         <p class="settings-copy">${t('settings.about.url_note')}</p>
 
@@ -573,6 +589,7 @@ function renderSettings() {
 
   switchView('view-settings');
   bindSettings();
+  syncVersionLabel();
 }
 
 function bindSettings() {

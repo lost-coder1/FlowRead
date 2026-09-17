@@ -324,7 +324,7 @@
   "settings.section.about_help": "About & Help",
   "settings.section.limitations": "Supported Formats & Known Limitations",
   "settings.section.about": "About",
-  "settings.about.version": "Version 1.1.0",
+  "settings.about.version": "Version {version}",
   "settings.about.privacy": "This app collects no data. There is no account, no analytics backend, and no file upload to any server we control.",
   "settings.about.url_note": "URL Reader is Pro-only and clearly marked when it requires internet.",
   "settings.btn.restore": "Restore Purchases",
