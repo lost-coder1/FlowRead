@@ -188,7 +188,21 @@ const NudgeAppsFeature = (function() {
     render('');
     const search = qs('#nudge-app-search');
     if (search) {
-      search.addEventListener('input', function() { render(search.value); });
+      /* `input` alone is not enough here. Android WebView does not fire it
+         reliably while an IME is composing, and Samsung Keyboard composes on
+         every predictive-text keystroke — so a typed query would sit in the box
+         with the list never filtering. Listening broadly and re-rendering from
+         the field's current value covers every path; the renders are cheap and
+         idempotent, so the overlap costs nothing. */
+      let last = '';
+      const onType = function() {
+        if (search.value === last) return;
+        last = search.value;
+        render(last);
+      };
+      ['input', 'keyup', 'change', 'search', 'compositionend'].forEach(function(evt) {
+        search.addEventListener(evt, onType);
+      });
     }
   }
 
