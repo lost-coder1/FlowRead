@@ -3,7 +3,7 @@
 > Working document. `Claude.md` is the contract; this file is how we execute it.
 > Every task references its governing `Claude.md` section. If the two disagree, `Claude.md` wins — and `Claude.md` gets updated *before* we change direction, not after.
 
-**Last updated:** 2026-09-20 — **Task 16.2 (Nudge) code complete**, built on `AccessibilityService` after Q8 sign-off. Not yet device-tested and not yet in a release. Previously: 1.4.7 (versionCode 34) verified on Internal testing and merged to `master` (`33ed6d1`), containing H4, H3, 16.9, 16.7.
+**Last updated:** 2026-09-21 — **Task 16.2 (Nudge) first device test done.** Detection works end to end; the nudge screen does not render (N1, blocker) plus four other fixes queued. Not yet in a release. Previously: 1.4.7 (versionCode 34) verified on Internal testing and merged to `master` (`33ed6d1`), containing H4, H3, 16.9, 16.7.
 **Status legend:** `Not started` · `In progress` · `Blocked` · `Done`
 
 ---
@@ -202,12 +202,86 @@ Detection is an **`AccessibilityService`, not `UsageStatsManager`** — see the 
 
 ### Still open before this ships
 
-- [ ] **Device verification at API 36** — the whole checklist below. Nothing here has run on hardware yet.
+- [x] ~~Device verification at API 36~~ — first run done 2026-09-21. Detection confirmed working; **five issues found, N1 is a blocker — see below.**
+- [ ] **Fix N1–N5** before this can ship.
 - [ ] **Q9 — product-owner review of nudge copy and tone**, plus Hindi sign-off.
 - [ ] **Play Console Accessibility API declaration** — required before any release carrying this. The justification is the §9.4a scope: package name only, no window content.
 - [ ] **Privacy policy** — disclose both the analytics pings (§9.6) and the accessibility use.
 - [ ] **Cloudflare Worker endpoint** — `analytics-ping.js` has `ENDPOINT = ''` and is inert until one exists. This is a safe shipping state, not a bug.
 - [ ] Decide whether the nudge setup belongs in onboarding (Q3 / Task 16.3).
+
+### 🔴 Device-test findings — 2026-09-21, Galaxy S23 FE (SM-S711B), API 36
+
+First run on hardware. **Detection works**: opening Reddit did launch FlowRead, so the
+accessibility service, `NudgeGate` and the trigger rules are all firing correctly end to end.
+Everything below is downstream of that.
+
+These are **not yet fixed** — next session.
+
+---
+
+#### N1 — The nudge screen never appears; the app just opens (blocker)
+
+**Observed:** using Reddit brought FlowRead to the front, but it showed **Settings**, not the
+nudge. The whole feature is invisible to the user in this state.
+
+**What this rules in and out.** The service fired and `startActivity` succeeded, so B2/B3 and
+the `SYSTEM_ALERT_WINDOW` background-activity-start are all good. The failure is purely in the
+handoff to JS: `renderNudge()` never ran, or ran and was then overwritten.
+
+**Leads, most likely first:**
+1. The WebView was already alive on `view-settings`. `MainActivity` is `singleTask`, so this was
+   `onNewIntent` → `onResume` → `fireNudgeEvent()`. Check the `flowreadNudge` listener is
+   actually registered by then — `NudgeFeature.init()` runs late in the boot sequence, and if
+   the event fires before `addEventListener`, it is lost with no trace.
+2. `consumePendingNudge()` is destructive — it deletes `fr_pending_nudge` on read. If the cold
+   path consumed it first and the hot path then found nothing, both would silently no-op.
+3. The 60s staleness guard in `_readPending()` may be discarding a valid handoff.
+4. A later `renderSettings()` may be re-running and clobbering `switchView('view-nudge')`.
+
+**Suggested fix direction:** make the handoff idempotent and not order-dependent — have JS pull
+the pending nudge on *every* resume rather than relying on a one-shot event, and only clear it
+once the nudge screen has actually rendered.
+
+#### N2 — Wrong landing view when FlowRead opens
+
+Opening FlowRead (from the nudge or otherwise) resumes whatever view it was last on — Settings,
+in this case. It should land on **home, or the book the user was last reading**. Separate from
+N1: even once the nudge renders, the view *behind* it should not be a stale Settings screen.
+
+#### N3 — Nudge copy should ask a question, with the real number in it
+
+Current copy: "Read a bit before Reddit?" — too abstract. It should name what actually happened
+and make the ask concrete, e.g. *"You've been on Reddit for 5 minutes. Read 2 pages first?"*,
+with the close/escape option unchanged.
+
+Needs `getForegroundMinutesToday()` (already on the plugin, currently unused by the screen)
+plumbed into `renderNudge()`, plus a fallback phrasing for when usage access is denied and we
+only know the open count. New `nudge.screen.*` keys in both `en.json` and `hi.json`. Folds into
+**Q9** — do the copy review as one pass rather than twice.
+
+#### N4 — Ask for the three permissions at first launch
+
+Notifications already prompt on first boot (`_ensureFirstBootDefaults`). App detection, display
+over other apps, and usage access should follow the same pattern instead of being buried in
+Settings where the user has to go find them.
+
+Caveat worth thinking through before building: these are three *settings-page* trips, not
+dialogs, and §9.4a deliberately made usage access optional to avoid exactly that friction. A
+first-run sequence that bounces the user through three system screens may convert worse than the
+current placement, not better. Also overlaps **Q3 / Task 16.3** (whether the nudge ask lives in
+onboarding at all) — decide those together.
+
+#### N5 — Add an "on every open" trigger option
+
+Today the only trigger is "after N minutes in the app" (or "Nth open" without usage access).
+Add a user-selectable mode that nudges **as soon as a target app is opened**, no threshold.
+
+Cheap to implement — it is `minMinutes = 0` / `minOpens = 1` in `NudgeGate` — but it needs its
+own UI affordance and must still respect the daily cap and the dismissal back-off, or it becomes
+the wall that §9.1 forbids.
+
+---
 
 ### Device test checklist
 
@@ -547,7 +621,7 @@ The permission is denied by default at API 33+ for non-alarm-clock apps, and not
 | Block | Tasks | State |
 |---|---|---|
 | **A — Compliance** | ✅ 16.0a, ✅ 16.0b · 16.1 open | Shipped as 1.4.5 / versionCode 32, published 2026-09-16. 16.1 blocked on Q1 to finish, not to start. |
-| **B — Pivot core** | ✅ 16.2 (code) · 16.3 | 16.2 code complete 2026-09-20 on `AccessibilityService` (Q8 signed off); device testing, Q9 copy review and the Play accessibility declaration outstanding. 16.3 is now unblocked. |
+| **B — Pivot core** | 🔴 16.2 · 16.3 | 16.2 built and detection verified on device 2026-09-21, but **N1 blocks it**: the nudge screen never renders. N2–N5 queued behind it, plus Q9 copy review and the Play accessibility declaration. 16.3 unblocked. |
 | **C — Features** | ✅ 16.9, ✅ 16.7 · 16.6, 16.8, 16.4, 16.5, 16.10 open | 16.9 and 16.7 shipped and verified in 1.4.7 (2026-09-20); 16.7's copy still needs Q6 sign-off. 16.4/16.5 still need Q4/Q5 before starting. |
 | **D — Housekeeping** | ✅ H1, ✅ H2, ✅ **H4** · H3 substantially done | **H4 verified on a Play build 2026-09-20 — the revenue blocker is closed.** H3's fix is live and scheduling works; only the two denial-path checks remain. |
 
@@ -556,7 +630,8 @@ The permission is denied by default at API 33+ for non-alarm-clock apps, and not
 **Before promoting 1.4.7 to production:** fold in the committed `iap.toast.billing_unavailable` copy fix (not yet in a bundle), and ideally run the two cheap H3 denial-path checks plus the silent-cancel case. None are blockers — as it stands the release is a strict improvement on 1.4.5.
 
 **Suggested next:**
-- **Device-test 16.2** — it is written and builds clean, but no part of it has touched hardware. The escape hatch and the cold-start path are the two that matter most.
+- **Fix N1** — the nudge screen never renders, so the feature is currently invisible despite detection working. Everything else in 16.2 is blocked behind it.
+- **Then N2–N5**, and re-run the device checklist — the escape hatch and cold-start paths still have not been exercised, because N1 stops the screen appearing at all.
 - **16.3 (Onboarding)** — now unblocked: the nudge flow it hands off to exists.
 - **16.6 (Share stats)** — M-sized, `@capacitor/share` already approved, and the only item with plausible organic reach. Worth taking first if §22's distribution bottleneck is still the binding constraint.
 - **16.1 (Subscription IAP)** — still blocked on Q1 pricing, but materially cheaper now that H4 gave the purchase flow a real error taxonomy.
