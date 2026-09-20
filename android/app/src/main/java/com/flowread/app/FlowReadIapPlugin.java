@@ -1,6 +1,7 @@
 package com.flowread.app;
 
 import android.app.Activity;
+import android.util.Log;
 
 import androidx.annotation.NonNull;
 
@@ -15,6 +16,7 @@ import com.android.billingclient.api.Purchase;
 import com.android.billingclient.api.PurchasesUpdatedListener;
 import com.android.billingclient.api.QueryProductDetailsParams;
 import com.android.billingclient.api.QueryPurchasesParams;
+import com.android.billingclient.api.UnfetchedProduct;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -31,6 +33,8 @@ import java.util.Map;
 @CapacitorPlugin(name = "FlowReadIap")
 public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListener {
 
+    private static final String TAG = "FlowReadIap";
+
     private static final String PRODUCT_PRO = "pro_lifetime";
     private static final String PRODUCT_OCR = "ocr_vision";
 
@@ -39,6 +43,41 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
 
     // Holds the pending call while the Play billing sheet is open
     private PluginCall pendingPurchaseCall = null;
+    // Which product that pending call was for — needed to recover the existing
+    // purchase when Play answers ITEM_ALREADY_OWNED.
+    private String pendingProductId = null;
+
+    // ─── Error taxonomy ───────────────────────────────────────────────────────
+    // Every non-OK path rejects with a stable machine-readable token as the
+    // Capacitor error *code*, so the JS layer can branch on it instead of
+    // pattern-matching English prose. Collapsing every failure into one string
+    // is what made the H4 purchase bug undiagnosable without a logcat session.
+
+    private static String tokenFor(int responseCode) {
+        switch (responseCode) {
+            case BillingClient.BillingResponseCode.USER_CANCELED:        return "USER_CANCELED";
+            case BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED:   return "ITEM_ALREADY_OWNED";
+            case BillingClient.BillingResponseCode.ITEM_NOT_OWNED:       return "ITEM_NOT_OWNED";
+            case BillingClient.BillingResponseCode.ITEM_UNAVAILABLE:     return "ITEM_UNAVAILABLE";
+            case BillingClient.BillingResponseCode.SERVICE_DISCONNECTED: return "SERVICE_DISCONNECTED";
+            case BillingClient.BillingResponseCode.SERVICE_UNAVAILABLE:  return "SERVICE_UNAVAILABLE";
+            case BillingClient.BillingResponseCode.BILLING_UNAVAILABLE:  return "BILLING_UNAVAILABLE";
+            case BillingClient.BillingResponseCode.DEVELOPER_ERROR:      return "DEVELOPER_ERROR";
+            case BillingClient.BillingResponseCode.FEATURE_NOT_SUPPORTED:return "FEATURE_NOT_SUPPORTED";
+            case BillingClient.BillingResponseCode.NETWORK_ERROR:        return "NETWORK_ERROR";
+            case BillingClient.BillingResponseCode.ERROR:                return "BILLING_ERROR";
+            default:                                                     return "UNKNOWN";
+        }
+    }
+
+    /** Reject carrying the Play response code, plus the debug message for logs. */
+    private static void rejectWith(PluginCall call, String where, BillingResult result) {
+        if (call == null) return;
+        String token = tokenFor(result.getResponseCode());
+        Log.w(TAG, where + " failed: " + token
+            + " (code=" + result.getResponseCode() + ") " + result.getDebugMessage());
+        call.reject(where + ": " + token, token);
+    }
 
     // ─── initBilling ──────────────────────────────────────────────────────────
     @PluginMethod
@@ -65,14 +104,18 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
                     ret.put("ready", true);
                     call.resolve(ret);
                 } else {
-                    call.reject("Billing setup failed: " + billingResult.getDebugMessage());
+                    rejectWith(call, "initBilling", billingResult);
                 }
             }
 
             @Override
             public void onBillingServiceDisconnected() {
-                // Connection dropped — JS re-calls initBilling() before next purchase
+                // Connection dropped. The JS side caches an "initialized" flag, so it
+                // must be told to clear it — otherwise every later call fails with
+                // NOT_INITIALIZED and never re-inits.
+                Log.w(TAG, "Billing service disconnected");
                 billingClient = null;
+                notifyListeners("billingDisconnected", new JSObject());
             }
         });
     }
@@ -102,15 +145,13 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
 
         billingClient.queryProductDetailsAsync(params, (billingResult, productDetailsResult) -> {
             if (billingResult.getResponseCode() != BillingClient.BillingResponseCode.OK) {
-                call.reject("Could not load product information from the store.");
+                rejectWith(call, "queryProducts", billingResult);
                 return;
             }
 
             productDetailsCache.clear();
             JSArray products = new JSArray();
 
-            // Billing 8+ wraps the result: products Play could not fetch are reported
-            // separately via getUnfetchedProductList() rather than being silently absent.
             for (ProductDetails details : productDetailsResult.getProductDetailsList()) {
                 productDetailsCache.put(details.getProductId(), details);
 
@@ -135,8 +176,26 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
                 products.put(product);
             }
 
+            // Billing 8+ reports products Play could not fetch separately rather than
+            // leaving them silently absent. Surface them — a misconfigured Play Console
+            // product otherwise looks identical to a working one that simply failed.
+            JSArray unfetched = new JSArray();
+            try {
+                List<UnfetchedProduct> unfetchedList = productDetailsResult.getUnfetchedProductList();
+                if (unfetchedList != null) {
+                    for (UnfetchedProduct u : unfetchedList) {
+                        unfetched.put(u.getProductId());
+                        Log.w(TAG, "queryProducts: Play could not fetch product " + u.getProductId()
+                            + " (statusCode=" + u.getStatusCode() + ")");
+                    }
+                }
+            } catch (Throwable t) {
+                Log.w(TAG, "queryProducts: unfetched product list unavailable", t);
+            }
+
             JSObject ret = new JSObject();
             ret.put("products", products);
+            ret.put("unfetched", unfetched);
             call.resolve(ret);
         });
     }
@@ -148,22 +207,23 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
 
         String productId = call.getString("productId");
         if (productId == null || productId.isEmpty()) {
-            call.reject("Missing productId");
+            call.reject("Missing productId", "INVALID_ARGUMENT");
             return;
         }
 
         ProductDetails details = productDetailsCache.get(productId);
         if (details == null) {
-            call.reject("Product not found. Call queryProducts first.");
+            call.reject("Product not cached. Call queryProducts first.", "PRODUCT_NOT_LOADED");
             return;
         }
 
         if (details.getOneTimePurchaseOfferDetails() == null) {
-            call.reject("Product offer details unavailable.");
+            call.reject("Product offer details unavailable.", "ITEM_UNAVAILABLE");
             return;
         }
 
         pendingPurchaseCall = call;
+        pendingProductId = productId;
         call.setKeepAlive(true);
 
         List<BillingFlowParams.ProductDetailsParams> productDetailsParamsList = new ArrayList<>();
@@ -181,9 +241,9 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
         BillingResult result = billingClient.launchBillingFlow(activity, billingFlowParams);
 
         if (result.getResponseCode() != BillingClient.BillingResponseCode.OK) {
-            pendingPurchaseCall = null;
+            clearPending();
             call.setKeepAlive(false);
-            call.reject("Could not open the purchase screen. Please try again.");
+            rejectWith(call, "launchBillingFlow", result);
         }
     }
 
@@ -191,22 +251,31 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
     @Override
     public void onPurchasesUpdated(@NonNull BillingResult billingResult, List<Purchase> purchases) {
         PluginCall call = pendingPurchaseCall;
-        pendingPurchaseCall = null;
+        String productId = pendingProductId;
+        clearPending();
 
         int code = billingResult.getResponseCode();
 
-        if (code == BillingClient.BillingResponseCode.USER_CANCELED) {
+        if (code == BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED) {
+            // NOT a failure: the user owns this product. Telling a paying customer
+            // their purchase failed — and leaving them locked out — was the H4 bug.
+            recoverOwnedPurchase(productId, call, billingResult);
+            return;
+        }
+
+        if (code != BillingClient.BillingResponseCode.OK) {
             if (call != null) {
                 call.setKeepAlive(false);
-                call.reject("USER_CANCELED");
+                rejectWith(call, "purchase", billingResult);
             }
             return;
         }
 
-        if (code != BillingClient.BillingResponseCode.OK || purchases == null || purchases.isEmpty()) {
+        if (purchases == null || purchases.isEmpty()) {
             if (call != null) {
                 call.setKeepAlive(false);
-                call.reject("Purchase failed. Please try again.");
+                Log.w(TAG, "purchase returned OK with no purchases");
+                call.reject("purchase: EMPTY_RESULT", "EMPTY_RESULT");
             }
             return;
         }
@@ -214,14 +283,56 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
         Purchase purchase = purchases.get(0);
 
         if (purchase.getPurchaseState() != Purchase.PurchaseState.PURCHASED) {
+            // A pending payment (cash, delayed card) is a legitimate outcome, not an
+            // error — resolve so the JS layer can say so plainly instead of toasting
+            // a failure the user can do nothing about.
             if (call != null) {
                 call.setKeepAlive(false);
-                call.reject("Purchase pending. It will unlock once payment clears.");
+                JSObject ret = new JSObject();
+                ret.put("pending", true);
+                ret.put("purchaseToken", purchase.getPurchaseToken());
+                call.resolve(ret);
             }
             return;
         }
 
         acknowledgePurchaseAndResolve(purchase, call);
+    }
+
+    /**
+     * Play says the account already owns the product. Find the existing purchase,
+     * acknowledge it if Play never got an ack, and resolve as a success so the
+     * entitlement unlocks.
+     */
+    private void recoverOwnedPurchase(String productId, PluginCall call, BillingResult originalResult) {
+        if (call == null) return;
+
+        if (billingClient == null || !billingClient.isReady()) {
+            call.setKeepAlive(false);
+            call.reject("purchase: ITEM_ALREADY_OWNED", "ITEM_ALREADY_OWNED");
+            return;
+        }
+
+        QueryPurchasesParams params = QueryPurchasesParams.newBuilder()
+            .setProductType(BillingClient.ProductType.INAPP)
+            .build();
+
+        billingClient.queryPurchasesAsync(params, (queryResult, purchaseList) -> {
+            if (queryResult.getResponseCode() == BillingClient.BillingResponseCode.OK
+                    && purchaseList != null) {
+                for (Purchase p : purchaseList) {
+                    if (p.getPurchaseState() != Purchase.PurchaseState.PURCHASED) continue;
+                    if (productId != null && !p.getProducts().contains(productId)) continue;
+                    Log.i(TAG, "ITEM_ALREADY_OWNED recovered for " + productId);
+                    acknowledgePurchaseAndResolve(p, call);
+                    return;
+                }
+            }
+            // Owned per Play, but we could not find the record to unlock from.
+            Log.w(TAG, "ITEM_ALREADY_OWNED but no matching purchase found for " + productId);
+            call.setKeepAlive(false);
+            call.reject("purchase: ITEM_ALREADY_OWNED", "ITEM_ALREADY_OWNED");
+        });
     }
 
     // ─── queryPurchases ───────────────────────────────────────────────────────
@@ -235,7 +346,7 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
 
         billingClient.queryPurchasesAsync(params, (billingResult, purchaseList) -> {
             if (billingResult.getResponseCode() != BillingClient.BillingResponseCode.OK) {
-                call.reject("Could not restore purchases. Please try again.");
+                rejectWith(call, "queryPurchases", billingResult);
                 return;
             }
 
@@ -268,7 +379,7 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
         if (!isBillingReady(call)) return;
         String token = call.getString("purchaseToken");
         if (token == null || token.isEmpty()) {
-            call.reject("Missing purchaseToken");
+            call.reject("Missing purchaseToken", "INVALID_ARGUMENT");
             return;
         }
 
@@ -282,18 +393,23 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
                 ret.put("acknowledged", true);
                 call.resolve(ret);
             } else {
-                call.reject("Acknowledgment failed. Purchase is still valid.");
+                rejectWith(call, "acknowledgePurchase", billingResult);
             }
         });
     }
 
     // ─── Internal helpers ─────────────────────────────────────────────────────
 
+    private void clearPending() {
+        pendingPurchaseCall = null;
+        pendingProductId = null;
+    }
+
     private void acknowledgePurchaseAndResolve(Purchase purchase, PluginCall call) {
         if (purchase.isAcknowledged()) {
             if (call != null) {
                 call.setKeepAlive(false);
-                resolveSuccessfulPurchase(purchase, call);
+                resolveSuccessfulPurchase(purchase, call, true);
             }
             return;
         }
@@ -303,15 +419,21 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
             .build();
 
         billingClient.acknowledgePurchase(params, billingResult -> {
+            boolean acknowledged =
+                billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK;
+            if (!acknowledged) {
+                Log.w(TAG, "acknowledge failed: " + tokenFor(billingResult.getResponseCode())
+                    + " " + billingResult.getDebugMessage());
+            }
             if (call == null) return;
             call.setKeepAlive(false);
             // Always resolve — money was charged regardless of acknowledgment outcome.
             // Unacknowledged purchases are retried on next queryPurchases.
-            resolveSuccessfulPurchase(purchase, call);
+            resolveSuccessfulPurchase(purchase, call, acknowledged);
         });
     }
 
-    private void resolveSuccessfulPurchase(Purchase purchase, PluginCall call) {
+    private void resolveSuccessfulPurchase(Purchase purchase, PluginCall call, boolean acknowledged) {
         JSArray productIds = new JSArray();
         for (String id : purchase.getProducts()) {
             productIds.put(id);
@@ -319,7 +441,7 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
         JSObject ret = new JSObject();
         ret.put("productIds",    productIds);
         ret.put("purchaseToken", purchase.getPurchaseToken());
-        ret.put("acknowledged",  true);
+        ret.put("acknowledged",  acknowledged);
         call.resolve(ret);
     }
 
@@ -327,12 +449,16 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
         AcknowledgePurchaseParams params = AcknowledgePurchaseParams.newBuilder()
             .setPurchaseToken(purchase.getPurchaseToken())
             .build();
-        billingClient.acknowledgePurchase(params, result -> {});
+        billingClient.acknowledgePurchase(params, result -> {
+            if (result.getResponseCode() != BillingClient.BillingResponseCode.OK) {
+                Log.w(TAG, "quiet acknowledge failed: " + tokenFor(result.getResponseCode()));
+            }
+        });
     }
 
     private boolean isBillingReady(PluginCall call) {
         if (billingClient == null || !billingClient.isReady()) {
-            call.reject("Billing not initialized. Call initBilling first.");
+            call.reject("Billing not initialized. Call initBilling first.", "NOT_INITIALIZED");
             return false;
         }
         return true;

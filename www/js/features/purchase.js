@@ -1,4 +1,4 @@
-/* IAP feature module — Google Play Billing 7 via FlowReadIapPlugin */
+/* IAP feature module — Google Play Billing 9 via FlowReadIapPlugin */
 /* Purchase state stored exclusively in Capacitor Preferences via storage.js */
 
 const _IapPlugin = (function() {
@@ -33,6 +33,7 @@ async function initIAP() {
   try {
     await plugin.initBilling();
     _iapInitialized = true;
+    _listenForDisconnect(plugin);
     _fetchPrices().catch(function() {});
     return true;
   } catch (err) {
@@ -80,19 +81,28 @@ async function buyPro() {
     await plugin.queryProducts();
 
     const result = await plugin.purchaseProduct({ productId: 'pro_lifetime' });
-    const productIds = (result && result.productIds) || [];
-    if (productIds.indexOf('pro_lifetime') !== -1) {
-      await savePurchaseState('pro', 'true');
-      AppState.isPro = true;
-      applyTheme(AppState.settings.theme);
-      applyTypography(AppState.settings.fontPreset);
-      syncThemeChips();
-      syncTypographyChips();
+    if (result && result.pending) {
       closeActiveModal();
-      showToast(t('iap.toast.pro_unlocked'));
-      if (typeof hydrateUploadSurface === 'function' && AppState.currentView === 'view-upload') {
-        hydrateUploadSurface();
-      }
+      showToast(t('iap.toast.pending'));
+      return;
+    }
+    const productIds = (result && result.productIds) || [];
+    if (productIds.indexOf('pro_lifetime') === -1) {
+      // Resolved without the product we asked for — never leave the button
+      // spinning with no explanation (§1.5).
+      throw new Error('EMPTY_RESULT');
+    }
+
+    await savePurchaseState('pro', 'true');
+    AppState.isPro = true;
+    applyTheme(AppState.settings.theme);
+    applyTypography(AppState.settings.fontPreset);
+    syncThemeChips();
+    syncTypographyChips();
+    closeActiveModal();
+    showToast(t('iap.toast.pro_unlocked'));
+    if (typeof hydrateUploadSurface === 'function' && AppState.currentView === 'view-upload') {
+      hydrateUploadSurface();
     }
   } catch (err) {
     _handlePurchaseError(err, btn, t('iap.btn.unlock', {tier: t('paywall.pro.tier')}));
@@ -118,14 +128,21 @@ async function buyOcr() {
     await plugin.queryProducts();
 
     const result = await plugin.purchaseProduct({ productId: 'ocr_vision' });
-    const productIds = (result && result.productIds) || [];
-    if (productIds.indexOf('ocr_vision') !== -1) {
-      await savePurchaseState('ocr', 'true');
+    if (result && result.pending) {
       closeActiveModal();
-      showToast(t('iap.toast.ocr_unlocked'));
-      if (typeof hydrateUploadSurface === 'function' && AppState.currentView === 'view-upload') {
-        hydrateUploadSurface();
-      }
+      showToast(t('iap.toast.pending'));
+      return;
+    }
+    const productIds = (result && result.productIds) || [];
+    if (productIds.indexOf('ocr_vision') === -1) {
+      throw new Error('EMPTY_RESULT');
+    }
+
+    await savePurchaseState('ocr', 'true');
+    closeActiveModal();
+    showToast(t('iap.toast.ocr_unlocked'));
+    if (typeof hydrateUploadSurface === 'function' && AppState.currentView === 'view-upload') {
+      hydrateUploadSurface();
     }
   } catch (err) {
     _handlePurchaseError(err, btn, t('iap.btn.unlock', {tier: t('paywall.ocr.tier')}));
@@ -163,8 +180,8 @@ async function restorePurchases() {
 
     if (restoredPro || restoredOcr) {
       const labels = [];
-      if (restoredPro) labels.push('Pro');
-      if (restoredOcr) labels.push('OCR Vision');
+      if (restoredPro) labels.push(t('paywall.pro.tier'));
+      if (restoredOcr) labels.push(t('paywall.ocr.tier'));
       applyTheme(AppState.settings.theme);
       applyTypography(AppState.settings.fontPreset);
       syncThemeChips();
@@ -179,8 +196,10 @@ async function restorePurchases() {
       if (btn) { btn.disabled = false; btn.textContent = t('btn.restore_purchases'); }
     }
   } catch (err) {
-    console.warn('[IAP] restorePurchases error:', err);
-    showToast(t('iap.toast.restore_failed'));
+    const code = _errorCode(err);
+    console.warn('[IAP] restorePurchases error:', code, err);
+    _resetIfDisconnected(code);
+    showToast(_messageForCode(code, 'iap.toast.restore_failed'));
     if (btn) { btn.disabled = false; btn.textContent = t('btn.restore_purchases'); }
   }
 }
@@ -273,20 +292,75 @@ async function _ensureIap() {
   if (!ok) throw new Error('billing_unavailable');
 }
 
-function _handlePurchaseError(err, btn, btnLabel) {
-  const errStr = String(err && (err.message || err));
-  if (errStr === 'USER_CANCELED' || errStr.indexOf('USER_CANCELED') !== -1) {
-    if (btn) { btn.disabled = false; btn.textContent = btnLabel; }
-    return;
+/* The native plugin rejects with a stable token in err.code (see
+   FlowReadIapPlugin.tokenFor). Older payloads and our own local throws only
+   carry a message, so fall back to that — but never to prose matching. */
+function _errorCode(err) {
+  if (err && typeof err.code === 'string' && err.code) return err.code;
+  const msg = String((err && (err.message || err)) || '');
+  if (msg.indexOf('USER_CANCELED') !== -1) return 'USER_CANCELED';
+  if (msg === 'billing_unavailable' || msg === 'no_plugin') return 'NO_BILLING';
+  if (msg === 'EMPTY_RESULT') return 'EMPTY_RESULT';
+  return 'UNKNOWN';
+}
+
+/* Play's service can die mid-flow. The client is torn down natively, so the
+   cached "initialized" flag has to go too or every later call fails. */
+function _resetIfDisconnected(code) {
+  if (code === 'SERVICE_DISCONNECTED' || code === 'SERVICE_UNAVAILABLE' ||
+      code === 'NOT_INITIALIZED') {
+    _iapInitialized = false;
   }
-  console.warn('[IAP] purchase error:', err);
+}
+
+function _messageForCode(code, fallbackKey) {
+  switch (code) {
+    case 'ITEM_ALREADY_OWNED':   return t('iap.toast.already_owned');
+    case 'NETWORK_ERROR':        return t('iap.toast.network_error');
+    case 'SERVICE_DISCONNECTED':
+    case 'SERVICE_UNAVAILABLE':  return t('iap.toast.service_disconnected');
+    case 'BILLING_UNAVAILABLE':  return t('iap.toast.billing_unavailable');
+    case 'ITEM_UNAVAILABLE':     return t('iap.toast.item_unavailable');
+    case 'DEVELOPER_ERROR':
+    case 'FEATURE_NOT_SUPPORTED':return t('iap.toast.config_error');
+    case 'NO_BILLING':
+    case 'NOT_INITIALIZED':      return t('iap.toast.store_unavailable');
+    case 'PRODUCT_NOT_LOADED':   return t('iap.toast.product_not_found');
+    default:                     return t(fallbackKey);
+  }
+}
+
+function _handlePurchaseError(err, btn, btnLabel) {
+  const code = _errorCode(err);
   if (btn) { btn.disabled = false; btn.textContent = btnLabel; }
 
-  if (errStr === 'billing_unavailable' || errStr === 'no_plugin') {
-    showToast(t('iap.toast.store_unavailable'));
-  } else if (errStr.indexOf('not found') !== -1 || errStr.indexOf('queryProducts') !== -1) {
-    showToast(t('iap.toast.product_not_found'));
-  } else {
-    showToast(t('iap.toast.purchase_failed'));
+  /* Cancelling is a choice, not a failure — stays silent (§3.1). */
+  if (code === 'USER_CANCELED') return;
+
+  console.warn('[IAP] purchase error:', code, err);
+  _resetIfDisconnected(code);
+
+  if (code === 'ITEM_ALREADY_OWNED') {
+    // Play says this account owns the product but we could not read the record
+    // back. Restoring is the actual remedy — don't tell an owner they failed.
+    showToast(t('iap.toast.already_owned'));
+    restorePurchases();
+    return;
+  }
+
+  showToast(_messageForCode(code, 'iap.toast.purchase_failed'));
+}
+
+let _disconnectListenerBound = false;
+function _listenForDisconnect(plugin) {
+  if (_disconnectListenerBound || !plugin || typeof plugin.addListener !== 'function') return;
+  _disconnectListenerBound = true;
+  try {
+    plugin.addListener('billingDisconnected', function() {
+      console.warn('[IAP] billing service disconnected — will re-init on next use');
+      _iapInitialized = false;
+    });
+  } catch (_) {
+    _disconnectListenerBound = false;
   }
 }

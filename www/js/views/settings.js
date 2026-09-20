@@ -89,6 +89,7 @@ function getDefaultSettings() {
     reminderEnabled: true,
     reminderTime: '21:00',
     streakNudgeEnabled: true,
+    offlineNotifEnabled: true,
     wordTapAction: 'none',
     wordTapLongpress: true,
   };
@@ -365,6 +366,41 @@ function stopCalibrationPreview() {
   }
 }
 
+/* Reminder status copy. `reschedule()` records why it could not arm the
+ * reminder; the note is where the user finds out, rather than nothing firing. */
+async function syncVersionLabel() {
+  const el = qs('#settings-version');
+  if (!el) return;
+  let label = '';
+  try {
+    const app = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App;
+    if (app && typeof app.getInfo === 'function') {
+      const info = await app.getInfo();
+      if (info && info.version) {
+        label = info.version + (info.build ? ' (' + info.build + ')' : '');
+      }
+    }
+  } catch (_) {}
+  el.textContent = t('settings.about.version', {version: label || '—'});
+}
+
+function reminderNoteText() {
+  const status = (typeof NotificationsFeature !== 'undefined'
+    && typeof NotificationsFeature.lastStatus === 'function')
+    ? NotificationsFeature.lastStatus() : null;
+
+  if (status === 'permission_denied') return t('settings.reminder.note_denied');
+  if (status === 'schedule_failed')    return t('settings.reminder.note_failed');
+  return t('settings.reminder.note');
+}
+
+function syncReminderNote(enabled) {
+  const note = qs('#settings-reminder-note');
+  if (!note) return;
+  note.style.display = enabled ? '' : 'none';
+  note.textContent = reminderNoteText();
+}
+
 function renderSettings() {
   closeActiveModal();
   const view = qs('#view-settings');
@@ -499,8 +535,13 @@ function renderSettings() {
           <input type="checkbox" id="settings-streak-nudge-enabled" ${AppState.settings.streakNudgeEnabled !== false ? 'checked' : ''} />
         </label>
         <p class="settings-copy text-muted" id="settings-reminder-note" style="${AppState.settings.reminderEnabled ? '' : 'display:none'}">
-          ${t('settings.reminder.note')}
+          ${reminderNoteText()}
         </p>
+        <label class="settings-toggle">
+          <span>${t('settings.toggle.offline_notif')}</span>
+          <input type="checkbox" id="settings-offline-notif-enabled" ${AppState.settings.offlineNotifEnabled !== false ? 'checked' : ''} />
+        </label>
+        <p class="settings-copy text-muted">${t('settings.offline_notif.note')}</p>
       </section>
 
       <!-- LIBRARY -->
@@ -513,7 +554,7 @@ function renderSettings() {
       <!-- ABOUT & HELP -->
       <section class="settings-section">
         <h2>${t('settings.section.about_help')}</h2>
-        <p class="settings-copy">${t('settings.about.version')}</p>
+        <p class="settings-copy" id="settings-version">${t('settings.about.version', {version: '…'})}</p>
         <p class="settings-copy">${t('settings.about.privacy')}</p>
         <p class="settings-copy">${t('settings.about.url_note')}</p>
 
@@ -548,6 +589,7 @@ function renderSettings() {
 
   switchView('view-settings');
   bindSettings();
+  syncVersionLabel();
 }
 
 function bindSettings() {
@@ -624,23 +666,32 @@ function bindSettings() {
   const reminderToggle = qs('#settings-reminder-enabled');
   if (reminderToggle) {
     reminderToggle.addEventListener('change', async function() {
-      const enabled = this.checked;
+      let enabled = this.checked;
+
+      if (enabled && typeof NotificationsFeature !== 'undefined') {
+        /* Without the notification permission nothing can ever fire. Turning the
+         * switch back off is the honest state — leaving it on silently promised
+         * reminders that never arrived (§1.5). */
+        const granted = await NotificationsFeature.requestPermission();
+        if (!granted) {
+          enabled = false;
+          this.checked = false;
+          showToast(t('notif.toast.permission_denied'));
+        }
+      }
+
       updateSetting('reminderEnabled', enabled);
       localStorage.setItem('fr_reminder_enabled', enabled);
       const timeRow = qs('#settings-reminder-time-row');
-      const note = qs('#settings-reminder-note');
       const nudgeRow = qs('#settings-streak-nudge-row');
       if (timeRow) timeRow.classList.toggle('hidden', !enabled);
-      if (note) note.style.display = enabled ? '' : 'none';
       if (nudgeRow) nudgeRow.classList.toggle('hidden', !enabled);
+
       if (typeof NotificationsFeature !== 'undefined') {
-        if (enabled) {
-          await NotificationsFeature.requestPermission();
-          NotificationsFeature.reschedule();
-        } else {
-          NotificationsFeature.cancelAll();
-        }
+        if (enabled) await NotificationsFeature.reschedule();
+        else await NotificationsFeature.cancelAll();
       }
+      syncReminderNote(enabled);
     });
   }
 
@@ -650,7 +701,9 @@ function bindSettings() {
       const value = /^\d{2}:\d{2}$/.test(this.value) ? this.value : '21:00';
       updateSetting('reminderTime', value);
       localStorage.setItem('fr_reminder_time', value);
-      if (typeof NotificationsFeature !== 'undefined') NotificationsFeature.reschedule();
+      if (typeof NotificationsFeature !== 'undefined') {
+        NotificationsFeature.reschedule().then(function() { syncReminderNote(true); });
+      }
     });
   }
 
@@ -660,7 +713,29 @@ function bindSettings() {
       const enabled = this.checked;
       updateSetting('streakNudgeEnabled', enabled);
       localStorage.setItem('fr_notif_streak_nudge', enabled);
-      if (typeof NotificationsFeature !== 'undefined') NotificationsFeature.reschedule();
+      if (typeof NotificationsFeature !== 'undefined') {
+        NotificationsFeature.reschedule().then(function() { syncReminderNote(true); });
+      }
+    });
+  }
+
+  const offlineNotifToggle = qs('#settings-offline-notif-enabled');
+  if (offlineNotifToggle) {
+    offlineNotifToggle.addEventListener('change', async function() {
+      let enabled = this.checked;
+      if (enabled && typeof NotificationsFeature !== 'undefined') {
+        const granted = await NotificationsFeature.requestPermission();
+        if (!granted) {
+          enabled = false;
+          this.checked = false;
+          showToast(t('notif.toast.permission_denied'));
+        }
+      }
+      updateSetting('offlineNotifEnabled', enabled);
+      localStorage.setItem('fr_notif_offline', enabled);
+      if (!enabled && typeof NotificationsFeature !== 'undefined') {
+        NotificationsFeature.cancelOffline();
+      }
     });
   }
 

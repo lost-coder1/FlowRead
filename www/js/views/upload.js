@@ -16,6 +16,13 @@ function renderUpload() {
         </div>
       </header>
 
+      <!-- In-progress books sit above the import grid: resuming a read is the most
+           common action on this screen, and it used to require scrolling past the
+           import options and Free Books to reach it. -->
+      <div id="library-section" class="library-section" hidden>
+        <!-- Populated by renderLibrary() -->
+      </div>
+
       <div class="import-grid" id="import-grid">
         <!-- Free Books — full-width, always visible, no gate -->
         <button class="import-card import-card-featured" id="btn-free-books" type="button">
@@ -101,10 +108,6 @@ function renderUpload() {
       <input type="file" id="file-input-pdf-scan" accept=".pdf" style="display:none" />
 
       <div id="upload-error" class="hidden" style="margin: 0 24px; width: 100%; max-width: 680px;"></div>
-
-      <div id="library-section" class="library-section">
-        <!-- Populated by renderLibrary() -->
-      </div>
 
       <footer class="upload-footer">
         <button class="btn btn-ghost" id="btn-sync-files">${t('btn.sync_files')}</button>
@@ -1558,6 +1561,7 @@ async function renderLibrary() {
   const deviceFiles = loadDeviceSyncedFiles();
   if (lib.length === 0 && deviceFiles.length === 0) {
     section.innerHTML = '';
+    section.hidden = true;
     return;
   }
 
@@ -1663,6 +1667,7 @@ async function renderLibrary() {
   }
 
   section.innerHTML = sections.join('');
+  section.hidden = false;
 
   if (pro && recentLib.length > 0) {
     const grid = qs('#recent-library-grid', section);
