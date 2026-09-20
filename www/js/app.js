@@ -67,6 +67,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     } else {
       AppState.isPro = false;
     }
+    if (typeof hasSubscription === 'function') {
+      await hasSubscription();
+    }
   } catch (_) {
     AppState.isPro = false;
   }
@@ -102,6 +105,10 @@ document.addEventListener('DOMContentLoaded', async function() {
 
   if (typeof initShareHandler === 'function') initShareHandler();
   if (typeof NotificationsFeature !== 'undefined') NotificationsFeature.init();
+  if (typeof logEvent === 'function') logEvent('app_opened');
+  /* Must run after the initial view is routed: a pending nudge switches the view
+     itself, and doing that before the boot route would be immediately undone. */
+  if (typeof NudgeFeature !== 'undefined') NudgeFeature.init();
 
   /* Android hardware/gesture back button */
   if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
@@ -133,14 +140,23 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (backBtn) { backBtn.click(); return; }
       }
 
-      /* 4. Settings, Dashboard, or Free Books — return to home */
+      /* 4. Nudge screen — back must behave exactly like the escape hatch.
+            Leaving this view unhandled would make back do nothing, trapping the
+            user on a screen that interrupted them. That is the one thing the
+            nudge is never allowed to do (Claude.md 9.1, 21). */
+      if (view === 'view-nudge') {
+        if (typeof NudgeFeature !== 'undefined') NudgeFeature.continueToApp();
+        return;
+      }
+
+      /* 5. Settings, Dashboard, or Free Books — return to home */
       if (view === 'view-settings' || view === 'view-dashboard' || view === 'view-free-books') {
         renderUpload();
         switchView('view-upload');
         return;
       }
 
-      /* 5. Home screen — minimize the app (standard Android behaviour) */
+      /* 6. Home screen — minimize the app (standard Android behaviour) */
       if (view === 'view-upload') {
         window.Capacitor.Plugins.App.minimizeApp();
         return;

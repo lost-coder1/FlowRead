@@ -284,6 +284,9 @@ const PageEngine = (function() {
     _updateNav();
     if (AppState.currentFile) savePosition(AppState.currentFile.id, _index);
     _syncReaderPosition(_index, _words.length);
+    /* Page mode is where a nudged read happens (§9.5), and it has no completion
+       event, so the scoped-unlock counter rides on the page turn itself. */
+    if (typeof NudgeFeature !== 'undefined') NudgeFeature.onPageTurn(_pageIndex);
   }
 
   function _animateLayout(animate) {

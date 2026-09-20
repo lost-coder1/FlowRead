@@ -47,6 +47,22 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+        <!-- Reading-habit nudge (Claude.md section 9). Notices only that a
+             user-chosen app came to the front; res/xml declares
+             canRetrieveWindowContent="false" so it cannot read the screen. -->
+        <service
+            android:name=".FlowReadNudgeService"
+            android:label="@string/nudge_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/nudge_accessibility_service" />
+        </service>
+
     </application>
 
     <!-- Permissions -->
@@ -66,4 +82,24 @@
          out of the merged manifest — deleting our line alone would not. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"
         tools:node="remove" />
+
+    <!-- Nudge system (Claude.md section 9).
+         SYSTEM_ALERT_WINDOW is what makes the nudge legal to show over another
+         app: from Android 10 a background activity start is dropped without it.
+         PACKAGE_USAGE_STATS is OPTIONAL — it upgrades the trigger from "3rd open
+         today" to "15 minutes in the app today". Denied, the nudge still works.
+         Both are special permissions granted from a settings page, not a dialog. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- Lets the target-app picker see launchable apps on API 30+.
+         Deliberately NOT QUERY_ALL_PACKAGES: that is Play-policy-sensitive and
+         needs a declaration form, and this app already carries one rejection. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
 </manifest>

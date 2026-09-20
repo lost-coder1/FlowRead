@@ -68,6 +68,21 @@ async function hasOcrAccess() {
   return (await loadPurchaseState('ocr')) === 'true';
 }
 
+/* Subscription entitlement (Claude.md §4). Task 16.1 has not shipped yet — there
+   is no subscription SKU in Play Console and no ProductType.SUBS path in the
+   plugin — so this is always false today. It exists now so every subscriber-only
+   gate (unlimited nudge apps, nudge scheduling, strict mode, book drops,
+   leaderboard badges) is written against the real accessor from day one and 16.1
+   only has to make it return the truth.
+
+   Deliberately independent of hasProAccess(): §4 treats the entitlements as
+   orthogonal — a user may hold Lifetime Pro, a subscription, both, or neither. */
+async function hasSubscription() {
+  const active = (await loadPurchaseState('subscription')) === 'true';
+  AppState.isSubscriber = active;
+  return active;
+}
+
 /* ─── Purchase flows ───────────────────────────────────────────────────── */
 async function buyPro() {
   const btn = qs('#btn-modal-unlock');
@@ -95,6 +110,7 @@ async function buyPro() {
 
     await savePurchaseState('pro', 'true');
     AppState.isPro = true;
+    logEvent('pro_purchased', { tier: 'lifetime' });
     applyTheme(AppState.settings.theme);
     applyTypography(AppState.settings.fontPreset);
     syncThemeChips();

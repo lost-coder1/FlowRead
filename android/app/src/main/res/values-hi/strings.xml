@@ -1,0 +1,5 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="nudge_service_label">FlowRead रीडिंग नज</string>
+    <string name="nudge_service_description">FlowRead को पता चलता है कि आपने अपना चुना हुआ ऐप कब खोला, ताकि वह पहले एक पेज पढ़ने का सुझाव दे सके। FlowRead सिर्फ़ आपके चुने हुए ऐप्स का नाम देखता है। यह आपकी स्क्रीन पर कुछ भी नहीं पढ़ सकता, और कोई भी जानकारी आपके फ़ोन से बाहर नहीं जाती। आप इसे यहाँ से कभी भी बंद कर सकते हैं।</string>
+</resources>

@@ -3,7 +3,7 @@
 > Working document. `Claude.md` is the contract; this file is how we execute it.
 > Every task references its governing `Claude.md` section. If the two disagree, `Claude.md` wins — and `Claude.md` gets updated *before* we change direction, not after.
 
-**Last updated:** 2026-09-20 — **1.4.7 (versionCode 34) verified on Internal testing and merged to `master`** (`33ed6d1`). H4 is done: the revenue blocker is closed. Contains H4, H3, 16.9, 16.7.
+**Last updated:** 2026-09-20 — **Task 16.2 (Nudge) code complete**, built on `AccessibilityService` after Q8 sign-off. Not yet device-tested and not yet in a release. Previously: 1.4.7 (versionCode 34) verified on Internal testing and merged to `master` (`33ed6d1`), containing H4, H3, 16.9, 16.7.
 **Status legend:** `Not started` · `In progress` · `Blocked` · `Done`
 
 ---
@@ -15,6 +15,10 @@
 | 2026-09-16 | **API 36 via full Capacitor 6 → 8 upgrade**, not a hand-bump of AGP/Gradle on Capacitor 6. | compileSdk 36 needs AGP ≥8.9 + Gradle ≥8.11; Capacitor 6.2.1 ships AGP 8.2.1. The hand-bump is a smaller diff but an unsupported combination we'd own the breakage for, and it has to be redone at the next Capacitor upgrade anyway. The deadline blocks *all* releases, so we take the supported path once. |
 | 2026-09-16 | **`@capacitor/network` approved** as a new dependency (Task 16.7). | Official Capacitor plugin, read-only connectivity listener. The only alternative is writing a native plugin for something Capacitor already ships. Satisfies the §21 new-dependency gate. |
 | 2026-09-16 | **`@capacitor/share` approved** as a new dependency (Task 16.6). | Official Capacitor plugin for the native share sheet. `Claude.md` §15 assumes it exists; it was never installed. Satisfies the §21 gate. |
+| 2026-09-20 | **Q8 resolved: `AccessibilityService` approved** for nudge detection, superseding §9.4's `UsageStatsManager` default. | `UsageStatsManager` answers *how long*, not *when* — and nothing keeps the app alive to poll. A plain background thread is killed; WorkManager's floor is 15 min. Polling needs a foreground service, whose notification Android 8+ makes undismissable by the app, and the product owner ruled a permanent notification out. Accessibility is the only mechanism left, and it is what One Sec/Opal/ScreenZen use. Scoped to the absolute minimum: `canRetrieveWindowContent="false"`, `typeWindowStateChanged` only, `packageNames` narrowed at runtime to the user's picks. `Claude.md` §9.4a records the full reasoning. |
+| 2026-09-20 | **`<queries>` MAIN/LAUNCHER, never `QUERY_ALL_PACKAGES`**, for the app picker. | Same list of apps, but `QUERY_ALL_PACKAGES` is Play-policy-sensitive and needs a declaration form. This app already carries one rejection (§18). |
+| 2026-09-20 | **`PACKAGE_USAGE_STATS` is optional**, not required. | Three settings-page grants before the feature does anything would be brutal onboarding. Granted it upgrades the trigger to real minutes-in-app; denied it falls back to "3rd open today" and Settings says so (§1.5). |
+| 2026-09-20 | **Q2 defaults: 15 min → nudge, 2 pages → unlock**, cap 3/app/day, back off after 3 dismissals. | Starting values, all exposed as settings. Q9 copy review still outstanding. |
 | 2026-09-16 | **Strict `Claude.md` order** — compliance block fully verified on a real device before any feature work starts. No parallel nudge development. | §3.3 sequencing. Avoids re-testing feature work against a shifting toolchain. |
 
 ---
@@ -26,13 +30,13 @@ Each is tagged with whether it blocks *starting* the task or only *finishing* it
 | # | Question | Blocks | Start/Finish | Ref |
 |---|---|---|---|---|
 | Q1 | Subscription price (monthly / annual) | 16.1 | Finish — plumbing can be built first | §4 |
-| Q2 | Nudge default thresholds: screen-time-before-nudge, and pages-or-minutes to unlock | 16.2 | Finish — expose as settings, don't hardcode | §9.2, §9.3 |
+| ~~Q2~~ | ~~Nudge default thresholds~~ | — | **Resolved 2026-09-20: 15 min / 2 pages, both settings** | §9.2, §9.3 |
 | Q3 | Is the nudge permission ask inline in onboarding or deferred? | 16.3 | Finish — build as a config flag, review before calling it done | §10.2 |
 | Q4 | Monthly book-drop count, and bundled vs. remote-fetched catalog | 16.4 | **Start** | §4, §13 |
 | Q5 | Leaderboard backend — reuse the analytics Worker with a new endpoint, or something more structured? | 16.5 | **Start** | §14 |
 | Q6 | Exact copy/tone for the offline-triggered notification | 16.7 | Finish | §11 |
 | Q7 | Widget: classic `AppWidgetProvider` vs. Jetpack Glance | 16.8 | Finish — default to classic, evaluate briefly first | §12 |
-| Q8 | Is `AccessibilityService` escalation ever pursued? | 16.2 | Finish — only if `UsageStatsManager` proves insufficient; explicit sign-off required | §9.4 |
+| ~~Q8~~ | ~~Is `AccessibilityService` escalation ever pursued?~~ | — | **Resolved 2026-09-20: yes, signed off. `UsageStatsManager` cannot do it without a permanent notification** | §9.4a |
 | Q9 | Nudge screen copy/tone sign-off | 16.2 | Finish | §19 |
 
 ---
@@ -162,28 +166,62 @@ The toolchain and billing upgrades are shipped and verified in production (1.4.5
 
 ## Task 16.2 — Habit Interception System ("Nudge")
 
-**Status:** Not started — unblocked; Q2/Q8/Q9 needed to finish · **Ref:** §9, §1.6 · **Size:** XL — largest single feature in Phase 16
+**Status:** ✅ **Code complete 2026-09-20 — device testing outstanding.** Q2/Q8 resolved; Q9 still open · **Ref:** §9, §9.4a, §1.6 · **Size:** XL — largest single feature in Phase 16
 
 **Why:** The core mechanic of the pivot (§0.1). Redirects time in distracting apps toward reading.
 
 **🚨 Non-negotiable:** Every nudge screen shows a one-tap "Continue to [App] anyway", always visible, never behind a timer or a second tap. §21 calls this a product/legal rule, not a style preference — no future task overrides it without a logged product-owner decision.
 
+### What was built (2026-09-20)
+
+Detection is an **`AccessibilityService`, not `UsageStatsManager`** — see the decisions log and `Claude.md` §9.4a. The short version: nothing can stay alive to poll `UsageStatsManager` without a foreground service, and its notification cannot be hidden.
+
+| File | Role |
+|---|---|
+| `FlowReadNudgeService.java` | Accessibility service. `typeWindowStateChanged` only, `canRetrieveWindowContent="false"`, `packageNames` narrowed at runtime to the user's picks via `setServiceInfo()`. |
+| `NudgeGate.java` | All trigger rules, in **Java** — the service must work when the WebView is dead. Shares `CapacitorStorage` prefs with JS so there is one source of truth. |
+| `FlowReadNudgePlugin.java` | JS bridge: app list, target writes, three permission checks + settings-page launches, scoped unlock/dismiss. |
+| `nudge.js` · `nudge-apps.js` · `analytics-ping.js` | Screen, picker, pings. |
+
 **Build order** (per §19; each sub-step is independently reviewable)
-- [ ] **B1 — Target-app picker.** `nudge-apps.js`: list installed apps, select targets, persist to localStorage (`fr_` prefix, §21). Free = 1 app; subscriber = unlimited (gate on `isSubscriber` from 16.1).
-- [ ] **B2 — Detection plugin.** `FlowReadNudgePlugin.java` wrapping `UsageStatsManager`. Battery-conscious polling interval — **no tight loops** (§21). `AccessibilityService` is fallback-only and needs Q8 sign-off first.
-- [ ] **B3 — Trigger logic.** `nudge.js`: cumulative daily time per target app; fire only past a threshold (Q2); daily cap per app; back off for the rest of the day after 3 consecutive dismissals (§9.3).
-- [ ] **B4 — Nudge screen.** New `#view-nudge` in `www/index.html`. Calm, not alarming (§16). "Start reading" → **Page mode** (§5, §9.5), resuming the in-progress book, or Free Books if none — never an empty import screen.
-- [ ] **B5 — Scoped unlock.** Meeting the threshold unlocks **only the originally-requested app**; other targets keep their own independent thresholds (§9.7).
-- [ ] **B6 — Analytics.** `analytics-ping.js`: `logEvent(name, meta)`, fire-and-forget `fetch()` to a Cloudflare Worker, wrapped in try/catch, silent failure, **never blocks a user action**. No device/user ID, no filename, no reading content (§1.4, §9.6). Minimum events: `app_opened`, `nudge_shown`, `nudge_read_started`, `nudge_read_completed`, `nudge_skipped`, `free_book_downloaded`, `pro_purchased`, `subscription_started`, `subscription_cancelled`.
+- [x] **B1 — Target-app picker.** `nudge-apps.js`: list installed apps, select targets, persist to localStorage (`fr_` prefix, §21). Free = 1 app; subscriber = unlimited (gate on `isSubscriber` from 16.1).
+- [x] **B2 — Detection plugin.** `FlowReadNudgePlugin.java` wrapping `UsageStatsManager`. Battery-conscious polling interval — **no tight loops** (§21). `AccessibilityService` is fallback-only and needs Q8 sign-off first.
+- [x] **B3 — Trigger logic.** `nudge.js`: cumulative daily time per target app; fire only past a threshold (Q2); daily cap per app; back off for the rest of the day after 3 consecutive dismissals (§9.3).
+- [x] **B4 — Nudge screen.** New `#view-nudge` in `www/index.html`. Calm, not alarming (§16). "Start reading" → **Page mode** (§5, §9.5), resuming the in-progress book, or Free Books if none — never an empty import screen.
+- [x] **B5 — Scoped unlock.** Meeting the threshold unlocks **only the originally-requested app**; other targets keep their own independent thresholds (§9.7).
+- [x] **B6 — Analytics.** `analytics-ping.js`: `logEvent(name, meta)`, fire-and-forget `fetch()` to a Cloudflare Worker, wrapped in try/catch, silent failure, **never blocks a user action**. No device/user ID, no filename, no reading content (§1.4, §9.6). Minimum events: `app_opened`, `nudge_shown`, `nudge_read_started`, `nudge_read_completed`, `nudge_skipped`, `free_book_downloaded`, `pro_purchased`, `subscription_started`, `subscription_cancelled`.
 - [ ] Onboarding must walk the user to the correct system settings page for the Usage Stats permission — it's a special permission, not a runtime dialog (§9.4). Coordinate with 16.3.
-- [ ] Skipping never penalizes: no guilt copy, no broken-streak framing, no anxiety timers (§9.1, §9.2.7).
+- [x] Skipping never penalizes: no guilt copy, no broken-streak framing, no anxiety timers (§9.1, §9.2.7).
 - [ ] Privacy policy updated to disclose the analytics pings (§9.6).
-- [ ] All strings via `t()` into `en.json` + `hi.json` from day one (§17).
+- [x] All strings via `t()` into `en.json` + `hi.json` from day one (§17). **499 keys each, full parity.** Hindi written in the file's existing Hinglish register — needs owner sign-off.
 - [ ] **Product-owner review of nudge copy/tone before finalizing** (Q9).
 
 **Files:** NEW `android/app/src/main/java/com/flowread/app/FlowReadNudgePlugin.java` · NEW `www/js/features/nudge.js`, `nudge-apps.js`, `analytics-ping.js` · `www/index.html` (feature scripts ~L86–94, views ~L38–56) · `www/js/views/settings.js` · `www/i18n/*.json` · `AndroidManifest.xml` (`PACKAGE_USAGE_STATS`)
 
 **Done when:** Selecting a target app, exceeding its daily threshold, and reopening it produces a calm nudge with a working escape hatch; reading to threshold unlocks that app only; all events fire; works offline (pings fail silently).
+
+### Still open before this ships
+
+- [ ] **Device verification at API 36** — the whole checklist below. Nothing here has run on hardware yet.
+- [ ] **Q9 — product-owner review of nudge copy and tone**, plus Hindi sign-off.
+- [ ] **Play Console Accessibility API declaration** — required before any release carrying this. The justification is the §9.4a scope: package name only, no window content.
+- [ ] **Privacy policy** — disclose both the analytics pings (§9.6) and the accessibility use.
+- [ ] **Cloudflare Worker endpoint** — `analytics-ping.js` has `ENDPOINT = ''` and is inert until one exists. This is a safe shipping state, not a bug.
+- [ ] Decide whether the nudge setup belongs in onboarding (Q3 / Task 16.3).
+
+### Device test checklist
+
+1. Each of the three settings pages opens at the right screen; the grant is re-detected on return (handled by an `appStateChange` listener in settings.js). Denying any one degrades with a plain-language explanation.
+2. Picker lists installed apps without `QUERY_ALL_PACKAGES`. Selecting a second app shows the paywall while `isSubscriber()` is false.
+3. Below threshold: no nudge. Past it: nudge. Daily cap and the 3-dismissal back-off both hold.
+4. **Escape hatch visible and working on first paint, every time, including hardware back.** Not waivable.
+5. Scoped unlock: reading to threshold opens *that* app only; a second target still nudges on its own counters.
+6. Cold start: force-stop FlowRead, open the target app — the nudge must still appear via `fr_pending_nudge`.
+7. Engine preference preserved: set RSVP as default, take a nudge, confirm the reader is still RSVP afterwards.
+8. Airplane mode: every analytics event fails silently, no user action blocks.
+9. Battery: several hours idle, no measurable drain.
+10. Hindi: walk the whole flow, no raw key names.
+11. Regression: Page mode position round-trip; existing notifications still fire.
 
 **Re-test note:** §3.2 warns `UsageStatsManager` behavior shifts between API levels. Since this is built *after* the API 36 bump, test against 36 directly — but re-verify on any future SDK bump.
 
@@ -509,7 +547,7 @@ The permission is denied by default at API 33+ for non-alarm-clock apps, and not
 | Block | Tasks | State |
 |---|---|---|
 | **A — Compliance** | ✅ 16.0a, ✅ 16.0b · 16.1 open | Shipped as 1.4.5 / versionCode 32, published 2026-09-16. 16.1 blocked on Q1 to finish, not to start. |
-| **B — Pivot core** | 16.2, 16.3 | Unblocked. 16.2 is the largest item in Phase 16; 16.3 depends on it. |
+| **B — Pivot core** | ✅ 16.2 (code) · 16.3 | 16.2 code complete 2026-09-20 on `AccessibilityService` (Q8 signed off); device testing, Q9 copy review and the Play accessibility declaration outstanding. 16.3 is now unblocked. |
 | **C — Features** | ✅ 16.9, ✅ 16.7 · 16.6, 16.8, 16.4, 16.5, 16.10 open | 16.9 and 16.7 shipped and verified in 1.4.7 (2026-09-20); 16.7's copy still needs Q6 sign-off. 16.4/16.5 still need Q4/Q5 before starting. |
 | **D — Housekeeping** | ✅ H1, ✅ H2, ✅ **H4** · H3 substantially done | **H4 verified on a Play build 2026-09-20 — the revenue blocker is closed.** H3's fix is live and scheduling works; only the two denial-path checks remain. |
 
@@ -518,7 +556,8 @@ The permission is denied by default at API 33+ for non-alarm-clock apps, and not
 **Before promoting 1.4.7 to production:** fold in the committed `iap.toast.billing_unavailable` copy fix (not yet in a bundle), and ideally run the two cheap H3 denial-path checks plus the silent-cancel case. None are blockers — as it stands the release is a strict improvement on 1.4.5.
 
 **Suggested next:**
-- **16.2 (Nudge)** — the pivot itself (§0.1), the longest pole, and 16.3 is blocked behind it. Q2/Q8/Q9 are needed to finish, not to start.
+- **Device-test 16.2** — it is written and builds clean, but no part of it has touched hardware. The escape hatch and the cold-start path are the two that matter most.
+- **16.3 (Onboarding)** — now unblocked: the nudge flow it hands off to exists.
 - **16.6 (Share stats)** — M-sized, `@capacitor/share` already approved, and the only item with plausible organic reach. Worth taking first if §22's distribution bottleneck is still the binding constraint.
 - **16.1 (Subscription IAP)** — still blocked on Q1 pricing, but materially cheaper now that H4 gave the purchase flow a real error taxonomy.
 

@@ -406,6 +406,7 @@ var FreeBooksView = (function() {
 
     _setSavedFileId(book.id, fileId);
     _downloading[book.id] = false;
+    logEvent('free_book_downloaded', { lang: book.language || '' });
 
     hideLoading();
     AppState.readerSource = 'free-books';
@@ -475,6 +476,7 @@ var FreeBooksView = (function() {
 
     _setSavedFileId(book.id, fileId);
     _downloading[book.id] = false;
+    logEvent('free_book_downloaded', { lang: book.language || '' });
 
     hideLoading();
     AppState.readerSource = 'free-books';
