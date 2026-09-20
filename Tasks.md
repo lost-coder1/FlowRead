@@ -392,7 +392,28 @@ and `purchase.js:_handlePurchaseError` falls through to the same generic toast. 
 - [x] Handle `SERVICE_DISCONNECTED` / `SERVICE_UNAVAILABLE` distinctly. The plugin now emits a `billingDisconnected` event; JS clears `_iapInitialized` so the next call re-inits instead of dying on `NOT_INITIALIZED` forever.
 - [x] Give each case its own plain-language i18n string in `en.json` + `hi.json` (§17). Seven new `iap.toast.*` keys. **Hindi needs product-owner sign-off** — written in the file's existing Hinglish register, not supplied by the owner.
 - [x] Re-check the same collapsing in `queryProducts` and `queryPurchases` — both now go through `rejectWith()`.
-- [ ] Re-test on a Play-distributed build: fresh purchase, purchase while already owning, cancel mid-flow (must stay silent — §3.1), and restore.
+- [~] Re-test on a Play-distributed build: fresh purchase, purchase while already owning, cancel mid-flow (must stay silent — §3.1), and restore.
+
+**Verification progress (2026-09-20, 1.4.7 / versionCode 34 via Internal testing)**
+- **The error taxonomy is confirmed working end to end.** A declined payment produced the
+  specific payment-method message, not the old generic "Purchase could not be completed."
+  The plugin emitted `BILLING_UNAVAILABLE` (code 3) and `purchase.js` selected the right branch.
+- **Blocked on Play Console config, not app code.** The payment sheet offered real UPI/GPay
+  rather than "Test card, always approves", so the alt account is **not** registered under
+  Setup → Licence testing. Play attempted a genuine charge and Google declined it with
+  `OR-FGEMF-20` — the expected outcome for self-purchasing your own IAP. Add the account to
+  licence testing, wait 15–30 min, force-stop the Play Store, and retry. See `BILLING_TEST_PLAN.md` §5b.
+- **Copy fix applied:** `iap.toast.billing_unavailable` said "unavailable on this device or
+  account", which pointed users at the wrong thing for a declined payment. `BILLING_UNAVAILABLE`
+  is Play's "user billing error" in Billing 6+, so it now names the payment method.
+- **Still unverified:** a completed fresh purchase, already-owned recovery, silent
+  `USER_CANCELED`, and restore. All need licence testing working first.
+
+**Earlier install gotcha (resolved):** the first internal-testing install appeared to contain
+none of the changes. Cause was Play serving the cached production build, not a bad bundle —
+the `.aab` was verified to contain every change. Settings → About was also hardcoded to
+"Version 1.1.0", so this was undiagnosable from inside the app; it now reports the real
+version and build (1.4.7+). See `BILLING_TEST_PLAN.md` §3b.
 
 **Also fixed in the same pass**
 - `getUnfetchedProductList()` is now read and returned as `unfetched` (§3.1 flagged it as unused) — a misconfigured Play Console product no longer looks identical to a working one.

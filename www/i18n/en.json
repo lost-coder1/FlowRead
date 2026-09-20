@@ -430,7 +430,7 @@
   "iap.toast.pending": "Payment is still processing. It will unlock automatically once it clears.",
   "iap.toast.network_error": "No connection to the store. Please check your internet and try again.",
   "iap.toast.service_disconnected": "Google Play stopped responding. Please try again in a moment.",
-  "iap.toast.billing_unavailable": "Google Play billing is unavailable on this device or account.",
+  "iap.toast.billing_unavailable": "Google Play could not complete the payment. Try a different payment method, or check your Google Play account.",
   "iap.toast.item_unavailable": "This item is not available on your account right now.",
   "iap.toast.config_error": "The store rejected this purchase. Nothing was charged — please contact support.",
   "iap.price_suffix": "— one-time",

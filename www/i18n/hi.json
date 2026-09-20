@@ -405,7 +405,7 @@
   "iap.toast.pending": "Payment अभी process हो रही है। Clear होते ही अपने आप unlock हो जाएगा।",
   "iap.toast.network_error": "Store से connection नहीं है। Internet check करके फिर try करें।",
   "iap.toast.service_disconnected": "Google Play ने respond करना बंद कर दिया। थोड़ी देर में फिर try करें।",
-  "iap.toast.billing_unavailable": "इस device या account पर Google Play billing available नहीं है।",
+  "iap.toast.billing_unavailable": "Google Play payment पूरी नहीं कर सका। कोई दूसरा payment method try करें, या अपना Google Play account check करें।",
   "iap.toast.item_unavailable": "यह item अभी आपके account पर available नहीं है।",
   "iap.toast.config_error": "Store ने यह purchase reject कर दी। कोई charge नहीं हुआ — कृपया support से संपर्क करें।",
   "iap.price_suffix": "— one-time",

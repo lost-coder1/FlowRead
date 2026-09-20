@@ -180,6 +180,41 @@ The word after `purchase failed:` is **the token**. That is what to report back.
 
 ---
 
+## 5b. Licence testing — the thing that actually blocks Test 2
+
+**The tell: what the payment sheet offers you.**
+
+| Sheet shows | Meaning |
+|---|---|
+| "Test card, always approves" | Licence testing is configured. Purchases are free and always succeed. |
+| Real UPI / GPay / card | **Licence testing is NOT configured for this account.** Play is attempting a genuine charge. |
+
+A real charge attempt on your own app's IAP from an account associated with the developer is
+routinely declined by Google, with **`Transaction was declined. [OR-FGEMF-20]`** in Play's own
+dialog. The app then receives `BILLING_UNAVAILABLE` (code 3) — Play's "user billing error" —
+and shows the payment-method message. **That is the app working correctly**; the failure is on
+the Play account side.
+
+Observed 2026-09-20 on 1.4.7: this is exactly what happened, and it confirmed the H4 taxonomy
+works end to end — on 1.4.5 the same failure produced only "Purchase could not be completed."
+
+### Fix
+
+1. **Play Console → Setup → Licence testing** → add the tester's Gmail address → Save.
+2. Changes can take 15–30 minutes to reach the device.
+3. Force-stop the Play Store, then retry the purchase.
+4. Confirm the sheet now offers **"Test card, always approves"** before reading anything into
+   the result.
+
+Other causes of `OR-FGEMF-20`, if licence testing is already configured:
+
+- The Play account's **country** doesn't match where the product is priced/available.
+- A brand-new Google account with no verified payment method or purchase history.
+- The UPI handle isn't verified for Play purchases specifically (verified elsewhere ≠ verified
+  for Play).
+
+---
+
 ## 6. If something fails — what to send back
 
 Send **the token** plus the surrounding logcat lines. The token tells me exactly which
@@ -190,7 +225,7 @@ branch is wrong, which is the whole point of the fix.
 | `ITEM_ALREADY_OWNED` | Account owns it. Should have auto-unlocked. | The recovery path found no matching purchase — check `queryPurchases` output. |
 | `NETWORK_ERROR` | No route to Play. | Expected under airplane mode (Test 5). |
 | `SERVICE_DISCONNECTED` / `SERVICE_UNAVAILABLE` | Play's billing service died or is unreachable. | App re-inits on next attempt; retry once. Also seen when Play itself crashes. |
-| `BILLING_UNAVAILABLE` | Play Billing unsupported for this account/device/country. | Usually account or region, not app code. |
+| `BILLING_UNAVAILABLE` | Play's "user billing error" — declined or invalid payment method, unsupported account/country, or an outdated Play Store. Pairs with `OR-FGEMF-20` in Play's dialog. | **Check licence testing first** (§5b). Account/payment side, not app code. |
 | `ITEM_UNAVAILABLE` | Product not available to this account. | Check the product is Active and the country is supported. |
 | `DEVELOPER_ERROR` | Malformed request — wrong product id, wrong signing key, app not published on a track. | Nearly always Play Console config, not runtime code. |
 | `NOT_INITIALIZED` | Billing client wasn't ready. | Should now self-heal; if it repeats, the disconnect listener isn't firing. |
