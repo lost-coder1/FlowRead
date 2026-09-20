@@ -14,14 +14,23 @@ import java.io.InputStream;
 
 public class MainActivity extends BridgeActivity {
 
+    // Nudge handoff from FlowReadNudgeService (Claude.md section 9).
+    public static final String ACTION_NUDGE = "com.flowread.app.ACTION_NUDGE";
+    public static final String EXTRA_NUDGE_PACKAGE = "fr_nudge_package";
+    public static final String EXTRA_NUDGE_LABEL = "fr_nudge_label";
+
     // Pending hot-share text — fired in onResume once WebView is ready.
     private String pendingHotShareText = null;
+
+    // Pending hot nudge — fired in onResume once WebView is ready.
+    private boolean pendingHotNudge = false;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(FlowReadDeviceSyncPlugin.class);
         registerPlugin(FlowReadOcrPlugin.class);
         registerPlugin(FlowReadIapPlugin.class);
+        registerPlugin(FlowReadNudgePlugin.class);
         super.onCreate(savedInstanceState);
         Intent intent = getIntent();
         // Cold start from share sheet — store so JS reads after DOMContentLoaded.
@@ -49,6 +58,11 @@ public class MainActivity extends BridgeActivity {
         if (isPdfViewIntent(intent)) {
             copyPdfInBackground(intent.getData(), true);
         }
+        // Hot nudge. The service already wrote fr_pending_nudge for the cold-start
+        // case, so here we only need to wake the WebView, which happens in onResume.
+        if (intent != null && ACTION_NUDGE.equals(intent.getAction())) {
+            pendingHotNudge = true;
+        }
     }
 
     @Override
@@ -60,6 +74,15 @@ public class MainActivity extends BridgeActivity {
                 @Override
                 public void run() {
                     fireShareEvent();
+                }
+            });
+        }
+        if (pendingHotNudge) {
+            pendingHotNudge = false;
+            getBridge().getWebView().post(new Runnable() {
+                @Override
+                public void run() {
+                    fireNudgeEvent();
                 }
             });
         }
@@ -193,5 +216,9 @@ public class MainActivity extends BridgeActivity {
 
     private void firePdfOpenEvent() {
         getBridge().triggerWindowJSEvent("flowreadPdfOpen");
+    }
+
+    private void fireNudgeEvent() {
+        getBridge().triggerWindowJSEvent("flowreadNudge");
     }
 }

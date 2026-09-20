@@ -519,6 +519,35 @@ function renderSettings() {
         </div>
       </section>
 
+      <!-- READING NUDGE -->
+      <section class="settings-section" id="settings-nudge-section" hidden>
+        <h2>${t('settings.section.nudge')}</h2>
+        <p class="settings-copy">${t('settings.nudge.intro')}</p>
+        <label class="settings-toggle">
+          <span>${t('settings.nudge.toggle')}</span>
+          <input type="checkbox" id="settings-nudge-enabled" />
+        </label>
+        <div id="settings-nudge-detail">
+          <div class="settings-row">
+            <span class="settings-row-label">${t('settings.nudge.apps_label')}</span>
+            <button class="btn btn-ghost settings-inline-btn" id="btn-settings-nudge-apps">${t('settings.nudge.apps_choose')}</button>
+          </div>
+          <p class="settings-copy text-muted" id="settings-nudge-apps-summary"></p>
+          <div id="settings-nudge-permissions"></div>
+          <div class="settings-row">
+            <span class="settings-row-label">${t('settings.nudge.threshold_label')}</span>
+            <strong class="settings-row-value" id="settings-nudge-minutes-value"></strong>
+          </div>
+          <input type="range" min="5" max="60" step="5" id="settings-nudge-minutes" class="settings-slider" />
+          <div class="settings-row">
+            <span class="settings-row-label">${t('settings.nudge.pages_label')}</span>
+            <strong class="settings-row-value" id="settings-nudge-pages-value"></strong>
+          </div>
+          <input type="range" min="1" max="10" step="1" id="settings-nudge-pages" class="settings-slider" />
+          <p class="settings-copy text-muted">${t('settings.nudge.escape_note')}</p>
+        </div>
+      </section>
+
       <!-- NOTIFICATIONS -->
       <section class="settings-section">
         <h2>${t('settings.section.notifications')}</h2>
@@ -663,6 +692,8 @@ function bindSettings() {
     });
   }
 
+  _bindNudgeSettings();
+
   const reminderToggle = qs('#settings-reminder-enabled');
   if (reminderToggle) {
     reminderToggle.addEventListener('change', async function() {
@@ -786,6 +817,175 @@ function bindSettings() {
       this.setAttribute('aria-expanded', String(!expanded));
       const body = this.nextElementSibling;
       if (body) body.classList.toggle('hidden', expanded);
+    });
+  });
+}
+
+
+/* ─── Reading nudge (Claude.md §9) ───────────────────────────────────────
+ * The whole section hides itself when the native plugin is absent (browser,
+ * iOS) rather than offering controls that cannot do anything.
+ */
+let _nudgeResumeBound = false;
+
+function _bindNudgeSettings() {
+  const section = qs('#settings-nudge-section');
+  if (!section) return;
+  if (typeof NudgeFeature === 'undefined' || !NudgeFeature.isAvailable()) return;
+  section.hidden = false;
+
+  /* All three grants happen on a system settings screen, so the only moment we
+     can observe the result is when the user comes back to us. Bound once for the
+     app's lifetime — renderSettings() runs on every visit to this view. */
+  if (!_nudgeResumeBound && window.Capacitor && window.Capacitor.Plugins
+      && window.Capacitor.Plugins.App) {
+    _nudgeResumeBound = true;
+    window.Capacitor.Plugins.App.addListener('appStateChange', function(state) {
+      if (!state || !state.isActive) return;
+      if (AppState.currentView !== 'view-settings') return;
+      syncNudgePermissions();
+    });
+  }
+
+  const toggle = qs('#settings-nudge-enabled');
+  const detail = qs('#settings-nudge-detail');
+
+  function syncDetailVisibility() {
+    if (detail) detail.classList.toggle('hidden', !NudgeFeature.isEnabled());
+  }
+
+  if (toggle) {
+    toggle.checked = NudgeFeature.isEnabled();
+    toggle.addEventListener('change', function() {
+      const on = this.checked;
+      /* Play policy wants the disclosure before the grant, and §10.1 wants the
+         "why" before the ask. Revert the switch if they back out of it. */
+      if (on && !NudgeFeature.hasSeenDisclosure()) {
+        this.checked = false;
+        NudgeFeature.showDisclosure(function() {
+          NudgeFeature.setEnabled(true);
+          const el = qs('#settings-nudge-enabled');
+          if (el) el.checked = true;
+          syncDetailVisibility();
+          syncNudgePermissions();
+        });
+        return;
+      }
+      NudgeFeature.setEnabled(on);
+      syncDetailVisibility();
+      syncNudgePermissions();
+    });
+  }
+  syncDetailVisibility();
+
+  const appsBtn = qs('#btn-settings-nudge-apps');
+  if (appsBtn) {
+    appsBtn.addEventListener('click', function() {
+      NudgeAppsFeature.openPicker(function() {
+        syncNudgeApps();
+        syncNudgePermissions();
+      });
+    });
+  }
+
+  const minutes = qs('#settings-nudge-minutes');
+  if (minutes) {
+    minutes.value = NudgeFeature.settings().minMinutes;
+    const paint = function() {
+      const el = qs('#settings-nudge-minutes-value');
+      if (el) el.textContent = t('settings.nudge.threshold_value', { n: minutes.value });
+    };
+    paint();
+    minutes.addEventListener('input', paint);
+    minutes.addEventListener('change', function() {
+      NudgeFeature.setSetting(NudgeFeature.KEY_MIN_MINUTES, parseInt(this.value, 10));
+    });
+  }
+
+  const pages = qs('#settings-nudge-pages');
+  if (pages) {
+    pages.value = NudgeFeature.settings().unlockPages;
+    const paint = function() {
+      const el = qs('#settings-nudge-pages-value');
+      if (el) el.textContent = t('settings.nudge.pages_value', { n: pages.value });
+    };
+    paint();
+    pages.addEventListener('input', paint);
+    pages.addEventListener('change', function() {
+      NudgeFeature.setSetting(NudgeFeature.KEY_UNLOCK_PAGES, parseInt(this.value, 10));
+    });
+  }
+
+  syncNudgeApps();
+  syncNudgePermissions();
+}
+
+function syncNudgeApps() {
+  const el = qs('#settings-nudge-apps-summary');
+  if (!el || typeof NudgeAppsFeature === 'undefined') return;
+  const targets = NudgeAppsFeature.getTargets();
+  if (!targets.length) {
+    el.textContent = t('settings.nudge.apps_none');
+    return;
+  }
+  const names = targets.map(function(p) { return NudgeAppsFeature.labelFor(p); });
+  el.textContent = names.join(', ');
+}
+
+/* Renders one row per permission with its live state. Each says plainly what is
+ * lost while it is missing — §1.5 forbids a control that silently does nothing.
+ */
+async function syncNudgePermissions() {
+  const host = qs('#settings-nudge-permissions');
+  if (!host || typeof NudgeFeature === 'undefined') return;
+
+  const state = await NudgeFeature.permissionState();
+  const rows = [
+    {
+      id: 'accessibility',
+      granted: state.accessibility,
+      label: t('settings.nudge.perm_accessibility'),
+      note: t('settings.nudge.perm_accessibility_note'),
+      open: NudgeFeature.openAccessibilitySettings,
+      required: true,
+    },
+    {
+      id: 'overlay',
+      granted: state.overlay,
+      label: t('settings.nudge.perm_overlay'),
+      note: t('settings.nudge.perm_overlay_note'),
+      open: NudgeFeature.openOverlaySettings,
+      required: true,
+    },
+    {
+      id: 'usage',
+      granted: state.usageAccess,
+      label: t('settings.nudge.perm_usage'),
+      note: t('settings.nudge.perm_usage_note'),
+      open: NudgeFeature.openUsageAccessSettings,
+      required: false,
+    },
+  ];
+
+  host.innerHTML = rows.map(function(r) {
+    const status = r.granted
+      ? '<span class="nudge-perm-ok">' + t('settings.nudge.perm_on') + '</span>'
+      : '<button class="btn btn-ghost settings-inline-btn" data-perm="' + r.id + '">' +
+          t('settings.nudge.perm_grant') + '</button>';
+    const optional = r.required ? '' : ' <span class="nudge-perm-optional">' +
+      t('settings.nudge.perm_optional') + '</span>';
+    return '<div class="settings-row nudge-perm-row">' +
+        '<span class="settings-row-label">' + r.label + optional + '</span>' + status +
+      '</div>' +
+      '<p class="settings-copy text-muted nudge-perm-note">' + r.note + '</p>';
+  }).join('');
+
+  qsa('[data-perm]', host).forEach(function(btn) {
+    btn.addEventListener('click', async function() {
+      const row = rows.filter(function(r) { return r.id === btn.getAttribute('data-perm'); })[0];
+      if (!row) return;
+      const opened = await row.open();
+      if (!opened) showToast(t('settings.nudge.perm_no_screen'));
     });
   });
 }

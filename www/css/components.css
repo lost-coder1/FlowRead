@@ -2183,3 +2183,190 @@
   padding: 0 var(--space-md) calc(var(--space-xl) + var(--safe-bottom));
   line-height: 1.6;
 }
+
+/* ─── Reading nudge (Claude.md §9, §16) ───────────────────────────────────
+   This screen interrupts a habitual action, so it stays deliberately quiet:
+   existing palette only, no red, no motion, nothing that reads as an alarm.
+   The escape hatch is styled as a peer of the primary action — visually equal
+   weight, full width, immediately tappable (§9.1). */
+
+.nudge-screen {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 100dvh;
+  padding: calc(var(--space-xl) + var(--safe-top)) var(--space-lg)
+           calc(var(--space-xl) + var(--safe-bottom));
+  background: var(--bg);
+}
+
+.nudge-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--space-md);
+  max-width: 460px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.nudge-kicker {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.nudge-title {
+  font-family: var(--font-display);
+  font-size: clamp(26px, 6vw, 34px);
+  line-height: 1.25;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+.nudge-sub {
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.nudge-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  max-width: 460px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.nudge-actions .btn {
+  width: 100%;
+  min-height: 48px;
+}
+
+/* Muted, but never faint: the way out must read as a real option, not a
+   disabled-looking afterthought. */
+.nudge-escape {
+  color: var(--text-muted);
+}
+
+.nudge-escape:hover, .nudge-escape:active {
+  color: var(--text);
+}
+
+/* ─── App picker ─────────────────────────────────────────────────────── */
+
+.nudge-apps-card .nudge-app-list {
+  max-height: 46dvh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.nudge-app-search {
+  width: 100%;
+  padding: 10px var(--space-md);
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.nudge-app-search::placeholder { color: var(--text-dim); }
+
+.nudge-app-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  width: 100%;
+  min-height: 48px;
+  padding: var(--space-sm) var(--space-md);
+  text-align: left;
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.nudge-app-row:hover, .nudge-app-row:active {
+  background: var(--surface);
+}
+
+.nudge-app-row.selected {
+  border-color: var(--accent);
+}
+
+.nudge-app-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: var(--radius-md);
+  object-fit: contain;
+}
+
+.nudge-app-icon-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.nudge-app-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nudge-app-check {
+  flex-shrink: 0;
+  font-size: 14px;
+  color: var(--accent);
+}
+
+/* ─── Settings rows ──────────────────────────────────────────────────── */
+
+/* Sits on the right of a .settings-row, so it must not stretch to fill it. */
+.settings-inline-btn {
+  flex-shrink: 0;
+  padding: 6px var(--space-md);
+  font-size: 13px;
+}
+
+.nudge-perm-row {
+  min-height: 40px;
+}
+
+.nudge-perm-note {
+  margin: 0 0 var(--space-md);
+}
+
+.nudge-perm-ok {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--success);
+}
+
+.nudge-perm-optional {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}

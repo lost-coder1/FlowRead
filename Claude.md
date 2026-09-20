@@ -216,15 +216,33 @@ Explicitly not a hard app-blocker. A soft interception with an always-visible, o
 2. `FlowReadNudgePlugin` monitors for target app(s) being opened.
 3. Nudge does not fire on every open — see 9.3.
 4. On trigger, show a calm nudge screen ("Read a bit before [App]?") with a "Start reading" action into Page mode (resuming current book, or the Free Books library if none in progress) and the always-visible escape hatch.
-5. If reading: track against a user-configurable threshold (default TBD — pages or minutes, expose as a setting, don't hardcode).
+5. If reading: track against a user-configurable threshold. **Q2 defaults, signed off 2026-09-20: nudge after 15 minutes in that app today (3rd open when usage access is denied); unlock after 2 Page-mode pages; cap 3 nudges per app per day; back off for the rest of the day after 3 consecutive dismissals.** All are settings, none hardcoded.
 6. Once met, **only the originally-requested target app opens**, not the user's whole nudge list (scoped unlock, 9.7).
 7. Skipping at any point does not fail or penalize the user — no guilt copy, no broken-streak framing.
 
 ### 9.3 Dynamic Triggering — Not Every Open
 Track cumulative daily time per target app. Trigger only after a threshold (e.g., 15–20 minutes already spent that day, or 3rd+ open). Daily nudge cap per app. Back off for the rest of the day after 3 consecutive dismissals.
 
-### 9.4 Android Implementation Notes
+### 9.4 Android Implementation Notes — SUPERSEDED, see 9.4a
+
+*Original text, kept because it explains what was tried and why it does not work:*
 Default to `UsageStatsManager` (special permission via system settings, not a runtime dialog — onboarding must walk the user to the correct settings page, see Section 10). Poll at a battery-conscious interval; do not poll aggressively. `AccessibilityService` is a fallback only, requiring explicit product-owner sign-off before implementing, given this project's Play Store review history (see Section 18's `MANAGE_EXTERNAL_STORAGE` precedent). No iOS implementation planned.
+
+### 9.4a Detection — `AccessibilityService`, signed off 2026-09-20 (Q8)
+
+**`UsageStatsManager` alone cannot do this, and 9.4 was wrong to assume it could.** It answers *how long* an app has been used, but nothing keeps the app alive to notice an app-open: a plain background thread is killed, and WorkManager's 15-minute floor is useless against "the user just opened Instagram." Polling requires a **foreground service**, whose notification Android 8+ makes undismissable by the app. The product owner ruled that out — a permanent notification is not acceptable for this product.
+
+`AccessibilityService` is therefore the only mechanism that meets the requirement, and it is what comparable apps (One Sec, Opal, ScreenZen) use. **Signed off 2026-09-20.** Three constraints on it are binding:
+
+1. **Minimum possible scope.** `canRetrieveWindowContent="false"` and `typeWindowStateChanged` only, so the service is *structurally* incapable of reading screen content. `packageNames` is narrowed at runtime via `setServiceInfo()` to exactly the user's chosen apps, so the system delivers nothing about any other app. Do not widen either without a logged decision — this configuration is both the privacy guarantee (§1.4) and the Play Console Accessibility API justification.
+2. **`SYSTEM_ALERT_WINDOW` is required**, not optional. From Android 10 the background activity start that raises the nudge is dropped without it.
+3. **`PACKAGE_USAGE_STATS` is optional** and must stay that way. Granted, the trigger is "N minutes in the app today" (queried on demand, never polled). Denied, it falls back to "Nth open today" and Settings says so in plain language (§1.5). Requiring three settings-page grants before the feature does anything would be unacceptable onboarding friction.
+
+**Never use `QUERY_ALL_PACKAGES`** to list installed apps — it is Play-policy-sensitive and needs a declaration form. A `<queries>` element filtering on `MAIN`/`LAUNCHER` gives the same list with no declaration.
+
+A prominent disclosure screen must precede the accessibility grant. That is Play policy and also §10.1.
+
+No iOS implementation planned.
 
 ### 9.5 Reading Mode on Nudge-Entry
 Lands in Page mode by default (Section 5). Resumes in-progress book, or opens Free Books library if none — avoids the "empty import screen" drop-off.
@@ -374,7 +392,7 @@ All items below are net-new, motivated by Section 0.1. The compliance tasks are 
 - [x] **Task H4 — Pro purchase fails with a generic error.** Fixed 2026-09-16, **verified on a Play-distributed build 2026-09-20** (1.4.7 / versionCode 34): fresh purchase, restore, and the already-owned case all behave correctly. The revenue blocker is closed. One follow-up noted in `Tasks.md` — the already-owned case resolves via the JS fallback rather than the plugin's primary recovery path; user-facing outcome is correct either way. Reported 2026-09-16 on 1.4.5: unlocking Pro shows "Purchase could not be completed." **Not a Billing 9 regression** — logcat shows Play's `ProxyBillingActivity` opening, so `queryProductDetailsAsync` and `launchBillingFlow` both succeeded; the non-OK code comes back through `onPurchasesUpdated`. Most likely `ITEM_ALREADY_OWNED` (restore had just run, so the account already owns `pro_lifetime`), which the plugin collapses into a generic failure — meaning a customer who *does* own Pro is told their purchase failed. Root defect: every non-OK `BillingResponseCode` funnels into one string in `FlowReadIapPlugin.onPurchasesUpdated` and again in `purchase.js:_handlePurchaseError`, so failures are indistinguishable to user and developer alike (violates Section 1.5). Fix the error taxonomy, not just the symptom. **Do together with Task 16.1** — same purchase flow. Full detail in `Tasks.md`.
 - [ ] **Task 16.1 — Subscription IAP** (Section 4) — was meant to ship with 16.0b but was deliberately deferred so the compliance fix could go out alone. Still blocked on subscription pricing.
 - [x] **Task H3 — Notifications fail silently when exact-alarm permission is denied.** Fixed 2026-09-16, shipped in 1.4.7; scheduling confirmed working on device. Two denial-path checks remain unexercised (see `Tasks.md`). Note the original diagnosis was wrong — Capacitor 8's plugin already degrades exact→inexact; see `Tasks.md` for the corrected analysis. `notifications.js` schedules with `allowWhileIdle: true` (exact alarms), which Android denies by default for apps targeting 33+, and the failure is swallowed by a bare `catch`. Users without the grant get no reminders and no explanation — a direct violation of Section 1.5. Fix before Task 16.7, which builds on the same machinery.
-- [ ] **Task 16.2 — Habit Interception System ("Nudge")** (Section 9) — largest single feature item. Suggested build order: target-app picker UI → `FlowReadNudgePlugin` detection → dynamic trigger logic → nudge screen UI → scoped unlock → analytics pings wired throughout. Get product-owner review of nudge screen copy/tone before finalizing.
+- [~] **Task 16.2 — Habit Interception System ("Nudge")** (Section 9) — **code complete 2026-09-20; first device test 2026-09-21 found a blocker.** Detection works end to end (opening a target app does launch FlowRead), but the nudge screen never renders — the app just opens on whatever view it was last on. Four further fixes queued alongside it: landing view, question-format copy carrying the real usage figure, first-launch permission prompts, and an "on every open" trigger mode. **All five tracked as N1–N5 in `Tasks.md`.** Built on `AccessibilityService` per the Q8 sign-off in 9.4a, not `UsageStatsManager`. All six sub-steps landed: target-app picker, detection service + gate, trigger logic, nudge screen, scoped unlock, analytics pings. Still open: full device verification at API 36, Q9 product-owner review of nudge copy/tone, Hindi sign-off, the Play Console Accessibility API declaration, and the privacy-policy update. `analytics-ping.js` ships inert until the Cloudflare Worker endpoint exists.
 - [ ] **Task 16.3 — Onboarding Redesign** (Section 10)
 - [ ] **Task 16.4 — Monthly Curated Book Drops** (Section 4, Section 13 pipeline) — rotation/update mechanism (bundled vs. remote-fetched catalog) needs product-owner input.
 - [ ] **Task 16.5 — Opt-In Leaderboard & Badges** (Section 14)
@@ -385,11 +403,11 @@ All items below are net-new, motivated by Section 0.1. The compliance tasks are 
 - [ ] **Task 16.10 — India Custom Store Listing (messaging revision)** — Play Console config task, no app code. Revise to lead with the habit/nudge angle. Still needs two missing screenshots (Free Books catalog, Page mode) captured before it can ship.
 
 ### Open items requiring product-owner input during Phase 16
-- Exact nudge default thresholds (screen-time-before-nudge, pages/minutes-to-unlock)
+- ~~Exact nudge default thresholds~~ — **resolved 2026-09-20: 15 min / 2 pages. See 9.2.**
 - Subscription pricing
 - Monthly book-drop count and catalog-update mechanism (bundled vs. remote-fetched)
 - Leaderboard backend approach
-- Whether `AccessibilityService` escalation is ever pursued (explicit sign-off required)
+- ~~Whether `AccessibilityService` escalation is ever pursued~~ — **resolved 2026-09-20: yes, signed off. See 9.4a.**
 - Whether the nudge permission ask is inline in onboarding or deferred (Section 10.2)
 - Exact copy/tone for the offline-triggered notification (Section 11)
 - Widget implementation approach — classic AppWidgetProvider vs. Jetpack Glance (Section 12)

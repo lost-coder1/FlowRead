@@ -24,7 +24,12 @@ function renderReader(options) {
 
   const opts = options || {};
   const startIndex = typeof opts.startIndex === 'number' ? opts.startIndex : loadPosition(file.id);
-  const savedEngine = localStorage.getItem('fr_last_engine') || AppState.currentEngine || AppState.settings.defaultMode || 'rsvp';
+  /* forceEngine opens in a specific engine for this read only. The nudge flow
+     (Claude.md §9.5) always lands in Page mode, but must not overwrite the
+     user's own default the way share-handler.js does by writing fr_last_engine. */
+  const savedEngine = opts.forceEngine
+    || localStorage.getItem('fr_last_engine')
+    || AppState.currentEngine || AppState.settings.defaultMode || 'rsvp';
   const hasPdfBridge = file.kind === 'pdf' && !!(file.pdfDoc && file.pageWordIndex && file.pageWordIndex.length);
   /* Raw PDF on disk but not yet re-parsed — show active button, lazy-load on tap */
   const hasPdfLazy = file.kind === 'pdf' && !file.pdfDoc && !!(file.pdfRawAvailable && file.pageWordIndex && file.pageWordIndex.length);
@@ -195,7 +200,17 @@ function _bindReaderControls() {
     releaseWakeLock();
     const src = AppState.readerSource || 'upload';
     AppState.readerSource = 'upload';
-    if (src === 'dashboard') {
+    if (src === 'nudge') {
+      /* Backing out of a nudged read is not a failure and must not trap the
+         user (§9.1). Send them where they were going in the first place. */
+      AppState.readerSource = 'upload';
+      if (AppState.nudgeContext && typeof NudgeFeature !== 'undefined') {
+        NudgeFeature.leaveNudgedRead();
+        return;
+      }
+      renderUpload();
+      switchView('view-upload');
+    } else if (src === 'dashboard') {
       renderDashboard();
       switchView('view-dashboard');
     } else if (src === 'free-books') {

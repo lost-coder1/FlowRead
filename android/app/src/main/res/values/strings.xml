@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">FlowRead</string>
+    <string name="title_activity_main">FlowRead</string>
+    <string name="package_name">com.flowread.app</string>
+    <string name="custom_url_scheme">com.flowread.app</string>
+    <!-- Shown by Android in Settings > Accessibility. This is a user-facing
+         disclosure, so it must match what the service actually does. -->
+    <string name="nudge_service_label">FlowRead reading nudge</string>
+    <string name="nudge_service_description">Lets FlowRead notice when you open an app you chose, so it can offer you a page to read first. FlowRead only sees the name of the apps you picked. It cannot read anything on your screen, and nothing leaves your device. You can turn this off here at any time.</string>
+</resources>

@@ -1839,7 +1839,7 @@ function _confirmRemoveFile(fileId) {
   });
 }
 
-async function resumeFromLibrary(entry, source) {
+async function resumeFromLibrary(entry, source, options) {
   AppState.readerSource = source || 'upload';
   showLoading(t('loading.loading_file', {filename: entry.name}));
   try {
@@ -1873,7 +1873,10 @@ async function resumeFromLibrary(entry, source) {
     AppState.currentIndex = savedPos >= data.words.length ? 0 : savedPos;
 
     hideLoading();
-    renderReader();
+    /* options.forceEngine lets a caller open in a specific engine for this read
+       only — the nudge flow always lands in Page mode (§9.5) without changing
+       the user's saved default. */
+    renderReader(options && options.forceEngine ? { forceEngine: options.forceEngine } : undefined);
     switchView('view-reader');
   } catch (_) {
     hideLoading();

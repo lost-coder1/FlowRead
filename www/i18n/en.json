@@ -1,7 +1,6 @@
 {
   "splash.name": "FlowRead",
   "splash.tagline": "Read everything faster",
-
   "loading.default": "Loading...",
   "loading.reading_pdf": "Reading PDF...",
   "loading.processing_page": "Processing page {current} of {total}...",
@@ -15,7 +14,6 @@
   "loading.processing_text": "Processing text…",
   "loading.fetching_article": "Fetching article...",
   "loading.loading_file": "Loading {filename}...",
-
   "btn.continue": "Continue",
   "btn.back": "Back",
   "btn.cancel": "Cancel",
@@ -38,7 +36,6 @@
   "btn.fix_with_ocr": "Fix with OCR",
   "btn.not_now": "Not now",
   "btn.look_up_online": "Look up online",
-
   "upload.tagline": "Read everything faster",
   "upload.card.pdf.title": "PDF Reader",
   "upload.card.pdf.body": "Tap to open PDF files. All 4 reading engines included.",
@@ -66,26 +63,22 @@
   "upload.url_panel.placeholder": "https://example.com/article",
   "upload.url_panel.btn": "Import",
   "upload.url_panel.note": "Pro feature. Requires internet. Parsing stays on this device.",
-
   "library.section.recent": "Recent",
   "library.section.read": "Read",
   "library.section.device": "Readable files on device",
   "library.sync_note.non_pdf": "DOCX and TXT files require Pro.",
   "library.sync_sheet.title": "Files found on device",
   "library.confirm.remove": "Remove this file?",
-
   "paste_modal.title": "Paste or type text",
   "paste_modal.title_placeholder": "Untitled paste (optional)",
   "paste_modal.text_placeholder": "Paste or type text here…",
   "paste_modal.default_title": "Pasted text",
   "paste_modal.error.too_short": "Please paste at least 10 characters to read.",
-
   "action_sheet.take_photo": "Take Photo",
   "action_sheet.gallery": "Gallery",
   "action_sheet.choose_pdf": "Choose PDF",
   "action_sheet.choose_pdf.hint": "Use if your PDF shows garbled or wrong text",
   "action_sheet.cancel": "Cancel",
-
   "toast.ocr_keep_open": "Keep FlowRead open while scanning — backgrounding pauses OCR.",
   "toast.no_files_found": "No files found. Check that PDFs are in Downloads or Documents.",
   "toast.files_added": "{n} readable file(s) added to home.",
@@ -109,7 +102,6 @@
   "toast.source_url_unavailable": "Source URL not available.",
   "toast.images_unavailable": "Source images not available. Re-import the file to view them.",
   "toast.resume": "Resuming from word {n} — tap Start Over to reset",
-
   "upload_error.btn.dismiss": "Dismiss",
   "upload_error.unsupported_file.title": "Unsupported file",
   "upload_error.unsupported_file.pdf.msg": "Please select a PDF file (.pdf).",
@@ -153,7 +145,6 @@
   "upload_error.image_failed.msg": "Could not process the image(s). {detail}",
   "upload_error.import_failed.title": "Import failed",
   "upload_error.import_failed.msg": "Could not process this PDF. {detail}",
-
   "error_modal.btn.dismiss": "Dismiss",
   "error_modal.scanned_pdf.title": "Scanned PDF",
   "error_modal.scanned_pdf.msg": "This PDF has no text layer — it’s a scan or image. OCR Vision can extract the text on-device with no internet required.",
@@ -164,11 +155,9 @@
   "error_modal.no_internet.title": "No internet connection",
   "error_modal.no_internet.msg": "URL Reader requires internet for the initial fetch. Connect to the internet and try again.",
   "error_modal.invalid_url.title": "Invalid URL",
-
   "banner.legacy_encoding.msg": "Text looks wrong? This PDF may need OCR to read correctly.",
   "banner.legacy_encoding.btn.fix": "Fix with OCR",
   "banner.legacy_encoding.btn.dismiss": "✕",
-
   "url_error.timed_out.title": "Request timed out",
   "url_error.timed_out.msg": "The site took too long to respond. Try again on a stronger connection or try a different article.",
   "url_error.blocked.title": "Blocked by site",
@@ -185,7 +174,6 @@
   "url_error.default.msg": "FlowRead could not import this URL. Try another article or a direct article page instead.",
   "url_error.invalid_url.http_only": "Enter a full article URL that starts with http:// or https://.",
   "url_error.invalid_url.protocol": "Only http:// and https:// article URLs are supported.",
-
   "reader.btn.back": "←",
   "reader.btn.calm": "Calm",
   "reader.btn.index": "Index",
@@ -206,7 +194,6 @@
   "reader.btn.url.title": "Open source article",
   "reader.btn.img.title": "View source images",
   "reader.error.engine_failed": "Something went wrong — please re-import the file.",
-
   "engine_loading.title.focus": "Building Focus Mode",
   "engine_loading.title.scroll": "Setting up the teleprompter",
   "engine_loading.title.rsvp": "Loading RSVP",
@@ -215,7 +202,6 @@
   "engine_loading.subtitle.focus": "Bolding word anchors and laying out pages…",
   "engine_loading.subtitle.scroll": "Preparing a continuous text flow for you to glide through…",
   "engine_loading.cancel": "Cancel — stay in {prevLabel}",
-
   "loading_fact.0": "The average adult reads at 200–250 WPM. With training, 400–600 WPM is comfortable.",
   "loading_fact.1": "Speed reading reduces “saccades” — the rapid eye jumps between words that slow you down.",
   "loading_fact.2": "Sub-vocalization (silently saying words in your head) caps you around 300 WPM. Beating it is the next jump.",
@@ -237,10 +223,8 @@
   "loading_fact.18": "The yellow centre line is your fixation point. Let words come to you.",
   "loading_fact.19": "Adjust speed independently of WPM in Scroll mode — handy for skimming.",
   "loading_fact.20": "Scroll uses GPU-accelerated transforms, so it stays smooth even on long documents.",
-
   "image_viewer.title": "Source images ({n})",
   "image_viewer.img.alt": "Image {n}",
-
   "normal.btn.prev": "‹",
   "normal.btn.next": "›",
   "normal.btn.zoom_out": "A−",
@@ -251,7 +235,6 @@
   "normal.page.label": "Page {n}",
   "normal.page.placeholder": "Preparing page…",
   "normal.page.render_error": "Could not render this page.",
-
   "onboarding.step0.kicker": "First Launch",
   "onboarding.step0.title": "Read everything faster.",
   "onboarding.step0.body": "No subscription. No cloud. No account. Your files stay on this device.",
@@ -270,7 +253,6 @@
   "onboarding.step3.kicker": "Reading Speed",
   "onboarding.step3.title": "Pick a comfortable starting pace.",
   "onboarding.step3.body": "Watch words flash at your chosen speed. Adjust until it feels easy to read.",
-
   "limitations.1.title": "Scanned PDFs",
   "limitations.1.body": "Free version reads only digital text. Scanned or image-only PDFs require the OCR Vision add-on.",
   "limitations.2.title": "DRM-protected files",
@@ -293,7 +275,6 @@
   "limitations.10.body": "Pro tier dictionary contains ~150k common words. Specialist terms may not be found.",
   "limitations.11.title": "URL reader (Pro)",
   "limitations.11.body": "Requires internet for the initial article fetch. The text is then saved offline.",
-
   "settings.kicker": "Settings",
   "settings.title": "Preferences",
   "settings.section.reading": "Reading",
@@ -337,27 +318,22 @@
   "settings.reminder.note_failed": "Your reminder couldn't be scheduled. Try turning this off and on again.",
   "settings.toggle.offline_notif": "Nudge me when I go offline",
   "settings.offline_notif.note": "A light suggestion to read when your device loses connection. At most one every few hours, never if you've already read that day, and never while FlowRead is open.",
-
   "notif.title.generic": "FlowRead",
   "notif.title.streak": "Keep your streak alive",
   "notif.title.progress": "You're not done yet",
   "notif.title.nudge": "Streak about to break",
-
   "notif.generic.1": "Five minutes today. That's all it takes to stay sharp.",
   "notif.generic.2": "One page is a win. Start small, finish strong.",
   "notif.generic.3": "The book you opened is still waiting for you.",
   "notif.generic.4": "Readers think clearer. Open something good.",
   "notif.generic.5": "Today's pages become tomorrow's edge.",
   "notif.generic.6": "Less scrolling. More reading. Pick up where you left off.",
-
   "notif.streak.1": "{n} days strong 🔥 Don't break the chain tonight.",
   "notif.streak.2": "{n}-day streak. One short session keeps it alive.",
   "notif.streak.3": "Day {next} is one tap away. Show up for yourself.",
-
   "notif.progress.1": "You're {pct}% through \"{title}\". Finish what you started.",
   "notif.progress.2": "\"{title}\" — {pct}% done. The ending is closer than you think.",
   "notif.progress.3": "{pct}% of \"{title}\" is behind you. Push through tonight.",
-
   "notif.nudge.1": "Your {n}-day streak ends at midnight. One session saves it.",
   "notif.nudge.2": "Don't lose {n} days of progress. Just a few pages.",
   "notif.nudge.3": "{n} days. One tap. Save the streak.",
@@ -366,17 +342,14 @@
   "notif.offline.1": "No signal? Good time for a few pages.",
   "notif.offline.2": "Nothing to scroll right now. Your book is still here.",
   "notif.offline.3": "Offline — a quiet moment to read.",
-
   "settings.section.language": "Language",
   "settings.field.language": "App language",
   "settings.language.en": "English",
   "settings.language.hi": "हिंदी",
-
   "settings.section.developer": "Developer",
   "settings.toggle.dev_pro": "Dev: Unlock Pro",
   "settings.toggle.dev_ocr": "Dev: Unlock OCR Vision",
   "settings.btn.reset_onboarding": "Reset Onboarding",
-
   "theme.oled_black": "OLED Black",
   "theme.sepia": "Sepia",
   "theme.high_contrast": "High Contrast",
@@ -385,7 +358,6 @@
   "font.source_sans": "Sans Serif",
   "font.open_sans": "Open Sans",
   "font.lato": "Lato",
-
   "dashboard.kicker": "Pro",
   "dashboard.title": "Dashboard",
   "dashboard.kpi.total_words": "Total words read",
@@ -411,11 +383,9 @@
   "dashboard.time.hm": "{h}h {m}m",
   "dashboard.time_left.min": "~{n}m left",
   "dashboard.time_left.hm": "~{h}h {m}m left",
-
   "trend.up": "↑ Improving",
   "trend.down": "↓ Declining",
   "trend.steady": "→ Steady",
-
   "iap.btn.opening_store": "Opening store…",
   "iap.btn.restoring": "Restoring…",
   "iap.toast.pro_unlocked": "Pro unlocked. Thank you!",
@@ -435,7 +405,6 @@
   "iap.toast.config_error": "The store rejected this purchase. Nothing was charged — please contact support.",
   "iap.price_suffix": "— one-time",
   "iap.btn.unlock": "Unlock {tier}",
-
   "paywall.pro.tier": "Pro",
   "paywall.pro.title": "Unlock Pro",
   "paywall.pro.subtitle": "DOCX, TXT, URL Reader, dashboard, themes, and future pro tools.",
@@ -450,23 +419,18 @@
   "paywall.ocr.feature2": "Fully on-device — no internet required",
   "paywall.ocr.feature3": "One-time purchase. No subscription.",
   "paywall.ocr.feature4": "Requires Pro ({pro_price}) + OCR Vision ({ocr_price}).",
-
   "error_card.title": "Something went wrong",
   "error_card.default_msg": "An unexpected error occurred.",
   "error_card.btn.go_home": "Go Home",
   "global_error.generic": "Please re-import your file or restart the app.",
   "global_error.boot_failed": "The app failed to start. Please restart.",
-
   "dict.no_definition": "No definition found for “{word}”.",
   "dict.pro_prompt": "Look up any word as you read.",
   "dict.upgrade_cta": "Upgrade to Pro to enable the offline dictionary.",
-
   "calibration.sample": "FlowRead is built for readers who want less friction and more momentum. The goal of this calibration is not to impress you with a big number — it’s to find the pace where reading feels effortless. Start slow, watch the words land, and nudge the speed up until it feels natural.",
-
   "upload.card.freebooks.title": "Free Books",
   "upload.card.freebooks.badge": "Free",
   "upload.card.freebooks.body": "Public domain classics, philosophy, and more. Download once, read offline.",
-
   "freebooks.title": "Free Books",
   "freebooks.lang.all": "All",
   "freebooks.search.placeholder": "Search title or author…",
@@ -485,5 +449,53 @@
   "freebooks.loading.downloading_mb": "Downloading {title}… {mb} MB",
   "freebooks.error.download_failed": "Could not download '{title}'. Check your connection and try again.",
   "freebooks.empty": "No books match your filters.",
-  "freebooks.legal": "All titles are public domain or officially free. Downloaded files are saved on your device."
+  "freebooks.legal": "All titles are public domain or officially free. Downloaded files are saved on your device.",
+  "btn.done": "Done",
+  "nudge.screen.kicker": "A moment",
+  "nudge.screen.title": "Read a bit before {app}?",
+  "nudge.screen.subtitle": "A couple of pages, then carry on. Either choice is fine.",
+  "nudge.screen.btn_read": "Start reading",
+  "nudge.screen.btn_continue": "Continue to {app} anyway",
+  "nudge.unlock.title": "Nice — that's your pages.",
+  "nudge.unlock.body": "You can head to {app} now, or stay with the book a while longer.",
+  "nudge.unlock.keep_reading": "Keep reading",
+  "nudge.unlock.go": "Open {app}",
+  "nudge.toast.could_not_open": "Couldn't open {app}.",
+  "nudge.toast.unlocked": "{app} is free to open now.",
+  "nudge.toast.free_limit": "The free plan covers one app.",
+  "nudge.picker.title": "Which app?",
+  "nudge.picker.subtitle": "Pick the app you'd rather scroll less. FlowRead will offer you a page first.",
+  "nudge.picker.search": "Search apps",
+  "nudge.picker.loading": "Loading your apps…",
+  "nudge.picker.none": "No apps found to choose from.",
+  "nudge.picker.no_match": "No app matches that.",
+  "nudge.disclosure.kicker": "Before you turn this on",
+  "nudge.disclosure.title": "What FlowRead can and can't see",
+  "nudge.disclosure.body": "To offer you a page before you open a distracting app, FlowRead needs Android to tell it when that app comes to the front. Here's exactly what that means.",
+  "nudge.disclosure.point1": "FlowRead sees only the name of the apps you picked — nothing about any other app.",
+  "nudge.disclosure.point2": "It cannot read anything on your screen. Not messages, not passwords, not what you browse.",
+  "nudge.disclosure.point3": "Nothing about this leaves your device.",
+  "nudge.disclosure.off": "You can turn it off in Settings, or in Android's Accessibility settings, at any time.",
+  "nudge.disclosure.btn_continue": "Continue",
+  "settings.section.nudge": "Reading nudge",
+  "settings.nudge.intro": "Pick an app you'd rather scroll less. When you've already spent a while in it today, FlowRead offers you a page first — with a one-tap way to carry on regardless.",
+  "settings.nudge.toggle": "Nudge me to read",
+  "settings.nudge.apps_label": "Apps",
+  "settings.nudge.apps_choose": "Choose",
+  "settings.nudge.apps_none": "No app chosen yet.",
+  "settings.nudge.threshold_label": "Nudge after",
+  "settings.nudge.threshold_value": "{n} min in the app",
+  "settings.nudge.pages_label": "Pages to read",
+  "settings.nudge.pages_value": "{n} pages",
+  "settings.nudge.escape_note": "Every nudge always shows a one-tap way to continue to the app anyway. Skipping costs you nothing — no streak breaks, no penalty.",
+  "settings.nudge.perm_accessibility": "App detection",
+  "settings.nudge.perm_accessibility_note": "Lets Android tell FlowRead when a chosen app opens. FlowRead cannot read your screen. Required.",
+  "settings.nudge.perm_overlay": "Display over other apps",
+  "settings.nudge.perm_overlay_note": "Lets the nudge appear on top of the app you just opened. Required.",
+  "settings.nudge.perm_usage": "Usage access",
+  "settings.nudge.perm_usage_note": "Without it, FlowRead nudges on your third open of the day instead of after real time spent. Everything still works.",
+  "settings.nudge.perm_on": "On",
+  "settings.nudge.perm_grant": "Turn on",
+  "settings.nudge.perm_optional": "(optional)",
+  "settings.nudge.perm_no_screen": "This phone doesn't offer that settings screen."
 }
