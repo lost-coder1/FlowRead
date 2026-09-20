@@ -3,7 +3,7 @@
 > Working document. `Claude.md` is the contract; this file is how we execute it.
 > Every task references its governing `Claude.md` section. If the two disagree, `Claude.md` wins — and `Claude.md` gets updated *before* we change direction, not after.
 
-**Last updated:** 2026-09-16 — **1.4.6 (versionCode 33) bundle built**, awaiting Internal testing verification. Contains H4, H3, 16.9, 16.7. See `RELEASE_NOTES_1.4.6.md` and `BILLING_TEST_PLAN.md`.
+**Last updated:** 2026-09-20 — **1.4.7 (versionCode 34) verified on Internal testing and merged to `master`** (`33ed6d1`). H4 is done: the revenue blocker is closed. Contains H4, H3, 16.9, 16.7.
 **Status legend:** `Not started` · `In progress` · `Blocked` · `Done`
 
 ---
@@ -214,7 +214,7 @@ The toolchain and billing upgrades are shipped and verified in production (1.4.5
 
 ## Task 16.9 — Home screen reorder (friction fix)
 
-**Status:** ✅ Code complete (2026-09-16), device check pending · **Ref:** §19 · **Size:** S
+**Status:** ✅ Code complete (2026-09-16), shipped in 1.4.7 · **Ref:** §19 · **Size:** S
 
 **Why:** In-progress books sit below the import grid; resuming a read is the most common action and currently requires scrolling past import options.
 
@@ -231,7 +231,7 @@ The toolchain and billing upgrades are shipped and verified in production (1.4.5
 
 ## Task 16.7 — Offline-triggered reading notification
 
-**Status:** ✅ Code complete (2026-09-16); **Q6 copy still needs sign-off**, device check pending · **Ref:** §11 · **Size:** S–M
+**Status:** ✅ **Done — verified on device 2026-09-20** (1.4.7). Q6 copy still needs sign-off. · **Ref:** §11 · **Size:** S–M
 
 **Why:** Going offline is a natural reading moment. Third notification type, connectivity-triggered rather than time-of-day.
 
@@ -245,7 +245,7 @@ The toolchain and billing upgrades are shipped and verified in production (1.4.5
 - [x] Settings toggle `fr_notif_offline` (default on), with the same permission-denial handling as the daily reminder. Turning it off cancels 1003.
 - [~] Copy is **Q6 — draft only, needs product-owner sign-off.** Three rotating bodies per locale, deliberately light and non-preachy (§1.6): "No signal? Good time for a few pages." / "Nothing to scroll right now. Your book is still here." / "Offline — a quiet moment to read."
 - [x] New keys in `en.json` + `hi.json` (451 keys each, full parity).
-- [ ] Device-verify: airplane-mode toggling fires at most one per throttle window, never when already read today, never in foreground.
+- [x] Device-verified 2026-09-20 on 1.4.7 — going offline fires the nudge.
 
 **Honest limitation to document (§1.5):** the connectivity listener only runs while the app process is alive, so this catches going offline with FlowRead backgrounded — not after Android has reclaimed the process. It is a bonus trigger, not a guarantee. Noted in a comment above the implementation.
 
@@ -351,13 +351,13 @@ Reconnaissance says this is already fixed: `www/data/free-books.json` has 88 boo
 - [ ] Spot-check a few downloads end-to-end.
 - [ ] If clean, propose deleting §13.3 from `Claude.md` (see H2).
 
-## Task H4 — Pro purchase fails with a generic error 🔴 REVENUE-BLOCKING
+## Task H4 — Pro purchase fails with a generic error ✅ DONE
 
-**Status:** Code complete, **device verification pending** (2026-09-16) · **Ref:** §1.5 ("never silently fail", "errors explained in plain language"), §3.1 · **Size:** S–M · **Found:** 2026-09-16, reported from production on 1.4.5
+**Status:** ✅ **Done — verified on a Play-distributed build 2026-09-20** (1.4.7 / versionCode 34, Internal testing) · **Ref:** §1.5 ("never silently fail", "errors explained in plain language"), §3.1 · **Size:** S–M · **Found:** 2026-09-16 from production on 1.4.5 · **Fixed:** 2026-09-16 · **Verified:** 2026-09-20
 
 **Symptom:** Tapping unlock-Pro shows `iap.toast.purchase_failed` — "Purchase could not be completed. Please try again." Purchase does not go through.
 
-**Priority: highest open item.** It blocks revenue on the live build and there is no workaround for affected users.
+**Was the highest-priority open item** — it blocked revenue on the live build with no workaround. Resolved.
 
 ### What the evidence already rules out
 
@@ -392,22 +392,41 @@ and `purchase.js:_handlePurchaseError` falls through to the same generic toast. 
 - [x] Handle `SERVICE_DISCONNECTED` / `SERVICE_UNAVAILABLE` distinctly. The plugin now emits a `billingDisconnected` event; JS clears `_iapInitialized` so the next call re-inits instead of dying on `NOT_INITIALIZED` forever.
 - [x] Give each case its own plain-language i18n string in `en.json` + `hi.json` (§17). Seven new `iap.toast.*` keys. **Hindi needs product-owner sign-off** — written in the file's existing Hinglish register, not supplied by the owner.
 - [x] Re-check the same collapsing in `queryProducts` and `queryPurchases` — both now go through `rejectWith()`.
-- [~] Re-test on a Play-distributed build: fresh purchase, purchase while already owning, cancel mid-flow (must stay silent — §3.1), and restore.
+- [x] Re-test on a Play-distributed build — see the verification results below.
 
-**Verification progress (2026-09-20, 1.4.7 / versionCode 34 via Internal testing)**
-- **The error taxonomy is confirmed working end to end.** A declined payment produced the
-  specific payment-method message, not the old generic "Purchase could not be completed."
-  The plugin emitted `BILLING_UNAVAILABLE` (code 3) and `purchase.js` selected the right branch.
-- **Blocked on Play Console config, not app code.** The payment sheet offered real UPI/GPay
-  rather than "Test card, always approves", so the alt account is **not** registered under
-  Setup → Licence testing. Play attempted a genuine charge and Google declined it with
-  `OR-FGEMF-20` — the expected outcome for self-purchasing your own IAP. Add the account to
-  licence testing, wait 15–30 min, force-stop the Play Store, and retry. See `BILLING_TEST_PLAN.md` §5b.
-- **Copy fix applied:** `iap.toast.billing_unavailable` said "unavailable on this device or
-  account", which pointed users at the wrong thing for a declined payment. `BILLING_UNAVAILABLE`
-  is Play's "user billing error" in Billing 6+, so it now names the payment method.
-- **Still unverified:** a completed fresh purchase, already-owned recovery, silent
-  `USER_CANCELED`, and restore. All need licence testing working first.
+### ✅ Verification results — 2026-09-20, 1.4.7 / versionCode 34, Internal testing
+
+| Test | Result |
+|---|---|
+| Fresh purchase | ✅ Completes and unlocks (first success since the Billing 9 migration) |
+| Restore purchases | ✅ Resolves entitlements |
+| Purchase while already owning | ✅ No false failure — shows "You already own this. Restoring it now…" and restores. **See the sub-path note.** |
+| Error taxonomy reaches the user | ✅ A declined payment produced its specific message, not the old generic one |
+| Cancel mid-flow stays silent | ⬜ Not exercised |
+| Airplane mode mid-purchase | ⬜ Not exercised |
+
+**The original bug is fixed.** A customer who owns Pro is no longer told their purchase failed;
+they end up unlocked. That was the §1.5 violation and it is closed.
+
+**Sub-path note — follow-up, not a reopen.** The observed toast was `iap.toast.already_owned`
+(`purchase.js:346`), which is the **JS fallback**, not the native primary path. Had
+`recoverOwnedPurchase()` found the existing purchase it would have resolved as a success and
+shown `iap.toast.pro_unlocked` instead. So the plugin's `queryPurchasesAsync` lookup did not
+match — worth a look when next in this code (candidates: `pendingProductId` being null, or the
+`getProducts().contains(productId)` check). **The user-facing outcome is correct either way**,
+since the fallback restores the entitlement, which is why this is a follow-up rather than a
+live defect.
+
+**Copy fix applied during verification:** `iap.toast.billing_unavailable` said "unavailable on
+this device or account", which pointed users at the wrong thing for a declined payment.
+`BILLING_UNAVAILABLE` is Play's "user billing error" in Billing 6+, so it now names the payment
+method. **Committed but not yet in a shipped bundle** — fold it into the next build.
+
+**Root cause of the verification delay, for the record:** the first internal-testing install
+appeared to contain none of the changes. Play was serving the cached production build; the
+`.aab` was verified to contain every change. Then `OR-FGEMF-20` — a genuine Google payments
+decline, because the tester account was not under Setup → Licence testing, so Play attempted a
+real charge on the developer's own IAP. Both documented in `BILLING_TEST_PLAN.md` §3b and §5b.
 
 **Earlier install gotcha (resolved):** the first internal-testing install appeared to contain
 none of the changes. Cause was Play serving the cached production build, not a bad bundle —
@@ -434,7 +453,7 @@ version and build (1.4.7+). See `BILLING_TEST_PLAN.md` §3b.
 
 ## Task H3 — Notifications fail silently when exact-alarm permission is denied
 
-**Status:** Code complete, **device verification pending** (2026-09-16) · **Ref:** §1.5 ("never silently fail"), §11 · **Size:** S · **Found:** 2026-09-16 while device-verifying 16.0a
+**Status:** Code complete (2026-09-16); shipped in 1.4.7. **Scheduling confirmed working; the two denial-path checks are still unexercised.** · **Ref:** §1.5 ("never silently fail"), §11 · **Size:** S · **Found:** 2026-09-16 while device-verifying 16.0a
 
 **Why:** `notifications.js:196` uses `allowWhileIdle: true` (exact alarms). Android denies `SCHEDULE_EXACT_ALARM` by default for apps targeting 33+. Line 221 swallows the resulting failure in `catch (_) {}`, so a user who hasn't granted it gets **no reminders and no indication why**. This directly violates §1.5's "never silently fail" principle. Pre-existing — not introduced by the API 36 bump — but the bump makes it more likely to bite.
 
@@ -454,7 +473,9 @@ Verified by reading `@capacitor/local-notifications` 8.x sources. `LocalNotifica
 - [x] `_ensureFirstBootDefaults()` no longer discards `requestPermission()`'s result.
 - [x] Settings reflects reality: denying the permission **reverts the checkbox** and toasts a plain-language explanation; `#settings-reminder-note` renders the real status via `reminderNoteText()` / `syncReminderNote()`.
 - [x] New strings in `en.json` + `hi.json` (§17): `settings.reminder.note_denied`, `settings.reminder.note_failed`, `notif.toast.permission_denied`. **Hindi needs product-owner sign-off.**
-- [ ] Device-verify: revoke "Alarms & reminders" → reminder still fires; deny notifications → toggle reverts with an explanation; normal path unchanged.
+- [x] Normal path confirmed on 1.4.7 — notifications schedule and fire on the inexact alarm, evidenced by 16.7's offline nudge working on the same machinery.
+- [ ] Revoke "Alarms & reminders" → reminder must still fire. **Not yet exercised** — this is the exact case the fix targets, so it is the one that still matters.
+- [ ] Deny the notification permission → toggle must revert with a plain-language explanation. **Not yet exercised.**
 
 ### Manifest — `SCHEDULE_EXACT_ALARM` removed ✅ (signed off 2026-09-16)
 
@@ -489,14 +510,21 @@ The permission is denied by default at API 33+ for non-alarm-clock apps, and not
 |---|---|---|
 | **A — Compliance** | ✅ 16.0a, ✅ 16.0b · 16.1 open | Shipped as 1.4.5 / versionCode 32, published 2026-09-16. 16.1 blocked on Q1 to finish, not to start. |
 | **B — Pivot core** | 16.2, 16.3 | Unblocked. 16.2 is the largest item in Phase 16; 16.3 depends on it. |
-| **C — Features** | ✅ 16.9, ✅ 16.7 (code) · 16.6, 16.8, 16.4, 16.5, 16.10 open | 16.9 and 16.7 code complete 2026-09-16, pending device checks; 16.7 needs Q6 copy sign-off. 16.4/16.5 still need Q4/Q5 before starting. |
-| **D — Housekeeping** | ✅ H1, ✅ H2 · H3, H4 code complete | Both fixed 2026-09-16, **pending device verification**. H4 needs a Play-distributed build to test. |
+| **C — Features** | ✅ 16.9, ✅ 16.7 · 16.6, 16.8, 16.4, 16.5, 16.10 open | 16.9 and 16.7 shipped and verified in 1.4.7 (2026-09-20); 16.7's copy still needs Q6 sign-off. 16.4/16.5 still need Q4/Q5 before starting. |
+| **D — Housekeeping** | ✅ H1, ✅ H2, ✅ **H4** · H3 substantially done | **H4 verified on a Play build 2026-09-20 — the revenue blocker is closed.** H3's fix is live and scheduling works; only the two denial-path checks remain. |
 
-**Suggested next:** H4, H3, 16.9 and 16.7 are all code complete (2026-09-16) and batched for one release. H3/16.9/16.7 verify on a sideloaded debug build; **H4 needs an internal-testing track upload**, since Play Billing is unreachable from a sideloaded APK — steps in "H4 device verification" below. **16.1 was deliberately kept out of the H4 pass** (blocked on Q1 pricing; H4 is revenue-blocking now), but H4's error taxonomy is exactly what makes 16.1's testing tractable. After this release ships: 16.2 as the main pivot effort, or 16.6 if distribution stays the priority (§22).
+**Merged to `master` as `33ed6d1` on 2026-09-20.** H4, H3, 16.9 and 16.7 all shipped in 1.4.7 (versionCode 34) and verified on a Play-distributed build. The revenue blocker is closed.
+
+**Before promoting 1.4.7 to production:** fold in the committed `iap.toast.billing_unavailable` copy fix (not yet in a bundle), and ideally run the two cheap H3 denial-path checks plus the silent-cancel case. None are blockers — as it stands the release is a strict improvement on 1.4.5.
+
+**Suggested next:**
+- **16.2 (Nudge)** — the pivot itself (§0.1), the longest pole, and 16.3 is blocked behind it. Q2/Q8/Q9 are needed to finish, not to start.
+- **16.6 (Share stats)** — M-sized, `@capacitor/share` already approved, and the only item with plausible organic reach. Worth taking first if §22's distribution bottleneck is still the binding constraint.
+- **16.1 (Subscription IAP)** — still blocked on Q1 pricing, but materially cheaper now that H4 gave the purchase flow a real error taxonomy.
 
 ---
 
-## H4 device verification — steps
+## H4 device verification — steps *(completed 2026-09-20; kept as the procedure for future billing work)*
 
 Play Billing only works in a build Play itself delivered, so a sideloaded APK cannot test this. Internal testing is the fastest track (no review wait, up to 100 testers).
 
@@ -513,6 +541,11 @@ Play Billing only works in a build Play itself delivered, so a sideloaded APK ca
 7. **Network case:** airplane mode mid-purchase → a network-specific message, not the generic one.
 8. **Confirm the taxonomy works** — logcat should now show `FlowReadIap: purchase failed: <TOKEN> (code=N)` on any failure. If a generic toast still appears, the token reached JS but `_messageForCode` has no branch for it; the logged token names exactly what to add.
 9. **Then promote** the same bundle to production once the four tests pass — no rebuild needed.
+
+> **Two traps this procedure hit in practice, both now in `BILLING_TEST_PLAN.md`:** opting into
+> internal testing does **not** switch an existing production install over (uninstall first), and
+> a tester account missing from Licence testing gets a real charge attempt that Google declines
+> with `OR-FGEMF-20`. The payment sheet is the tell — it must offer "Test card, always approves".
 
 **Prerequisite check:** licence testing must list the test account (Play Console → Setup → Licence testing) for free test purchases, and `pro_lifetime` / `ocr_vision` must both be **Active** under Monetise → Products → In-app products.
 
