@@ -534,11 +534,34 @@ function renderSettings() {
           </div>
           <p class="settings-copy text-muted" id="settings-nudge-apps-summary"></p>
           <div id="settings-nudge-permissions"></div>
-          <div class="settings-row">
-            <span class="settings-row-label">${t('settings.nudge.threshold_label')}</span>
-            <strong class="settings-row-value" id="settings-nudge-minutes-value"></strong>
+          <p class="settings-copy">${t('settings.nudge.mode_label')}</p>
+          <label class="settings-toggle">
+            <span>${t('settings.nudge.mode_every_open')}</span>
+            <input type="checkbox" id="settings-nudge-mode-every-open" />
+          </label>
+          <label class="settings-toggle">
+            <span>${t('settings.nudge.mode_threshold')}</span>
+            <input type="checkbox" id="settings-nudge-mode-threshold" />
+          </label>
+          <p class="settings-copy text-muted" id="settings-nudge-mode-note"></p>
+          <div id="settings-nudge-threshold-row">
+            <div class="settings-row">
+              <span class="settings-row-label">${t('settings.nudge.threshold_label')}</span>
+              <strong class="settings-row-value" id="settings-nudge-minutes-value"></strong>
+            </div>
+            <input type="range" min="5" max="60" step="5" id="settings-nudge-minutes" class="settings-slider" />
           </div>
-          <input type="range" min="5" max="60" step="5" id="settings-nudge-minutes" class="settings-slider" />
+          <div class="settings-row">
+            <span class="settings-row-label">${t('settings.nudge.cap_label')}</span>
+            <strong class="settings-row-value" id="settings-nudge-cap-value"></strong>
+          </div>
+          <input type="range" min="1" max="10" step="1" id="settings-nudge-cap" class="settings-slider" />
+          <p class="settings-copy text-muted" id="settings-nudge-cap-note">${t('settings.nudge.cap_note')}</p>
+          <div class="settings-row">
+            <span class="settings-row-label">${t('settings.nudge.status_label')}</span>
+            <button class="btn btn-ghost settings-inline-btn" id="btn-settings-nudge-reset">${t('settings.nudge.reset')}</button>
+          </div>
+          <p class="settings-copy text-muted" id="settings-nudge-status"></p>
           <div class="settings-row">
             <span class="settings-row-label">${t('settings.nudge.pages_label')}</span>
             <strong class="settings-row-value" id="settings-nudge-pages-value"></strong>
@@ -844,6 +867,7 @@ function _bindNudgeSettings() {
       if (!state || !state.isActive) return;
       if (AppState.currentView !== 'view-settings') return;
       syncNudgePermissions();
+      syncNudgeStatus();
     });
   }
 
@@ -868,12 +892,16 @@ function _bindNudgeSettings() {
           if (el) el.checked = true;
           syncDetailVisibility();
           syncNudgePermissions();
+          /* Usage access is not asked for here — only the time-based trigger
+             needs it, so it is requested when that trigger is switched on. */
+          NudgeFeature.promptMissingPermissions({ usageAccess: false });
         });
         return;
       }
       NudgeFeature.setEnabled(on);
       syncDetailVisibility();
       syncNudgePermissions();
+      if (on) NudgeFeature.promptMissingPermissions({ usageAccess: false });
     });
   }
   syncDetailVisibility();
@@ -885,6 +913,71 @@ function _bindNudgeSettings() {
         syncNudgeApps();
         syncNudgePermissions();
       });
+    });
+  }
+
+  /* Two independent triggers, not a choice between them — either, both or
+     neither. Both on behaves as "every open", since every open already includes
+     the opens that happen past the threshold; the note below says so rather
+     than leaving the user to work it out. */
+  const everyOpenToggle = qs('#settings-nudge-mode-every-open');
+  const thresholdToggle = qs('#settings-nudge-mode-threshold');
+  const thresholdRow = qs('#settings-nudge-threshold-row');
+
+  function syncModeVisibility() {
+    const threshold = NudgeFeature.hasTrigger(NudgeFeature.MODE_THRESHOLD);
+    const everyOpen = NudgeFeature.hasTrigger(NudgeFeature.MODE_EVERY_OPEN);
+    if (thresholdRow) thresholdRow.classList.toggle('hidden', !threshold);
+    const note = qs('#settings-nudge-mode-note');
+    if (note) {
+      note.textContent = (!threshold && !everyOpen)
+        ? t('settings.nudge.mode_none')
+        : (threshold && everyOpen ? t('settings.nudge.mode_both') : '');
+    }
+  }
+
+  [[everyOpenToggle, NudgeFeature.MODE_EVERY_OPEN],
+   [thresholdToggle, NudgeFeature.MODE_THRESHOLD]].forEach(function(pair) {
+    const el = pair[0];
+    if (!el) return;
+    el.checked = NudgeFeature.hasTrigger(pair[1]);
+    el.addEventListener('change', function() {
+      NudgeFeature.setTrigger(pair[1], this.checked);
+      syncModeVisibility();
+      syncNudgeStatus();
+      /* Ask at the moment the choice makes the permission mean something. The
+         time trigger is the only one that needs usage access; without it that
+         setting silently degrades to counting opens. */
+      if (this.checked) {
+        NudgeFeature.promptMissingPermissions({
+          usageAccess: pair[1] === NudgeFeature.MODE_THRESHOLD,
+        });
+      }
+    });
+  });
+  syncModeVisibility();
+
+  const resetBtn = qs('#btn-settings-nudge-reset');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', async function() {
+      const targets = NudgeAppsFeature.getTargets();
+      for (var i = 0; i < targets.length; i++) await NudgeFeature.resetState(targets[i]);
+      showToast(t('settings.nudge.reset_done'));
+      syncNudgeStatus();
+    });
+  }
+
+  const cap = qs('#settings-nudge-cap');
+  if (cap) {
+    cap.value = NudgeFeature.settings().dailyCap;
+    const paintCap = function() {
+      const el = qs('#settings-nudge-cap-value');
+      if (el) el.textContent = t('settings.nudge.cap_value', { n: cap.value });
+    };
+    paintCap();
+    cap.addEventListener('input', paintCap);
+    cap.addEventListener('change', function() {
+      NudgeFeature.setSetting(NudgeFeature.KEY_DAILY_CAP, parseInt(this.value, 10));
     });
   }
 
@@ -918,6 +1011,47 @@ function _bindNudgeSettings() {
 
   syncNudgeApps();
   syncNudgePermissions();
+  syncNudgeStatus();
+}
+
+/* What the gate currently thinks, in plain language. Without this, a user who
+ * has skipped a few nudges gets silence for the rest of the day and no way to
+ * find out why — §1.5 forbids exactly that.
+ */
+async function syncNudgeStatus() {
+  const el = qs('#settings-nudge-status');
+  if (!el || typeof NudgeFeature === 'undefined' || typeof NudgeAppsFeature === 'undefined') return;
+  const targets = NudgeAppsFeature.getTargets();
+  if (!targets.length) { el.textContent = ''; return; }
+
+  const pkg = targets[0];
+  const st = await NudgeFeature.statusFor(pkg);
+  if (!st) { el.textContent = ''; return; }
+
+  const name = NudgeAppsFeature.labelFor(pkg);
+  const parts = [t('settings.nudge.status_today', {
+    app: name, n: st.nudges, cap: st.dailyCap, skipped: st.dismissals,
+  })];
+  /* Without usage access the minutes threshold silently becomes an opens
+     threshold. The slider still says "5 min", so say plainly which one is
+     actually being counted (§1.5). */
+  if (st.minutes >= 0) {
+    parts.push(t('settings.nudge.status_minutes', { n: st.minutes, target: st.minMinutes }));
+  } else if (NudgeFeature.hasTrigger(NudgeFeature.MODE_THRESHOLD)) {
+    parts.push(t('settings.nudge.status_by_opens', { n: st.opens, target: st.minOpens }));
+  }
+  /* The back-off does not apply in every-open mode, so saying it does would be
+     a lie the user can check against their own screen. */
+  if (!st.everyOpen && st.dismissals >= st.backoffAt) {
+    parts.push(t('settings.nudge.status_backed_off'));
+  }
+  else if (st.nudges >= st.dailyCap) parts.push(t('settings.nudge.status_cap_reached'));
+  else if (st.suppressedSeconds > 0) {
+    parts.push(t('settings.nudge.status_paused', {
+      n: Math.max(1, Math.round(st.suppressedSeconds / 60)),
+    }));
+  }
+  el.textContent = parts.join(' ');
 }
 
 function syncNudgeApps() {

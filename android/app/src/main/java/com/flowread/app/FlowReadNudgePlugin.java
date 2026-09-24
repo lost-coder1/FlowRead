@@ -26,6 +26,7 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 
 import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
@@ -324,6 +325,25 @@ public class FlowReadNudgePlugin extends Plugin {
         call.resolve();
     }
 
+    /** Everything the gate would decide on, for the Settings diagnostic. */
+    @PluginMethod
+    public void getNudgeStatus(PluginCall call) {
+        String pkg = call.getString("packageName");
+        if (pkg == null || pkg.isEmpty()) { call.resolve(new JSObject()); return; }
+        try {
+            call.resolve(JSObject.fromJSONObject(NudgeGate.statusFor(getContext(), pkg)));
+        } catch (JSONException e) {
+            call.resolve(new JSObject());
+        }
+    }
+
+    /** Clears today's counters for one app — undoes a back-off or a suppression. */
+    @PluginMethod
+    public void resetNudgeState(PluginCall call) {
+        NudgeGate.resetApp(getContext(), call.getString("packageName"));
+        call.resolve();
+    }
+
     @PluginMethod
     public void getForegroundMinutesToday(PluginCall call) {
         String pkg = call.getString("packageName");
@@ -332,7 +352,30 @@ public class FlowReadNudgePlugin extends Plugin {
         call.resolve(ret);
     }
 
-    /** Clears the cold-start handoff once JS has consumed it. */
+    /**
+     * Reads the handoff WITHOUT clearing it.
+     *
+     * Three independent paths pull it — cold start, the hot nudge event, and
+     * every resume — precisely so none of them has to fire in the right order.
+     * A destructive read reintroduces that ordering dependency: whichever path
+     * arrived first would consume it and the others would silently find nothing.
+     * JS clears it with clearPendingNudge once the screen has actually rendered.
+     */
+    @PluginMethod
+    public void peekPendingNudge(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("pending", NudgeGate.prefs(getContext()).getString("fr_pending_nudge", null));
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void clearPendingNudge(PluginCall call) {
+        NudgeGate.prefs(getContext()).edit().remove("fr_pending_nudge").apply();
+        call.resolve();
+    }
+
+    /** Read-and-clear. Superseded by peek/clear; kept so an older bundle paired
+     *  with this build still behaves. */
     @PluginMethod
     public void consumePendingNudge(PluginCall call) {
         SharedPreferences p = NudgeGate.prefs(getContext());

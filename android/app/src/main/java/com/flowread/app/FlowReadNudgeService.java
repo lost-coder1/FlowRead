@@ -9,6 +9,7 @@ import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 
 import org.json.JSONArray;
+import org.json.JSONObject;
 
 /**
  * Notices when one of the user's chosen apps comes to the front.
@@ -92,21 +93,33 @@ public class FlowReadNudgeService extends AccessibilityService {
         /* Our own windows must never trigger anything. */
         if (getPackageName().equals(pkg)) return;
 
-        if (!NudgeGate.shouldNudge(this, pkg)) return;
+        NudgeGate.Decision decision = NudgeGate.decide(this, pkg);
+        if (!decision.nudge) return;
 
         String label = FlowReadNudgePlugin.labelForPackage(this, pkg);
-        launchNudge(pkg, label);
+        launchNudge(pkg, label, decision);
     }
 
-    private void launchNudge(String pkg, String label) {
+    private void launchNudge(String pkg, String label, NudgeGate.Decision decision) {
         try {
-            /* Handed to JS on cold start, where there is no live WebView to
-               receive an event. Mirrors the fr_pending_pdf_open handoff. */
+            /* Handed to JS, which reads it on cold start (no live WebView to
+               receive an event), on the hot nudge event, and on every resume.
+               Mirrors the fr_pending_pdf_open handoff.
+
+               JSONObject, not string concatenation: a label containing a quote,
+               a backslash or a newline would otherwise produce invalid JSON and
+               the whole handoff would vanish into a JSON.parse catch. The key is
+               "packageName" to match the vocabulary the plugin uses everywhere
+               else — a mismatch here is invisible and stops the nudge dead. */
+            JSONObject payload = new JSONObject();
+            payload.put("packageName", pkg);
+            payload.put("label", label);
+            payload.put("minutes", decision.minutes);
+            payload.put("opens", decision.opens);
+            payload.put("everyOpen", decision.everyOpen);
+            payload.put("at", System.currentTimeMillis());
             NudgeGate.prefs(this).edit()
-                    .putString("fr_pending_nudge",
-                            "{\"package\":\"" + pkg.replace("\"", "")
-                                    + "\",\"label\":\"" + label.replace("\"", "")
-                                    + "\",\"at\":" + System.currentTimeMillis() + "}")
+                    .putString("fr_pending_nudge", payload.toString())
                     .apply();
 
             Intent intent = new Intent(this, MainActivity.class);

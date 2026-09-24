@@ -336,6 +336,40 @@
   padding: 0 var(--space-md);
 }
 
+/* One-time nudge setup offer on the home screen (Claude.md §9, N4).
+   Calm and low-contrast on purpose — it is an offer, not an alert. */
+.nudge-setup-prompt {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 var(--space-md);
+  padding: var(--space-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.nudge-setup-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--text);
+  margin: 0 0 6px;
+}
+
+.nudge-setup-body {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin: 0 0 var(--space-md);
+}
+
+.nudge-setup-actions {
+  display: flex;
+  gap: var(--space-sm);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
 .library-heading {
   font-family: var(--font-mono);
   font-size: 11px;
@@ -352,11 +386,79 @@
   border-top: 1px solid rgba(232, 228, 220, 0.06);
 }
 
-.library-subsection-device .library-heading {
+.library-subsection-device /* One-time nudge setup offer on the home screen (Claude.md §9, N4).
+   Calm and low-contrast on purpose — it is an offer, not an alert. */
+.nudge-setup-prompt {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 var(--space-md);
+  padding: var(--space-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.nudge-setup-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--text);
+  margin: 0 0 6px;
+}
+
+.nudge-setup-body {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin: 0 0 var(--space-md);
+}
+
+.nudge-setup-actions {
+  display: flex;
+  gap: var(--space-sm);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.library-heading {
   color: var(--accent);
 }
 
-.library-subsection-read .library-heading {
+.library-subsection-read /* One-time nudge setup offer on the home screen (Claude.md §9, N4).
+   Calm and low-contrast on purpose — it is an offer, not an alert. */
+.nudge-setup-prompt {
+  width: 100%;
+  max-width: 680px;
+  margin: 0 var(--space-md);
+  padding: var(--space-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.nudge-setup-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--text);
+  margin: 0 0 6px;
+}
+
+.nudge-setup-body {
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin: 0 0 var(--space-md);
+}
+
+.nudge-setup-actions {
+  display: flex;
+  gap: var(--space-sm);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.library-heading {
   color: var(--accent-2);
   margin-bottom: 0;
 }

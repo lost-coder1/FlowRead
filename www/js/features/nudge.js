@@ -20,6 +20,16 @@ const NudgeFeature = (function() {
   const KEY_BACKOFF = 'fr_nudge_backoff_dismissals';
   const KEY_UNLOCK_PAGES = 'fr_nudge_unlock_pages';
   const KEY_DISCLOSED = 'fr_nudge_disclosed';
+  const KEY_TRIGGER_MODE = 'fr_nudge_trigger_mode';
+  const KEY_PROMPTED = 'fr_nudge_prompted';
+
+  /* The two triggers are independent, not a choice between them: a user can
+     have either, both, or neither. Stored as a comma-separated list, which
+     NudgeGate reads from the shared prefs store and is the side that enforces.
+     Note that with both on, "every open" subsumes the threshold — every open
+     already includes the opens that happen past it. */
+  const MODE_THRESHOLD = 'threshold';
+  const MODE_EVERY_OPEN = 'every_open';
 
   /* Q2 starting values, signed off 2026-09-20. All are settings, none are
      hardcoded at the call site — §9.2 step 5 is explicit about that. */
@@ -34,9 +44,20 @@ const NudgeFeature = (function() {
   /* How long a given app stays un-nudged after each outcome. Dismissing buys a
      short breather; reading to the threshold buys a proper session (§9.7). */
   const DISMISS_SUPPRESS_MINUTES = 10;
+
+  /* Escaping in every-open mode cannot suppress for long — the next open is the
+     whole point of the mode — but it cannot suppress for nothing either: the
+     app coming back to the front IS a window-state change, so a zero window
+     re-nudges instantly and traps the user in a loop. Just long enough to cover
+     the return to the app they asked to be let into. */
+  const EVERY_OPEN_SKIP_SUPPRESS_MINUTES = 2;
   const UNLOCK_SUPPRESS_MINUTES = 60;
 
-  let _pending = null;   /* { packageName, label } awaiting a nudge screen */
+  /* How old a handoff may be before it is junk rather than a live interception. */
+  const STALE_AFTER_MS = 120000;
+
+  let _pending = null;   /* { packageName, label, minutes, opens } awaiting a screen */
+  let _incomingInFlight = false;  /* one render at a time across the three paths */
 
   function _plugin() {
     return (typeof Capacitor !== 'undefined' &&
@@ -72,6 +93,24 @@ const NudgeFeature = (function() {
     };
   }
 
+  /* A legacy single value ("threshold") parses as a one-item list unchanged. */
+  function triggers() {
+    const raw = localStorage.getItem(KEY_TRIGGER_MODE);
+    if (raw === null) return [MODE_THRESHOLD];
+    const list = raw.split(',').map(function(x) { return x.trim(); })
+      .filter(function(x) { return x === MODE_THRESHOLD || x === MODE_EVERY_OPEN; });
+    return list;
+  }
+
+  function hasTrigger(mode) { return triggers().indexOf(mode) !== -1; }
+
+  function setTrigger(mode, on) {
+    const list = triggers().filter(function(x) { return x !== mode; });
+    if (on) list.push(mode);
+    localStorage.setItem(KEY_TRIGGER_MODE, list.join(','));
+    _pushSettings();
+  }
+
   function setSetting(key, value) {
     localStorage.setItem(key, String(value));
     _pushSettings();
@@ -90,6 +129,7 @@ const NudgeFeature = (function() {
     write[KEY_MIN_OPENS] = String(s.minOpens);
     write[KEY_DAILY_CAP] = String(s.dailyCap);
     write[KEY_BACKOFF] = String(s.backoffDismissals);
+    write[KEY_TRIGGER_MODE] = triggers().join(',');
     Object.keys(write).forEach(function(k) {
       prefs.set({ key: k, value: write[k] }).catch(function() {});
     });
@@ -148,6 +188,26 @@ const NudgeFeature = (function() {
     } catch (_) { return false; }
   }
 
+  /* ─── Diagnostics ──────────────────────────────────────────────────── */
+
+  /* Every reason the gate declines to nudge is invisible from the outside, and
+     the back-off is the worst of them: three skips silences an app for the rest
+     of the day with nothing on screen saying so. Settings shows this (§1.5). */
+  async function statusFor(packageName) {
+    const p = _plugin();
+    if (!p || typeof p.getNudgeStatus !== 'function' || !packageName) return null;
+    try {
+      const s = await p.getNudgeStatus({ packageName: packageName });
+      return (s && typeof s.nudges === 'number') ? s : null;
+    } catch (_) { return null; }
+  }
+
+  async function resetState(packageName) {
+    const p = _plugin();
+    if (!p || typeof p.resetNudgeState !== 'function' || !packageName) return;
+    try { await p.resetNudgeState({ packageName: packageName }); } catch (_) {}
+  }
+
   /* ─── Disclosure ───────────────────────────────────────────────────── */
 
   /* Play policy requires a prominent disclosure before the accessibility grant,
@@ -189,30 +249,146 @@ const NudgeFeature = (function() {
     });
   }
 
+  /* ─── Asking for permissions at the moment they mean something ──────── */
+
+  /* Each grant is a trip to a system settings page, so asking for all three up
+     front is the worst version of this — it is three interruptions before the
+     feature has done anything (§9.4a). Instead each is requested when the
+     choice that needs it is made: accessibility and overlay when the nudge is
+     switched on at all, usage access only when the time-based trigger is turned
+     on, because that is the only thing that needs it.
+     Everything is skippable: "Later" leaves the controls in Settings. */
+  async function promptMissingPermissions(opts) {
+    const state = await permissionState();
+    if (!state.available) return;
+    const rows = [];
+    if (!state.accessibility) {
+      rows.push({ id: 'accessibility', open: openAccessibilitySettings,
+                  label: t('settings.nudge.perm_accessibility'),
+                  note: t('settings.nudge.perm_accessibility_note') });
+    }
+    if (!state.overlay) {
+      rows.push({ id: 'overlay', open: openOverlaySettings,
+                  label: t('settings.nudge.perm_overlay'),
+                  note: t('settings.nudge.perm_overlay_note') });
+    }
+    if (opts && opts.usageAccess && !state.usageAccess) {
+      rows.push({ id: 'usage', open: openUsageAccessSettings,
+                  label: t('settings.nudge.perm_usage'),
+                  note: t('settings.nudge.perm_usage_note') });
+    }
+    if (!rows.length) return;
+    _showPermissionModal(rows);
+  }
+
+  /* One button per grant rather than a forced chain: the user can take them in
+     any order, or none, and come back to whichever they skipped. */
+  function _showPermissionModal(rows) {
+    const root = qs('#modal-root');
+    if (!root) return;
+    closeActiveModal();
+    AppState.activeModal = 'nudge-permissions';
+
+    root.innerHTML =
+      '<div class="modal-backdrop" id="modal-backdrop">' +
+        '<div class="modal-card nudge-perm-card" role="dialog" aria-modal="true">' +
+          '<h2 class="modal-title">' + t('nudge.perm_prompt.title') + '</h2>' +
+          '<p class="modal-body">' + t('nudge.perm_prompt.body') + '</p>' +
+          rows.map(function(r) {
+            return '<div class="settings-row nudge-perm-row">' +
+                '<span class="settings-row-label">' + r.label + '</span>' +
+                '<button class="btn btn-ghost settings-inline-btn" data-grant="' + r.id + '">' +
+                  t('settings.nudge.perm_grant') + '</button>' +
+              '</div>' +
+              '<p class="settings-copy text-muted nudge-perm-note">' + r.note + '</p>';
+          }).join('') +
+          '<div class="modal-actions">' +
+            '<button class="btn btn-ghost" id="btn-nudge-perm-later">' +
+              t('nudge.perm_prompt.btn_later') + '</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    qs('#btn-nudge-perm-later').addEventListener('click', closeActiveModal);
+    qs('#modal-backdrop').addEventListener('click', function(event) {
+      if (event.target.id === 'modal-backdrop') closeActiveModal();
+    });
+    qsa('[data-grant]').forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        const row = rows.filter(function(r) { return r.id === btn.getAttribute('data-grant'); })[0];
+        if (!row) return;
+        closeActiveModal();
+        const opened = await row.open();
+        if (!opened) showToast(t('settings.nudge.perm_no_screen'));
+      });
+    });
+  }
+
   /* ─── Incoming nudge ───────────────────────────────────────────────── */
 
+  /* Reads without clearing. Three paths pull the handoff — cold start, the hot
+     flowreadNudge event, and every resume — so that none of them has to win a
+     race. Clearing on read would put that race straight back. */
   async function _readPending() {
     const p = _plugin();
-    if (!p || typeof p.consumePendingNudge !== 'function') return null;
+    if (!p) return null;
+    const read = (typeof p.peekPendingNudge === 'function')
+      ? p.peekPendingNudge()
+      : (typeof p.consumePendingNudge === 'function' ? p.consumePendingNudge() : null);
+    if (!read) return null;
     try {
-      const res = await p.consumePendingNudge();
+      const res = await read;
       if (!res || !res.pending) return null;
       const parsed = JSON.parse(res.pending);
-      if (!parsed || !parsed.packageName) return null;
-      /* A stale handoff from a previous run would drop the user into a nudge
-         for an app they are no longer in. Anything older than a minute is junk. */
-      if (parsed.at && Date.now() - parsed.at > 60000) return null;
-      return { packageName: parsed.packageName, label: parsed.label || parsed.packageName };
+      /* "package" is what builds before this fix wrote. Accepting both means an
+         update does not strand a handoff written by the older service. */
+      const pkg = parsed && (parsed.packageName || parsed.package);
+      /* Unusable rather than absent: drop it, or it is re-read on every resume
+         for the rest of the session. */
+      if (!pkg) { _clearPending(); return null; }
+      /* A stale handoff from a previous run would drop the user into a nudge for
+         an app they are no longer in. Two minutes is comfortably longer than a
+         cold boot (i18n, IAP, library) on a slow device and far too short to
+         resurrect anything from an earlier session. */
+      if (parsed.at && Date.now() - parsed.at > STALE_AFTER_MS) { _clearPending(); return null; }
+      return {
+        packageName: pkg,
+        label: parsed.label || pkg,
+        minutes: typeof parsed.minutes === 'number' ? parsed.minutes : -1,
+        opens: typeof parsed.opens === 'number' ? parsed.opens : 0,
+        everyOpen: !!parsed.everyOpen,
+      };
     } catch (_) {
+      _clearPending();
       return null;
     }
   }
 
+  function _clearPending() {
+    const p = _plugin();
+    if (p && typeof p.clearPendingNudge === 'function') {
+      p.clearPendingNudge().catch(function() {});
+    }
+  }
+
+  /* Safe to call any number of times, from any path, in any order. Resolves
+     true when a nudge was actually put on screen. */
   async function _handleIncoming() {
-    const pending = await _readPending();
-    if (!pending) return;
-    _pending = pending;
-    renderNudge(pending.packageName, pending.label);
+    if (_incomingInFlight) return false;
+    /* Only skip a re-render when the screen on view-nudge is a LIVE one. After
+       an escape _pending is null, and the view is a spent screen whose buttons
+       no longer know which app they were about — cancel on it fell through to
+       "go home" instead of opening the app. */
+    if (AppState.currentView === 'view-nudge' && _pending) return false;
+    _incomingInFlight = true;
+    try {
+      const pending = await _readPending();
+      if (!pending) return false;
+      renderNudge(pending.packageName, pending.label, pending);
+      return true;
+    } finally {
+      _incomingInFlight = false;
+    }
   }
 
   /* ─── Outcomes ─────────────────────────────────────────────────────── */
@@ -227,10 +403,15 @@ const NudgeFeature = (function() {
     const p = _plugin();
     if (p && typeof p.launchApp === 'function') {
       try {
+        /* "Every time I open it" means exactly that: skipping this one cannot
+           buy ten minutes of silence, or the next open — the one the user asked
+           to be nudged on — is swallowed. The daily cap still bounds it. */
+        const everyOpen = hasTrigger(MODE_EVERY_OPEN);
         await p.launchApp({
           packageName: ctx.packageName,
-          suppressMinutes: DISMISS_SUPPRESS_MINUTES,
-          dismissed: true,
+          suppressMinutes: everyOpen
+            ? EVERY_OPEN_SKIP_SUPPRESS_MINUTES : DISMISS_SUPPRESS_MINUTES,
+          dismissed: !everyOpen,
         });
         return;
       } catch (_) {}
@@ -261,15 +442,43 @@ const NudgeFeature = (function() {
     showToast(t('nudge.toast.unlocked', { app: ctx.label }));
   }
 
-  /* Called from page.js on every page turn while a nudged read is in progress. */
+  /* Called from page.js on every page turn while a nudged read is in progress.
+     Page mode knows where its real page boundaries are, so when it is the engine
+     in use this is the exact count; every other engine goes through
+     onReadProgress below. */
   function onPageTurn(pageIndex) {
     const ctx = AppState.nudgeContext;
-    if (!ctx) return;
+    if (!ctx || ctx.done) return;
     /* Anchor one page behind the first turn we see: that turn is itself a page
        read, so counting from pageIndex here would demand unlockPages + 1. */
     if (typeof ctx.startPage !== 'number') ctx.startPage = pageIndex - 1;
     const turned = pageIndex - ctx.startPage;
     if (turned < settings().unlockPages) return;
+    ctx.done = true;
+    _showUnlockPrompt(ctx);
+  }
+
+  /* Called from savePosition() — the one seam every engine already goes through
+     — so a nudged read counts in RSVP, Chunk, Scroll and Focus Bold too, not
+     only in Page mode. Without this, reading in any other engine could never
+     reach the unlock and the user was left waiting for something that was never
+     going to happen (§1.5).
+
+     "Pages" is the unit the user set, so other engines convert: a Page-mode page
+     on a phone runs roughly this many words. It is an approximation by nature —
+     the point is that the effort asked for is the same size, not that the two
+     paths agree to the word. */
+  const WORDS_PER_PAGE = 220;
+
+  function onReadProgress(wordIndex) {
+    const ctx = AppState.nudgeContext;
+    if (!ctx || ctx.done) return;
+    if (typeof wordIndex !== 'number' || !isFinite(wordIndex)) return;
+    if (typeof ctx.startWord !== 'number') { ctx.startWord = wordIndex; return; }
+    /* Jumping backwards (a re-read, or the bridge) re-anchors rather than going
+       negative and quietly stalling the counter. */
+    if (wordIndex < ctx.startWord) { ctx.startWord = wordIndex; return; }
+    if (wordIndex - ctx.startWord < settings().unlockPages * WORDS_PER_PAGE) return;
     ctx.done = true;
     _showUnlockPrompt(ctx);
   }
@@ -359,8 +568,15 @@ const NudgeFeature = (function() {
 
     const book = _inProgressBook();
     if (book && typeof resumeFromLibrary === 'function') {
-      /* §9.5: land in Page mode, without overwriting the user's own default. */
-      await resumeFromLibrary(book.item, 'nudge', { forceEngine: 'page' });
+      /* §9.5 specifies Page mode here, on the reasoning that RSVP is too
+         high-effort right after an interception. Temporarily overridden
+         2026-09-21: Page mode's first paint is slow enough that the user is
+         left staring at a loading state at exactly the moment the nudge is
+         trying to be frictionless, which costs more than the engine choice
+         gains. Landing in whatever engine they actually read in is the
+         interim rule. Restore the §9.5 behaviour once Page-mode load time is
+         addressed. */
+      await resumeFromLibrary(book.item, 'nudge');
       return;
     }
 
@@ -401,10 +617,62 @@ const NudgeFeature = (function() {
 
   /* ─── Nudge screen ─────────────────────────────────────────────────── */
 
-  function renderNudge(packageName, label) {
+  /* The headline names what actually happened. "Read a bit before Reddit?" is
+     abstract; "You've been on Reddit for 18 minutes" is the thing the user can
+     check against their own sense of the last hour. The figures come from the
+     handoff, so they are the ones the gate decided on rather than a second
+     query giving a slightly different answer. */
+  function _headline(label, meta) {
+    const pages = settings().unlockPages;
+    /* The interception happened at the moment of opening, so the question is
+       about what comes next — naming how long they were in there earlier today
+       is both irrelevant and faintly accusing. */
+    if (meta && meta.everyOpen) {
+      return t('nudge.screen.title_before', { app: label, pages: pages });
+    }
+    if (meta && meta.minutes >= 1) {
+      return t('nudge.screen.title_minutes', { app: label, n: meta.minutes, pages: pages });
+    }
+    /* Usage access denied, or under a minute in: the open count is all we know,
+       and saying so is better than inventing precision (§1.5). */
+    if (meta && meta.opens >= 2) {
+      return t('nudge.screen.title_opens', { app: label, n: meta.opens, pages: pages });
+    }
+    return t('nudge.screen.title', { app: label });
+  }
+
+  /* A rotating line under the headline. The headline states the fact; this is
+     where the point of the feature gets made — that this is how a reading habit
+     is built. Rotating so it does not become wallpaper.
+
+     §9.1 governs every one of these: no guilt, no shame, no "you've already
+     failed" framing, nothing that implies skipping costs the user something.
+     Warm and a little wry is the register; scolding is not. */
+  const SUBTITLE_COUNT = 6;
+
+  function _subtitle() {
+    const keys = [];
+    for (var i = 1; i <= SUBTITLE_COUNT; i++) {
+      const k = 'nudge.screen.sub.' + i;
+      /* t() returns the key itself when it is missing, which is the only way to
+         tell — so a short pool in one locale simply narrows the rotation rather
+         than printing a raw key name. */
+      if (t(k) !== k) keys.push(k);
+    }
+    if (!keys.length) return t('nudge.screen.subtitle');
+    return t(keys[Math.floor(Math.random() * keys.length)]);
+  }
+
+  function renderNudge(packageName, label, meta) {
     const view = qs('#view-nudge');
     if (!view) return;
-    _pending = { packageName: packageName, label: label || packageName };
+    _pending = {
+      packageName: packageName,
+      label: label || packageName,
+      minutes: meta && typeof meta.minutes === 'number' ? meta.minutes : -1,
+      opens: meta && typeof meta.opens === 'number' ? meta.opens : 0,
+      everyOpen: !!(meta && meta.everyOpen),
+    };
     logEvent('nudge_shown');
 
     const safeLabel = escapeHtml(_pending.label);
@@ -416,8 +684,8 @@ const NudgeFeature = (function() {
       '<div class="nudge-screen">' +
         '<div class="nudge-body">' +
           '<p class="nudge-kicker">' + t('nudge.screen.kicker') + '</p>' +
-          '<h1 class="nudge-title">' + t('nudge.screen.title', { app: safeLabel }) + '</h1>' +
-          '<p class="nudge-sub">' + t('nudge.screen.subtitle') + '</p>' +
+          '<h1 class="nudge-title">' + _headline(safeLabel, _pending) + '</h1>' +
+          '<p class="nudge-sub">' + _subtitle() + '</p>' +
         '</div>' +
         '<div class="nudge-actions">' +
           '<button class="btn btn-primary nudge-primary" id="btn-nudge-read">' +
@@ -431,20 +699,63 @@ const NudgeFeature = (function() {
     qs('#btn-nudge-continue').addEventListener('click', continueToApp);
 
     switchView('view-nudge');
+    /* Only now. Clearing any earlier means a path that fails part-way through
+       has thrown the interception away with nothing to show for it. */
+    _clearPending();
   }
 
   /* ─── Boot ─────────────────────────────────────────────────────────── */
+
+  /* Called by app.js on every foreground transition, ahead of its own
+     stale-view routing, so a nudge arriving on this resume always wins. */
+  async function handleResume() {
+    if (!isAvailable()) return false;
+    return await _handleIncoming();
+  }
 
   async function init() {
     if (!isAvailable()) return;
     _pushSettings();
     try { await NudgeAppsFeature.syncToNative(); } catch (_) {}
 
-    /* Hot path: the service launched us while the WebView was already alive. */
+    /* Hot path: the service launched us while the WebView was already alive.
+       This event can fire before init() runs — it is late in the boot sequence —
+       which is why the resume pull in app.js exists as well. */
     window.addEventListener('flowreadNudge', function() { _handleIncoming(); });
 
     /* Cold path: the service wrote the handoff before this process existed. */
     await _handleIncoming();
+  }
+
+  /* ─── First-run setup prompt (N4) ──────────────────────────────────── */
+
+  /* Deliberately one card, not a first-boot walk through three system settings
+     screens — §9.4a made usage access optional to avoid exactly that friction.
+     Whether the ask belongs in onboarding at all is Q3 / Task 16.3; that rebuild
+     should absorb or replace this. */
+  function shouldPromptSetup() {
+    if (!isAvailable()) return false;
+    if (localStorage.getItem(KEY_PROMPTED) === 'true') return false;
+    if (typeof NudgeAppsFeature === 'undefined') return false;
+    return NudgeAppsFeature.getTargets().length === 0;
+  }
+
+  function markPrompted() {
+    localStorage.setItem(KEY_PROMPTED, 'true');
+  }
+
+  /* Reuses the Settings chain rather than growing a second permission flow. */
+  function startSetup(onDone) {
+    markPrompted();
+    const afterDisclosure = function() {
+      setEnabled(true);
+      NudgeAppsFeature.openPicker(function() {
+        promptMissingPermissions({ usageAccess: hasTrigger(MODE_THRESHOLD) });
+      });
+      if (typeof onDone === 'function') onDone();
+    };
+    if (!hasSeenDisclosure()) showDisclosure(afterDisclosure);
+    else afterDisclosure();
   }
 
   return {
@@ -454,6 +765,14 @@ const NudgeFeature = (function() {
     setEnabled: setEnabled,
     settings: settings,
     setSetting: setSetting,
+    triggers: triggers,
+    hasTrigger: hasTrigger,
+    setTrigger: setTrigger,
+    statusFor: statusFor,
+    promptMissingPermissions: promptMissingPermissions,
+    resetState: resetState,
+    MODE_THRESHOLD: MODE_THRESHOLD,
+    MODE_EVERY_OPEN: MODE_EVERY_OPEN,
     DEFAULTS: DEFAULTS,
     KEY_MIN_MINUTES: KEY_MIN_MINUTES,
     KEY_MIN_OPENS: KEY_MIN_OPENS,
@@ -470,9 +789,16 @@ const NudgeFeature = (function() {
     startReading: startReading,
     continueToApp: continueToApp,
     onPageTurn: onPageTurn,
+    onReadProgress: onReadProgress,
     leaveNudgedRead: leaveNudgedRead,
+    handleResume: handleResume,
+    shouldPromptSetup: shouldPromptSetup,
+    markPrompted: markPrompted,
+    startSetup: startSetup,
   };
 })();
 
 /* Global, matching the render* convention used by every other view. */
-function renderNudge(packageName, label) { NudgeFeature.renderNudge(packageName, label); }
+function renderNudge(packageName, label, meta) {
+  NudgeFeature.renderNudge(packageName, label, meta);
+}

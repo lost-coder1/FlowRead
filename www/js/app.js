@@ -110,6 +110,39 @@ document.addEventListener('DOMContentLoaded', async function() {
      itself, and doing that before the boot route would be immediately undone. */
   if (typeof NudgeFeature !== 'undefined') NudgeFeature.init();
 
+  /* Resume handling. One listener, so the order is explicit: a nudge arriving
+     on this resume always wins over the stale-view routing below. */
+  if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+    /* Utility views the user did not come back for. The reader and the normal
+       viewer are never touched — someone returning to a book is exactly who
+       must not be interrupted, and position is sacred (Claude.md §21). */
+    const STALE_VIEWS = ['view-settings', 'view-dashboard', 'view-free-books', 'view-nudge'];
+    const STALE_AFTER_MS = 30 * 60 * 1000;
+    let backgroundedAt = 0;
+
+    window.Capacitor.Plugins.App.addListener('appStateChange', async function(state) {
+      if (!state || !state.isActive) {
+        backgroundedAt = Date.now();
+        return;
+      }
+
+      if (typeof NudgeFeature !== 'undefined') {
+        const handled = await NudgeFeature.handleResume();
+        if (handled) return;
+      }
+
+      /* Android resumes the task on whatever view it was last on. After a real
+         gap that is nearly always stale — the user is opening FlowRead to read,
+         not to finish reading a settings screen from this morning. */
+      if (!backgroundedAt || Date.now() - backgroundedAt < STALE_AFTER_MS) return;
+      backgroundedAt = 0;
+      if (STALE_VIEWS.indexOf(AppState.currentView) === -1) return;
+      if (AppState.activeModal) return;
+      renderUpload();
+      switchView('view-upload');
+    });
+  }
+
   /* Android hardware/gesture back button */
   if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
     window.Capacitor.Plugins.App.addListener('backButton', function() {

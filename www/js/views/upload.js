@@ -23,6 +23,19 @@ function renderUpload() {
         <!-- Populated by renderLibrary() -->
       </div>
 
+      <!-- One-time nudge setup offer. Deliberately a single card rather than a
+           first-boot walk through three system settings screens (Claude.md
+           §9.4a). Whether this ask belongs in onboarding at all is Q3 / Task
+           16.3 — that rebuild should absorb or replace this. -->
+      <div id="nudge-setup-prompt" class="nudge-setup-prompt" hidden>
+        <p class="nudge-setup-title">${t('nudge.prompt.title')}</p>
+        <p class="nudge-setup-body">${t('nudge.prompt.body')}</p>
+        <div class="nudge-setup-actions">
+          <button class="btn btn-ghost" id="btn-nudge-prompt-dismiss" type="button">${t('nudge.prompt.btn_dismiss')}</button>
+          <button class="btn btn-primary" id="btn-nudge-prompt-setup" type="button">${t('nudge.prompt.btn_setup')}</button>
+        </div>
+      </div>
+
       <div class="import-grid" id="import-grid">
         <!-- Free Books — full-width, always visible, no gate -->
         <button class="import-card import-card-featured" id="btn-free-books" type="button">
@@ -153,6 +166,19 @@ function renderUpload() {
     if (file) handlePdfScanSelect(file);
     event.target.value = '';
   });
+
+  const nudgePrompt = qs('#nudge-setup-prompt');
+  if (nudgePrompt && typeof NudgeFeature !== 'undefined' && NudgeFeature.shouldPromptSetup()) {
+    nudgePrompt.hidden = false;
+    qs('#btn-nudge-prompt-setup').addEventListener('click', function() {
+      nudgePrompt.hidden = true;
+      NudgeFeature.startSetup();
+    });
+    qs('#btn-nudge-prompt-dismiss').addEventListener('click', function() {
+      nudgePrompt.hidden = true;
+      NudgeFeature.markPrompted();
+    });
+  }
 
   qs('#btn-sync-files').addEventListener('click', syncDeviceFiles);
   qs('#btn-open-settings').addEventListener('click', renderSettings);
