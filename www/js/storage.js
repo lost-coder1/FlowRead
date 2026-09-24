@@ -4,6 +4,11 @@
 /* ── Position & reading state ───────────────────────────────── */
 function savePosition(fileId, wordIndex) {
   localStorage.setItem('fr_pos_' + fileId, wordIndex);
+  /* Every engine saves position, so this is the one place a nudged read can be
+     counted regardless of which engine it happens in (Claude.md §9.2 step 5). */
+  if (typeof NudgeFeature !== 'undefined' && AppState.nudgeContext) {
+    NudgeFeature.onReadProgress(wordIndex);
+  }
 }
 
 function loadPosition(fileId) {
