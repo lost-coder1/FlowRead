@@ -12,7 +12,17 @@
 
 const NudgeAppsFeature = (function() {
   const KEY_APPS = 'fr_nudge_apps';
-  const FREE_APP_LIMIT = 1;
+  /* §4's rule is free = 1 app, subscriber = unlimited. **Temporarily 2**
+     (Q12, product-owner decision 2026-09-25) because the subscription does not
+     exist: `hasSubscription()` is hardcoded false until Task 16.1, which is
+     blocked on pricing. At a limit of 1 nobody could ever select a second app,
+     which made §9.7's scoped unlock unreachable in production and untestable on
+     device — an advertised feature no user could get to.
+
+     ⚠️ **Task 16.1 must set this back to 1** when the subscription ships.
+     `syncToNative()` already truncates an over-limit selection, so lowering it
+     degrades existing users cleanly rather than leaving native prefs adrift. */
+  const FREE_APP_LIMIT = 2;
 
   /* Icons are the expensive part of the native call, so the list is fetched
      once per app run and reused for every re-open of the picker. */
@@ -164,14 +174,26 @@ const NudgeAppsFeature = (function() {
           if (idx !== -1) {
             current.splice(idx, 1);
           } else {
-            /* §4: free tier gets one app, subscribers get unlimited. Reuse the
-               existing paywall rather than inventing a second one. */
+            /* §4: free tier gets one app, subscribers get unlimited.
+
+               N17 — do NOT open the Pro paywall here. This gate is on
+               isSubscriber, and the subscription does not exist yet: Task 16.1
+               is blocked on pricing, there is no SUBS product in Play Console,
+               and hasSubscription() is hardcoded false. Offering Lifetime Pro
+               therefore sold the user something that could not lift the gate.
+               Someone who already owned Pro got "you already own this", restored,
+               and hit the same wall again — the same class of defect as H4, where
+               a paying customer was told their purchase failed (§1.5).
+
+               Until 16.1 ships, say plainly what the limit is and what will lift
+               it. No purchase prompt for something unpurchasable (§1.3). */
             if (current.length >= appLimit()) {
-              if (typeof showProPaywall === 'function') {
-                showProPaywall('nudge_app_limit');
-              } else {
-                showToast(t('nudge.toast.free_limit'));
-              }
+              /* The number comes from the constant, not the copy, so the two
+                 cannot drift when 16.1 lowers the limit back to 1 — which is
+                 also why there is a singular form to fall back to. */
+              const lim = appLimit();
+              showToast(t(lim === 1 ? 'nudge.toast.free_limit.one'
+                                    : 'nudge.toast.free_limit', { n: lim }));
               return;
             }
             current.push(pkg);

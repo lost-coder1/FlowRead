@@ -339,6 +339,17 @@ const NudgeFeature = (function() {
     try {
       const res = await read;
       if (!res || !res.pending) return null;
+      /* N19. The handoff is written before the activity start, and that start can
+         be dropped (no SYSTEM_ALERT_WINDOW, or Android simply refusing a
+         background launch). An undelivered handoff must not sit in prefs waiting
+         to ambush the user the next time they open FlowRead for their own
+         reasons — by then they have long since left the app it was about.
+         MainActivity sets "delivered" only on a real ACTION_NUDGE arrival.
+
+         Older builds of the plugin do not report the field at all; treating
+         undefined as delivered keeps them working rather than silently killing
+         every nudge. */
+      if (res.delivered === false) { _clearPending(); return null; }
       const parsed = JSON.parse(res.pending);
       /* "package" is what builds before this fix wrote. Accepting both means an
          update does not strand a handoff written by the older service. */
@@ -413,6 +424,12 @@ const NudgeFeature = (function() {
             ? EVERY_OPEN_SKIP_SUPPRESS_MINUTES : DISMISS_SUPPRESS_MINUTES,
           dismissed: !everyOpen,
         });
+        /* N20. The nudge view is still what FlowRead is showing — we handed the
+           user to another app, we did not navigate. Leave it up and the next
+           manual return to FlowRead lands on a spent nudge screen the user has
+           to back out of. Nothing re-rendered it; it simply never went away.
+           Reset to home behind them so returning lands somewhere sensible. */
+        _goHome();
         return;
       } catch (_) {}
     }
@@ -436,6 +453,10 @@ const NudgeFeature = (function() {
           suppressMinutes: UNLOCK_SUPPRESS_MINUTES,
           dismissed: false,
         });
+        /* Deliberately NOT _goHome() here, unlike the escape path. The view left
+           behind is the reader, not a spent nudge screen — the user was reading,
+           and N2's rule is that someone returning to a book is exactly who must
+           not be bounced out of it. */
         return;
       } catch (_) {}
     }

@@ -60,6 +60,7 @@ Every habit-interception moment must have an immediate, visible, one-tap way to 
 - **DOCX parsing:** mammoth.js 1.8.0
 - **Storage:** Capacitor Preferences (Keychain/EncryptedSharedPrefs) for purchase/subscription state. Capacitor Filesystem for file data. localStorage for UI state (all keys prefixed `fr_`).
 - **Screen wake:** @capacitor-community/keep-awake@8
+- **Native share sheet:** @capacitor/share 8.0.2 — installed 2026-09-25 for Section 15. Outbound share only. Adds no permission to the merged manifest and reuses the `${applicationId}.fileprovider` already declared in `AndroidManifest.xml`.
 - **Network detection:** @capacitor/network 8.0.1 — installed 2026-09-16 for Section 11's offline-triggered reading notification. Read-only network status listener, no other use. Adds only `ACCESS_NETWORK_STATE` to the merged manifest.
 - **IAP:** Custom native Capacitor plugin `FlowReadIapPlugin` wrapping Google Play Billing Library **9.1.0** (upgraded from 7.1.1 in 1.4.5, Section 3.1). Still needs extending for subscription products (Section 4). Do NOT use @capacitor/in-app-purchases.
 - **Habit interception (Android):** Requires either `UsageStatsManager` (usage-stats permission, simpler, polling-based, lower battery cost) or `AccessibilityService` (real-time app-open detection, higher reliability, more invasive permission ask, higher Play Store review scrutiny). **Default to `UsageStatsManager` first.** Needs a new custom Capacitor plugin — see Section 9.
@@ -91,7 +92,7 @@ www/
       nudge.js            — NEW, Section 9 core logic
       nudge-apps.js       — NEW, target-app picker UI + storage
       analytics-ping.js   — NEW, Section 9.6 anonymous event pings
-      share-stats.js      — NEW, Section 15 shareable stats card
+      share-stats.js      — Section 15 shareable stats card (built 2026-09-25)
       leaderboard.js      — NEW, Section 14 opt-in leaderboard + badges
       widget-bridge.js    — NEW, Section 12, pushes reading-position data to the native widget
 android/
@@ -149,7 +150,7 @@ Billing **7.1.1 → 9.1.0**. Went past the required v8 minimum because v8 carrie
 
 | Tier | Price | What It Unlocks |
 |---|---|---|
-| **Free** | $0 | Unlimited PDFs, all 5 reading engines, Free Books library (full catalog, all languages/categories), bridge, dictionary, calm mode, basic dashboard, nudge system limited to **1 selected app**, opt-in leaderboard participation (view only, no badges) |
+| **Free** | $0 | Unlimited PDFs, all 5 reading engines, Free Books library (full catalog, all languages/categories), bridge, dictionary, calm mode, basic dashboard, nudge system limited to **1 selected app** (**temporarily 2** — see below), opt-in leaderboard participation (view only, no badges) |
 | **Lifetime Pro** | $9.99 one-time (launch price; PPP-adjusted regionally) | DOCX/TXT/URL support, full dashboard, extra themes/fonts, Google Drive sync, device sync, share extension. Does **not** include unlimited nudge-app selection or monthly book drops — those are subscription-exclusive. |
 | **OCR Add-on** | $4.99 one-time (Pro required) | On-device OCR, Latin + Devanagari |
 | **Subscription** | TBD monthly/annual price (open item — ask product owner, do not hardcode a number) | Everything in Lifetime Pro + OCR, **plus**: unlimited nudge-app selection (vs 1 for free), nudge scheduling (time-of-day rules), nudge "strict mode," monthly curated book drops (5 books/month placeholder, from legal sources only — Section 13.2), opt-in leaderboard badges + monthly recognition |
@@ -165,8 +166,10 @@ Billing **7.1.1 → 9.1.0**. Went past the required v8 minimum because v8 carrie
 
 **Explicitly rejected, do not build:** priority book request fulfillment, early access windows to new Free Books catalog additions, in-app advertising of any kind, Z-Library or any non-legal book sourcing (see Section 13.2 — legal exposure, non-negotiable).
 
+**Temporary deviation — free nudge-app limit is 2, not 1 (decided 2026-09-25).** `hasSubscription()` is hardcoded false until Task 16.1, which is blocked on pricing, so at a limit of 1 *no user could ever select a second app* — making Section 9.7's scoped unlock unreachable in production and untestable on device. `FREE_APP_LIMIT` in `nudge-apps.js` is therefore 2 for now, carrying a revert note. **Task 16.1 must restore it to 1** when the subscription ships.
+
 ### Task — Subscription IAP (Phase 16)
-Extend `FlowReadIapPlugin` and `purchase.js` for a subscription product alongside the existing lifetime products, as part of the Section 3.1 billing-library upgrade pass. Requires: new subscription SKU in Play Console, subscription-state checks distinct from lifetime-purchase checks throughout the paywall/gating logic (a user can have Lifetime Pro without a subscription, or a subscription without ever buying Lifetime Pro — independent entitlements, except where this table says subscription includes everything Lifetime Pro includes). **Final subscription price is an open item — ask product owner before hardcoding.**
+Extend `FlowReadIapPlugin` and `purchase.js` for a subscription product alongside the existing lifetime products, as part of the Section 3.1 billing-library upgrade pass. Requires: new subscription SKU in Play Console, subscription-state checks distinct from lifetime-purchase checks throughout the paywall/gating logic (a user can have Lifetime Pro without a subscription, or a subscription without ever buying Lifetime Pro — independent entitlements, except where this table says subscription includes everything Lifetime Pro includes). **Final subscription price is an open item — ask product owner before hardcoding.** This task must also **restore `FREE_APP_LIMIT` to 1** (see the temporary deviation above).
 
 
 
@@ -252,7 +255,9 @@ Lands in the user's own reading engine. Resumes in-progress book, or opens Free 
 **Unlock progress is engine-agnostic.** The threshold is expressed in pages, but it is counted through `savePosition()` — the seam every engine already goes through — so a nudged read counts in RSVP, Chunk, Scroll and Focus Bold too, converting pages to words (~220 words/page). Page mode keeps its exact page count. Counting only Page-mode turns meant a user reading in any other engine waited for an unlock that could never arrive (Section 1.5).
 
 ### 9.6 Anonymous Event Pings
-`analytics-ping.js` — `logEvent(eventName, meta)`, fire-and-forget `fetch()` to a Cloudflare Worker. Never includes a user/device identifier, file name, or reading content. Minimum event set: `app_opened`, `nudge_shown`, `nudge_read_started`, `nudge_read_completed`, `nudge_skipped`, `free_book_downloaded`, `pro_purchased`, `subscription_started`, `subscription_cancelled`. Privacy policy must disclose this.
+`analytics-ping.js` — `logEvent(eventName, meta)`, fire-and-forget `fetch()` to a Cloudflare Worker. Never includes a user/device identifier, file name, or reading content. Minimum event set: `app_opened`, `nudge_shown`, `nudge_read_started`, `nudge_read_completed`, `nudge_skipped`, `free_book_downloaded`, `pro_purchased`, `subscription_started`, `subscription_cancelled`, and `stats_shared` (added 2026-09-25 with product-owner approval; carries the share entry point only — `home` / `dashboard` / `milestone` — never the book, the stat, or the destination app). Privacy policy must disclose this.
+
+**Adding an event to this list is a product decision, not an implementation detail.** The allowlist in `analytics-ping.js` drops anything unlisted precisely so a future caller cannot quietly widen what is collected — ask before extending it (§21).
 
 ### 9.7 Scoped App Unlock
 When the read-threshold is met, only the specific requested app unlocks — other configured target apps remain subject to their own independent thresholds.
@@ -273,6 +278,8 @@ The current onboarding (RSVP calibration screen, adaptive difficulty text, speed
 
 ### 10.2 Open Design Question
 Whether the nudge permission ask is inline in first-run onboarding or deferred to a later "getting started" prompt is not decided — implement with this as a configurable/testable point, not a hardcoded assumption, and flag for product-owner review before considering this task done.
+
+**Resolved 2026-09-25 as a matter of sequencing:** this question is answered *inside* the onboarding design, not ahead of it. The redesign is design-first — the narrative gets designed, then built — because the permission placement is a consequence of the narrative rather than an input to it. **Interim behaviour until then:** the per-choice ask built in Task 16.2 (each permission requested at the moment the setting needing it is switched on) plus a one-time dismissible card on the home screen. Both should be absorbed or replaced by the redesign.
 
 ---
 
@@ -323,19 +330,22 @@ Badges tie to the monthly curated book drops — start with 1-2 badge types, exp
 
 ---
 
-## 15. Share Stats Feature — Planned, Not Yet Built
+## 15. Share Stats Feature — Built (Task 16.6, 2026-09-25); device test outstanding
 
 Elevated in priority because it doubles as a distribution mechanic, not just retention — relevant given the product's current distribution-bottleneck stage (Section 22).
 
 ### Requirements
-- **Two entry points, both required:** (1) a visible "Share" button on the dashboard, always available, not just milestone-triggered; (2) a milestone-triggered prompt (e.g., "You finished [Book] — share it?") for natural completion moments, which convert better than a buried button alone.
+- **Free for everyone — not Pro-gated** (decided 2026-09-25). The dashboard this feature nominally lives on is Pro-gated, which would have hidden the one feature prioritized *for distribution* from the users whose shares actually reach non-users. The free tier is also meant to be genuinely generous (§4).
+- **Two entry points, both required:** (1) a visible "Share" button, always available, not just milestone-triggered — in the **home header** (where every user has it) and on the dashboard; (2) a milestone-triggered prompt for natural completion moments, which convert better than a buried button alone: **book completion** ("You finished [Book] — share it?") and **7 / 30 / 100-day streaks**, kept sparse so the prompt never becomes nagging. A milestone is marked celebrated when the offer is *made*, not when it is accepted — re-offering because the user declined is the nagging §9.1 rules out.
+- **Milestone prompts fire from the home screen only**, never over a reader: position is sacred (§21) and a celebration mid-read is an interruption.
 - Generate the card entirely on-device (Canvas API) — no server, no upload.
 - Must include app name/branding on the image itself, tasteful and small, not a loud ad.
 - User-editable before sharing: simple per-item toggle for which books/achievements to include.
-- **Hero-metric framing, not a data dump** — one strong stat per share ("Finished Annihilation of Caste in 4 days 🔥 12-day streak") rather than a dense multi-stat screenshot.
-- **Design with a future "time reclaimed" stat in mind** once Section 9's nudge system is live (e.g., "You chose reading over Reddit 14 times this week") — not required for v1, but the card layout shouldn't need to be rebuilt to add it later.
+- **Hero-metric framing, not a data dump** — one strong stat per share ("Finished Annihilation of Caste in 4 days"), with at most three supporting lines under it. Hero priority: a finished book, then the streak, then total words — a named book is the most shareable thing on the card and the most on-brand; a bare streak could be any habit app.
+- **Design with a future "time reclaimed" stat in mind** once Section 9's nudge system is live (e.g., "You chose reading over Reddit 14 times this week") — not required for v1, but the card layout shouldn't need to be rebuilt to add it later. **Honoured:** the supporting lines are a flat ordered array in `_extraOptions()`, so adding the stat is one entry and no change to the drawing code. `NudgeGate` already holds the counters it would need.
 - Share via native share sheet (`Capacitor.Share`) — this inherently supports sharing to any installed app the user chooses, no platform-specific restriction needed.
-- Design: warm, on-brand, large readable text, one achievement per share image.
+- Design: warm, on-brand, large readable text, one achievement per share image. 1080×1080, §16 palette only.
+- **A successful share emits `stats_shared`** (approved 2026-09-25), carrying the entry point and nothing else — no book, no stat, no destination app. Fired after the share completes, fire-and-forget, and inert until the Worker endpoint exists. See §9.6.
 
 ---
 
@@ -397,10 +407,10 @@ All items below are net-new, motivated by Section 0.1. The compliance tasks are 
 - [ ] **Task 16.1 — Subscription IAP** (Section 4) — was meant to ship with 16.0b but was deliberately deferred so the compliance fix could go out alone. Still blocked on subscription pricing.
 - [x] **Task H3 — Notifications fail silently when exact-alarm permission is denied.** Fixed 2026-09-16, shipped in 1.4.7; scheduling confirmed working on device. Two denial-path checks remain unexercised (see `Tasks.md`). Note the original diagnosis was wrong — Capacitor 8's plugin already degrades exact→inexact; see `Tasks.md` for the corrected analysis. `notifications.js` schedules with `allowWhileIdle: true` (exact alarms), which Android denies by default for apps targeting 33+, and the failure is swallowed by a bare `catch`. Users without the grant get no reminders and no explanation — a direct violation of Section 1.5. Fix before Task 16.7, which builds on the same machinery.
 - [x] **Task 16.2 — Habit Interception System ("Nudge")** (Section 9) — **code complete 2026-09-25.** Built 2026-09-20, then hardened across four device-test rounds (N1–N16 in `Tasks.md`). Detection, the nudge screen, the escape hatch, the unlock prompt and the scoped return all work on hardware. The original blocker (N1) was a JSON key mismatch in the service→JS handoff; it is now read-render-clear across three idempotent paths. Also in: engine-agnostic unlock counting (every engine, not just Page mode), independent trigger toggles, a visible gate-status line with a reset, per-choice permission asks, session-based open detection, and rotating habit-framing copy. Built on `AccessibilityService` per the Q8 sign-off in 9.4a, not `UsageStatsManager`. All six sub-steps landed: target-app picker, detection service + gate, trigger logic, nudge screen, scoped unlock, analytics pings. **Remaining work is not code:** one end-to-end device checklist run, Q9 copy/tone review plus Hindi sign-off, the Play Console Accessibility API declaration, and the privacy-policy update. `analytics-ping.js` ships inert until the Cloudflare Worker endpoint exists.
-- [ ] **Task 16.3 — Onboarding Redesign** (Section 10)
+- [ ] **Task 16.3 — Onboarding Redesign** (Section 10) — **design-first** (decided 2026-09-25): the flow is designed before it is built, and §10.2's permission question is settled within that design.
 - [ ] **Task 16.4 — Monthly Curated Book Drops** (Section 4, Section 13 pipeline) — rotation/update mechanism (bundled vs. remote-fetched catalog) needs product-owner input.
 - [ ] **Task 16.5 — Opt-In Leaderboard & Badges** (Section 14)
-- [ ] **Task 16.6 — Share Stats Feature** (Section 15)
+- [x] **Task 16.6 — Share Stats Feature** (Section 15) — **code complete 2026-09-25.** Card, sheet, both always-available entry points and both milestone triggers built and verified against the real app CSS. Free for everyone, not Pro-gated (see Section 15). **Remaining: a device test of the native `Filesystem` → `Share` path, the Q10 copy/Hindi sign-off, and Q11.**
 - [x] **Task 16.7 — Offline-Triggered Reading Notification** (Section 11) — shipped in 1.4.7 and device-verified 2026-09-20. Q6 copy still needs sign-off.
 - [ ] **Task 16.8 — Home Screen Widget** (Section 12)
 - [x] **Task 16.9 — Home Screen Reorder (Friction Fix)** — done 2026-09-16, shipped in 1.4.7. — move active/in-progress files to the top of the home screen, above Free Books and the import grid. Small, self-contained, ship independently and early.
@@ -412,7 +422,7 @@ All items below are net-new, motivated by Section 0.1. The compliance tasks are 
 - Monthly book-drop count and catalog-update mechanism (bundled vs. remote-fetched)
 - Leaderboard backend approach
 - ~~Whether `AccessibilityService` escalation is ever pursued~~ — **resolved 2026-09-20: yes, signed off. See 9.4a.**
-- Whether the nudge permission ask is inline in onboarding or deferred (Section 10.2)
+- ~~Whether the nudge permission ask is inline in onboarding or deferred~~ — **resolved 2026-09-25: decided inside Task 16.3's design, which is design-first. See 10.2.**
 - Exact copy/tone for the offline-triggered notification (Section 11)
 - Widget implementation approach — classic AppWidgetProvider vs. Jetpack Glance (Section 12)
 
@@ -442,8 +452,8 @@ Before any new dependency. Before changing palette or typography. Before adding 
 ## 22. Project Status
 
 - **Current phase:** Phase 16 — Reading Habit Pivot (Section 19). Task tracking in `Tasks.md`.
-- **Immediate priority:** **Task 16.6 (Share stats)** — decided 2026-09-25. Task 16.2 (the pivot mechanic) is code complete; what is left on it is a device checklist run, the Q9 copy sign-off, the Play Console Accessibility declaration and the privacy policy, none of which is engineering. 16.3 (Onboarding) is held until Q3 is answered by how the nudge's per-choice permission asks behave on device. 16.1 remains blocked on subscription pricing. 1.4.7 still sits on Internal testing awaiting promotion to production.
-- **Android versionCode:** **34 (versionName "1.4.7")** — built and verified on Internal testing 2026-09-20; **not yet promoted to production**, where 32 / 1.4.5 is still live. targetSdk 36, minSdk 24, Capacitor 8.5.2, Billing 9.1.0, `@capacitor/network` 8.0.1. Verify against actual Play Console state before assuming current.
+- **Immediate priority:** **Task 16.8 (Home screen widget)** — decided 2026-09-25. It is the only substantial item with nothing in front of it; 16.3 is now design-first product work, 16.1 is blocked on pricing, and 16.4/16.5 on their own open questions. Task 16.6 (Share stats) was built 2026-09-25 and owes only a device test, the Q10 copy sign-off and Q11. Task 16.2 (the pivot mechanic) is code complete; what is left on it is a device checklist run, the Q9 copy sign-off, the Play Console Accessibility declaration and the privacy policy, none of which is engineering. 16.1 remains blocked on subscription pricing. 1.4.7 still sits on Internal testing awaiting promotion to production, and 16.2 and 16.6 are both unreleased on `master` — the engineering queue is running ahead of the release queue.
+- **Android versionCode:** **34 (versionName "1.4.7")** — built and verified on Internal testing 2026-09-20; **not yet promoted to production**, where 32 / 1.4.5 is still live. targetSdk 36, minSdk 24, Capacitor 8.5.2, Billing 9.1.0, `@capacitor/network` 8.0.1, `@capacitor/share` 8.0.2. Verify against actual Play Console state before assuming current.
 - **Minimum Android:** 7.0 (API 24) as of 1.4.5, raised from 5.1 (API 22). Dropped ~1,641 device models (Section 3.2).
 - **Build requirements:** JDK 21 and Node ≥22 — see Section 3.3 before attempting a build on a new machine.
 - **Target platforms:** Android first. iOS store setup not started. No iOS path planned for the nudge system or home screen widget specifically.

@@ -3,8 +3,9 @@
 > Working document. `Claude.md` is the contract; this file is how we execute it.
 > Every task references its governing `Claude.md` section. If the two disagree, `Claude.md` wins — and `Claude.md` gets updated *before* we change direction, not after.
 
-**Last updated:** 2026-09-25 — **Task 16.2 code complete: N1–N16 fixed and merged to `master`.** Four device rounds took the nudge from "never renders" to working end to end. What remains on 16.2 is not code: one full checklist run, Q9 copy sign-off, the Play Accessibility declaration and the privacy policy. **Next up: Task 16.6 (Share stats).** Not yet in a release. Previously: 1.4.7 (versionCode 34) verified on Internal testing and merged to `master` (`33ed6d1`), containing H4, H3, 16.9, 16.7.
+**Last updated:** 2026-09-25 — **Fifth device round: N17–N20 found, three fixed, N18 needs a device check.** Checklist items 6/9/10 pass; **item 5 is unblocked (Q12 → limit temporarily 2) and awaiting a re-run**; item 11 half-passes (Page mode fine, notifications are N18). **Q9, Q10, Q11 and Q3 all answered; next task is 16.8 (Home screen widget)** once this round is closed. **Task 16.6 (Share stats) code complete**, verified in headless Chrome against the real app CSS; device test still owed. **Task 16.2 code complete: N1–N16 fixed and merged to `master`.** Four device rounds took the nudge from "never renders" to working end to end. What remains on 16.2 is not code: one full checklist run, Q9 copy sign-off, the Play Accessibility declaration and the privacy policy. **Next up: Task 16.8 (Home screen widget).** Neither 16.2 nor 16.6 is in a release yet. Previously: 1.4.7 (versionCode 34) verified on Internal testing and merged to `master` (`33ed6d1`), containing H4, H3, 16.9, 16.7.
 **Status legend:** `Not started` · `In progress` · `Blocked` · `Done`
+**Checkbox markers:** `[x]` done · `[~]` partly done · `[→]` **not done, deliberately deferred to release and owned by the product owner** — these are release gates, not finished work.
 
 ---
 
@@ -19,6 +20,11 @@
 | 2026-09-20 | **`<queries>` MAIN/LAUNCHER, never `QUERY_ALL_PACKAGES`**, for the app picker. | Same list of apps, but `QUERY_ALL_PACKAGES` is Play-policy-sensitive and needs a declaration form. This app already carries one rejection (§18). |
 | 2026-09-20 | **`PACKAGE_USAGE_STATS` is optional**, not required. | Three settings-page grants before the feature does anything would be brutal onboarding. Granted it upgrades the trigger to real minutes-in-app; denied it falls back to "3rd open today" and Settings says so (§1.5). |
 | 2026-09-20 | **Q2 defaults: 15 min → nudge, 2 pages → unlock**, cap 3/app/day, back off after 3 dismissals. | Starting values, all exposed as settings. Q9 copy review still outstanding. |
+| 2026-09-25 | **Q12: `FREE_APP_LIMIT` temporarily raised 1 → 2**, to be restored to 1 by Task 16.1. | §4 says free = 1 app and unlimited is subscriber-only, but `hasSubscription()` is hardcoded false until 16.1, which is blocked on Q1 pricing. At a limit of 1, *no user could ever select a second app* — so §9.7's scoped unlock was unreachable in production and checklist item 5 was untestable. Leaving it would have meant shipping an advertised feature nobody could get to. The limit is one constant with a revert note on it, and `syncToNative()` already truncates an over-limit selection so lowering it later degrades cleanly. |
+| 2026-09-25 | **Q11: sharing emits `stats_shared`**, carrying the entry point and nothing else. | §22 puts the product in a distribution bottleneck, and how often a card is actually shared is the direct measure of whether 16.6 addresses it. Widening the §9.6 allowlist was a privacy decision, so it was asked rather than assumed. No book, stat, or destination app is sent (§1.4). |
+| 2026-09-25 | **Onboarding (16.3) becomes its own design task**; Q3 is answered inside it rather than ahead of it. | Q3 (inline vs deferred permission ask) is a design question, not an implementation flag, and answering it in the abstract before the onboarding narrative exists would have decided it backwards. N14's per-choice ask is the interim behaviour and is working. |
+| 2026-09-25 | **The share card is free for everyone**, with a home-header entry point alongside the Pro dashboard one. | §15 puts Share on the dashboard, which is Pro-gated — so the feature prioritized *for distribution* (§22) would have been invisible to exactly the users whose shares reach non-users. `Claude.md` §15 updated to match. |
+| 2026-09-25 | **Share hero = finished book, then streak, then total words**; milestones on book completion and on 7/30/100-day streaks. | A named book is the most shareable and most on-brand stat; streak milestones kept sparse so the prompt never becomes nagging (§9.1's tone applies here too). |
 | 2026-09-16 | **Strict `Claude.md` order** — compliance block fully verified on a real device before any feature work starts. No parallel nudge development. | §3.3 sequencing. Avoids re-testing feature work against a shifting toolchain. |
 
 ---
@@ -31,13 +37,16 @@ Each is tagged with whether it blocks *starting* the task or only *finishing* it
 |---|---|---|---|---|
 | Q1 | Subscription price (monthly / annual) | 16.1 | Finish — plumbing can be built first | §4 |
 | ~~Q2~~ | ~~Nudge default thresholds~~ | — | **Resolved 2026-09-20: 15 min / 2 pages, both settings** | §9.2, §9.3 |
-| Q3 | Is the nudge permission ask inline in onboarding or deferred? | 16.3 | Finish — build as a config flag, review before calling it done | §10.2 |
+| ~~Q3~~ | ~~Is the nudge permission ask inline in onboarding or deferred?~~ | — | **Resolved 2026-09-25: neither, yet — onboarding is being designed as its own task first, and Q3 is answered inside that design.** N14's per-choice ask stands as the interim behaviour. See Task 16.3. | §10.2 |
 | Q4 | Monthly book-drop count, and bundled vs. remote-fetched catalog | 16.4 | **Start** | §4, §13 |
 | Q5 | Leaderboard backend — reuse the analytics Worker with a new endpoint, or something more structured? | 16.5 | **Start** | §14 |
 | Q6 | Exact copy/tone for the offline-triggered notification | 16.7 | Finish | §11 |
 | Q7 | Widget: classic `AppWidgetProvider` vs. Jetpack Glance | 16.8 | Finish — default to classic, evaluate briefly first | §12 |
 | ~~Q8~~ | ~~Is `AccessibilityService` escalation ever pursued?~~ | — | **Resolved 2026-09-20: yes, signed off. `UsageStatsManager` cannot do it without a permanent notification** | §9.4a |
-| Q9 | Nudge screen copy/tone sign-off | 16.2 | Finish | §19 |
+| ~~Q9~~ | ~~Nudge screen copy/tone sign-off~~ | — | **Signed off 2026-09-25.** | §19 |
+| ~~Q10~~ | ~~Share card / sheet / milestone copy + Hindi sign-off~~ | — | **Accepted as-is 2026-09-25 ("okay for now").** Owner-written Hindi may still replace the current Hinglish-register draft later; not a blocker. | §15 |
+| ~~Q12~~ | ~~Should the one-app limit stand while the subscription does not exist?~~ | — | **Resolved 2026-09-25: (b) — `FREE_APP_LIMIT` temporarily raised to 2.** ⚠️ **Task 16.1 must set it back to 1.** | §4, §9.7 |
+| ~~Q11~~ | ~~Should sharing emit an analytics event?~~ | — | **Resolved 2026-09-25: yes.** `stats_shared` added to the `analytics-ping.js` allowlist, carrying the entry point only (`home` / `dashboard` / `milestone`) — never the book, the stat, or the app shared to. Inert until the Worker endpoint exists. | §9.6, §15 |
 
 ---
 
@@ -144,6 +153,7 @@ The **2026-08-31** deadline had already passed when this work started, leaving t
 - [ ] Treat entitlements as **independent** (§4): a user may hold Lifetime Pro without a subscription, a subscription without Lifetime Pro, both, or neither. Subscription implies everything Lifetime Pro + OCR unlocks; the reverse is not true.
 - [ ] Reuse the existing `showPaywall()` (`purchase.js:230`) rather than writing a second paywall.
 - [ ] Gate the five subscription-exclusive items behind `isSubscriber`, not `isPro`: unlimited nudge apps (free = 1), nudge scheduling, nudge strict mode, monthly book drops, leaderboard badges.
+- [ ] ⚠️ **Restore `FREE_APP_LIMIT` to 1 in `nudge-apps.js`.** It was raised to 2 on 2026-09-25 (Q12) purely because no subscription existed to lift the gate; the moment one does, §4's rule applies again. `syncToNative()` truncates an over-limit selection, so lowering it degrades existing two-app users cleanly — but check that the truncation is surfaced rather than silent (§1.5).
 - [ ] Store subscription state in **Capacitor Preferences, never localStorage** (§21).
 - [ ] Wire `subscription_started` / `subscription_cancelled` analytics events (§9.6) — depends on 16.2's `analytics-ping.js`; stub the calls if 16.2 hasn't landed.
 - [ ] Verify the §1.3 no-dark-patterns rules hold: lifetime option still prominently offered, cancellation genuinely one tap via platform billing.
@@ -214,12 +224,22 @@ Detection is an **`AccessibilityService`, not `UsageStatsManager`** — see the 
 - [ ] **Re-run the full device checklist below on the N15/N16 build.** The individual fixes were
       each confirmed as they landed, but the checklist has never been run end to end against one
       build — in particular cold start (6), scoped unlock with two targets (5), battery (9),
-      Hindi (10) and the Page-mode regression (11).
-- [ ] **Q9 — product-owner review of nudge copy and tone**, plus Hindi sign-off.
-- [ ] **Play Console Accessibility API declaration** — required before any release carrying this. The justification is the §9.4a scope: package name only, no window content.
-- [ ] **Privacy policy** — disclose both the analytics pings (§9.6) and the accessibility use.
+      Hindi (10) and the Page-mode regression (11). **Owner will run this as part of the release
+      test pass** (decided 2026-09-25) — the five items above are the ones never exercised.
+- [x] **Q9 — nudge copy and tone: signed off 2026-09-25.**
+- [→] **Play Console Accessibility API declaration** — **owner-owned, actioned at release**
+      (decided 2026-09-25). Not done yet, and deliberately so: it is a Play Console form, not
+      code, and it is filed when the release is prepared. The justification to paste in is the
+      §9.4a scope — package name only, `canRetrieveWindowContent="false"`, `packageNames`
+      narrowed at runtime. **This is a hard release gate: a build carrying the accessibility
+      service is rejected without it.**
+- [→] **Privacy policy** — **owner-owned, actioned at release** (decided 2026-09-25). Must
+      disclose the accessibility use and the analytics pings (§9.6), now including `stats_shared`.
+      Also a hard release gate.
 - [ ] **Cloudflare Worker endpoint** — `analytics-ping.js` has `ENDPOINT = ''` and is inert until one exists. This is a safe shipping state, not a bug.
-- [ ] Decide whether the nudge setup belongs in onboarding (Q3 / Task 16.3).
+- [x] ~~Decide whether the nudge setup belongs in onboarding (Q3)~~ — **resolved 2026-09-25:
+      answered inside Task 16.3's design, not ahead of it.** N14's per-choice ask is the interim
+      behaviour.
 
 ### Device-test findings — 2026-09-21, Galaxy S23 FE (SM-S711B), API 36
 
@@ -497,6 +517,102 @@ adb logcat -s FlowReadNudge
 
 ---
 
+### 🔴 Fifth device test — 2026-09-25, checklist run
+
+Checklist results: **6 (cold start) ✅ · 9 (battery) ✅ · 10 (Hindi) ✅**. Item **5 could not be
+run** — selecting a second app was impossible (N17); **unblocked by Q12 and now awaiting a re-run**.
+Item **11 half-failed**: Page mode is fine, notifications are not firing (N18). Two further defects
+were found outside the checklist.
+
+#### N17 — Second app offers a paywall that cannot lift the gate (blocker) ✅ fixed
+
+**Reported:** cannot select a second app; it asks to unlock Pro; unlocking says "you already own
+this"; restoring says restored; selecting the second app asks to unlock Pro again. A closed loop.
+
+**Correct, and the worst defect in this round.** The gate is on `AppState.isSubscriber` (§4:
+free = 1 app, subscriber = unlimited) but the prompt shown was `showProPaywall('nudge_app_limit')`
+— the **Lifetime Pro** paywall. Those are independent entitlements by design (§4), so buying Pro
+could never satisfy a subscriber gate. And `hasSubscription()` is hardcoded `false`: Task 16.1 is
+blocked on Q1 pricing, there is no `SUBS` product in Play Console, and no `ProductType.SUBS` path
+in the plugin. **The gate was therefore unliftable by any purchase available in the app** — the
+user was offered something that could not work, and if they already owned it they were bounced
+around the already-owned/restore path forever.
+
+This is the same class of defect as H4: a paying customer sent in a circle by a purchase flow.
+§1.5 and §1.3 (no dark patterns) both bite.
+
+- [x] No purchase prompt for something unpurchasable. The limit now states itself in plain
+      language: *"One app for now — choosing several will arrive with the subscription."*
+- [x] **Q12 answered 2026-09-25: `FREE_APP_LIMIT` 1 → 2 temporarily.** The honest message fixed
+      the lie but not the wall — at a limit of 1, §9.7's scoped unlock was unreachable by any user
+      and checklist item 5 was untestable. The limit carries a revert note, the toast takes its
+      number from the constant (with a singular form for when it goes back to 1), and
+      `syncToNative()` already truncates an over-limit selection. **Task 16.1 must restore 1.**
+- [ ] **Re-run checklist item 5** (scoped unlock with two targets) now that two apps can be
+      selected. This is the last untested item in the checklist.
+
+#### N18 — Notifications stopped firing ⚠️ almost certainly by design, needs confirming
+
+**Not reproducible from here, and the most likely explanation is that the feature is working.**
+`reschedule()` skips the day's primary reminder when `_hasReadToday()` is true, and
+`_hasReadToday()` is satisfied by ~the daily words/duration threshold. **Five days of nudge device
+testing means reading every day, which suppresses the reminder every day.** 16.7's offline
+notification has the same suppression, plus a 4h throttle and a foreground check.
+
+Not changed on that theory alone. **To settle it on device:**
+1. Settings → the reminder note under the toggle renders `fr_notif_status` — check whether it says
+   denied or failed rather than scheduled.
+2. `adb shell dumpsys alarm | grep -i flowread` — a real `RTC_WAKEUP` via
+   `TimedNotificationPublisher` means scheduling is working and suppression is the story.
+3. Read nothing for a day and confirm the reminder returns.
+
+If (1) reports `permission_denied`, that is H3's second unexercised denial path and a real bug.
+
+**Worth reconsidering regardless:** "you read today so we will not remind you" is right for a
+*reminder*, but a user who reads daily then sees notifications vanish has no way to tell working
+from broken. §1.5 argues the Settings note should say so in plain language — *"You have read
+today, so today's reminder is off."* Not built; flagged.
+
+#### N19 — An undelivered nudge ambushes the user on their next manual open ✅ fixed
+
+**Reported:** in FlowRead (share section), switch to a target app — no nudge, the app just opens.
+FlowRead is still on the share section. Open FlowRead manually later and the nudge screen appears.
+
+`FlowReadNudgeService.launchNudge()` writes `fr_pending_nudge` and **then** starts MainActivity.
+The write always succeeds; the start does not — Android drops background activity starts without
+`SYSTEM_ALERT_WINDOW` and restricts them further on newer releases. When the start is dropped, the
+handoff sits in prefs with nobody to show it, and the next foreground transition — for any reason,
+including the user opening FlowRead themselves — picks it up and renders a nudge about an app they
+left minutes ago. The three idempotent pull paths from N1 are what made this reliable: they were
+built so no path had to win a race, which also means an *undelivered* nudge becomes a *delayed* one.
+
+**Fixed by distinguishing delivery from writing.** `MainActivity` sets `fr_nudge_delivered` only
+when it actually receives `ACTION_NUDGE` (cold start and hot `onNewIntent` both), `peekPendingNudge`
+reports it, and JS discards a handoff that was never delivered instead of banking it. A plugin too
+old to report the field is treated as delivered, so a mismatched bundle degrades to the old
+behaviour rather than to no nudges at all.
+
+**Honest limitation (§1.5):** if the overlay permission is missing, that open produces no nudge at
+all. That is the correct outcome — better nothing than an ambush — and Settings already asks for
+the grant (N14).
+
+#### N20 — After "Continue anyway", FlowRead reopens on the spent nudge screen ✅ fixed
+
+**Reported:** take the escape hatch, land in the app, later open FlowRead manually — the same
+nudge screen is showing and has to be backed out of to reach home.
+
+**Nothing re-rendered it; it never went away.** `continueToApp()` cleared `_pending` and launched
+the target app but never navigated, so `view-nudge` stayed the current view. Returning to FlowRead
+inside 30 minutes showed exactly what was left on screen, and app.js's stale-view routing only
+kicks in after that. The handoff itself was already cleared by `renderNudge()`, so this was never a
+duplicate nudge — just a dead screen.
+
+Fixed by resetting to home after a successful launch. **Deliberately not applied to the unlock
+path**: the view left behind there is the reader, and N2's rule is that someone returning to a book
+must not be bounced out of it.
+
+---
+
 ### Device test checklist
 
 1. Each of the three settings pages opens at the right screen; the grant is re-detected on return (handled by an `appStateChange` listener in settings.js). Denying any one degrades with a plain-language explanation.
@@ -517,7 +633,10 @@ adb logcat -s FlowReadNudge
 
 ## Task 16.3 — Onboarding redesign
 
-**Status:** Not started — unblocked; Q3 needed to finish · **Ref:** §10 · **Blocked by:** 16.2 (needs the nudge flow to hand off to) · **Size:** L
+**Status:** Not started — unblocked. **Scoped as a design-first task (decided 2026-09-25):** the
+onboarding narrative gets designed before it gets built, and **Q3 is answered inside that design**
+rather than ahead of it. · **Ref:** §10 · **Blocked by:** 16.2 (needs the nudge flow to hand off
+to — satisfied) · **Size:** L
 
 **Why:** Current onboarding is RSVP-calibration-first, built entirely under the pre-pivot speed-reading identity. Full-surface redesign, not a copy tweak.
 
@@ -525,7 +644,16 @@ adb logcat -s FlowReadNudge
 - [ ] Extract `renderOnboarding()` (currently `views/settings.js:176`) into a new `www/js/views/onboarding.js`; register it in `index.html` and keep the `app.js:91` routing intact.
 - [ ] Lead with the **reading-habit** pitch. Engines stay in the app and may still be introduced, but de-emphasized.
 - [ ] Explain the nudge concept in plain language **before** any permission ask — the user must understand *why* FlowRead watches for app-opens before being sent to a settings page. Poor framing here tanks grant rates and trust.
-- [ ] Build the inline-vs-deferred permission ask as a **config flag** (Q3), not a hardcoded choice. Flag for product-owner review before calling this done (§10.2).
+- [ ] **Design the flow first, then build it.** Product-owner decision 2026-09-25: this is a
+      narrative redesign (§10 calls it a full-surface redesign, not a copy tweak), and the
+      permission question below is a consequence of the narrative, not an input to it.
+- [ ] **Q3 — inline vs deferred permission ask — is decided as part of that design**, not
+      pre-answered. §10.2 still applies: implement it as a configurable/testable point rather
+      than a hardcoded assumption, and review before calling the task done.
+      **Interim behaviour today:** N14's per-choice ask (each permission requested at the moment
+      the setting needing it is switched on) plus N4's one-time home card. Whichever way the
+      design goes, that card in `upload.js` should be absorbed or replaced — a comment there
+      points here.
 - [ ] End on Free Books — the user finishes already reading, or one tap from it. No empty import screen.
 - [ ] Keep an honest-limitations screen, repositioned to fit the new narrative rather than removed (§1.5, §10.1).
 - [ ] Every string through `t()` into `en.json` + `hi.json` **from day one**, not retrofitted (§17, §10.1).
@@ -582,22 +710,48 @@ adb logcat -s FlowReadNudge
 
 ## Task 16.6 — Share stats feature
 
-**Status:** **Next up (decided 2026-09-25)** — unblocked · **Ref:** §15 · **Size:** M
+**Status:** ✅ **Code complete 2026-09-25.** Verified in a headless Chrome against the real app
+CSS — card rendering (English + Hindi), the sheet, the home Share button and the book-completion
+milestone all confirmed. **Not yet device-tested and not yet in a release.** · **Ref:** §15 ·
+**Size:** M
 Prioritized partly as a **distribution** mechanic — the product's current bottleneck is distribution, not retention (§22).
 
-**Steps**
-- [ ] `npm i @capacitor/share` (**approved 2026-09-16**).
-- [ ] **Both** entry points required: (1) an always-available Share button on the dashboard; (2) a milestone-triggered prompt on book completion ("You finished [Book] — share it?").
-- [ ] Generate the card entirely on-device via Canvas. No server, no upload (§1.4).
-- [ ] **Hero-metric framing**, one strong stat per card — not a dense multi-stat dump.
-- [ ] App branding on the image: tasteful and small, not a loud ad.
-- [ ] Per-item toggles so the user edits what's included before sharing.
-- [ ] Lay out with a future "time reclaimed" stat in mind (e.g. "You chose reading over Reddit 14 times this week") — not in v1, but the layout shouldn't need rebuilding to add it once 16.2 ships.
-- [ ] Share via the native share sheet — inherently supports any installed app.
-- [ ] Palette/typography exactly per §16. New i18n keys both languages.
+### Product decisions taken 2026-09-25
 
-**Files:** `package.json` · NEW `www/js/features/share-stats.js` · `www/js/views/dashboard.js` · `www/index.html` · `www/i18n/*.json`
-**Done when:** Both entry points produce a shareable image through the native sheet, on-brand, with working toggles.
+| # | Decision | Reasoning |
+|---|---|---|
+| D1 | **The share card is free for everyone**, not Pro-gated. | §15 puts the Share button on the dashboard, but `dashboard.js` is hard Pro-gated (`openDashboard()` → `showProPaywall`). As literally specified, the one feature prioritized *for distribution* would have been invisible to every free user — who are the bulk of installs and the people whose shares reach non-users. Hence a **second entry point in the home header**, where everyone has it. The dashboard button exists too, for Pro users who are already looking at their stats. |
+| D2 | **Hero = finished book + streak**, falling back to streak, then total words. | §15's own example. A named book is the most shareable thing on the card and the most on-brand given the catalog; a bare streak could be any habit app. |
+| D3 | **Milestones fire on book completion AND streak milestones (7 / 30 / 100).** | Completion is required by §15 and is the strongest moment. Streak milestones are deliberately sparse — a prompt every streak day is nagging, which §9.1's tone rules out here as much as on the nudge screen. |
+
+**Steps**
+- [x] `npm i @capacitor/share` (**approved 2026-09-16**) — **8.0.2**, matching the Capacitor 8 line. `npx cap sync android` run; 8 plugins now detected. **Adds no new permission** to the merged manifest, and reuses the `${applicationId}.fileprovider` already declared in `AndroidManifest.xml` (whose `file_paths.xml` already covers `cache-path`, which is where the PNG is written).
+- [x] **Both** entry points: (1) an always-available Share button — on the dashboard *and* in the home header per D1, hidden until there is something worth sharing so a fresh install is never offered an empty card; (2) a milestone prompt on book completion, plus streak milestones per D3.
+- [x] Generate the card entirely on-device via Canvas. No server, no upload (§1.4).
+- [x] **Hero-metric framing** — one hero, at most three supporting lines, per D2.
+- [x] App branding on the image: a hairline accent rule, the wordmark and the tagline at the foot, small (§15 — tasteful, not a loud ad).
+- [x] Per-item toggles: a radio list chooses the hero, checkboxes choose the supporting lines, and the preview redraws live on every change.
+- [x] Laid out for a future "time reclaimed" stat: the supporting lines are a flat ordered array, so adding §15's "you chose reading over Reddit 14 times this week" is one entry in `_extraOptions()` and nothing in the drawing changes. **Not built in v1**, as specified.
+- [x] Share via the native share sheet (`Share.share({files:[…]})`), with a `navigator.share` → download fallback so the feature is testable in a browser.
+- [x] Palette/typography exactly per §16 — no new colours. New i18n keys in both languages: **562 each, full parity.** Hindi is in the file's existing Hinglish register and **needs owner sign-off** (Q10).
+
+**Files:** `package.json` · NEW `www/js/features/share-stats.js` · `www/js/views/dashboard.js` · `www/js/views/upload.js` · `www/js/storage.js` · `www/index.html` · `www/css/components.css` · `www/i18n/*.json`
+
+### Notes from the build
+
+- **`computeStreak()` moved from `views/dashboard.js` to `storage.js`**, next to `loadReadingSessions()`. It is a derived stat over the session store, not a view concern, and both the dashboard and the share card need it. One definition, no duplication, no feature→view dependency.
+- **Milestones are checked from `renderUpload()` and nowhere else.** Home is the one place the user is between things; a celebration over a reader is an interruption, and position is sacred (§21). A milestone is marked celebrated when the offer is *made*, not when it is accepted — re-offering because the user said no is the nagging §9.1 rules out. On first run everything already achieved is seeded as history so an existing library is not celebrated retroactively.
+- **Three defects found and fixed during verification**, all of which would have shipped: the footer tagline was positioned from a width measured in the wrong font and overlapped the wordmark; `_wrap()` could not break a single over-long word, so a spaceless title ran off the edge of the image; and the card's `max-height` let the square preview flex-shrink to a 26px sliver.
+- **No analytics event was added.** `analytics-ping.js` has a closed allowlist and §9.6 names a fixed minimum event set that does not include sharing. Widening what we collect is a product decision, not an implementation detail — see Q11.
+
+### Still open before this ships
+
+- [ ] **Device test.** All verification so far is headless Chrome against the real CSS, which cannot exercise the one genuinely native path: `Filesystem.writeFile` → `getUri` → `Share.share`, the FileProvider grant, and what the receiving app actually does with the PNG. Test at least one chat app, one social app and Gmail.
+- [ ] **Q10 — copy/tone sign-off and Hindi**, for the card, the sheet and both milestone prompts. Fold into the same pass as Q9 (nudge copy) — same register, same reviewer.
+- [ ] **Q11 — should sharing emit an analytics event?** Not added; see above.
+- [ ] Airplane mode: the whole feature is on-device, so it should work offline end to end. Worth confirming, since it is a genuine §1.1 selling point.
+
+**Done when:** Both entry points produce a shareable image through the native sheet on a real device, on-brand, with working toggles.
 
 ---
 
@@ -836,42 +990,48 @@ The permission is denied by default at API 33+ for non-alarm-clock apps, and not
 |---|---|---|
 | **A — Compliance** | ✅ 16.0a, ✅ 16.0b · 16.1 open | Shipped as 1.4.5 / versionCode 32, published 2026-09-16. 16.1 blocked on Q1 to finish, not to start. |
 | **B — Pivot core** | ✅ 16.2 (code) · 16.3 | **16.2 code complete 2026-09-25** — N1–N16 fixed over four device rounds, merged to `master`. Remaining: one end-to-end checklist run, Q9 copy sign-off, the Play Accessibility declaration, the privacy policy. 16.3 unblocked but better taken after Q3 is answered by the N14 device experience. |
-| **C — Features** | ✅ 16.9, ✅ 16.7 · 16.6, 16.8, 16.4, 16.5, 16.10 open | 16.9 and 16.7 shipped and verified in 1.4.7 (2026-09-20); 16.7's copy still needs Q6 sign-off. 16.4/16.5 still need Q4/Q5 before starting. |
+| **C — Features** | ✅ 16.9, ✅ 16.7, ✅ 16.6 (code) · 16.8, 16.4, 16.5, 16.10 open | 16.9 and 16.7 shipped and verified in 1.4.7 (2026-09-20); 16.7's copy still needs Q6 sign-off. **16.6 code complete 2026-09-25** — device test, Q10 copy and Q11 outstanding. 16.4/16.5 still need Q4/Q5 before starting. |
 | **D — Housekeeping** | ✅ H1, ✅ H2, ✅ **H4** · H3 substantially done | **H4 verified on a Play build 2026-09-20 — the revenue blocker is closed.** H3's fix is live and scheduling works; only the two denial-path checks remain. |
 
 **Merged to `master` as `33ed6d1` on 2026-09-20.** H4, H3, 16.9 and 16.7 all shipped in 1.4.7 (versionCode 34) and verified on a Play-distributed build. The revenue blocker is closed.
 
 **Before promoting 1.4.7 to production:** fold in the committed `iap.toast.billing_unavailable` copy fix (not yet in a bundle), and ideally run the two cheap H3 denial-path checks plus the silent-cancel case. None are blockers — as it stands the release is a strict improvement on 1.4.5.
 
-**Decided next: Task 16.6 — Share stats.**
+**Done 2026-09-25: Task 16.6 — Share stats.** Code complete; Q10 accepted as-is, Q11 answered yes
+and `stats_shared` implemented. Only the device test remains. The "time reclaimed" note below was
+honoured — the card's supporting lines are a flat array, so adding it later costs one entry and
+no redraw.
 
-Why it, over the alternatives:
-- **16.2's remaining work is not code.** A checklist run, a copy sign-off, a Play Console
-  declaration and a privacy-policy update — all product-owner work, none of it blocked on more
-  engineering.
-- **16.3 (Onboarding) is premature.** It is nominally unblocked, but Q3 — inline vs deferred
-  permission ask — is exactly what the N14 per-choice ask is now testing on device. Answer Q3
-  from that experience, then build 16.3 once, rather than building it twice.
-- **16.6 addresses the stated bottleneck.** §22 puts the product in a distribution bottleneck,
-  not a retention one, and 16.6 is the only open item with plausible organic reach. It is
-  M-sized, `@capacitor/share` is already approved (2026-09-16), and it depends on nothing that is
-  currently in flight.
-- **16.1 stays blocked** on Q1 pricing; 16.4/16.5 on Q4/Q5.
+**Decided next 2026-09-25: Task 16.8 — Home screen widget.**
 
-One design note carried into 16.6: §15 asks for the layout to anticipate a "time reclaimed" stat
-("you chose reading over Reddit 14 times this week"). With 16.2's counters now live in
-`NudgeGate` — nudges shown, skipped, and reads completed per app per day — that data exists.
-Do not build the stat in v1, but leave the card layout able to take it.
+Why it, now that Q3 has been answered:
+- **16.3 (Onboarding) is deliberately not next.** Q3 resolved *by scoping onboarding as its own
+  design task* — the narrative gets designed before it gets built. That design is product work
+  and does not need to block engineering in the meantime.
+- **16.8 is the only substantial item with nothing in front of it.** Q7 (classic
+  `AppWidgetProvider` vs Jetpack Glance) is a finish-gate, not a start-gate, and `Claude.md` §12
+  already defaults to classic.
+- **It compounds with what just shipped.** 16.9 put in-progress books at the top of home and 16.6
+  made progress shareable; a widget puts the current book one tap from the launcher. All three
+  attack the same friction — the distance between wanting to read and reading.
+- **16.1 stays blocked** on Q1 pricing; 16.4/16.5 on Q4/Q5; 16.10 wants 16.3's screenshots.
 
-**Still owed on 16.2, for the product owner:**
-- **Q9** — one copy pass over every `nudge.screen.*` string: the three headlines (before-open,
-  minutes, opens), the six rotating subtitles, the unlock prompt and the Settings status lines.
-  Plus Hindi sign-off across all of it — it is written in the file's Hinglish register, not
-  supplied.
-- **Play Console Accessibility API declaration** and the **privacy-policy update**. Both gate any
-  release carrying this feature.
-- **16.3 (Onboarding)** — now unblocked: the nudge flow it hands off to exists.
-- **16.6 (Share stats)** — M-sized, `@capacitor/share` already approved, and the only item with plausible organic reach. Worth taking first if §22's distribution bottleneck is still the binding constraint.
+**Worth noting:** three features — 16.2, 16.6 and the H4 copy fix — are now sitting on `master`
+unreleased, and 1.4.7 is still on Internal testing. 16.2 additionally cannot ship at all until the
+Play Console Accessibility declaration and the privacy-policy update are done. The engineering
+queue is getting further ahead of the release queue with each task.
+
+**Still owed on 16.2, for the product owner — all deferred to the release pass (2026-09-25):**
+- **The 11-point device checklist**, in particular items 5, 6, 9, 10 and 11, which have never been
+  exercised against a single build.
+- **Play Console Accessibility API declaration** and the **privacy-policy update**. Both are hard
+  release gates — a build carrying the accessibility service is rejected without the declaration.
+  Owner-owned and to be actioned when the release is prepared, not before.
+- ~~Q9 copy sign-off~~ — **done 2026-09-25.**
+- **16.3 (Onboarding)** — unblocked, and now scoped design-first: the flow gets designed (Q3
+  included) before it gets built. Product work, not currently blocking engineering.
+- **16.6 (Share stats)** — ✅ built 2026-09-25, Q10 and Q11 both answered. Owes only a **device
+  test** of the native `Filesystem` → `Share` path.
 - **16.1 (Subscription IAP)** — still blocked on Q1 pricing, but materially cheaper now that H4 gave the purchase flow a real error taxonomy.
 
 ---

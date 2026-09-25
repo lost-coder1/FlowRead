@@ -12,6 +12,11 @@ function renderUpload() {
         </div>
         <div class="upload-header-actions">
           <button class="btn btn-ghost" id="btn-scroll-library" type="button">${t('btn.library')}</button>
+          <!-- Share lives here, not only on the dashboard §15 asks for, because the
+               dashboard is Pro-gated and the share card is free for everyone
+               (product decision 2026-09-25). Hidden until there is something
+               worth sharing, so a fresh install is not offered an empty card. -->
+          <button class="btn btn-ghost" id="btn-share-stats" type="button" hidden>${t('btn.share')}</button>
           <button class="btn btn-ghost" id="btn-open-settings-top" type="button">${t('btn.settings')}</button>
         </div>
       </header>
@@ -187,6 +192,12 @@ function renderUpload() {
     const lib = qs('#library-section');
     if (lib) lib.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
+
+  const shareBtn = qs('#btn-share-stats');
+  if (shareBtn && typeof ShareStats !== 'undefined') {
+    shareBtn.hidden = !ShareStats.hasSomethingToShare();
+    shareBtn.addEventListener('click', function() { ShareStats.openSheet({ source: 'home' }); });
+  }
   qs('#btn-open-limitations').addEventListener('click', function() {
     renderSettings();
     const section = qs('.settings-limitations');
@@ -211,6 +222,11 @@ function renderUpload() {
 
   hydrateUploadSurface();
   renderLibrary();
+
+  /* Milestone prompts fire here and nowhere else: home is the one place the
+     user is between things. Never over a reader — position is sacred (§21) and
+     a celebration mid-read is an interruption, which is what §9.1 rules out. */
+  if (typeof ShareStats !== 'undefined') ShareStats.checkMilestones();
 }
 
 async function hydrateUploadSurface() {

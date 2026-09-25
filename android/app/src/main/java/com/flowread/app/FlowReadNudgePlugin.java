@@ -365,12 +365,27 @@ public class FlowReadNudgePlugin extends Plugin {
     public void peekPendingNudge(PluginCall call) {
         JSObject ret = new JSObject();
         ret.put("pending", NudgeGate.prefs(getContext()).getString("fr_pending_nudge", null));
+        /* N19. The service writes the handoff BEFORE starting the activity, and
+           that start can be dropped — Android blocks background activity starts
+           without SYSTEM_ALERT_WINDOW, and blocks some of them regardless. When
+           that happens the handoff survives with nobody to show it, and the next
+           time the user opens FlowRead for their own reasons they are ambushed
+           by a nudge about an app they left minutes ago.
+
+           MainActivity sets this flag only when it actually receives
+           ACTION_NUDGE, so JS can tell "the service brought us to the front" from
+           "the user opened us". An undelivered handoff is discarded rather than
+           banked. */
+        ret.put("delivered", NudgeGate.prefs(getContext()).getBoolean("fr_nudge_delivered", false));
         call.resolve(ret);
     }
 
     @PluginMethod
     public void clearPendingNudge(PluginCall call) {
-        NudgeGate.prefs(getContext()).edit().remove("fr_pending_nudge").apply();
+        NudgeGate.prefs(getContext()).edit()
+                .remove("fr_pending_nudge")
+                .remove("fr_nudge_delivered")
+                .apply();
         call.resolve();
     }
 
