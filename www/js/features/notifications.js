@@ -173,6 +173,12 @@ const NotificationsFeature = (function() {
     return next;
   }
 
+  function _nextDayAt(date) {
+    const d = new Date(date);
+    d.setDate(d.getDate() + 1);
+    return d;
+  }
+
   function _isSameDay(a, b) {
     return a.getFullYear() === b.getFullYear()
         && a.getMonth() === b.getMonth()
@@ -332,9 +338,18 @@ const NotificationsFeature = (function() {
     /* Skip today's primary if user already read enough today */
     const skipPrimary = _isSameDay(primaryAt, now) && _hasReadToday();
 
+    /* N18. Skipping today must still arm TOMORROW — scheduling nothing at all
+       silently switched the reminder off for anyone who reads regularly.
+       reschedule() only re-arms when it runs, and it runs when the app is
+       opened; so a user who read today got zero pending alarms, and if they did
+       not open FlowRead again before the next reminder time there was nothing
+       to fire. The reminder quietly stopped existing for exactly the users it
+       was working for, and _setStatus(null) reported that as success. */
+    const primaryFireAt = skipPrimary ? _nextDayAt(primaryAt) : primaryAt;
+
     const toSchedule = [];
 
-    if (!skipPrimary) {
+    {
       const msg = _pickPrimaryMessage();
       toSchedule.push({
         id: NOTIF_PRIMARY,
@@ -344,7 +359,7 @@ const NotificationsFeature = (function() {
          * alarms need a special permission Android denies by default at 33+.
          * allowWhileIdle still keeps Doze from swallowing it. */
         isExactNotification: false,
-        schedule: { at: primaryAt, allowWhileIdle: true },
+        schedule: { at: primaryFireAt, allowWhileIdle: true },
         channelId: CHANNEL_ID,
         smallIcon: 'ic_stat_notify',
       });
@@ -352,10 +367,13 @@ const NotificationsFeature = (function() {
 
     /* Streak-protection nudge: 45 min after primary, only on the same day,
      * only when streak >= threshold and user hasn't already read today. */
+    /* Only decidable for the reminder we are arming today: whether the user will
+       have read by tomorrow evening is not knowable now, so a deferred primary
+       goes out alone and the nudge is re-evaluated on the next app open. */
     const streak = _currentStreak();
-    if (_isStreakNudgeEnabled() && streak >= STREAK_NUDGE_MIN_STREAK && !_hasReadToday()) {
-      const nudgeAt = new Date(primaryAt.getTime() + STREAK_NUDGE_DELAY_MS);
-      if (_isSameDay(nudgeAt, primaryAt)) {
+    if (!skipPrimary && _isStreakNudgeEnabled() && streak >= STREAK_NUDGE_MIN_STREAK && !_hasReadToday()) {
+      const nudgeAt = new Date(primaryFireAt.getTime() + STREAK_NUDGE_DELAY_MS);
+      if (_isSameDay(nudgeAt, primaryFireAt)) {
         const msg = _pickNudgeMessage();
         toSchedule.push({
           id: NOTIF_STREAK,
@@ -369,7 +387,9 @@ const NotificationsFeature = (function() {
       }
     }
 
-    if (!toSchedule.length) return _setStatus(null);
+    /* Should now be unreachable — the primary is always armed past this point.
+       Reported honestly rather than as success if it ever is reached. */
+    if (!toSchedule.length) return _setStatus('nothing_scheduled');
 
     try {
       await p.schedule({ notifications: toSchedule });

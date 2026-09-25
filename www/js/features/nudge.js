@@ -386,15 +386,16 @@ const NudgeFeature = (function() {
      true when a nudge was actually put on screen. */
   async function _handleIncoming() {
     if (_incomingInFlight) return false;
-    /* Only skip a re-render when the screen on view-nudge is a LIVE one. After
-       an escape _pending is null, and the view is a spent screen whose buttons
-       no longer know which app they were about — cancel on it fell through to
-       "go home" instead of opening the app. */
-    if (AppState.currentView === 'view-nudge' && _pending) return false;
     _incomingInFlight = true;
     try {
       const pending = await _readPending();
       if (!pending) return false;
+      /* Already showing this exact interception — do not re-render underneath
+         the user. Checked after the read, not before: a genuinely new handoff
+         for a different app must still win, and renderNudge() clears the
+         handoff anyway, so a repeat read normally finds nothing. */
+      if (AppState.currentView === 'view-nudge' && _pending
+          && _pending.packageName === pending.packageName) return false;
       renderNudge(pending.packageName, pending.label, pending);
       return true;
     } finally {
@@ -731,7 +732,27 @@ const NudgeFeature = (function() {
      stale-view routing, so a nudge arriving on this resume always wins. */
   async function handleResume() {
     if (!isAvailable()) return false;
-    return await _handleIncoming();
+
+    /* A freshly delivered interception always wins. */
+    if (await _handleIncoming()) return true;
+
+    /* N21. Nothing new arrived, but a nudge screen is still what FlowRead is
+       showing. That screen belongs to a moment that has passed: the user left it
+       unanswered, went wherever they were going, and has now come back to
+       FlowRead on their own terms. Putting it in front of them again is not a
+       nudge, it is a queue — and it made the app look stuck, since backing out
+       was the only way to reach home.
+
+       The handoff was already cleared when the screen rendered, so this is the
+       stale VIEW, not a repeat delivery. Reset it and let them land on home. */
+    if (AppState.currentView === 'view-nudge') {
+      _pending = null;
+      _clearPending();
+      _goHome();
+      return true;
+    }
+
+    return false;
   }
 
   async function init() {
