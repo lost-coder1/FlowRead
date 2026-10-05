@@ -396,6 +396,10 @@ var FreeBooksView = (function() {
       id: fileId,
       kind: 'pdf',
       name: fileName,
+      /* Kept for the share card's typographic cover (§15): a TXT book has no
+         page to render one from, so the catalogue's author line is the only
+         thing that makes the placeholder look like a book rather than a box. */
+      author: book.author || '',
       wordCount: result.metadata.wordCount,
       pageCount: result.metadata.pageCount,
       lastOpened: Date.now(),
@@ -467,6 +471,10 @@ var FreeBooksView = (function() {
       id: fileId,
       kind: 'txt',
       name: fileName,
+      /* Kept for the share card's typographic cover (§15): a TXT book has no
+         page to render one from, so the catalogue's author line is the only
+         thing that makes the placeholder look like a book rather than a box. */
+      author: book.author || '',
       wordCount: result.metadata.wordCount,
       pageCount: result.metadata.pageCount,
       lastOpened: Date.now(),
@@ -587,7 +595,25 @@ var FreeBooksView = (function() {
     _bindEvents(view);
   }
 
-  return { render: render };
+  /* Author for a library file that came from the catalogue.
+     
+     Books downloaded before the author was persisted on the library item have
+     nothing to put on the share card's typographic cover (§15). The bookId →
+     fileId map is still there, so the catalogue can be walked backwards rather
+     than asking the user to download the book again. */
+  async function authorForFileId(fileId) {
+    if (!fileId) return '';
+    try {
+      const catalog = await _loadCatalog();
+      const books = (catalog && catalog.books) || [];
+      for (var i = 0; i < books.length; i++) {
+        if (_getSavedFileId(books[i].id) === fileId) return books[i].author || '';
+      }
+    } catch (_) {}
+    return '';
+  }
+
+  return { render: render, authorForFileId: authorForFileId };
 })();
 
 function renderFreeBooks() {

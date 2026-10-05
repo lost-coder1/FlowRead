@@ -43,6 +43,7 @@ function removeFileFromLibrary(fileId) {
   /* Best-effort cleanup of associated data — fire and forget */
   if (typeof deleteFileData === 'function') deleteFileData(fileId);
   if (typeof deleteRawPdf === 'function') deleteRawPdf(fileId);
+  if (typeof BookCover !== 'undefined') BookCover.forget(fileId);
 }
 
 function loadLibrary() {

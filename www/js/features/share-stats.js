@@ -37,8 +37,11 @@ const ShareStats = (function() {
   const COLORS = {
     bg: '#0d0d0d',
     panel: '#141414',
+    /* --surface-2: the cover sits on the inner panel, so it needs its own step. */
+    panelRaised: '#1c1c1c',
     border: '#2a2a2a',
     accent: '#e8c547',
+    accent2: '#c47a3a',
     text: '#e8e4dc',
     muted: '#6b6660',
   };
@@ -78,7 +81,11 @@ const ShareStats = (function() {
       .map(function(item) {
         return {
           id: item.id,
-          name: item.name,
+          /* The stored name is a filename; ".pdf" is not part of a book's
+             title and this card is read by people who have never seen the
+             app (§15). Display only — storage keeps the real name. */
+          name: displayTitle(item.name),
+          author: item.author || '',
           days: _daysToFinish(sessions, item.id),
           lastOpened: item.lastOpened || 0,
         };
@@ -106,10 +113,15 @@ const ShareStats = (function() {
     stats.finished.slice(0, 5).forEach(function(book) {
       out.push({
         id: 'book:' + book.id,
+        book: book,
         label: t('share.item.book', { book: book.name }),
-        text: book.days > 0
+        /* "in 1 days" on the one surface strangers see. The single-day case is
+           also the most impressive one, so it gets its own sentence. */
+        text: book.days > 1
           ? t('share.hero.book_days', { book: book.name, n: book.days })
-          : t('share.hero.book', { book: book.name }),
+          : (book.days === 1
+              ? t('share.hero.book_one_day', { book: book.name })
+              : t('share.hero.book', { book: book.name })),
       });
     });
 
@@ -212,18 +224,146 @@ const ShareStats = (function() {
   }
 
   /* Shrink the hero until it fits the space it has. A long book title must not
-     be truncated — the title is the most shareable part of the card. */
-  function _fitHero(ctx, text, maxWidth, maxLines) {
-    for (var size = 76; size >= 40; size -= 4) {
+     be truncated — the title is the most shareable part of the card.
+
+     Beside a cover the column is barely half as wide, so the line count alone
+     stopped being a usable limit: a long title fitted in four lines only by
+     losing its last word. Height is the real constraint, and allowing more
+     lines of smaller text keeps the whole title on the card. */
+  function _fitHero(ctx, text, maxWidth, maxLines, maxHeight) {
+    const ceiling = typeof maxHeight === 'number' ? maxHeight : Infinity;
+    for (var size = 76; size >= 30; size -= 4) {
       ctx.font = '700 ' + size + 'px ' + FONT_DISPLAY;
       const lines = _wrap(ctx, text, maxWidth);
-      if (lines.length <= maxLines) return { size: size, lines: lines };
+      if (lines.length <= maxLines && (lines.length * Math.round(size * 1.22)) <= ceiling) {
+        return { size: size, lines: lines };
+      }
     }
-    ctx.font = '700 40px ' + FONT_DISPLAY;
-    return { size: 40, lines: _wrap(ctx, text, maxWidth).slice(0, maxLines) };
+    ctx.font = '700 30px ' + FONT_DISPLAY;
+    /* Genuinely out of room. Cutting silently would publish a title that is not
+       the book's, so say that it was cut. */
+    const lines = _wrap(ctx, text, maxWidth);
+    if (lines.length <= maxLines) return { size: 30, lines: lines };
+    const kept = lines.slice(0, maxLines);
+    kept[kept.length - 1] = kept[kept.length - 1].replace(/\s+\S*$/, '') + '…';
+    return { size: 30, lines: kept };
   }
 
-  async function drawCard(hero, extras) {
+  /* Cover panel. Portrait, because that is the shape of a book and because the
+     text column needs the rest of the width to stay legible when downscaled
+     into someone else's feed. */
+  const COVER_W = 320;
+  const COVER_MAX_H = 440;
+  const COVER_GAP = 40;
+  const COVER_TIMEOUT_MS = 4000;
+
+  /* Resolved covers, keyed by hero id, for the lifetime of one sheet — the
+     preview redraws on every toggle and re-rendering a PDF page each time would
+     be felt. */
+  let _covers = {};
+
+  /**
+   * What to draw beside the hero, or null for a text-only card.
+   *
+   * A PDF has its own cover on page one. Nothing else does, so the rest get a
+   * typographic one drawn from the title — never a fetched image: §1.1 keeps
+   * this path offline, and the share card must work on a plane.
+   */
+  async function _coverFor(hero) {
+    if (!hero || !hero.book) return null;
+    if (Object.prototype.hasOwnProperty.call(_covers, hero.id)) return _covers[hero.id];
+    let img = null;
+    try {
+      if (typeof BookCover !== 'undefined') {
+        /* Rendering a PDF page is normally a few hundred milliseconds, but it is
+           pdf.js on an unknown file on an unknown device. The card is still a
+           card without the artwork, so a slow cover degrades to the
+           typographic one rather than leaving the user on a spinner (§21). */
+        img = await Promise.race([
+          BookCover.getImage(hero.book.id),
+          new Promise(function(resolve) { setTimeout(function() { resolve(null); }, COVER_TIMEOUT_MS); }),
+        ]);
+      }
+    } catch (_) {}
+    let author = hero.book.author || '';
+    /* Books downloaded before the author was stored on the library item: the
+       catalogue still knows, and only the placeholder cover needs it. */
+    if (!author && !img && typeof FreeBooksView !== 'undefined'
+        && typeof FreeBooksView.authorForFileId === 'function') {
+      try { author = await FreeBooksView.authorForFileId(hero.book.id); } catch (_) {}
+    }
+    _covers[hero.id] = {
+      img: img,
+      title: hero.book.name || '',
+      author: author,
+    };
+    return _covers[hero.id];
+  }
+
+  /* Two initials, the same shape the Free Books catalogue placeholder uses. */
+  function _initials(title) {
+    return String(title || '')
+      .split(/\s+/).filter(Boolean).slice(0, 2)
+      .map(function(w) { return w.charAt(0); })
+      .join('')
+      .toUpperCase();
+  }
+
+  /* Deterministic, but only ever between the two §16 accents — the catalogue's
+     own placeholder palette is outside the card's allowed colours (§15). */
+  function _accentFor(title) {
+    let hash = 0;
+    const str = String(title || '');
+    for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+    return (hash % 2 === 0) ? COLORS.accent : COLORS.accent2;
+  }
+
+  /* Draws the cover and returns the height it took, so the caller can centre
+     the text column against it. */
+  function _drawCover(ctx, cover, x, top) {
+    let w = COVER_W;
+    let h = COVER_MAX_H;
+    if (cover.img && cover.img.width > 0 && cover.img.height > 0) {
+      /* Contain, never crop: a cropped cover loses the title on it. */
+      const ratio = Math.min(COVER_W / cover.img.width, COVER_MAX_H / cover.img.height);
+      w = Math.round(cover.img.width * ratio);
+      h = Math.round(cover.img.height * ratio);
+    }
+
+    ctx.fillStyle = COLORS.panelRaised;
+    ctx.fillRect(x, top, w, h);
+
+    if (cover.img) {
+      ctx.drawImage(cover.img, x, top, w, h);
+    } else {
+      /* Typographic cover: initials, a short accent rule, author if we have one. */
+      const accent = _accentFor(cover.title);
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = COLORS.text;
+      ctx.font = '700 104px ' + FONT_DISPLAY;
+      ctx.fillText(_initials(cover.title) || '…', x + (w / 2), top + (h / 2) + 20);
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(x + (w / 2) - 36, top + (h / 2) + 60);
+      ctx.lineTo(x + (w / 2) + 36, top + (h / 2) + 60);
+      ctx.stroke();
+      if (cover.author) {
+        ctx.fillStyle = COLORS.muted;
+        ctx.font = '400 24px ' + FONT_DISPLAY;
+        ctx.fillText(_wrap(ctx, cover.author, w - 48)[0] || '', x + (w / 2), top + h - 44);
+      }
+      ctx.restore();
+    }
+
+    ctx.strokeStyle = COLORS.border;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, top, w, h);
+    return { width: w, height: h };
+  }
+
+  async function drawCard(hero, extras, cover) {
     /* Webfonts are not guaranteed to be resident when the canvas draws, and a
        card that silently falls back to Arial is the one thing we cannot fix
        after it has been shared. */
@@ -257,8 +397,15 @@ const ShareStats = (function() {
 
     /* Hero and its supporting rows are centred as ONE block in the band between
        the kicker and the footer. Centring the hero alone leaves a one-line card
-       looking top-heavy and a three-line card looking cramped. */
-    const fit = _fitHero(ctx, hero, contentWidth, 3);
+       looking top-heavy and a three-line card looking cramped.
+
+       With a cover, the hero shares that band with it: the cover takes a fixed
+       column on the left and the headline gets what is left. A narrower column
+       costs font size rather than overflow, because _fitHero steps down until
+       the text fits. One more line is allowed there for the same reason. */
+    const textLeft = cover ? left + COVER_W + COVER_GAP : left;
+    const textWidth = cover ? contentWidth - COVER_W - COVER_GAP : contentWidth;
+    const fit = _fitHero(ctx, hero, textWidth, cover ? 6 : 3, cover ? COVER_MAX_H : undefined);
     const lineHeight = Math.round(fit.size * 1.22);
     const heroBlockHeight = fit.lines.length * lineHeight;
 
@@ -269,14 +416,31 @@ const ShareStats = (function() {
 
     const BAND_TOP = 236;
     const BAND_BOTTOM = 852;
+    /* Measured, not assumed: a contained cover is shorter than the box when the
+       page is wide, and the block has to be centred on what was actually drawn.
+       So the cover is drawn once off-screen-cheaply at a provisional top and the
+       text is placed against the height it reports. */
+    const coverHeight = cover
+      ? (cover.img && cover.img.width > 0
+          ? Math.round(cover.img.height * Math.min(COVER_W / cover.img.width, COVER_MAX_H / cover.img.height))
+          : COVER_MAX_H)
+      : 0;
+    const topBlockHeight = Math.max(heroBlockHeight, coverHeight);
     const blockTop = Math.round(
-      BAND_TOP + ((BAND_BOTTOM - BAND_TOP) - (heroBlockHeight + extrasHeight)) / 2
+      BAND_TOP + ((BAND_BOTTOM - BAND_TOP) - (topBlockHeight + extrasHeight)) / 2
     );
 
+    if (cover) {
+      _drawCover(ctx, cover, left, blockTop + Math.round((topBlockHeight - coverHeight) / 2));
+    }
+
+    /* Centred against the cover rather than hung from its top edge: a one-line
+       headline pinned to the top of a 440px cover reads as a mistake. */
+    const heroTop = blockTop + Math.round((topBlockHeight - heroBlockHeight) / 2);
     ctx.fillStyle = COLORS.text;
     ctx.font = '700 ' + fit.size + 'px ' + FONT_DISPLAY;
     fit.lines.forEach(function(line, i) {
-      ctx.fillText(line, left, blockTop + (i * lineHeight) + fit.size);
+      ctx.fillText(line, textLeft, heroTop + (i * lineHeight) + fit.size);
     });
 
     /* Supporting rows. Adding a future row — §15's "time reclaimed" — costs one
@@ -286,7 +450,7 @@ const ShareStats = (function() {
        is tuned for 12–14px UI text on a screen the reader is holding, and this
        image gets downscaled into someone else's feed. Same palette token, more
        of it (§16 — no new colours). */
-    let y = blockTop + heroBlockHeight + EXTRA_GAP;
+    let y = blockTop + topBlockHeight + EXTRA_GAP;
     ctx.font = '400 34px ' + FONT_DISPLAY;
     ctx.fillStyle = COLORS.text;
     ctx.globalAlpha = 0.6;
@@ -371,10 +535,14 @@ const ShareStats = (function() {
     const extras = _model.extrasFor(_selection.heroId)
       .filter(function(e) { return _selection.extras.indexOf(e.id) !== -1; });
 
-    drawCard(hero.text, extras.map(function(e) { return e.text; })).then(function(canvas) {
+    _coverFor(hero).then(function(cover) {
+      return drawCard(hero.text, extras.map(function(e) { return e.text; }), cover);
+    }).then(function(canvas) {
       /* The sheet may have been closed while the fonts settled. */
       const target = qs('#share-preview');
       if (!target) return;
+      /* A late redraw must not land on top of a newer selection. */
+      if (_selection.heroId !== hero.id) return;
       canvas.className = 'share-preview-canvas';
       canvas.setAttribute('role', 'img');
       canvas.setAttribute('aria-label', hero.text);
@@ -430,6 +598,9 @@ const ShareStats = (function() {
     if (opts.preferHeroId && heroes.some(function(h) { return h.id === opts.preferHeroId; })) {
       heroId = opts.preferHeroId;
     }
+
+    /* One sheet, one set of resolved covers. */
+    _covers = {};
 
     _model = {
       stats: stats,
@@ -492,7 +663,7 @@ const ShareStats = (function() {
 
       showLoading(t('share.loading'));
       try {
-        const canvas = await drawCard(hero.text, extras);
+        const canvas = await drawCard(hero.text, extras, await _coverFor(hero));
         await _shareCanvas(canvas);
         /* Q11, approved 2026-09-25. Entry point only — never which book, which
            stat, or which app it went to (§1.4). Fire-and-forget, after the

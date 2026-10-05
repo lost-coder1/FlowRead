@@ -288,7 +288,7 @@ function renderDashboard() {
               return [
                 '<div class="library-card" data-file-id="' + escapeHtml(item.id) + '">',
                 '<span class="library-card-kind">' + escapeHtml(kindLabel) + '</span>',
-                '<p class="library-card-name">' + escapeHtml(item.name) + '</p>',
+                '<p class="library-card-name">' + escapeHtml(displayTitle(item.name)) + '</p>',
                 '<p class="library-card-meta">' + escapeHtml(formatDate(item.lastOpened)) + (pct > 0 ? ' · ' + pct + '%' : '') + (est ? ' · ' + est : '') + '</p>',
                 '<div class="library-card-progress"><div class="library-card-progress-fill" style="width:' + pct + '%"></div></div>',
                 '</div>',
@@ -312,7 +312,7 @@ function renderDashboard() {
                 return [
                   '<div class="library-card" data-file-id="' + escapeHtml(item.id) + '">',
                   '<span class="library-card-kind">' + escapeHtml(kindLabel) + '</span>',
-                  '<p class="library-card-name">' + escapeHtml(item.name) + '</p>',
+                  '<p class="library-card-name">' + escapeHtml(displayTitle(item.name)) + '</p>',
                   '<p class="library-card-meta">' + escapeHtml(formatDate(item.lastOpened)) + ' · 100%</p>',
                   '<div class="library-card-progress"><div class="library-card-progress-fill" style="width:100%"></div></div>',
                   '</div>',

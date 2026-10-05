@@ -73,3 +73,19 @@ function graphemeAt(word, fraction) {
   const end = seg.index + seg.segment.length;
   return { before: w.slice(0, seg.index), cluster: seg.segment, after: w.slice(end) };
 }
+
+/* A library item's stored name is a filename — "Annihilation of Caste.pdf" —
+   because that is what the file picker handed us and what saveFileToLibrary()
+   de-duplicates on. The extension is not part of the book's title, and on the
+   share card (§15) it goes out to people who have never seen the app.
+
+   Display only: the stored name is never rewritten, or de-duplication would
+   start treating one book as two. */
+const DOC_EXTENSIONS = /\.(pdf|docx|doc|txt|md|rtf|epub|htm|html)$/i;
+
+function displayTitle(name) {
+  if (!name || typeof name !== 'string') return name || '';
+  const stripped = name.replace(DOC_EXTENSIONS, '').trim();
+  /* A file literally called ".pdf" keeps its name rather than losing it. */
+  return stripped || name;
+}

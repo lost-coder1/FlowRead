@@ -77,12 +77,22 @@ const OCREngine = (function() {
 
   /* Render a pdf.js page to a canvas and return a base64 JPEG string.
      scale=3 gives ~288 DPI on a 96 DPI screen — enough for ML Kit on dense text.
-     Max side capped at 3000px to avoid WebView OOM on very large page sizes. */
-  async function pdfPageToBase64(pdfPage) {
+     Max side capped at 3000px to avoid WebView OOM on very large page sizes.
+
+     opts exists for the cover thumbnails (book-cover.js), which want the same
+     render at a fraction of the size and none of the OCR diagnostics. Defaults
+     are the OCR values, so callers that pass nothing are unaffected. */
+  async function pdfPageToBase64(pdfPage, opts) {
+    const o = opts || {};
+    const targetScale = typeof o.scale === 'number' ? o.scale : 3.0;
+    const quality = typeof o.quality === 'number' ? o.quality : 0.92;
+    const diagnostics = o.diagnostics !== false;
     const baseViewport = pdfPage.getViewport({ scale: 1.0 });
-    const MAX_SIDE = 3000;
-    const rawMax = Math.max(baseViewport.width, baseViewport.height) * 3.0;
-    const scale = rawMax > MAX_SIDE ? (MAX_SIDE / Math.max(baseViewport.width, baseViewport.height)) : 3.0;
+    const MAX_SIDE = typeof o.maxSide === 'number' ? o.maxSide : 3000;
+    const rawMax = Math.max(baseViewport.width, baseViewport.height) * targetScale;
+    const scale = rawMax > MAX_SIDE
+      ? (MAX_SIDE / Math.max(baseViewport.width, baseViewport.height))
+      : targetScale;
     const viewport = pdfPage.getViewport({ scale });
     const canvas = document.createElement('canvas');
     canvas.width = Math.round(viewport.width);
@@ -92,12 +102,14 @@ const OCREngine = (function() {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     await pdfPage.render({ canvasContext: ctx, viewport: viewport }).promise;
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+    const dataUrl = canvas.toDataURL('image/jpeg', quality);
     const base64 = dataUrl.split(',')[1];
-    /* Diagnostic: tiny payload means pdf.js failed to draw the embedded image (e.g. JBIG2/JP2 not decoded) */
-    console.log('[OCR] rendered page ' + canvas.width + 'x' + canvas.height + ', jpeg bytes=' + base64.length);
-    /* Stash page 1 so user can inspect what ML Kit sees */
-    if (!window._lastOcrPagePreview) window._lastOcrPagePreview = dataUrl;
+    if (diagnostics) {
+      /* Diagnostic: tiny payload means pdf.js failed to draw the embedded image (e.g. JBIG2/JP2 not decoded) */
+      console.log('[OCR] rendered page ' + canvas.width + 'x' + canvas.height + ', jpeg bytes=' + base64.length);
+      /* Stash page 1 so user can inspect what ML Kit sees */
+      if (!window._lastOcrPagePreview) window._lastOcrPagePreview = dataUrl;
+    }
     return base64;
   }
 
