@@ -51,7 +51,7 @@ function renderReader(options) {
 
     <div class="reader-header" id="reader-header">
       <button class="btn btn-ghost reader-back" id="btn-reader-back">←</button>
-      <p class="reader-filename">${escapeHtml(file.name)}</p>
+      <p class="reader-filename">${escapeHtml(displayTitle(file.name))}</p>
       <button class="btn btn-ghost reader-calm-toggle" id="btn-reader-calm">${t('reader.btn.calm')}</button>
       <button class="btn btn-ghost reader-index-toggle" id="btn-reader-index">${t('reader.btn.index')}</button>
     </div>

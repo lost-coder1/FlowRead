@@ -339,6 +339,17 @@ const NudgeFeature = (function() {
     try {
       const res = await read;
       if (!res || !res.pending) return null;
+      /* N19. The handoff is written before the activity start, and that start can
+         be dropped (no SYSTEM_ALERT_WINDOW, or Android simply refusing a
+         background launch). An undelivered handoff must not sit in prefs waiting
+         to ambush the user the next time they open FlowRead for their own
+         reasons — by then they have long since left the app it was about.
+         MainActivity sets "delivered" only on a real ACTION_NUDGE arrival.
+
+         Older builds of the plugin do not report the field at all; treating
+         undefined as delivered keeps them working rather than silently killing
+         every nudge. */
+      if (res.delivered === false) { _clearPending(); return null; }
       const parsed = JSON.parse(res.pending);
       /* "package" is what builds before this fix wrote. Accepting both means an
          update does not strand a handoff written by the older service. */
@@ -357,6 +368,7 @@ const NudgeFeature = (function() {
         minutes: typeof parsed.minutes === 'number' ? parsed.minutes : -1,
         opens: typeof parsed.opens === 'number' ? parsed.opens : 0,
         everyOpen: !!parsed.everyOpen,
+        inSession: !!parsed.inSession,
       };
     } catch (_) {
       _clearPending();
@@ -375,15 +387,16 @@ const NudgeFeature = (function() {
      true when a nudge was actually put on screen. */
   async function _handleIncoming() {
     if (_incomingInFlight) return false;
-    /* Only skip a re-render when the screen on view-nudge is a LIVE one. After
-       an escape _pending is null, and the view is a spent screen whose buttons
-       no longer know which app they were about — cancel on it fell through to
-       "go home" instead of opening the app. */
-    if (AppState.currentView === 'view-nudge' && _pending) return false;
     _incomingInFlight = true;
     try {
       const pending = await _readPending();
       if (!pending) return false;
+      /* Already showing this exact interception — do not re-render underneath
+         the user. Checked after the read, not before: a genuinely new handoff
+         for a different app must still win, and renderNudge() clears the
+         handoff anyway, so a repeat read normally finds nothing. */
+      if (AppState.currentView === 'view-nudge' && _pending
+          && _pending.packageName === pending.packageName) return false;
       renderNudge(pending.packageName, pending.label, pending);
       return true;
     } finally {
@@ -413,6 +426,12 @@ const NudgeFeature = (function() {
             ? EVERY_OPEN_SKIP_SUPPRESS_MINUTES : DISMISS_SUPPRESS_MINUTES,
           dismissed: !everyOpen,
         });
+        /* N20. The nudge view is still what FlowRead is showing — we handed the
+           user to another app, we did not navigate. Leave it up and the next
+           manual return to FlowRead lands on a spent nudge screen the user has
+           to back out of. Nothing re-rendered it; it simply never went away.
+           Reset to home behind them so returning lands somewhere sensible. */
+        _goHome();
         return;
       } catch (_) {}
     }
@@ -436,6 +455,10 @@ const NudgeFeature = (function() {
           suppressMinutes: UNLOCK_SUPPRESS_MINUTES,
           dismissed: false,
         });
+        /* Deliberately NOT _goHome() here, unlike the escape path. The view left
+           behind is the reader, not a spent nudge screen — the user was reading,
+           and N2's rule is that someone returning to a book is exactly who must
+           not be bounced out of it. */
         return;
       } catch (_) {}
     }
@@ -453,9 +476,10 @@ const NudgeFeature = (function() {
        read, so counting from pageIndex here would demand unlockPages + 1. */
     if (typeof ctx.startPage !== 'number') ctx.startPage = pageIndex - 1;
     const turned = pageIndex - ctx.startPage;
+    ctx.pagesRead = turned;
     if (turned < settings().unlockPages) return;
     ctx.done = true;
-    _showUnlockPrompt(ctx);
+    _showUnlockPrompt(ctx).catch(function() {});
   }
 
   /* Called from savePosition() — the one seam every engine already goes through
@@ -478,25 +502,62 @@ const NudgeFeature = (function() {
     /* Jumping backwards (a re-read, or the bridge) re-anchors rather than going
        negative and quietly stalling the counter. */
     if (wordIndex < ctx.startWord) { ctx.startWord = wordIndex; return; }
-    if (wordIndex - ctx.startWord < settings().unlockPages * WORDS_PER_PAGE) return;
+    const read = wordIndex - ctx.startWord;
+    ctx.pagesRead = Math.max(ctx.pagesRead || 0, Math.floor(read / WORDS_PER_PAGE));
+    if (read < settings().unlockPages * WORDS_PER_PAGE) return;
     ctx.done = true;
-    _showUnlockPrompt(ctx);
+    _showUnlockPrompt(ctx).catch(function() {});
+  }
+
+  /* Reading pays back the time already spent in the app.
+     
+     Applied the moment the threshold is met rather than when the user picks a
+     button, because the reading is what earns it — at that point both buttons
+     mean they read. Native owns the arithmetic (the minutes come from
+     UsageStatsManager and cannot be zeroed, so a baseline is stored instead).
+     Returns null when the plugin is too old to know about credits, and the copy
+     falls back to the wording that shipped before them. */
+  async function _creditClock(ctx) {
+    const p = _plugin();
+    if (!p || typeof p.creditRead !== 'function') return null;
+    try {
+      const res = await p.creditRead({ packageName: ctx.packageName });
+      if (!res || typeof res.freshMinutes !== 'number') return null;
+      return res;
+    } catch (_) {
+      return null;
+    }
   }
 
   /* Offer the return, never force it — a user enjoying the book should not be
      ejected back into the app they were trying to avoid. */
-  function _showUnlockPrompt(ctx) {
+  async function _showUnlockPrompt(ctx) {
     if (AppState.activeModal === 'nudge-unlock') return;
+    const credit = await _creditClock(ctx);
     const root = qs('#modal-root');
     if (!root) return;
     closeActiveModal();
     AppState.activeModal = 'nudge-unlock';
 
+    /* Name what they did, then what it bought. The point of the reset is that
+       the user can see it happen — a silent one is indistinguishable from
+       nothing having changed (§1.5). */
+    const minsRead = Math.max(1, Math.round((Date.now() - (ctx.startedAt || Date.now())) / 60000));
+    const pagesRead = Math.max(settings().unlockPages, ctx.pagesRead || 0);
+    const body = credit
+      ? t('nudge.unlock.body_credit', {
+          app: escapeHtml(ctx.label),
+          pages: pagesRead,
+          mins: minsRead,
+          fresh: credit.freshMinutes,
+        })
+      : t('nudge.unlock.body', { app: escapeHtml(ctx.label) });
+
     root.innerHTML =
       '<div class="modal-backdrop" id="modal-backdrop">' +
         '<div class="modal-card nudge-unlock-card" role="dialog" aria-modal="true">' +
           '<h2 class="modal-title">' + t('nudge.unlock.title') + '</h2>' +
-          '<p class="modal-body">' + t('nudge.unlock.body', { app: escapeHtml(ctx.label) }) + '</p>' +
+          '<p class="modal-body">' + body + '</p>' +
           '<div class="modal-actions">' +
             '<button class="btn btn-ghost" id="btn-nudge-keep-reading">' + t('nudge.unlock.keep_reading') + '</button>' +
             '<button class="btn btn-primary" id="btn-nudge-go">' +
@@ -562,6 +623,9 @@ const NudgeFeature = (function() {
         packageName: ctx.packageName,
         label: ctx.label,
         startPage: null,
+        /* For the credit copy: what they actually did, not what was asked. */
+        startedAt: Date.now(),
+        pagesRead: 0,
       };
     }
     logEvent('nudge_read_started');
@@ -627,11 +691,15 @@ const NudgeFeature = (function() {
     /* The interception happened at the moment of opening, so the question is
        about what comes next — naming how long they were in there earlier today
        is both irrelevant and faintly accusing. */
+    /* Interrupted mid-scroll rather than on the way in, so the sentence is in
+       the present tense, and the figure is this stretch rather than the day's
+       total. "You've been on Reddit for 120 minutes" was both a report on
+       something finished and a number the user could do nothing about. */
+    if (meta && meta.inSession && meta.minutes >= 1) {
+      return t('nudge.screen.title_in_session', { app: label, n: meta.minutes, pages: pages });
+    }
     if (meta && meta.everyOpen) {
       return t('nudge.screen.title_before', { app: label, pages: pages });
-    }
-    if (meta && meta.minutes >= 1) {
-      return t('nudge.screen.title_minutes', { app: label, n: meta.minutes, pages: pages });
     }
     /* Usage access denied, or under a minute in: the open count is all we know,
        and saying so is better than inventing precision (§1.5). */
@@ -672,6 +740,7 @@ const NudgeFeature = (function() {
       minutes: meta && typeof meta.minutes === 'number' ? meta.minutes : -1,
       opens: meta && typeof meta.opens === 'number' ? meta.opens : 0,
       everyOpen: !!(meta && meta.everyOpen),
+      inSession: !!(meta && meta.inSession),
     };
     logEvent('nudge_shown');
 
@@ -710,7 +779,27 @@ const NudgeFeature = (function() {
      stale-view routing, so a nudge arriving on this resume always wins. */
   async function handleResume() {
     if (!isAvailable()) return false;
-    return await _handleIncoming();
+
+    /* A freshly delivered interception always wins. */
+    if (await _handleIncoming()) return true;
+
+    /* N21. Nothing new arrived, but a nudge screen is still what FlowRead is
+       showing. That screen belongs to a moment that has passed: the user left it
+       unanswered, went wherever they were going, and has now come back to
+       FlowRead on their own terms. Putting it in front of them again is not a
+       nudge, it is a queue — and it made the app look stuck, since backing out
+       was the only way to reach home.
+
+       The handoff was already cleared when the screen rendered, so this is the
+       stale VIEW, not a repeat delivery. Reset it and let them land on home. */
+    if (AppState.currentView === 'view-nudge') {
+      _pending = null;
+      _clearPending();
+      _goHome();
+      return true;
+    }
+
+    return false;
   }
 
   async function init() {

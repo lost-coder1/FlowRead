@@ -43,6 +43,7 @@ function removeFileFromLibrary(fileId) {
   /* Best-effort cleanup of associated data — fire and forget */
   if (typeof deleteFileData === 'function') deleteFileData(fileId);
   if (typeof deleteRawPdf === 'function') deleteRawPdf(fileId);
+  if (typeof BookCover !== 'undefined') BookCover.forget(fileId);
 }
 
 function loadLibrary() {
@@ -316,6 +317,30 @@ function loadReadingSessions() {
   } catch (_) {
     return [];
   }
+}
+
+/* Consecutive days with at least one session, counting back from today.
+   Derived from the session store rather than stored, so it can never drift out
+   of sync with it. Shared by the dashboard and the share card. */
+function computeStreak(sessions) {
+  const dateset = new Set(sessions.map(function(s) { return s.date; }));
+  let streak = 0;
+  let cursor = new Date();
+
+  for (var i = 0; i < 365; i++) {
+    var mm = String(cursor.getMonth() + 1).padStart(2, '0');
+    var dd = String(cursor.getDate()).padStart(2, '0');
+    var dateStr = cursor.getFullYear() + '-' + mm + '-' + dd;
+
+    if (dateset.has(dateStr)) {
+      streak++;
+      cursor.setDate(cursor.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+
+  return streak;
 }
 
 function todayDateString() {

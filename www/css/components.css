@@ -119,7 +119,9 @@
 .upload-header-actions {
   display: flex;
   gap: var(--space-sm);
-  flex-wrap: nowrap;
+  /* Three buttons now (Library / Share / Settings). Hindi labels are longer
+     than the English, so let them wrap rather than squeeze. */
+  flex-wrap: wrap;
   justify-content: flex-end;
 }
 
@@ -1076,6 +1078,11 @@
   align-items: center;
   gap: var(--space-md);
   padding-top: var(--safe-top);
+}
+
+.dashboard-header-text {
+  flex: 1;
+  min-width: 0;
 }
 
 .dashboard-kpi-grid {
@@ -2471,4 +2478,88 @@
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-dim);
+}
+
+
+/* ── Share stats card (Claude.md §15) ───────────────────────── */
+
+.share-card {
+  max-width: 420px;
+  /* The sheet is preview + two option lists, which is taller than a phone.
+     Scroll inside the card so the actions stay reachable. */
+  max-height: 88vh;
+  overflow-y: auto;
+  /* Without this the 1080px-wide preview canvas sets the card's min-content
+     width and the whole modal overflows the screen. */
+  min-width: 0;
+}
+
+/* The card scrolls, so nothing inside it may flex-shrink — left to shrink, the
+   square preview collapses to a sliver rather than scrolling into view. */
+.share-card > * {
+  flex-shrink: 0;
+}
+
+.share-preview {
+  /* Smaller than full width on purpose: it is a preview of the card, not the
+     card, and a full-width square pushes the actual controls off the screen. */
+  width: 100%;
+  max-width: 260px;
+  margin: var(--space-md) auto;
+  display: flex;
+  justify-content: center;
+  /* Reserve the square before the canvas lands so selecting a different hero
+     does not make the sheet jump under the user's finger. */
+  aspect-ratio: 1 / 1;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.share-preview-canvas {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+.share-group-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: var(--space-md) 0 var(--space-sm);
+}
+
+.share-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.share-options:empty + .modal-actions {
+  margin-top: var(--space-md);
+}
+
+.share-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.share-toggle input {
+  accent-color: var(--accent);
+  flex-shrink: 0;
+}
+
+.share-toggle span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

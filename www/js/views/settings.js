@@ -1032,13 +1032,19 @@ async function syncNudgeStatus() {
   const parts = [t('settings.nudge.status_today', {
     app: name, n: st.nudges, cap: st.dailyCap, skipped: st.dismissals,
   })];
-  /* Without usage access the minutes threshold silently becomes an opens
-     threshold. The slider still says "5 min", so say plainly which one is
-     actually being counted (§1.5). */
-  if (st.minutes >= 0) {
+  /* The threshold counts the current sitting, not the day. That number can sit
+     far below what the phone's own screen-time screen reports, which reads as a
+     bug unless both are named and labelled (§1.5). */
+  if (NudgeFeature.hasTrigger(NudgeFeature.MODE_THRESHOLD)) {
     parts.push(t('settings.nudge.status_minutes', { n: st.minutes, target: st.minMinutes }));
-  } else if (NudgeFeature.hasTrigger(NudgeFeature.MODE_THRESHOLD)) {
-    parts.push(t('settings.nudge.status_by_opens', { n: st.opens, target: st.minOpens }));
+    if (st.rawMinutes >= 0) {
+      parts.push(t('settings.nudge.status_today_total', { n: st.rawMinutes }));
+    } else {
+      /* No usage access: nothing can confirm the user is still in the app, so
+         the sitting is only timed while they are navigating and the open count
+         covers the moment of opening. Say so (§1.5). */
+      parts.push(t('settings.nudge.status_by_opens', { n: st.opens, target: st.minOpens }));
+    }
   }
   /* The back-off does not apply in every-open mode, so saying it does would be
      a lie the user can check against their own screen. */

@@ -1,26 +1,5 @@
 /* Dashboard (Pro) — reading stats and KPIs */
 
-function computeStreak(sessions) {
-  const dateset = new Set(sessions.map(function(s) { return s.date; }));
-  let streak = 0;
-  let cursor = new Date();
-
-  for (var i = 0; i < 365; i++) {
-    var mm = String(cursor.getMonth() + 1).padStart(2, '0');
-    var dd = String(cursor.getDate()).padStart(2, '0');
-    var dateStr = cursor.getFullYear() + '-' + mm + '-' + dd;
-
-    if (dateset.has(dateStr)) {
-      streak++;
-      cursor.setDate(cursor.getDate() - 1);
-    } else {
-      break;
-    }
-  }
-
-  return streak;
-}
-
 function last7DaysAvgWpm(sessions) {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 7);
@@ -226,10 +205,11 @@ function renderDashboard() {
     <div class="dashboard-screen">
       <div class="dashboard-header">
         <button class="btn btn-ghost" id="btn-dashboard-back">←</button>
-        <div>
+        <div class="dashboard-header-text">
           <p class="settings-kicker">${t('dashboard.kicker')}</p>
           <h1 class="settings-title">${t('dashboard.title')}</h1>
         </div>
+        <button class="btn btn-ghost" id="btn-dashboard-share" type="button">${t('btn.share')}</button>
       </div>
 
       <div class="dashboard-kpi-grid">
@@ -308,7 +288,7 @@ function renderDashboard() {
               return [
                 '<div class="library-card" data-file-id="' + escapeHtml(item.id) + '">',
                 '<span class="library-card-kind">' + escapeHtml(kindLabel) + '</span>',
-                '<p class="library-card-name">' + escapeHtml(item.name) + '</p>',
+                '<p class="library-card-name">' + escapeHtml(displayTitle(item.name)) + '</p>',
                 '<p class="library-card-meta">' + escapeHtml(formatDate(item.lastOpened)) + (pct > 0 ? ' · ' + pct + '%' : '') + (est ? ' · ' + est : '') + '</p>',
                 '<div class="library-card-progress"><div class="library-card-progress-fill" style="width:' + pct + '%"></div></div>',
                 '</div>',
@@ -332,7 +312,7 @@ function renderDashboard() {
                 return [
                   '<div class="library-card" data-file-id="' + escapeHtml(item.id) + '">',
                   '<span class="library-card-kind">' + escapeHtml(kindLabel) + '</span>',
-                  '<p class="library-card-name">' + escapeHtml(item.name) + '</p>',
+                  '<p class="library-card-name">' + escapeHtml(displayTitle(item.name)) + '</p>',
                   '<p class="library-card-meta">' + escapeHtml(formatDate(item.lastOpened)) + ' · 100%</p>',
                   '<div class="library-card-progress"><div class="library-card-progress-fill" style="width:100%"></div></div>',
                   '</div>',
@@ -348,6 +328,11 @@ function renderDashboard() {
       ` : ''}
     </div>
   `;
+
+  const dashShare = qs('#btn-dashboard-share', view);
+  if (dashShare && typeof ShareStats !== 'undefined') {
+    dashShare.addEventListener('click', function() { ShareStats.openSheet({ source: 'dashboard' }); });
+  }
 
   qs('#btn-dashboard-back').addEventListener('click', function() {
     renderUpload();

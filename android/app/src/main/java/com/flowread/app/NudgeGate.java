@@ -1,9 +1,14 @@
 package com.flowread.app;
 
+import android.app.AppOpsManager;
+import android.app.usage.UsageEvents;
 import android.app.usage.UsageStats;
 import android.app.usage.UsageStatsManager;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.os.Build;
+import android.os.Process;
 import android.util.Log;
 
 import org.json.JSONArray;
@@ -11,11 +16,12 @@ import org.json.JSONObject;
 
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
 
 /**
- * Decides whether opening a target app should produce a nudge.
+ * Decides whether being in a target app should produce a nudge.
  *
  * Plain Java on purpose: FlowReadNudgeService runs whether or not the WebView is
  * alive, so the rules cannot live in JS. State is kept in the same
@@ -85,7 +91,28 @@ final class NudgeGate {
     private static final long NUDGE_SHOWN_GRACE_EVERY_OPEN_MS = 10_000L;
 
     /**
-     * The answer to "should this open produce a nudge", plus the figures that
+     * The breather after a nudge the time threshold raised.
+     *
+     * Longer than the grace above because the condition does not go away: once
+     * the user is past their minutes for the day they stay past them until they
+     * read, so every subsequent tap inside the app would qualify. At one minute
+     * a user who ignores the first nudge spends their whole daily cap inside a
+     * couple of minutes of scrolling.
+     */
+    private static final long THRESHOLD_GRACE_MS = 5 * 60_000L;
+
+    /**
+     * How far back to look when confirming an app is still in the foreground.
+     *
+     * Has to cover an entire sitting: the whole point of the timed check is the
+     * user who opens one feed and scrolls it for half an hour without producing
+     * a single event, and the resume that put them there is the event we are
+     * looking for.
+     */
+    private static final long FOREGROUND_LOOKBACK_MS = 6 * 60 * 60_000L;
+
+    /**
+     * The answer to "should this moment produce a nudge", plus the figures that
      * produced it. The screen names the real number (Claude.md 1.5), and these
      * are the values the decision was actually made on — re-querying from JS
      * would return a slightly different one for no benefit.
@@ -98,15 +125,21 @@ final class NudgeGate {
            "before you open this" reads wrong when what actually happened is
            that the user has been in there for an hour, and vice versa. */
         final boolean everyOpen;
+        /* True when the user is already inside the app rather than arriving at
+           it. Same distinction, present tense: "still on Reddit, 20 minutes in"
+           is a different sentence from "you were on Reddit for 20 minutes". */
+        final boolean inSession;
 
-        private Decision(boolean nudge, long minutes, int opens, boolean everyOpen) {
+        private Decision(boolean nudge, long minutes, int opens,
+                         boolean everyOpen, boolean inSession) {
             this.nudge = nudge;
             this.minutes = minutes;
             this.opens = opens;
             this.everyOpen = everyOpen;
+            this.inSession = inSession;
         }
 
-        static final Decision NO = new Decision(false, -1, 0, false);
+        static final Decision NO = new Decision(false, -1, 0, false, false);
     }
 
     private static final String TAG = "FlowReadNudge";
@@ -167,16 +200,62 @@ final class NudgeGate {
             state = new JSONObject();
         }
         if (!today().equals(state.optString("day", ""))) {
-            state = new JSONObject();
-            try {
-                state.put("day", today());
-                state.put("apps", new JSONObject());
-            } catch (Exception ignored) {}
+            state = rollOver(state);
         }
         if (!state.has("apps")) {
             try { state.put("apps", new JSONObject()); } catch (Exception ignored) {}
         }
         return state;
+    }
+
+    /**
+     * Start a new day, carrying across only what is not about "today".
+     *
+     * The counters are the day — they go. suppressUntil is an absolute
+     * timestamp, and dropping it meant a 60-minute unlock granted at 23:50 was
+     * silently void at midnight, so the user got nudged at 00:01 by the app they
+     * had just read for. lastSeen travels for the same reason: a session in
+     * progress at midnight is still the same session at 00:01.
+     *
+     * A live sitting travels too — someone scrolling through midnight is still
+     * in the same sitting — but its sessionRawBase is reset to zero rather than
+     * carried. That figure offsets a UsageStatsManager total measured from local
+     * midnight, so yesterday's base would subtract time that no longer exists
+     * and the clock would read zero until it had been exceeded all over again.
+     * At zero it reads "minutes in this app since midnight", which is the part
+     * of the sitting that belongs to today.
+     */
+    private static JSONObject rollOver(JSONObject old) {
+        JSONObject fresh = new JSONObject();
+        long now = System.currentTimeMillis();
+        try {
+            fresh.put("day", today());
+            JSONObject apps = new JSONObject();
+            JSONObject oldApps = old.optJSONObject("apps");
+            if (oldApps != null) {
+                Iterator<String> keys = oldApps.keys();
+                while (keys.hasNext()) {
+                    String pkg = keys.next();
+                    JSONObject was = oldApps.optJSONObject(pkg);
+                    if (was == null) continue;
+                    JSONObject kept = new JSONObject();
+                    long suppressUntil = was.optLong("suppressUntil", 0L);
+                    if (suppressUntil > now) kept.put("suppressUntil", suppressUntil);
+                    long lastSeen = was.optLong("lastSeen", 0L);
+                    if (now - lastSeen <= SESSION_GAP_MS) {
+                        kept.put("lastSeen", lastSeen);
+                        long sessionStart = was.optLong("sessionStart", 0L);
+                        if (sessionStart > 0L) {
+                            kept.put("sessionStart", sessionStart);
+                            kept.put("sessionRawBase", 0L);
+                        }
+                    }
+                    if (kept.length() > 0) apps.put(pkg, kept);
+                }
+            }
+            fresh.put("apps", apps);
+        } catch (Exception ignored) {}
+        return fresh;
     }
 
     private static void saveState(SharedPreferences p, JSONObject state) {
@@ -195,11 +274,54 @@ final class NudgeGate {
         return app;
     }
 
+    /* ── Usage access ────────────────────────────────────────────────── */
+
     /**
-     * Minutes spent in a package today, or -1 when usage access has not been
+     * Whether the optional usage-access grant is in place (Claude.md 9.4a).
+     *
+     * Lives here rather than in the plugin because the gate and the service both
+     * need it: without it the minutes trigger cannot work at all, and telling
+     * "permission denied" apart from "no time recorded yet" is the difference
+     * between falling back honestly and falling back for no reason.
+     *
+     * checkOpNoThrow is deprecated from API 29 but is the only option below it.
+     */
+    @SuppressWarnings("deprecation")
+    static boolean hasUsageAccess(Context ctx) {
+        try {
+            AppOpsManager ops = (AppOpsManager) ctx.getSystemService(Context.APP_OPS_SERVICE);
+            if (ops == null) return false;
+            int mode;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                mode = ops.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS,
+                        Process.myUid(), ctx.getPackageName());
+            } else {
+                mode = ops.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS,
+                        Process.myUid(), ctx.getPackageName());
+            }
+            if (mode == AppOpsManager.MODE_DEFAULT) {
+                return ctx.checkCallingOrSelfPermission(
+                        android.Manifest.permission.PACKAGE_USAGE_STATS)
+                        == PackageManager.PERMISSION_GRANTED;
+            }
+            return mode == AppOpsManager.MODE_ALLOWED;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * Raw minutes spent in a package today, or -1 when usage access has not been
      * granted. Queried on demand rather than polled, so it costs no battery.
+     *
+     * -1 means exactly one thing: no permission. An empty result with the
+     * permission in place means the device genuinely has nothing recorded for
+     * that app, which is 0 — conflating the two made an idle phone look like a
+     * denied grant and silently demoted the trigger to counting opens.
      */
     static long foregroundMinutesToday(Context ctx, String pkg) {
+        if (pkg == null) return -1;
+        if (!hasUsageAccess(ctx)) return -1;
         try {
             UsageStatsManager usm =
                     (UsageStatsManager) ctx.getSystemService(Context.USAGE_STATS_SERVICE);
@@ -212,7 +334,7 @@ final class NudgeGate {
             long start = c.getTimeInMillis();
             long now = System.currentTimeMillis();
             Map<String, UsageStats> stats = usm.queryAndAggregateUsageStats(start, now);
-            if (stats == null || stats.isEmpty()) return -1;
+            if (stats == null || stats.isEmpty()) return 0;
             UsageStats s = stats.get(pkg);
             if (s == null) return 0;
             return s.getTotalTimeInForeground() / 60000L;
@@ -222,11 +344,122 @@ final class NudgeGate {
     }
 
     /**
-     * Called for every window-state change on a target app. Records the open and
-     * says whether this one should produce a nudge, along with the figures the
-     * decision was made on.
+     * Minutes in the CURRENT sitting — not the day's total.
+     *
+     * The threshold used to count cumulative time since midnight, which is what
+     * 9.3 originally specified. In the field that read as a bug and at small
+     * thresholds it was one: past five minutes anywhere in the day you are
+     * permanently over, so "After a while in the app" quietly became "every time
+     * I open it" — the mode the user had deliberately not chosen. It also made
+     * the figure unresettable by anything the user could do, since the number
+     * belongs to Android, which is how "you have been on Reddit for 120 minutes"
+     * greeted someone who had just pressed Reset.
+     *
+     * A sitting is what the label promises and what a person means. It is also
+     * the only version reading can pay back.
+     *
+     * Measured against usage stats when granted, so time spent elsewhere inside
+     * the session gap does not count. Without the grant it falls back to the
+     * wall clock, which over-counts a brief switch away — the grant buys
+     * accuracy now rather than being required for the trigger to work at all.
+     * Always a real number: 0, never a sentinel.
      */
+    private static long sessionMinutes(Context ctx, JSONObject app, String pkg) {
+        long sessionStart = app.optLong("sessionStart", 0L);
+        if (sessionStart <= 0L) return 0L;
+        long raw = foregroundMinutesToday(ctx, pkg);
+        long base = app.optLong("sessionRawBase", -1L);
+        if (raw >= 0 && base >= 0) return Math.max(0L, raw - base);
+        return Math.max(0L, (System.currentTimeMillis() - sessionStart) / 60000L);
+    }
+
+    /** Start the sitting over: on a new open, after a read, and on Reset. */
+    private static void anchorSession(Context ctx, JSONObject app, String pkg) throws Exception {
+        app.put("sessionStart", System.currentTimeMillis());
+        app.put("sessionRawBase", foregroundMinutesToday(ctx, pkg));
+    }
+
+    /**
+     * Whether a package is the one the user is looking at right now.
+     *
+     * The accessibility service is told only about the user's own picks, so it
+     * never learns that they left — it would happily raise a nudge about an app
+     * closed ten minutes ago. The last resume in the usage-event log settles it.
+     *
+     * This reads the name of whichever app resumed most recently, which may be
+     * an app the user never selected. It is compared and discarded: nothing is
+     * stored, logged or sent, and the accessibility service's own package filter
+     * is untouched. Logged against Claude.md 9.4a as a deliberate, scoped use of
+     * a permission the user granted separately and explicitly.
+     */
+    @SuppressWarnings("deprecation")
+    static boolean isForeground(Context ctx, String pkg) {
+        if (pkg == null || !hasUsageAccess(ctx)) return false;
+        try {
+            UsageStatsManager usm =
+                    (UsageStatsManager) ctx.getSystemService(Context.USAGE_STATS_SERVICE);
+            if (usm == null) return false;
+            long now = System.currentTimeMillis();
+            UsageEvents events = usm.queryEvents(now - FOREGROUND_LOOKBACK_MS, now);
+            if (events == null) return false;
+            final int resumed = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                    ? UsageEvents.Event.ACTIVITY_RESUMED
+                    : UsageEvents.Event.MOVE_TO_FOREGROUND;
+            String last = null;
+            UsageEvents.Event e = new UsageEvents.Event();
+            while (events.hasNextEvent()) {
+                events.getNextEvent(e);
+                if (e.getEventType() == resumed) last = e.getPackageName();
+            }
+            return pkg.equals(last);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * How long until this app could next produce a nudge from inside a session,
+     * or -1 when no timed check is worth scheduling at all.
+     *
+     * Only the minutes threshold can be crossed while the user sits still —
+     * "every open" needs an open and the opens fallback needs a new session — so
+     * everything else returns -1 rather than waking up for nothing.
+     */
+    static long nextCheckDelayMs(Context ctx, String pkg) {
+        SharedPreferences p = prefs(ctx);
+        if (!isEnabled(p) || !isTarget(p, pkg)) return -1;
+        String modes = p.getString(KEY_TRIGGER_MODE, MODE_THRESHOLD);
+        if (!modes.contains(MODE_THRESHOLD)) return -1;
+        /* The check has to prove the user is still in the app before it fires,
+           and isForeground is the only thing that can prove it. Without usage
+           access there is no proof, and a timer that nudges anyway is the ambush
+           N19 was about. The threshold still works on navigation events, which
+           are proof of presence in themselves. */
+        if (!hasUsageAccess(ctx)) return -1;
+        JSONObject app = appState(loadState(p), pkg);
+        if (app.optInt("nudges", 0) >= intPref(p, KEY_DAILY_CAP, DEFAULT_DAILY_CAP)) return -1;
+        if (!modes.contains(MODE_EVERY_OPEN) && app.optInt("dismissals", 0)
+                >= intPref(p, KEY_BACKOFF_DISMISSALS, DEFAULT_BACKOFF_DISMISSALS)) return -1;
+        long untilThreshold = Math.max(0L, intPref(p, KEY_MIN_MINUTES, DEFAULT_MIN_MINUTES)
+                - sessionMinutes(ctx, app, pkg)) * 60_000L;
+        long untilFree = Math.max(0L, app.optLong("suppressUntil", 0L) - System.currentTimeMillis());
+        return Math.max(untilThreshold, untilFree);
+    }
+
     static Decision decide(Context ctx, String pkg) {
+        return decide(ctx, pkg, false);
+    }
+
+    /**
+     * Called for every window-state change on a target app, and from the timed
+     * check for the user who is sitting still. Says whether this moment should
+     * produce a nudge, along with the figures the decision was made on.
+     *
+     * fromTimer events are not user actions: they must not touch lastSeen and
+     * must not count as an open, or a long sitting would inflate the open count
+     * it is standing in for.
+     */
+    static Decision decide(Context ctx, String pkg, boolean fromTimer) {
         SharedPreferences p = prefs(ctx);
         if (!isEnabled(p)) return no("nudge is switched off", pkg);
         if (!isTarget(p, pkg)) return no("not a selected app", pkg);
@@ -237,13 +470,16 @@ final class NudgeGate {
 
         try {
             /* Count the open. "Open" means a new session, not a new window. */
-            long lastSeen = app.optLong("lastSeen", 0L);
-            boolean newOpen = now - lastSeen > SESSION_GAP_MS;
-            app.put("lastSeen", now);
-            if (newOpen) app.put("opens", app.optInt("opens", 0) + 1);
-            saveState(p, state);
-            if (!newOpen) {
-                return no("still the same session (" + ((now - lastSeen) / 1000) + "s in)", pkg);
+            boolean newOpen = false;
+            if (!fromTimer) {
+                long lastSeen = app.optLong("lastSeen", 0L);
+                newOpen = now - lastSeen > SESSION_GAP_MS;
+                app.put("lastSeen", now);
+                if (newOpen) {
+                    app.put("opens", app.optInt("opens", 0) + 1);
+                    anchorSession(ctx, app, pkg);
+                }
+                saveState(p, state);
             }
 
             /* Suppressed: the user either just unlocked this app by reading, or
@@ -264,7 +500,7 @@ final class NudgeGate {
                when the user has not granted usage access (Claude.md 1.5 — the
                feature degrades honestly rather than silently doing nothing).
                The minutes figure is read either way, because the screen names it. */
-            long minutes = foregroundMinutesToday(ctx, pkg);
+            long minutes = sessionMinutes(ctx, app, pkg);
             int opens = app.optInt("opens", 0);
             String modes = p.getString(KEY_TRIGGER_MODE, MODE_THRESHOLD);
             boolean everyOpen = modes.contains(MODE_EVERY_OPEN);
@@ -280,12 +516,27 @@ final class NudgeGate {
                     >= intPref(p, KEY_BACKOFF_DISMISSALS, DEFAULT_BACKOFF_DISMISSALS)) {
                 return no("backed off after " + app.optInt("dismissals", 0) + " dismissals", pkg);
             }
-            /* Whichever triggers are on, any one of them firing is enough. */
-            boolean over = everyOpen || (threshold && ((minutes >= 0)
-                    ? minutes >= intPref(p, KEY_MIN_MINUTES, DEFAULT_MIN_MINUTES)
-                    : opens >= intPref(p, KEY_MIN_OPENS, DEFAULT_MIN_OPENS)));
-            if (!over) {
-                return no("no trigger met (modes=" + modes
+
+            /* "Every open" means what it says: it fires when a session starts and
+               never from inside one. */
+            boolean overEveryOpen = everyOpen && newOpen;
+            /* The minutes threshold is now purely about the sitting, so it can
+               only ever fire from inside one — at the moment of opening, the
+               sitting is zero minutes old. That makes the two toggles cleanly
+               orthogonal: one is about the open, the other about the stretch,
+               and neither has anything to say about the other's moment. */
+            boolean overMinutes = threshold && !newOpen
+                    && minutes >= intPref(p, KEY_MIN_MINUTES, DEFAULT_MIN_MINUTES);
+            /* Kept as the open-time half of the same toggle when usage access is
+               denied: the wall clock can time a sitting the user is navigating
+               around in, but nothing can confirm they are still there when they
+               are not, so an ungranted setup still needs something that fires on
+               an open. An open count only moves when a session starts. */
+            boolean overOpens = threshold && newOpen && !hasUsageAccess(ctx)
+                    && opens >= intPref(p, KEY_MIN_OPENS, DEFAULT_MIN_OPENS);
+            if (!overEveryOpen && !overMinutes && !overOpens) {
+                return no("no trigger met (modes=" + modes + ", fromTimer=" + fromTimer
+                        + ", newOpen=" + newOpen
                         + ", minutes=" + minutes + ", opens=" + opens + ")", pkg);
             }
 
@@ -294,12 +545,25 @@ final class NudgeGate {
             /* The target app keeps emitting window changes while our nudge sits
                on top of it. Without this, one open would burn the whole daily
                cap in a second and the user would be re-nudged mid-decision. */
-            app.put("suppressUntil", now
-                    + (everyOpen ? NUDGE_SHOWN_GRACE_EVERY_OPEN_MS : NUDGE_SHOWN_GRACE_MS));
+            /* "Every time I open it" is checked FIRST and wins. The long
+               threshold breather is right for a stretch the user is still inside,
+               and wrong for an open: with both toggles on it swallowed the next
+               open for five minutes, which is the one thing that mode promises
+               not to do, and which Settings explicitly tells the user it does. */
+            long grace;
+            if (overEveryOpen) {
+                grace = NUDGE_SHOWN_GRACE_EVERY_OPEN_MS;
+            } else if (overMinutes) {
+                grace = THRESHOLD_GRACE_MS;
+            } else {
+                grace = NUDGE_SHOWN_GRACE_MS;
+            }
+            app.put("suppressUntil", now + grace);
             saveState(p, state);
-            Log.d(TAG, "nudging for " + pkg + " (modes=" + modes
+            Log.d(TAG, "nudging for " + pkg + " (modes=" + modes + ", fromTimer=" + fromTimer
+                    + ", inSession=" + !newOpen
                     + ", minutes=" + minutes + ", opens=" + opens + ")");
-            return new Decision(true, minutes, opens, everyOpen);
+            return new Decision(true, minutes, opens, everyOpen, !newOpen);
         } catch (Exception e) {
             Log.w(TAG, "gate failed", e);
             return Decision.NO;
@@ -321,7 +585,12 @@ final class NudgeGate {
             out.put("nudges", app.optInt("nudges", 0));
             out.put("dismissals", app.optInt("dismissals", 0));
             out.put("opens", app.optInt("opens", 0));
-            out.put("minutes", foregroundMinutesToday(ctx, pkg));
+            /* Both figures, because the trigger runs on the first and the user's
+               own sense of the day runs on the second. Showing only "6 min" to
+               someone whose phone says two hours reads as a bug unless the card
+               says which is which (Claude.md 1.5). */
+            out.put("minutes", sessionMinutes(ctx, app, pkg));
+            out.put("rawMinutes", foregroundMinutesToday(ctx, pkg));
             out.put("dailyCap", intPref(p, KEY_DAILY_CAP, DEFAULT_DAILY_CAP));
             out.put("backoffAt", intPref(p, KEY_BACKOFF_DISMISSALS, DEFAULT_BACKOFF_DISMISSALS));
             out.put("minMinutes", intPref(p, KEY_MIN_MINUTES, DEFAULT_MIN_MINUTES));
@@ -336,7 +605,47 @@ final class NudgeGate {
         return out;
     }
 
-    /** Clears one app's counters for today — the escape from a back-off. */
+    /**
+     * Reading pays the clock back: the sitting starts over from zero.
+     *
+     * The opens fallback is zeroed for the same reason, and the dismissal streak
+     * goes because the user engaged.
+     *
+     * One nudge is refunded against the daily cap (product decision 2026-10-06).
+     * Resetting the clock is pointless if the gate has no nudges left to spend
+     * on it — the user would read, earn their fresh minutes, and then never be
+     * interrupted again however long they stayed. The cap still holds between
+     * reads, so the only way past it is to have read.
+     */
+    static JSONObject creditRead(Context ctx, String pkg) {
+        JSONObject out = new JSONObject();
+        if (pkg == null) return out;
+        SharedPreferences p = prefs(ctx);
+        JSONObject state = loadState(p);
+        JSONObject app = appState(state, pkg);
+        try {
+            long credited = sessionMinutes(ctx, app, pkg);
+            anchorSession(ctx, app, pkg);
+            app.put("opens", 0);
+            app.put("dismissals", 0);
+            app.put("nudges", Math.max(0, app.optInt("nudges", 0) - 1));
+            saveState(p, state);
+            out.put("creditedMinutes", credited);
+            out.put("freshMinutes", intPref(p, KEY_MIN_MINUTES, DEFAULT_MIN_MINUTES));
+            Log.d(TAG, "clock credited for " + pkg + " (was " + credited + " min)");
+        } catch (Exception ignored) {}
+        return out;
+    }
+
+    /**
+     * Clears one app's counters for today — the escape from a back-off.
+     *
+     * Dropping the whole entry also drops sessionStart, so the clock really does
+     * read zero afterwards and the next event starts a fresh sitting. That was
+     * not true while the threshold counted the day: Reset said "Today's counters
+     * cleared" and then the gate immediately announced two hours, because the
+     * two hours were Android's and nothing here could clear them.
+     */
     static void resetApp(Context ctx, String pkg) {
         if (pkg == null) return;
         SharedPreferences p = prefs(ctx);

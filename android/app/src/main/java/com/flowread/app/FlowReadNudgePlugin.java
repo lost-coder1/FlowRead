@@ -1,6 +1,5 @@
 package com.flowread.app;
 
-import android.app.AppOpsManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -13,7 +12,6 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Build;
-import android.os.Process;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Base64;
@@ -223,30 +221,13 @@ public class FlowReadNudgePlugin extends Plugin {
         }
     }
 
-    /* checkOpNoThrow is deprecated from API 29 but is the only option below it. */
-    @SuppressWarnings("deprecation")
+    /**
+     * Delegates to NudgeGate, which is where the check has to live: the gate and
+     * the accessibility service both need it to tell "permission denied" apart
+     * from "nothing recorded yet", and neither can reach a Plugin instance.
+     */
     private boolean hasUsageAccess() {
-        try {
-            Context ctx = getContext();
-            AppOpsManager ops = (AppOpsManager) ctx.getSystemService(Context.APP_OPS_SERVICE);
-            if (ops == null) return false;
-            int mode;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                mode = ops.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS,
-                        Process.myUid(), ctx.getPackageName());
-            } else {
-                mode = ops.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS,
-                        Process.myUid(), ctx.getPackageName());
-            }
-            if (mode == AppOpsManager.MODE_DEFAULT) {
-                return ctx.checkCallingOrSelfPermission(
-                        android.Manifest.permission.PACKAGE_USAGE_STATS)
-                        == PackageManager.PERMISSION_GRANTED;
-            }
-            return mode == AppOpsManager.MODE_ALLOWED;
-        } catch (Exception e) {
-            return false;
-        }
+        return NudgeGate.hasUsageAccess(getContext());
     }
 
     @PluginMethod
@@ -337,6 +318,25 @@ public class FlowReadNudgePlugin extends Plugin {
         }
     }
 
+    /**
+     * The user read what was asked, so the clock goes back to zero.
+     *
+     * Separate from suppressApp because the two mean different things: a
+     * suppression is "not now", a credit is "that time is paid for". Only the
+     * paths where the reading actually happened call this — leaving a nudged read
+     * early does not, or the threshold would mean nothing.
+     */
+    @PluginMethod
+    public void creditRead(PluginCall call) {
+        String pkg = call.getString("packageName");
+        if (pkg == null || pkg.isEmpty()) { call.resolve(new JSObject()); return; }
+        try {
+            call.resolve(JSObject.fromJSONObject(NudgeGate.creditRead(getContext(), pkg)));
+        } catch (JSONException e) {
+            call.resolve(new JSObject());
+        }
+    }
+
     /** Clears today's counters for one app — undoes a back-off or a suppression. */
     @PluginMethod
     public void resetNudgeState(PluginCall call) {
@@ -365,12 +365,27 @@ public class FlowReadNudgePlugin extends Plugin {
     public void peekPendingNudge(PluginCall call) {
         JSObject ret = new JSObject();
         ret.put("pending", NudgeGate.prefs(getContext()).getString("fr_pending_nudge", null));
+        /* N19. The service writes the handoff BEFORE starting the activity, and
+           that start can be dropped — Android blocks background activity starts
+           without SYSTEM_ALERT_WINDOW, and blocks some of them regardless. When
+           that happens the handoff survives with nobody to show it, and the next
+           time the user opens FlowRead for their own reasons they are ambushed
+           by a nudge about an app they left minutes ago.
+
+           MainActivity sets this flag only when it actually receives
+           ACTION_NUDGE, so JS can tell "the service brought us to the front" from
+           "the user opened us". An undelivered handoff is discarded rather than
+           banked. */
+        ret.put("delivered", NudgeGate.prefs(getContext()).getBoolean("fr_nudge_delivered", false));
         call.resolve(ret);
     }
 
     @PluginMethod
     public void clearPendingNudge(PluginCall call) {
-        NudgeGate.prefs(getContext()).edit().remove("fr_pending_nudge").apply();
+        NudgeGate.prefs(getContext()).edit()
+                .remove("fr_pending_nudge")
+                .remove("fr_nudge_delivered")
+                .apply();
         call.resolve();
     }
 

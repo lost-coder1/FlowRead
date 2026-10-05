@@ -7,6 +7,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.OpenableColumns;
+import android.util.Log;
 import com.getcapacitor.BridgeActivity;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -43,6 +44,26 @@ public class MainActivity extends BridgeActivity {
         if (isPdfViewIntent(intent)) {
             copyPdfInBackground(intent.getData(), false);
         }
+        // Cold nudge. Record that the service's activity start actually landed —
+        // see markNudgeDelivered.
+        if (intent != null && ACTION_NUDGE.equals(intent.getAction())) {
+            markNudgeDelivered();
+        }
+    }
+
+    /** The nudge service writes fr_pending_nudge and then starts this activity.
+     *  The write always succeeds; the start does not — Android drops background
+     *  activity starts without SYSTEM_ALERT_WINDOW, and restricts them further on
+     *  newer releases. An undelivered handoff must not be banked and shown the
+     *  next time the user opens FlowRead themselves (N19), so only a real
+     *  ACTION_NUDGE arrival marks it deliverable. FlowReadNudgePlugin reports the
+     *  flag to JS and clears it alongside the handoff. */
+    private void markNudgeDelivered() {
+        try {
+            NudgeGate.prefs(this).edit().putBoolean("fr_nudge_delivered", true).apply();
+        } catch (Exception e) {
+            Log.w("FlowRead", "could not mark nudge delivered", e);
+        }
     }
 
     @Override
@@ -62,6 +83,7 @@ public class MainActivity extends BridgeActivity {
         // case, so here we only need to wake the WebView, which happens in onResume.
         if (intent != null && ACTION_NUDGE.equals(intent.getAction())) {
             pendingHotNudge = true;
+            markNudgeDelivered();
         }
     }
 

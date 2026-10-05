@@ -2,9 +2,10 @@ package com.flowread.app;
 
 import android.accessibilityservice.AccessibilityService;
 import android.accessibilityservice.AccessibilityServiceInfo;
-import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 
@@ -12,7 +13,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 /**
- * Notices when one of the user's chosen apps comes to the front.
+ * Notices when one of the user's chosen apps is in front of them.
  *
  * Configured in res/xml/nudge_accessibility_service.xml with
  * canRetrieveWindowContent="false" and typeWindowStateChanged only, so the only
@@ -20,15 +21,31 @@ import org.json.JSONObject;
  * runtime to exactly the user's chosen packages (applyTargets), which means the
  * system delivers nothing at all about any other app.
  *
+ * Window events alone cannot cover the case the whole feature exists for: a user
+ * who opens one feed and scrolls it for half an hour produces a single event, at
+ * minute zero, before any of the time exists. So one check is kept pending while
+ * a target app is in front (scheduleCheck) — one Handler message, never a poll
+ * loop (Claude.md 21).
+ *
  * Claude.md 9.4, Q8 signed off 2026-09-20.
  */
 public class FlowReadNudgeService extends AccessibilityService {
 
     private static final String TAG = "FlowReadNudge";
 
+    /* Floor and ceiling on the pending check. The floor keeps a just-crossed
+       threshold from turning into a tight loop; the ceiling means a long wait is
+       re-evaluated a few times rather than trusted to one far-off alarm, which
+       also catches the user changing their threshold mid-session. */
+    private static final long MIN_CHECK_DELAY_MS = 30_000L;
+    private static final long MAX_CHECK_DELAY_MS = 10 * 60_000L;
+
     /* Lets FlowReadNudgePlugin re-apply the package filter the moment the user
        changes their selection, instead of waiting for the next service restart. */
     private static FlowReadNudgeService instance = null;
+
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private Runnable pendingCheck = null;
 
     static boolean isRunning() {
         return instance != null;
@@ -49,6 +66,7 @@ public class FlowReadNudgeService extends AccessibilityService {
     @Override
     public void onDestroy() {
         if (instance == this) instance = null;
+        cancelCheck();
         super.onDestroy();
     }
 
@@ -61,6 +79,8 @@ public class FlowReadNudgeService extends AccessibilityService {
      * app", which is the opposite of what we want.
      */
     private void applyTargets() {
+        /* The pending check names a package that may no longer be selected. */
+        cancelCheck();
         try {
             AccessibilityServiceInfo info = getServiceInfo();
             if (info == null) return;
@@ -94,10 +114,58 @@ public class FlowReadNudgeService extends AccessibilityService {
         if (getPackageName().equals(pkg)) return;
 
         NudgeGate.Decision decision = NudgeGate.decide(this, pkg);
-        if (!decision.nudge) return;
+        if (decision.nudge) {
+            launchNudge(pkg, FlowReadNudgePlugin.labelForPackage(this, pkg), decision);
+        }
+        /* Either way the user is in there now, so keep one check pending for the
+           threshold they may cross without touching anything. */
+        scheduleCheck(pkg);
+    }
 
-        String label = FlowReadNudgePlugin.labelForPackage(this, pkg);
-        launchNudge(pkg, label, decision);
+    /* ── The pending in-session check ────────────────────────────────── */
+
+    private void cancelCheck() {
+        if (pendingCheck != null) {
+            handler.removeCallbacks(pendingCheck);
+            pendingCheck = null;
+        }
+    }
+
+    /**
+     * Keep exactly one check pending, aimed at the moment the threshold could
+     * next be met. NudgeGate decides whether a check is worth scheduling at all
+     * — it is not, for instance, when usage access is missing, when the daily cap
+     * is spent, or when only "every open" is switched on.
+     */
+    private void scheduleCheck(final String pkg) {
+        cancelCheck();
+        long delay = NudgeGate.nextCheckDelayMs(this, pkg);
+        if (delay < 0) return;
+        delay = Math.max(MIN_CHECK_DELAY_MS, Math.min(MAX_CHECK_DELAY_MS, delay));
+        pendingCheck = new Runnable() {
+            @Override
+            public void run() {
+                pendingCheck = null;
+                /* The service is told only about the user's own picks, so it never
+                   hears that they left. Confirm it before interrupting anyone —
+                   and before spending a nudge from the daily cap. */
+                if (!NudgeGate.isForeground(FlowReadNudgeService.this, pkg)) {
+                    Log.d(TAG, "timed check dropped: " + pkg + " is not in front");
+                    return;
+                }
+                NudgeGate.Decision d = NudgeGate.decide(FlowReadNudgeService.this, pkg, true);
+                if (d.nudge) {
+                    launchNudge(pkg,
+                            FlowReadNudgePlugin.labelForPackage(FlowReadNudgeService.this, pkg), d);
+                }
+                /* Still in there: keep one check pending. The chain ends on its
+                   own the moment the app is no longer in front, so nothing has to
+                   tell us the session is over. */
+                scheduleCheck(pkg);
+            }
+        };
+        handler.postDelayed(pendingCheck, delay);
+        Log.d(TAG, "next check for " + pkg + " in " + (delay / 1000) + "s");
     }
 
     private void launchNudge(String pkg, String label, NudgeGate.Decision decision) {
@@ -117,6 +185,7 @@ public class FlowReadNudgeService extends AccessibilityService {
             payload.put("minutes", decision.minutes);
             payload.put("opens", decision.opens);
             payload.put("everyOpen", decision.everyOpen);
+            payload.put("inSession", decision.inSession);
             payload.put("at", System.currentTimeMillis());
             NudgeGate.prefs(this).edit()
                     .putString("fr_pending_nudge", payload.toString())

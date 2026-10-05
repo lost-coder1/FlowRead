@@ -29,6 +29,11 @@ const AnalyticsPing = (function() {
     'pro_purchased',
     'subscription_started',
     'subscription_cancelled',
+    /* Added 2026-09-25 (Q11, product-owner approved) to measure §22's
+     * distribution question: how often a stats card is actually shared. Carries
+     * only which entry point was used — never the book, the stat or the app the
+     * user shared to. */
+    'stats_shared',
   ];
 
   /* Meta is whitelisted to non-identifying scalars. Anything else — a filename,
