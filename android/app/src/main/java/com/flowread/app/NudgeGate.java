@@ -217,13 +217,9 @@ final class NudgeGate {
      * had just read for. lastSeen travels for the same reason: a session in
      * progress at midnight is still the same session at 00:01.
      *
-     * A live sitting travels too — someone scrolling through midnight is still
-     * in the same sitting — but its sessionRawBase is reset to zero rather than
-     * carried. That figure offsets a UsageStatsManager total measured from local
-     * midnight, so yesterday's base would subtract time that no longer exists
-     * and the clock would read zero until it had been exceeded all over again.
-     * At zero it reads "minutes in this app since midnight", which is the part
-     * of the sitting that belongs to today.
+     * A live sitting travels too, unchanged — someone scrolling through midnight
+     * is still in the same sitting, and it is timed by the wall clock, which
+     * does not care that the date changed.
      */
     private static JSONObject rollOver(JSONObject old) {
         JSONObject fresh = new JSONObject();
@@ -245,10 +241,7 @@ final class NudgeGate {
                     if (now - lastSeen <= SESSION_GAP_MS) {
                         kept.put("lastSeen", lastSeen);
                         long sessionStart = was.optLong("sessionStart", 0L);
-                        if (sessionStart > 0L) {
-                            kept.put("sessionStart", sessionStart);
-                            kept.put("sessionRawBase", 0L);
-                        }
+                        if (sessionStart > 0L) kept.put("sessionStart", sessionStart);
                     }
                     if (kept.length() > 0) apps.put(pkg, kept);
                 }
@@ -358,25 +351,34 @@ final class NudgeGate {
      * A sitting is what the label promises and what a person means. It is also
      * the only version reading can pay back.
      *
-     * Measured against usage stats when granted, so time spent elsewhere inside
-     * the session gap does not count. Without the grant it falls back to the
-     * wall clock, which over-counts a brief switch away — the grant buys
-     * accuracy now rather than being required for the trigger to work at all.
+     * Timed by the WALL CLOCK, deliberately, and never by a usage-stats delta.
+     *
+     * UsageStatsManager.getTotalTimeInForeground() does not tick while you are
+     * in the app. The figure comes from the daily interval buckets, and the
+     * current session is only added to them once it ends — so for the entire
+     * time a user sits in X it reads flat, and then jumps the moment they leave.
+     * Measuring a *live* sitting against it means measuring it against a number
+     * that is, by construction, standing still: the timed check computes "0
+     * minutes in, 5 to go" forever, nothing ever fires, and the nudge lands on
+     * the next open instead — which is precisely the bug (N22) this was all
+     * supposed to fix. Usage stats are accurate for sessions that are over and
+     * useless for the one in progress.
+     *
+     * The wall clock over-counts a brief switch away that stays inside the
+     * session gap. That is a far smaller error than never firing, and
+     * isForeground() still has to agree before anything interrupts the user.
+     *
      * Always a real number: 0, never a sentinel.
      */
-    private static long sessionMinutes(Context ctx, JSONObject app, String pkg) {
+    private static long sessionMinutes(JSONObject app) {
         long sessionStart = app.optLong("sessionStart", 0L);
         if (sessionStart <= 0L) return 0L;
-        long raw = foregroundMinutesToday(ctx, pkg);
-        long base = app.optLong("sessionRawBase", -1L);
-        if (raw >= 0 && base >= 0) return Math.max(0L, raw - base);
         return Math.max(0L, (System.currentTimeMillis() - sessionStart) / 60000L);
     }
 
     /** Start the sitting over: on a new open, after a read, and on Reset. */
-    private static void anchorSession(Context ctx, JSONObject app, String pkg) throws Exception {
+    private static void anchorSession(JSONObject app) throws Exception {
         app.put("sessionStart", System.currentTimeMillis());
-        app.put("sessionRawBase", foregroundMinutesToday(ctx, pkg));
     }
 
     /**
@@ -411,6 +413,15 @@ final class NudgeGate {
                 events.getNextEvent(e);
                 if (e.getEventType() == resumed) last = e.getPackageName();
             }
+            /* "Could not tell" and "they left" both have to answer no, but they
+               are different failures and only one of them is normal. An empty
+               event stream means the query is not working on this device, and a
+               silent no would look identical to a working feature nobody is
+               tripping (Claude.md 1.5). One line, at the only moment it matters. */
+            if (last == null) {
+                Log.d(TAG, "foreground check inconclusive: no resume events in the window");
+                return false;
+            }
             return pkg.equals(last);
         } catch (Exception e) {
             return false;
@@ -441,7 +452,7 @@ final class NudgeGate {
         if (!modes.contains(MODE_EVERY_OPEN) && app.optInt("dismissals", 0)
                 >= intPref(p, KEY_BACKOFF_DISMISSALS, DEFAULT_BACKOFF_DISMISSALS)) return -1;
         long untilThreshold = Math.max(0L, intPref(p, KEY_MIN_MINUTES, DEFAULT_MIN_MINUTES)
-                - sessionMinutes(ctx, app, pkg)) * 60_000L;
+                - sessionMinutes(app)) * 60_000L;
         long untilFree = Math.max(0L, app.optLong("suppressUntil", 0L) - System.currentTimeMillis());
         return Math.max(untilThreshold, untilFree);
     }
@@ -477,7 +488,7 @@ final class NudgeGate {
                 app.put("lastSeen", now);
                 if (newOpen) {
                     app.put("opens", app.optInt("opens", 0) + 1);
-                    anchorSession(ctx, app, pkg);
+                    anchorSession(app);
                 }
                 saveState(p, state);
             }
@@ -500,7 +511,7 @@ final class NudgeGate {
                when the user has not granted usage access (Claude.md 1.5 — the
                feature degrades honestly rather than silently doing nothing).
                The minutes figure is read either way, because the screen names it. */
-            long minutes = sessionMinutes(ctx, app, pkg);
+            long minutes = sessionMinutes(app);
             int opens = app.optInt("opens", 0);
             String modes = p.getString(KEY_TRIGGER_MODE, MODE_THRESHOLD);
             boolean everyOpen = modes.contains(MODE_EVERY_OPEN);
@@ -589,7 +600,7 @@ final class NudgeGate {
                own sense of the day runs on the second. Showing only "6 min" to
                someone whose phone says two hours reads as a bug unless the card
                says which is which (Claude.md 1.5). */
-            out.put("minutes", sessionMinutes(ctx, app, pkg));
+            out.put("minutes", sessionMinutes(app));
             out.put("rawMinutes", foregroundMinutesToday(ctx, pkg));
             out.put("dailyCap", intPref(p, KEY_DAILY_CAP, DEFAULT_DAILY_CAP));
             out.put("backoffAt", intPref(p, KEY_BACKOFF_DISMISSALS, DEFAULT_BACKOFF_DISMISSALS));
@@ -624,8 +635,8 @@ final class NudgeGate {
         JSONObject state = loadState(p);
         JSONObject app = appState(state, pkg);
         try {
-            long credited = sessionMinutes(ctx, app, pkg);
-            anchorSession(ctx, app, pkg);
+            long credited = sessionMinutes(app);
+            anchorSession(app);
             app.put("opens", 0);
             app.put("dismissals", 0);
             app.put("nudges", Math.max(0, app.optInt("nudges", 0) - 1));

@@ -3,7 +3,7 @@
 > Working document. `Claude.md` is the contract; this file is how we execute it.
 > Every task references its governing `Claude.md` section. If the two disagree, `Claude.md` wins — and `Claude.md` gets updated *before* we change direction, not after.
 
-**Last updated:** 2026-10-06 — **Field round after several weeks of real use: N22–N27, all
+**Last updated:** 2026-10-06 — **Field round after several weeks of real use: N22–N28, all
 fixed in the working tree, none device-verified.** The nudge now fires *during* a session rather
 than reporting on the last one (N22, `Claude.md` §9.3a), reading pays the clock back and refunds a
 nudge (N23), a suppression survives midnight (N24), and the share card carries the book's cover
@@ -37,6 +37,7 @@ Previously, 2026-09-25 — **Fifth device round: N17–N20 found, three fixed, N
 | 2026-10-06 | **The nudge may fire from inside a session** (N22), via navigation re-checks plus one pending timed check. | The minutes threshold could only ever be evaluated at the start of a session, so it reported time already spent instead of interrupting it. `every_open` is excluded — firing it mid-session makes it the wall §9.1 forbids. `Claude.md` §9.3a records the mechanism. |
 | 2026-10-06 | **`UsageStatsManager.queryEvents` may be read to confirm the target app is still in front.** | The timed check must not interrupt someone who already left, and the accessibility service — correctly narrowed to the user's own picks — cannot tell it. The query can name an app the user never selected; it is compared and discarded, never stored or sent. A widening of what usage access is *used for*, not of the accessibility scope, and logged in `Claude.md` §9.4a precisely because it is a widening. |
 | 2026-10-06 | **The minutes threshold counts the current sitting, not the day** (N26), superseding §9.3's original "15–20 minutes already spent that day". | The setting is labelled "After a while in the app"; at a 5-minute limit a daily total means you are permanently over, so the threshold trigger silently became "every time I open it"; and a daily total belongs to Android, so neither Reset nor the read credit could clear it — which is how a user who had just pressed Reset was greeted with "you have been on Reddit for 120 minutes". The two toggles are now orthogonal: one is the open, the other is the stretch. |
+| 2026-10-06 | **The current sitting is timed by the wall clock, never by a usage-stats delta** (N28). | `getTotalTimeInForeground()` is built from daily buckets and does not include the session in progress, so it stands still for the whole time the user is inside the app and jumps when they leave. Timing a live sitting against it guarantees the thing it was meant to prevent: nothing fires inside, the nudge lands on the next open. The wall clock over-counts a brief switch away inside the session gap, which is the far smaller error. |
 | 2026-10-06 | **Keep the "Nth open today" fallback** even though the minutes trigger now works without usage access. | The wall clock can time a sitting the user is navigating around in, but nothing can confirm they are still present when they are not, so the timed check still needs the grant — and an ungranted setup still needs something that fires at the moment of opening. |
 | 2026-10-06 | **A completed read refunds one nudge against the daily cap** (N23), on top of zeroing the clock. | Asked and answered by the product owner. Resetting a clock the gate has no nudges left to act on is theatre — the user would read, earn their fresh minutes, and never be interrupted again that day. The cap still holds between reads, so the only way past it is to have read. |
 | 2026-10-06 | **Share-card covers are offline-only** (N25): PDF page one, else a typographic cover. | 65 of 88 catalogue books have a real cover, but as a remote Gutenberg URL with no CORS headers — fetching it would taint the canvas and fail the export outright, and the workaround adds a network path to a feature that has none. §1.1 and the §15 "works on a plane" promise both point the same way. |
@@ -193,7 +194,7 @@ The toolchain and billing upgrades are shipped and verified in production (1.4.5
 
 **Status:** ✅ **Code complete.** Built 2026-09-20; hardened across four device rounds to
 2026-09-25 (N1–N16), then a field round on 2026-10-06 after several weeks of real use
-(**N22–N24, N26–N27** — all fixed, **none device-verified**). That round changed what the minutes
+(**N22–N24, N26–N28** — all fixed, **none device-verified**). That round changed what the minutes
 threshold means: it fires *during* a sitting rather than reporting on the last one, and it counts
 the sitting rather than the day. §9.3 was rewritten to match. **The rest of the remaining work is
 not code:** one end-to-end checklist run (items 1–16), the Q9 copy sign-off, the Play Console
@@ -240,7 +241,7 @@ Detection is an **`AccessibilityService`, not `UsageStatsManager`** — see the 
       what N1–N16 are.
 - [x] **Fix N1–N16** — all sixteen done, 2026-09-21 to 2026-09-25. `:app:compileDebugJavaWithJavac`
       and `assembleDebug` clean, JS syntax clean, en/hi **532 keys each, full parity**.
-- [x] **Fix N22–N24, N26–N27** — field round 2026-10-06. `assembleDebug` clean, JS syntax clean,
+- [x] **Fix N22–N24, N26–N28** — field round 2026-10-06. `assembleDebug` clean, JS syntax clean,
       en/hi **566 keys each, full parity**. **Not device-verified** — checklist items 12–16.
 - [ ] **Re-run the full device checklist below on the N15/N16 build.** The individual fixes were
       each confirmed as they landed, but the checklist has never been run end to end against one
@@ -634,7 +635,7 @@ must not be bounced out of it.
 
 ---
 
-### Field findings — 2026-10-06, several weeks of real use (N22–N24)
+### Field findings — 2026-10-06, several weeks of real use (N22–N28)
 
 Not a device-test round: these came from living with the shipped behaviour. All three are fixed
 in the working tree and **none is device-verified yet.**
@@ -738,6 +739,34 @@ Introduced by N22. A nudge satisfying both triggers took the threshold's 5-minut
 of the every-open 10-second one, so "Every time I open it" stopped nudging on every open — while
 `settings.nudge.mode_both` told the user that mode takes precedence. Every-open is now checked
 first and wins the grace.
+
+#### N28 — Still nudging on the next open, not during the sitting ✅ fixed
+
+**Reported:** "I have been on X for 7 min, nothing. I just closed the app, opened it again and got
+the nudge."
+
+**`UsageStatsManager.getTotalTimeInForeground()` does not tick while you are in the app.** The
+figure is built from the daily interval buckets and the current session is only folded in once it
+*ends*. So it reads flat for the entire sitting and jumps the moment the user leaves.
+
+Both the pre-N26 daily counter and N26's own usage-stats delta were therefore measured against a
+number that, by construction, stands still while the user is inside. The timed check computed
+"0 minutes in, 5 to go" over and over, nothing ever fired, and the figure only crossed the
+threshold after the app was closed — which is the N22 symptom all over again, arriving by a
+different route. Usage stats are accurate for sessions that are over and useless for the one in
+progress; the irony is that the wall-clock fallback, kept only for ungranted devices, was the one
+that worked.
+
+**The sitting is now timed by the wall clock, always.** It over-counts a brief switch away that
+stays inside the session gap — a far smaller error than never firing, and `isForeground()` still
+has to agree before anyone is interrupted. `sessionRawBase` is gone.
+
+Usage access now buys **presence** (the timed check's proof that the user has not left) and the
+day's total for display. It does not time the sitting.
+
+**Also:** `isForeground()` now logs when the event stream is empty rather than returning a silent
+no, because "they left" and "this query does not work on this device" are different failures and
+only one of them is normal (§1.5).
 
 ### Device test checklist
 
@@ -1180,7 +1209,7 @@ The permission is denied by default at API 33+ for non-alarm-clock apps, and not
 | Block | Tasks | State |
 |---|---|---|
 | **A — Compliance** | ✅ 16.0a, ✅ 16.0b · 16.1 open | Shipped as 1.4.5 / versionCode 32, published 2026-09-16. 16.1 blocked on Q1 to finish, not to start. |
-| **B — Pivot core** | ✅ 16.2 (code) · 16.3 | **16.2 code complete; N22–N24 and N26–N27 fixed 2026-10-06 and not yet device-verified.** The field round moved the threshold onto the current sitting and made the nudge fire *during* one — the behaviour §9 always described. Before that: N1–N16 over four device rounds, merged to `master`. Remaining: the checklist run (now items 1–16), Q9 copy sign-off, the Play Accessibility declaration, the privacy policy. 16.3 unblocked but better taken after Q3 is answered by the N14 device experience. |
+| **B — Pivot core** | ✅ 16.2 (code) · 16.3 | **16.2 code complete; N22–N24 and N26–N28 fixed 2026-10-06 and not yet device-verified.** The field round moved the threshold onto the current sitting and made the nudge fire *during* one — the behaviour §9 always described. Before that: N1–N16 over four device rounds, merged to `master`. Remaining: the checklist run (now items 1–16), Q9 copy sign-off, the Play Accessibility declaration, the privacy policy. 16.3 unblocked but better taken after Q3 is answered by the N14 device experience. |
 | **C — Features** | ✅ 16.9, ✅ 16.7, ✅ 16.6 (code) · 16.8, 16.4, 16.5, 16.10 open | 16.9 and 16.7 shipped and verified in 1.4.7 (2026-09-20); 16.7's copy still needs Q6 sign-off. **16.6 code complete 2026-09-25; N25 added covers and real titles 2026-10-06.** Device test (now including the PDF page-one render), Q10 copy and Q11 outstanding. 16.4/16.5 still need Q4/Q5 before starting. |
 | **D — Housekeeping** | ✅ H1, ✅ H2, ✅ **H4** · H3 substantially done | **H4 verified on a Play build 2026-09-20 — the revenue blocker is closed.** H3's fix is live and scheduling works; only the two denial-path checks remain. |
 
