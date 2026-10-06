@@ -874,24 +874,52 @@ function _bindNudgeSettings() {
   const toggle = qs('#settings-nudge-enabled');
   const detail = qs('#settings-nudge-detail');
 
+  /* Treated as on until the user says otherwise — but only once they have been
+     through the disclosure. fr_nudge_enabled is absent on a fresh install and
+     isEnabled() reads absent as on, which used to render this whole section
+     expanded, permission rows and all, before the user had been told anything. */
+  function isSetUp() {
+    return NudgeFeature.isEnabled() && NudgeFeature.hasSeenDisclosure();
+  }
+
   function syncDetailVisibility() {
-    if (detail) detail.classList.toggle('hidden', !NudgeFeature.isEnabled());
+    if (detail) detail.classList.toggle('hidden', !isSetUp());
+  }
+
+  /* THE choke point for anything that can send the user to a system settings
+     page (Play's accessibility declaration, §10.1).
+     
+     The disclosure used to guard only the master toggle, which was enough when
+     that was the only way in. It is not: the permission rows have their own
+     Grant buttons and the trigger toggles ask for permissions too, and on a
+     fresh install both were reachable immediately. A reviewer installing the app
+     and tapping Grant would have been sent to Android's Accessibility settings
+     having been told nothing — while the Play declaration asserts the opposite.
+     
+     Every route to a grant goes through here. Do not call
+     promptMissingPermissions or any open*Settings from a new control without it. */
+  function withDisclosure(next) {
+    if (NudgeFeature.hasSeenDisclosure()) { next(); return; }
+    NudgeFeature.showDisclosure(function() {
+      /* Accepting the disclosure IS the opt-in; nothing else would have been. */
+      NudgeFeature.setEnabled(true);
+      const el = qs('#settings-nudge-enabled');
+      if (el) el.checked = true;
+      syncDetailVisibility();
+      syncNudgePermissions();
+      next();
+    });
   }
 
   if (toggle) {
-    toggle.checked = NudgeFeature.isEnabled();
+    toggle.checked = isSetUp();
     toggle.addEventListener('change', function() {
       const on = this.checked;
       /* Play policy wants the disclosure before the grant, and §10.1 wants the
          "why" before the ask. Revert the switch if they back out of it. */
       if (on && !NudgeFeature.hasSeenDisclosure()) {
         this.checked = false;
-        NudgeFeature.showDisclosure(function() {
-          NudgeFeature.setEnabled(true);
-          const el = qs('#settings-nudge-enabled');
-          if (el) el.checked = true;
-          syncDetailVisibility();
-          syncNudgePermissions();
+        withDisclosure(function() {
           /* Usage access is not asked for here — only the time-based trigger
              needs it, so it is requested when that trigger is switched on. */
           NudgeFeature.promptMissingPermissions({ usageAccess: false });
@@ -949,8 +977,10 @@ function _bindNudgeSettings() {
          time trigger is the only one that needs usage access; without it that
          setting silently degrades to counting opens. */
       if (this.checked) {
-        NudgeFeature.promptMissingPermissions({
-          usageAccess: pair[1] === NudgeFeature.MODE_THRESHOLD,
+        withDisclosure(function() {
+          NudgeFeature.promptMissingPermissions({
+            usageAccess: pair[1] === NudgeFeature.MODE_THRESHOLD,
+          });
         });
       }
     });

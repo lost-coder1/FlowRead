@@ -1,4 +1,4 @@
-# FlowRead 1.4.8 — versionCode 35
+# FlowRead 1.4.8 — versionCode 36
 
 **targetSdk** 36 · **minSdk** 24 · Capacitor 8.5.2 · Play Billing 9.1.0
 **Bundle:** `android/app/build/outputs/bundle/release/app-release.aab`
@@ -14,6 +14,11 @@
 > before rollout, not after.
 >
 > Neither is code. Both are yours. Everything else below is done.
+>
+> **versionCode 36 supersedes 35.** 35 was uploaded to Internal testing, which is what triggered
+> the accessibility declaration — and filling that form surfaced a gap it would have made into a
+> false statement. See "Disclosure reached every route to the grant" below. Submit the declaration
+> against **36**, and record the disclosure video on 36.
 
 > **Production is on 1.4.5 / versionCode 32.** 1.4.6 (33) and 1.4.7 (34) never went past Internal
 > testing, so this release carries their content too — the user-facing notes cover everything since
@@ -123,6 +128,27 @@ streaks.
 - **H3** — reading reminders could silently never arrive.
 - **16.7** — optional notification when the device goes offline.
 - **16.9** — in-progress books moved to the top of the home screen.
+
+### Disclosure now guards every route to the accessibility grant
+
+Found while filling in Play's accessibility declaration, which asserts that a prominent disclosure
+precedes the grant. That was true of the master toggle and false of two other paths: the Grant
+button on the accessibility permission row called `openAccessibilitySettings()` directly, and the
+trigger toggles asked for permissions through `promptMissingPermissions()`.
+
+On an existing install neither mattered — the disclosure had been seen. On a **fresh install** both
+were reachable immediately, because `fr_nudge_enabled` is absent and `isEnabled()` reads absent as
+on, so the section rendered already-expanded with its permission rows showing. A reviewer
+installing the app, opening Settings and tapping Grant would have been sent to Android's
+Accessibility settings having been told nothing.
+
+- Settings routes every control through one `withDisclosure()` choke point.
+- The section stays collapsed until the disclosure has actually been accepted — being "on by
+  default" is not the same as having been set up.
+- `openAccessibilitySettings()` guards itself as a last line of defence, so a future caller cannot
+  reintroduce the gap by accident.
+- The disclosure gained a cancel callback; backing out now resolves rather than leaving a caller
+  waiting on an answer that never comes.
 
 ### Smaller
 

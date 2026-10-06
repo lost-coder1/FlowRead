@@ -161,9 +161,29 @@ const NudgeFeature = (function() {
               && NudgeAppsFeature.getTargets().length > 0);
   }
 
+  /* The last line of defence on Play's prominent-disclosure requirement.
+     
+     Callers are expected to have shown the disclosure already — Settings routes
+     every control through its own withDisclosure() — but this is the function
+     that actually sends a user to the Accessibility settings page, and the
+     declaration filed with Play asserts that no user reaches it without having
+     been told what the service can and cannot see. Asserting that in a form
+     while leaving one unguarded path in the UI is how an audit goes wrong, so
+     the guarantee lives here too, where it cannot be forgotten by a new caller.
+     
+     Resolves false when the user backs out of the disclosure, which is the same
+     answer the caller already handles for "no settings screen available". */
   async function openAccessibilitySettings() {
     const p = _plugin();
     if (!p) return false;
+    if (!hasSeenDisclosure()) {
+      return new Promise(function(resolve) {
+        showDisclosure(function() {
+          setEnabled(true);
+          openAccessibilitySettings().then(resolve, function() { resolve(false); });
+        }, function() { resolve(false); });
+      });
+    }
     try {
       const r = await p.openAccessibilitySettings();
       return !!(r && r.opened);
@@ -213,9 +233,18 @@ const NudgeFeature = (function() {
   /* Play policy requires a prominent disclosure before the accessibility grant,
      and §10.1 requires the *why* before any permission ask regardless. This is
      the one screen that must not be skippable on the way to the grant. */
-  function showDisclosure(onAccept) {
+  function showDisclosure(onAccept, onCancel) {
     const root = qs('#modal-root');
-    if (!root) return;
+    if (!root) { if (typeof onCancel === 'function') onCancel(); return; }
+    /* Backing out has to be observable: a caller that is waiting on the answer
+       before opening a settings page would otherwise wait forever. */
+    let settled = false;
+    function cancel() {
+      if (settled) return;
+      settled = true;
+      closeActiveModal();
+      if (typeof onCancel === 'function') onCancel();
+    }
     closeActiveModal();
     AppState.activeModal = 'nudge-disclosure';
 
@@ -238,11 +267,13 @@ const NudgeFeature = (function() {
         '</div>' +
       '</div>';
 
-    qs('#btn-nudge-disclosure-cancel').addEventListener('click', closeActiveModal);
+    qs('#btn-nudge-disclosure-cancel').addEventListener('click', cancel);
     qs('#modal-backdrop').addEventListener('click', function(event) {
-      if (event.target.id === 'modal-backdrop') closeActiveModal();
+      if (event.target.id === 'modal-backdrop') cancel();
     });
     qs('#btn-nudge-disclosure-ok').addEventListener('click', function() {
+      if (settled) return;
+      settled = true;
       localStorage.setItem(KEY_DISCLOSED, 'true');
       closeActiveModal();
       if (typeof onAccept === 'function') onAccept();
