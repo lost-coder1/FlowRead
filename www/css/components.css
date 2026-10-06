@@ -2149,9 +2149,13 @@
   transform: translateY(-1px);
 }
 
+/* Portrait, because book covers are. A 3/2 landscape box cropped every real
+   cover down to a horizontal band through its middle — the title and the author
+   were both outside it. 2/3 matches the dominant source ratio, so most covers
+   fill it exactly and the odd one letterboxes onto the card's own colour. */
 .fb-card-cover {
   width: 100%;
-  aspect-ratio: 3 / 2;
+  aspect-ratio: 2 / 3;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2165,13 +2169,15 @@
 .fb-cover-img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  /* contain, never cover: a cropped cover loses the one thing it is for. */
+  object-fit: contain;
   display: block;
 }
 
 .fb-card-initials {
   font-family: var(--font-display);
-  font-size: 28px;
+  /* Scaled with the taller box — 28px was sized for the old landscape strip. */
+  font-size: 44px;
   font-weight: 900;
   color: rgba(232, 228, 220, 0.5);
   letter-spacing: -1px;
