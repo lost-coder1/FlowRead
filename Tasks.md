@@ -3,7 +3,17 @@
 > Working document. `Claude.md` is the contract; this file is how we execute it.
 > Every task references its governing `Claude.md` section. If the two disagree, `Claude.md` wins — and `Claude.md` gets updated *before* we change direction, not after.
 
-**Last updated:** 2026-10-06 — **Field round after several weeks of real use: N22–N28, all
+**Last updated:** 2026-10-13 — **1.4.8 / versionCode 36 is on Internal testing.** The first build
+to carry the pivot mechanic (16.2) and the share card (16.6), and the first to ship an
+`AccessibilityService` at all. **Both hard release gates are cleared:** the Play accessibility
+declaration is submitted with its disclosure video, and the privacy policy is live. Filling in
+that declaration is what found **N29** — the disclosure guarded one route to the grant and not the
+other two, invisible to anyone who had already used the app. **Still open: the device checklist
+(items 1–16) has never been run, and production promotion.** Production remains on 1.4.5 / 32.
+Next engineering task is **16.8 (home screen widget)**; next product task is the store-listing
+rewrite onto the habit framing.
+
+Previously, 2026-10-06 — **Field round after several weeks of real use: N22–N28, all
 fixed in the working tree, none device-verified.** The nudge now fires *during* a session rather
 than reporting on the last one (N22, `Claude.md` §9.3a), reading pays the clock back and refunds a
 nudge (N23), a suppression survives midnight (N24), and the share card carries the book's cover
@@ -39,6 +49,8 @@ Previously, 2026-09-25 — **Fifth device round: N17–N20 found, three fixed, N
 | 2026-10-06 | **The minutes threshold counts the current sitting, not the day** (N26), superseding §9.3's original "15–20 minutes already spent that day". | The setting is labelled "After a while in the app"; at a 5-minute limit a daily total means you are permanently over, so the threshold trigger silently became "every time I open it"; and a daily total belongs to Android, so neither Reset nor the read credit could clear it — which is how a user who had just pressed Reset was greeted with "you have been on Reddit for 120 minutes". The two toggles are now orthogonal: one is the open, the other is the stretch. |
 | 2026-10-06 | **The current sitting is timed by the wall clock, never by a usage-stats delta** (N28). | `getTotalTimeInForeground()` is built from daily buckets and does not include the session in progress, so it stands still for the whole time the user is inside the app and jumps when they leave. Timing a live sitting against it guarantees the thing it was meant to prevent: nothing fires inside, the nudge lands on the next open. The wall clock over-counts a brief switch away inside the session gap, which is the far smaller error. |
 | 2026-10-06 | **Keep the "Nth open today" fallback** even though the minutes trigger now works without usage access. | The wall clock can time a sitting the user is navigating around in, but nothing can confirm they are still present when they are not, so the timed check still needs the grant — and an ungranted setup still needs something that fires at the moment of opening. |
+| 2026-10-13 | **The prominent disclosure gates every route to the accessibility grant**, not just the master toggle (N29). | Play's declaration asserts it, so one unguarded path makes the declaration false — and the unguarded paths were the ones only a brand-new user could reach, which is to say exactly the reviewer. The guarantee now lives at the choke point (`openAccessibilitySettings` guards itself) rather than at each call site, because call sites get added and forgotten. |
+| 2026-10-13 | **`isAccessibilityTool` stays unset (false), and the declaration says "App functionality" with no sensitive data collected.** | FlowRead is not an assistive tool for users with disabilities and claiming otherwise is a fast rejection. "No sensitive data" is defensible on the facts: the only input is a package name the user picked, it never leaves the device, and §9.6's closed allowlist keeps package names out of analytics. **That last clause is load-bearing — an event carrying a target package name would make the declaration wrong.** |
 | 2026-10-06 | **A completed read refunds one nudge against the daily cap** (N23), on top of zeroing the clock. | Asked and answered by the product owner. Resetting a clock the gate has no nudges left to act on is theatre — the user would read, earn their fresh minutes, and never be interrupted again that day. The cap still holds between reads, so the only way past it is to have read. |
 | 2026-10-06 | **Share-card covers are offline-only** (N25): PDF page one, else a typographic cover. | 65 of 88 catalogue books have a real cover, but as a remote Gutenberg URL with no CORS headers — fetching it would taint the canvas and fail the export outright, and the workaround adds a network path to a feature that has none. §1.1 and the §15 "works on a plane" promise both point the same way. |
 | 2026-09-16 | **Strict `Claude.md` order** — compliance block fully verified on a real device before any feature work starts. No parallel nudge development. | §3.3 sequencing. Avoids re-testing feature work against a shifting toolchain. |
@@ -192,13 +204,16 @@ The toolchain and billing upgrades are shipped and verified in production (1.4.5
 
 ## Task 16.2 — Habit Interception System ("Nudge")
 
-**Status:** ✅ **Code complete.** Built 2026-09-20; hardened across four device rounds to
-2026-09-25 (N1–N16), then a field round on 2026-10-06 after several weeks of real use
-(**N22–N24, N26–N28** — all fixed, **none device-verified**). That round changed what the minutes
-threshold means: it fires *during* a sitting rather than reporting on the last one, and it counts
-the sitting rather than the day. §9.3 was rewritten to match. **The rest of the remaining work is
-not code:** one end-to-end checklist run (items 1–16), the Q9 copy sign-off, the Play Console
-Accessibility declaration and the privacy-policy update.
+**Status:** ✅ **Code complete and shipped to Internal testing** as 1.4.8 / versionCode 36 on
+2026-10-13, with the Play accessibility declaration submitted and the privacy policy live — both
+hard gates now cleared. Built 2026-09-20; hardened across four device rounds to 2026-09-25
+(N1–N16), then a field round on 2026-10-06 after several weeks of real use (**N22–N24, N26–N28**),
+then **N29** found while filling in the Play declaration itself. The field round changed what the
+minutes threshold means: it fires *during* a sitting rather than reporting on the last one, and it
+counts the sitting rather than the day. §9.3 was rewritten to match.
+**Still open:** the end-to-end device checklist (items 1–16) was **deliberately deferred** to the
+Internal testing period rather than run before upload (owner's call, 2026-10-06) — so the field
+fixes are confirmed only by use, not by the checklist. Production promotion is also still open.
 Q2/Q8 resolved · **Ref:** §9, §9.3a, §9.4a, §1.6 · **Size:** XL — largest single feature in Phase 16
 
 **Why:** The core mechanic of the pivot (§0.1). Redirects time in distracting apps toward reading.
@@ -243,21 +258,30 @@ Detection is an **`AccessibilityService`, not `UsageStatsManager`** — see the 
       and `assembleDebug` clean, JS syntax clean, en/hi **532 keys each, full parity**.
 - [x] **Fix N22–N24, N26–N28** — field round 2026-10-06. `assembleDebug` clean, JS syntax clean,
       en/hi **566 keys each, full parity**. **Not device-verified** — checklist items 12–16.
-- [ ] **Re-run the full device checklist below on the N15/N16 build.** The individual fixes were
-      each confirmed as they landed, but the checklist has never been run end to end against one
-      build — in particular cold start (6), scoped unlock with two targets (5), battery (9),
-      Hindi (10) and the Page-mode regression (11). **Owner will run this as part of the release
-      test pass** (decided 2026-09-25) — the five items above are the ones never exercised.
+- [ ] **Run the full device checklist (items 1–16).** Still outstanding, and now deferred twice:
+      first to the release test pass (2026-09-25), then past the upload itself (2026-10-06,
+      "testing later"). 1.4.8 went to Internal testing without it. Never exercised end to end:
+      scoped unlock with two targets (5), cold start (6), **battery (9)**, Hindi (10), the
+      Page-mode regression (11), and all of 12–16 from the field round.
+      **Item 9 is the one with no data behind it at all** — the timed in-session check is new, and
+      a Handler waking every ≤10 minutes to run a 6-hour `queryEvents` is the kind of thing Play
+      vitals notices before a developer does. Internal testing is the cheapest place to find out.
 - [x] **Q9 — nudge copy and tone: signed off 2026-09-25.**
-- [→] **Play Console Accessibility API declaration** — **owner-owned, actioned at release**
-      (decided 2026-09-25). Not done yet, and deliberately so: it is a Play Console form, not
-      code, and it is filed when the release is prepared. The justification to paste in is the
-      §9.4a scope — package name only, `canRetrieveWindowContent="false"`, `packageNames`
-      narrowed at runtime. **This is a hard release gate: a build carrying the accessibility
-      service is rejected without it.**
-- [→] **Privacy policy** — **owner-owned, actioned at release** (decided 2026-09-25). Must
-      disclose the accessibility use and the analytics pings (§9.6), now including `stats_shared`.
-      Also a hard release gate.
+- [x] **Play Console Accessibility API declaration — submitted 2026-10-13** against 1.4.8
+      (versionCode 36), with the prominent-disclosure video. Declared **App functionality** only
+      and **no** sensitive data collected: the service receives a package name the user chose
+      themselves, it never leaves the device, and the §9.6 allowlist deliberately keeps package
+      names out of analytics. `isAccessibilityTool` is left unset (i.e. false), which is the
+      honest answer — FlowRead is not an assistive tool. **If a future event ever carries a target
+      package name, this declaration becomes wrong and has to be amended.**
+      Note the form does not live in App content: it is triggered by uploading a build containing
+      the service, which is why 35 had to go up before it could be filled in.
+- [x] **Privacy policy — live 2026-10-13.** Covers the accessibility service (what it sees, what
+      it structurally cannot see, that the app list is user-chosen, that nothing leaves the
+      device), optional usage access, and the anonymous pings (§9.6) including `stats_shared`.
+      The pings are described although they are inert in this build, so the policy does not need
+      re-issuing when the Worker endpoint goes live — but Data safety **does**, and that is the
+      trigger for it.
 - [ ] **Cloudflare Worker endpoint** — `analytics-ping.js` has `ENDPOINT = ''` and is inert until one exists. This is a safe shipping state, not a bug.
 - [x] ~~Decide whether the nudge setup belongs in onboarding (Q3)~~ — **resolved 2026-09-25:
       answered inside Task 16.3's design, not ahead of it.** N14's per-choice ask is the interim
@@ -768,6 +792,35 @@ day's total for display. It does not time the sitting.
 no, because "they left" and "this query does not work on this device" are different failures and
 only one of them is normal (§1.5).
 
+#### N29 — The disclosure guarded one route to the grant, not three ✅ fixed
+
+Found while filling in Play's accessibility declaration — the form asserts that a prominent
+disclosure precedes the grant, and checking whether that was literally true showed it was not.
+
+The disclosure was wired only to the master nudge toggle. Two other paths reached Android's
+Accessibility settings without it: the **Grant** button on the accessibility permission row, which
+called `openAccessibilitySettings()` directly, and the **trigger toggles**, which went through
+`promptMissingPermissions()`.
+
+On an existing install neither mattered, because the disclosure is shown once and had been
+accepted long ago — which is exactly why it went unnoticed through five device rounds. On a
+**fresh install** both were wide open: `fr_nudge_enabled` is absent, `isEnabled()` reads absent as
+on, so the section rendered already-expanded with its permission rows visible. A reviewer who
+installed the app, opened Settings and tapped Grant would have reached the Accessibility settings
+page having been told nothing at all.
+
+- Settings routes every control through one `withDisclosure()` choke point.
+- The section stays collapsed until the disclosure has actually been accepted. **Defaulting to on
+  is not the same as having been set up**, and conflating the two is what exposed the rows.
+- `openAccessibilitySettings()` guards itself as a last line of defence, so a future caller cannot
+  reopen the hole by accident.
+- `showDisclosure()` gained a cancel callback — backing out has to be observable now that a caller
+  can be awaiting the answer before opening a settings page.
+
+**Worth keeping in mind:** this was a compliance bug that no amount of using the app would have
+surfaced, because the only person who could hit it was someone who had never used the app. The
+declaration form was the thing that found it.
+
 ### Device test checklist
 
 1. Each of the three settings pages opens at the right screen; the grant is re-detected on return (handled by an `appStateChange` listener in settings.js). Denying any one degrades with a plain-language explanation.
@@ -1209,8 +1262,8 @@ The permission is denied by default at API 33+ for non-alarm-clock apps, and not
 | Block | Tasks | State |
 |---|---|---|
 | **A — Compliance** | ✅ 16.0a, ✅ 16.0b · 16.1 open | Shipped as 1.4.5 / versionCode 32, published 2026-09-16. 16.1 blocked on Q1 to finish, not to start. |
-| **B — Pivot core** | ✅ 16.2 (code) · 16.3 | **16.2 code complete; N22–N24 and N26–N28 fixed 2026-10-06 and not yet device-verified.** The field round moved the threshold onto the current sitting and made the nudge fire *during* one — the behaviour §9 always described. Before that: N1–N16 over four device rounds, merged to `master`. Remaining: the checklist run (now items 1–16), Q9 copy sign-off, the Play Accessibility declaration, the privacy policy. 16.3 unblocked but better taken after Q3 is answered by the N14 device experience. |
-| **C — Features** | ✅ 16.9, ✅ 16.7, ✅ 16.6 (code) · 16.8, 16.4, 16.5, 16.10 open | 16.9 and 16.7 shipped and verified in 1.4.7 (2026-09-20); 16.7's copy still needs Q6 sign-off. **16.6 code complete 2026-09-25; N25 added covers and real titles 2026-10-06.** Device test (now including the PDF page-one render), Q10 copy and Q11 outstanding. 16.4/16.5 still need Q4/Q5 before starting. |
+| **B — Pivot core** | ✅ 16.2 (shipped to Internal testing) · 16.3 | **16.2 is on Internal testing as 1.4.8 / 36 (2026-10-13)** — both hard gates cleared, declaration submitted, privacy policy live. N22–N28 moved the threshold onto the current sitting and made the nudge fire *during* one; N29 closed a disclosure gap the declaration form surfaced. Before that: N1–N16 over four device rounds. **Remaining: the device checklist (never run) and production promotion.** 16.3 unblocked but design-first and owner-led. |
+| **C — Features** | ✅ 16.9, ✅ 16.7, ✅ 16.6 (shipped to Internal testing) · 16.8, 16.4, 16.5, 16.10 open | 16.9 and 16.7 verified in 1.4.7 (2026-09-20); 16.7's copy still needs Q6 sign-off. **16.6 is on Internal testing in 1.4.8** — N25 added covers and extension-free titles. Outstanding: the native share path and the PDF page-one cover on a real device, plus Q10 copy. 16.4/16.5 still need Q4/Q5. **16.10 is now the active product task** — the store listing is being rewritten onto the habit framing, which is wider than the India CSL this task was originally scoped as. |
 | **D — Housekeeping** | ✅ H1, ✅ H2, ✅ **H4** · H3 substantially done | **H4 verified on a Play build 2026-09-20 — the revenue blocker is closed.** H3's fix is live and scheduling works; only the two denial-path checks remain. |
 
 **Merged to `master` as `33ed6d1` on 2026-09-20.** H4, H3, 16.9 and 16.7 all shipped in 1.4.7 (versionCode 34) and verified on a Play-distributed build. The revenue blocker is closed.
