@@ -855,6 +855,104 @@ declaration form was the thing that found it.
     suppression survives; opens, nudges, dismissals and the credit are all clear.
 
 **Re-test note:** §3.2 warns `UsageStatsManager` behavior shifts between API levels. Since this is built *after* the API 36 bump, test against 36 directly — but re-verify on any future SDK bump.
+### Checklist run — 2026-10-13, Galaxy S23 FE (SM-S711B), Android 16 / API 36
+
+First run of this checklist since it was written. Driven over `adb` plus the WebView
+debugger, which the debug build exposes — that is what made the gate state, the permission
+state and the rendered copy directly inspectable instead of inferred from the screen.
+
+**Caveat on the artifact under test.** The device carries the local **debug** APK
+(`DEBUGGABLE`, `TEST_ONLY`, installed 2026-10-06 20:41, sixteen minutes after `c5ffd9c`), not
+the Play AAB. The code matches `master` — `906c571` is docs-only — so behavioural items are
+valid, but anything reaching Play Billing is not exercisable here, exactly as 16.0a records.
+
+| Item | Result |
+|---|---|
+| 1 | ⚠️ **Partly.** 1a, 1c, 1d pass. 1b failed on the accessibility page (**N30**) and the usage-access note was stale (**N31**) — **both now fixed and re-verified on device.** |
+| 2 | ✅ **Pass.** 128 launchable apps listed, `QUERY_ALL_PACKAGES` absent from source *and* the installed package. Limit enforced at 2, third selection rejected with an honest toast. |
+| 9 | ✅ **Pass** — owner-confirmed, several hours idle, no measurable drain. |
+
+**Item 1 detail.** All three **N29** routes to the accessibility grant raise the prominent
+disclosure first, with focus never leaving the app and `fr_nudge_disclosed` still unset until
+Continue: the master toggle, the permission row's own button, and the trigger toggles. The
+disclosure copy matches what §9.4a claims the service can and cannot see. Re-detection on
+return works — the row flips `On` → `Turn on` after a background/foreground cycle, via the
+`appStateChange` listener. Degradation is honest: with usage access revoked the status line
+reads *"Usage access is off, so opens are counted too: 30 of 3 today"* and names the daily cap
+as the reason for silence.
+
+**Item 2 detail — the checklist text is stale, not the code.** It expects a *paywall* on the
+second app. The code shows an explanatory toast instead (*"2 apps for now — choosing more will
+arrive with the subscription"*), which is correct while 16.1 is blocked on Q1: there is no
+subscription SKU to sell, so a paywall would be a dead end, and §1.5 prefers the plain
+statement. **Task 16.1 must restore the paywall expectation here along with
+`FREE_APP_LIMIT` → 1.**
+
+#### N30 — the accessibility grant lands on the top-level menu, not FlowRead's entry ✅ fixed
+
+`FlowReadNudgePlugin.openAccessibilitySettings()` fires a bare
+`Settings.ACTION_ACCESSIBILITY_SETTINGS`, which on this device opens
+`Settings$AccessibilitySettingsActivity` — the top-level Accessibility screen. From there the
+user must find *Installed apps* (one of six entries, reading "5 apps"), open it, find FlowRead
+and toggle it: three taps and a search, at the one moment the feature is asking for the
+grant it cannot work without.
+
+The same file gets this right for overlay — `openOverlaySettings()` scopes its intent with a
+`package:` Uri — so this is an oversight rather than a decision. The fix is
+`ACTION_ACCESSIBILITY_DETAILS_SETTINGS` with the service's component in
+`:settings:fragment_args_key`, guarded by an API check and falling back to the present
+behaviour, since that action is API 29+ and `minSdk` is 24.
+
+Worth noting this is the grant rate for the entire pivot mechanic, and §10.1 already warns
+that poor framing here "will tank permission-grant rates and trust". Three unexplained taps
+is the same problem one layer down.
+
+**Fixed 2026-10-13, and the first fix was wrong in a way only the device showed.**
+`ACTION_ACCESSIBILITY_DETAILS_SETTINGS` turns out not to be reachable here at all: the
+activity is exported, but **from API 34 it is gated behind
+`android.permission.OPEN_ACCESSIBILITY_DETAILS_SETTINGS`**, a privileged permission this app
+cannot hold, so `startActivity` throws `SecurityException`. Note `resolveActivity` returns a
+match anyway — the resolve check is not what saves this, the try/catch is. The deep link is
+kept because it does work on **API 29–33**, and falls back cleanly everywhere else (verified:
+`opened=true`, top-level screen, no crash).
+
+Since the user then lands on a screen that does not mention FlowRead anywhere, the fix is to
+say what to look for: *"Find FlowRead in your installed apps and switch it on."* The first
+attempt drew that as the in-app toast and was **shown to nobody** — the settings activity
+covers the WebView instantly — so it is a platform `Toast`, posted after `startActivity` so it
+lands on top of Settings. The text comes down from JS, because that is where i18n lives (§17).
+Verified on device by screenshot: it renders directly beside the *Installed apps* row the user
+needs, and the copy was shortened once because Samsung's toast caps at two lines and truncated
+the first version.
+
+New key `settings.nudge.perm_accessibility_path` in both locales. **567 keys each, parity
+holds.** Hindi is in the file's existing Hinglish register and wants the same owner sign-off
+as the rest (Q10).
+
+*Observed separately:* overlay opens Samsung's full app list rather than FlowRead's own
+toggle despite the correctly-scoped intent, so that one is OEM behaviour, not ours. Usage
+access opens the list, which is what the checklist expects.
+
+#### N31 — the usage-access note still describes pre-N26 behaviour ✅ fixed
+
+`settings.nudge.perm_usage_note` reads *"Without it, FlowRead nudges on your third open of
+the day instead of after real time spent."* N26/N28 reversed that: the sitting is timed by the
+wall clock, so the minutes threshold works **without** usage access. Confirmed on device —
+with `GET_USAGE_STATS` revoked, `statusFor()` returned `rawMinutes: -1` (no usage access) and
+`minutes: 32` (the sitting, still ticking).
+
+What the grant actually buys, per §9.4a, is *presence* for the timed check plus the day's
+total for display. The note tells the user they lose the time trigger entirely, which would
+make them grant a permission §9.4a deliberately kept optional for a reason that no longer
+applies — a §1.5 violation in the direction that costs the user something.
+
+The sibling string was updated and this one was missed: `status_by_opens` says opens are
+counted *"too"*, which is the correct post-N26 framing.
+
+**Fixed 2026-10-13** in both locales: *"Without it, the time trigger only catches you while
+you are moving around the app, not sitting still on one feed — so opens are counted too, and
+the day's total is not shown. Everything still works."* That now matches both §9.4a and the
+sibling string. Hindi likewise wants owner sign-off.
 
 ---
 

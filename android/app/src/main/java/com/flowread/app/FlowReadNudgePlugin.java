@@ -1,5 +1,6 @@
 package com.flowread.app;
 
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -12,9 +13,11 @@ import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.Build;
+import android.os.Bundle;
 import android.provider.Settings;
 import android.text.TextUtils;
 import android.util.Base64;
+import android.widget.Toast;
 
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -230,9 +233,103 @@ public class FlowReadNudgePlugin extends Plugin {
         return NudgeGate.hasUsageAccess(getContext());
     }
 
+    /**
+     * AOSP Settings reads a deep-link target out of these two extras. Both are
+     * internal keys rather than public API, which is why the result is always
+     * verified and never assumed -- see openAccessibilitySettings.
+     */
+    /**
+     * Not exposed as a Settings constant -- the field is hidden API, so the
+     * action is sent as the literal string the platform registers. That is the
+     * reason openAccessibilityDetails verifies the intent resolves and treats
+     * failure as ordinary rather than exceptional.
+     */
+    private static final String ACTION_ACCESSIBILITY_DETAILS =
+            "android.settings.ACCESSIBILITY_DETAILS_SETTINGS";
+
+    private static final String EXTRA_FRAGMENT_ARG_KEY = ":settings:fragment_args_key";
+    private static final String EXTRA_SHOW_FRAGMENT_ARGS = ":settings:show_fragment_args";
+
+    /**
+     * Opens FlowRead's own entry in Accessibility, not the top-level menu (N30).
+     *
+     * The top-level screen buries the service behind "Installed apps" -- three
+     * taps and a hunt through a list, at the exact moment the feature is asking
+     * for the one grant it cannot work without. Since this is the grant rate for
+     * the whole pivot mechanic, the extra taps are not cosmetic.
+     *
+     * Neither the action nor its targeting extras are public API, so neither is
+     * relied on: anything other than a clean start falls back to the top-level
+     * screen, which stays correct everywhere.
+     *
+     * Verified on device 2026-10-13 (Android 16): from API 34 the details
+     * activity is gated behind android.permission.OPEN_ACCESSIBILITY_DETAILS_SETTINGS,
+     * a privileged permission an app like this cannot hold, so startActivity
+     * throws SecurityException and we fall back. It still resolves for API
+     * 29-33, which is why the attempt is worth making rather than deleting.
+     * Note resolveActivity succeeds there even though the start is denied, so
+     * the try/catch is what actually carries the fallback, not the resolve check.
+     *
+     * { deepLinked } tells JS which of the two happened, because a user left on
+     * a list has to be told what to look for.
+     */
     @PluginMethod
     public void openAccessibilitySettings(PluginCall call) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                && openAccessibilityDetails()) {
+            JSObject ret = new JSObject();
+            ret.put("opened", true);
+            ret.put("deepLinked", true);
+            call.resolve(ret);
+            return;
+        }
+        /* Landing on a list that does not mention FlowRead anywhere needs a
+           word about what to look for. It has to be a platform toast, not an
+           in-app one: the settings screen covers the WebView immediately, so
+           anything drawn in the page is shown to nobody. The text arrives from
+           JS because that is where i18n lives (section 17). */
+        String hint = call.getString("listHint");
         openSettings(call, new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
+        if (hint != null && !hint.isEmpty()) toastOverSettings(hint);
+    }
+
+    /**
+     * Posted to the UI thread and deliberately after startActivity, so it lands
+     * on top of the settings screen rather than the page the user is leaving.
+     */
+    private void toastOverSettings(final String text) {
+        try {
+            new android.os.Handler(android.os.Looper.getMainLooper()).post(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        Toast.makeText(getContext(), text, Toast.LENGTH_LONG).show();
+                    } catch (Exception ignored) {}
+                }
+            });
+        } catch (Exception ignored) {}
+    }
+
+    /** @return true only if the per-service screen actually started. */
+    private boolean openAccessibilityDetails() {
+        try {
+            String component = new ComponentName(getContext(), FlowReadNudgeService.class)
+                    .flattenToString();
+            Intent i = new Intent(ACTION_ACCESSIBILITY_DETAILS);
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            /* Which of the two Settings reads varies by release and by OEM, and
+               sending one without the other is how this silently degrades to the
+               top-level list on some builds. */
+            i.putExtra(EXTRA_FRAGMENT_ARG_KEY, component);
+            Bundle args = new Bundle();
+            args.putString(EXTRA_FRAGMENT_ARG_KEY, component);
+            i.putExtra(EXTRA_SHOW_FRAGMENT_ARGS, args);
+            if (i.resolveActivity(getContext().getPackageManager()) == null) return false;
+            getContext().startActivity(i);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     @PluginMethod
@@ -261,6 +358,7 @@ public class FlowReadNudgePlugin extends Plugin {
         } catch (Exception e) {
             ret.put("opened", false);
         }
+        ret.put("deepLinked", false);
         call.resolve(ret);
     }
 

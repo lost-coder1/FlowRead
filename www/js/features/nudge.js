@@ -185,7 +185,15 @@ const NudgeFeature = (function() {
       });
     }
     try {
-      const r = await p.openAccessibilitySettings();
+      /* Android 14+ reserves the per-service screen for privileged callers, so
+         on most current phones this lands on a list that does not mention
+         FlowRead anywhere. Saying what to look for is the difference between
+         three obvious taps and an abandoned grant (N30, §1.5). The hint is
+         passed down because only the native side can draw over the settings
+         screen that is about to cover this one. */
+      const r = await p.openAccessibilitySettings({
+        listHint: t('settings.nudge.perm_accessibility_path'),
+      });
       return !!(r && r.opened);
     } catch (_) { return false; }
   }
