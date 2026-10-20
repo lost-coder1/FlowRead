@@ -39,8 +39,11 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            minifyEnabled true
+            /* -optimize, not the plain file: proguard-android.txt sets
+               -dontoptimize, which would clear Play's Obfuscation warning and
+               leave its Optimization category at zero. See proguard-rules.pro. */
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
         }
     }

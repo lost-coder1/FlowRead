@@ -1038,6 +1038,86 @@ sibling string. Hindi likewise wants owner sign-off.
 
 ---
 
+## Task R8 — DEX optimization / obfuscation (Play Console notice)
+
+**Status:** ✅ Code complete and device-verified 2026-10-20, in **1.4.9 / versionCode 37** ·
+**Deadline:** end of October 2026 (owner-supplied) · **Size:** S to change, M to verify
+
+**Why:** Play Console reports *"DEX code optimization is below our threshold — Obfuscation
+(1%)"*, warning that sub-25% figures "may impact your visibility and publishing capabilities".
+The cause was one line: `minifyEnabled false`. R8 was off, so the only obfuscated bytes in the
+APK were the ones that arrived that way inside third-party AARs. None were ours.
+
+**What changed**
+- `minifyEnabled true` on the release build type.
+- `proguard-android-optimize.txt` rather than `proguard-android.txt`. The plain file contains
+  `-dontoptimize`, which would have cleared the Obfuscation warning while leaving Play's
+  **Optimization** category at zero — and the notice says *any* category under 25%.
+  `capacitor-android` uses the optimize variant itself, so this matches what we build on.
+- `app/proguard-rules.pro` written (it was the untouched Capacitor template, every rule
+  commented out): line-number attributes for readable Play vitals traces, generic-signature and
+  annotation retention for Gson, and `-keepnames` on `NudgeGate` — the one class whose breakage
+  would be silent rather than loud.
+
+**Result: obfuscation went from 1% to 93%** (3,304 of 3,541 classes renamed, per
+`mapping/release/mapping.txt`). Release APK 12.5 MB → 6.2 MB. The mapping ships **inside the
+AAB** at `BUNDLE-METADATA/com.android.tools.build.obfuscation/proguard.map`, so there is no
+separate upload step for crash de-obfuscation.
+
+**`shrinkResources` deliberately NOT enabled.** The notice is about DEX, not resources, and
+`notifications.js` passes `smallIcon: 'ic_stat_notify'` as a **string** that the
+LocalNotifications plugin resolves by name at runtime. No Java code references
+`R.drawable.ic_stat_notify`, so the shrinker would judge it unused and strip it, and reading
+reminders would lose their icon. Enabling it later needs a `res/raw/keep.xml` naming that
+drawable first. Kept out so this commit stays one revertable change (the §16.0a lesson).
+
+### Verification — run against an R8-minified build on the device
+
+R8 breaks reflection, and nothing here is exercised by compilation. The build type was
+temporarily minified **in debug** so the R8-processed DEX could be driven through the WebView
+debugger with real data, then reverted. Everything below ran against minified code:
+
+- [x] Cold start, no `FATAL` / `ClassNotFoundException` / `NoSuchMethodError` / `NoClassDefFoundError`.
+- [x] All **16** Capacitor plugins register. The four custom ones resolve under their
+      `@CapacitorPlugin` annotation names (`FlowReadNudge`, `FlowReadIap`, `FlowReadOcr`,
+      `FlowReadDeviceSync`) — the keep rule that saves them is `capacitor-android`'s own
+      `consumerProguardFiles` (its `build.gradle:50`), which is what makes
+      `-keep public class * extends com.getcapacitor.Plugin { *; }` reach this build.
+- [x] `@PluginMethod` methods survive and return real data: `getPermissionState`,
+      `getNudgeStatus`, `getForegroundMinutesToday`, `listLaunchableApps` (129 apps),
+      `peekPendingNudge`, `requestAccess`, `scanFiles`.
+- [x] **Play Billing** — `queryProducts` returned live product details from Play. The most
+      reflection-heavy path in the app, and the one §3.1 most wanted re-checked.
+- [x] **ML Kit OCR, Latin** — real canvas render recognised end to end. Devanagari reached ML
+      Kit and reported its own "optional module downloading" state, which is a model-download
+      condition, not a missing class.
+- [x] **The whole nudge chain** — accessibility service fired on a Reddit open, `NudgeGate`
+      decided (`nudging for com.reddit.frontpage (modes=every_open …)`), FlowRead came to the
+      front, the screen rendered with the real app name, and the escape hatch was present and
+      enabled on first paint.
+- [x] Local notifications schedule and cancel; `ic_stat_notify` resolves.
+- [x] `Filesystem.writeFile` → `getUri`, the native half of the share path.
+- [x] `ShareStats` loads with its full API.
+
+**Two false alarms worth recording, because both will recur.**
+
+*Nudge settings appeared to not persist.* `fr_nudge_min_minutes` and `fr_nudge_trigger_mode`
+were written to `localStorage` and gone after a restart, while 25 other keys survived. Not a
+bug and not R8: Chromium flushes `localStorage` asynchronously, and `adb shell am force-stop`
+is a `SIGKILL` that pre-empts the flush. Backgrounding first (`KEYCODE_HOME`) and then killing
+preserves the value — confirmed. Real users background the app, which flushes.
+
+*The accessibility service stopped firing after reinstall.* Android revokes the accessibility
+grant on reinstall as a security measure; `enabled_accessibility_services` read `null`.
+Re-granting restored it. **Worth knowing for the release:** testers who sideload over an
+existing install will silently lose the grant and see the nudge do nothing.
+
+**Still outstanding:** upload 1.4.9 / 37 to Internal testing and confirm Play Console's
+Obfuscation figure actually moves off 1% — the number is computed by Play, not by us, so the
+local 93% is strong evidence but not the acceptance criterion.
+
+---
+
 ## Task 16.3 — Onboarding redesign
 
 **Status:** Not started — unblocked. **Scoped as a design-first task (decided 2026-09-25):** the
