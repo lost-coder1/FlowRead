@@ -584,7 +584,7 @@ const NudgeFeature = (function() {
     const minsRead = Math.max(1, Math.round((Date.now() - (ctx.startedAt || Date.now())) / 60000));
     const pagesRead = Math.max(settings().unlockPages, ctx.pagesRead || 0);
     const body = credit
-      ? t('nudge.unlock.body_credit', {
+      ? tn('nudge.unlock.body_credit', pagesRead, {
           app: escapeHtml(ctx.label),
           pages: pagesRead,
           mins: minsRead,
@@ -735,15 +735,17 @@ const NudgeFeature = (function() {
        total. "You've been on Reddit for 120 minutes" was both a report on
        something finished and a number the user could do nothing about. */
     if (meta && meta.inSession && meta.minutes >= 1) {
-      return t('nudge.screen.title_in_session', { app: label, n: meta.minutes, pages: pages });
+      /* Pluralised on pages, not minutes: the minutes slider starts at 5 so
+         that figure is never 1, while the pages setting goes down to 1. */
+      return tn('nudge.screen.title_in_session', pages, { app: label, n: meta.minutes, pages: pages });
     }
     if (meta && meta.everyOpen) {
-      return t('nudge.screen.title_before', { app: label, pages: pages });
+      return tn('nudge.screen.title_before', pages, { app: label, pages: pages });
     }
     /* Usage access denied, or under a minute in: the open count is all we know,
        and saying so is better than inventing precision (§1.5). */
     if (meta && meta.opens >= 2) {
-      return t('nudge.screen.title_opens', { app: label, n: meta.opens, pages: pages });
+      return tn('nudge.screen.title_opens', pages, { app: label, n: meta.opens, pages: pages });
     }
     return t('nudge.screen.title', { app: label });
   }

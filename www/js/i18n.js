@@ -38,14 +38,31 @@ const FlowReadI18n = (() => {
     return str;
   }
 
+  /* tn('key', n) — the same, but picks 'key.one' when n is exactly 1 and
+     'key.other' otherwise, so a count never reads "1 pages".
+     Falls back to the bare key if neither variant exists, which keeps it safe
+     to call on a string that has not been split into a pair yet.
+     English-shaped (one vs many) on purpose: Hindi divides the same way, and
+     the two languages this app ships are the whole requirement (§17). A
+     language with dual or paucal forms would need more than this. */
+  function tn(key, n, vars) {
+    const variant = key + (n === 1 ? '.one' : '.other');
+    const merged = Object.assign({ n: n }, vars || {});
+    return t(strings[variant] !== undefined ? variant : key, merged);
+  }
+
   function currentLang() {
     return localStorage.getItem('fr_app_language') || 'en';
   }
 
-  return { init, loadLanguage, t, currentLang };
+  return { init, loadLanguage, t, tn, currentLang };
 })();
 
 /* Global shorthand so all view files can call t('key') directly. */
 function t(key, vars) {
   return FlowReadI18n.t(key, vars);
+}
+
+function tn(key, n, vars) {
+  return FlowReadI18n.tn(key, n, vars);
 }

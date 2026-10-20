@@ -883,9 +883,9 @@ valid, but anything reaching Play Billing is not exercisable here, exactly as 16
 | 12a | ✅ **Pass** — the open itself is silent with only the threshold trigger on, including straight after Reset (N26). |
 | 12b | ✅ **Pass** — with both triggers on, a reopen within a minute still nudges; the open no longer loses its short grace to the threshold's long one (N27). |
 | 13 | ✅ **Pass** — the timed check fires on a feed that produces no window changes, and is correctly dropped when the user has already left. |
-| 14 | ❓ **Not reported** — the no-usage-access path. |
+| 14 | ✅ **Pass** — driven over adb 2026-10-20 on 1.4.9. With `GET_USAGE_STATS` revoked the timed check never scheduled (zero `next check for` lines), the threshold still fired from a navigation event (`fromTimer=false, inSession=true`), and `statusFor` returned `rawMinutes:-1` with `minutes:1` — the wall clock timing a sitting with no usage access, exactly as §9.4a claims and as the **N31** rewrite now says. |
 | 15 | ✅ **Pass** — the credit (N23): the unlock names what it bought, the clock resets, a nudge is refunded, and leaving a read early credits nothing. |
-| 16 | ⚠️ **Half.** Counters confirmed clear the next day. The half N24 actually fixed — a suppression earned before midnight surviving it — was **not** exercised, because the run happened the next day rather than across the boundary. |
+| 16 | ⚠️ **Half — owner accepted the gap 2026-10-20.** The surviving-suppression half will not be exercised; the resetting half is confirmed. Counters confirmed clear the next day. The half N24 actually fixed — a suppression earned before midnight surviving it — was **not** exercised, because the run happened the next day rather than across the boundary. |
 
 **Item 8 detail — both halves were correct behaviour, not defects.** Reported as "airplane
 mode gives me no nudge and no notification". Neither is a bug, but it took a properly
@@ -903,7 +903,15 @@ independently while backgrounded: `isActive:false`, `connected:false`, permissio
 touches it, and `analytics-ping.js:59` returns on `if (!ENDPOINT) return;` before any `fetch`.
 The gate was simply at cap — 3 of 3 nudges, 3 dismissals — which is the back-off holding.
 
-**⚠️ Items 3, 12, 12a, 12b, 13 and 15 are owner-reported, not independently corroborated.**
+**Item 14's run incidentally corroborated items 3, 4 and 12.** Driving it produced a full
+trigger cycle from a clean state: the gate declined twice below the threshold (`minutes=0`),
+fired at `minutes=1` **from inside the session** (`inSession=true`) with the present-tense
+headline *"Still on Reddit — 1 minutes in this stretch"*, and the escape hatch was present and
+enabled on first paint. That is item 3's threshold behaviour, item 4's hatch and item 12's N22
+fix, all observed rather than reported. The 2026-10-20 state also showed `nudges: 3` and
+`opens: 33` for that day, so the feature is demonstrably firing in daily use.
+
+**⚠️ Items 12a, 12b, 13 and 15 remain owner-reported, not independently corroborated.**
 They are recorded above as the owner reported them. Logging the honest caveat because these
 six are exactly the N22/N23/N26/N27 fixes this checklist exists to gate. Reading the stored
 gate state immediately afterwards (for item 8) showed `nudges: 3` with
@@ -979,6 +987,33 @@ as the rest (Q10).
 *Observed separately:* overlay opens Samsung's full app list rather than FlowRead's own
 toggle despite the correctly-scoped intent, so that one is OEM behaviour, not ours. Usage
 access opens the list, which is what the checklist expects.
+
+#### N32 — counts read "1 pages" ✅ fixed
+
+Found on the nudge screen during item 14: *"Read 1 pages?"*. `t()` has no plural handling, and
+the two places that needed it — `dashboard.kpi.streak.value` and `nudge.toast.free_limit` —
+had each hand-written a ternary against their own `.one` key. Nothing generalised it, so the
+next string that needed it did not get it.
+
+Reachable in production: the unlock-pages slider starts at **1**, so a user who sets one page
+sees "1 pages" on the nudge screen, in the unlock modal and in Settings. The minutes slider
+starts at 5, so that figure is never 1 — the nudge titles are therefore pluralised on `pages`,
+not on minutes, which is why the call sites pass `pages` as the count while `{n}` still
+substitutes the minutes.
+
+`tn(key, n, vars)` now formalises the existing convention: picks `key.one` at exactly 1,
+`key.other` otherwise, and falls back to the bare key when neither exists — so it is safe on
+strings that have not been split. Deliberately English-shaped (one vs many), which is also how
+Hindi divides; a language with dual or paucal forms would need more.
+
+**`share-stats.js` needed almost none of it.** Its call sites already guard with `streak >= 2`,
+`finished.length > 1` and a dedicated `share.hero.book_one_day`, so those counts cannot reach 1.
+An initial pass split them anyway and was reverted — variants nothing can select are noise in a
+file the next person has to read. Only `share.*.time` survived, where `totalMinutes >= 60`
+genuinely yields `1 hour`.
+
+574 keys each, parity holds. Verified on device across every variant plus the missing-key
+fallback.
 
 #### N31 — the usage-access note still describes pre-N26 behaviour ✅ fixed
 

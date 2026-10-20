@@ -1030,7 +1030,7 @@ function _bindNudgeSettings() {
     pages.value = NudgeFeature.settings().unlockPages;
     const paint = function() {
       const el = qs('#settings-nudge-pages-value');
-      if (el) el.textContent = t('settings.nudge.pages_value', { n: pages.value });
+      if (el) el.textContent = tn('settings.nudge.pages_value', parseInt(pages.value, 10));
     };
     paint();
     pages.addEventListener('input', paint);

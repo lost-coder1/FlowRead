@@ -159,7 +159,7 @@ const ShareStats = (function() {
     }
     if (stats.totalMinutes >= 60) {
       const h = Math.floor(stats.totalMinutes / 60);
-      out.push({ id: 'time', label: t('share.item.time', { n: h }), text: t('share.line.time', { n: h }) });
+      out.push({ id: 'time', label: tn('share.item.time', h), text: tn('share.line.time', h) });
     }
     if (stats.finished.length > 1) {
       out.push({ id: 'finished', label: t('share.item.finished', { n: stats.finished.length }), text: t('share.line.finished', { n: stats.finished.length }) });
