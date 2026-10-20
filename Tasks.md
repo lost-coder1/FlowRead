@@ -870,7 +870,54 @@ valid, but anything reaching Play Billing is not exercisable here, exactly as 16
 |---|---|
 | 1 | ⚠️ **Partly.** 1a, 1c, 1d pass. 1b failed on the accessibility page (**N30**) and the usage-access note was stale (**N31**) — **both now fixed and re-verified on device.** |
 | 2 | ✅ **Pass.** 128 launchable apps listed, `QUERY_ALL_PACKAGES` absent from source *and* the installed package. Limit enforced at 2, third selection rejected with an honest toast. |
+| 3 | ✅ **Pass** — no nudge under the threshold, nudge past it, daily cap and 3-dismissal back-off both hold. |
+| 4 | ✅ **Pass** — escape hatch visible and working on first paint every time, hardware back included. The non-waivable one. |
+| 5 | ✅ **Pass** — first run ever with two targets. Reading to the unlock opened that app only; the second target still nudged on its own counters (§9.7). |
+| 6 | ✅ **Pass** — force-stopped, the nudge still arrives via `fr_pending_nudge`. |
+| 7 | ✅ **Pass** — engine preference preserved across a nudged read. |
+| 8 | ✅ **Pass** — notification 1003 fires offline and the nudge path never touches the network. What looked like a failure was two deliberate suppressions; see below. |
 | 9 | ✅ **Pass** — owner-confirmed, several hours idle, no measurable drain. |
+| 10 | ✅ **Pass for now** — Hindi flow walked, no raw keys. Remaining wording changes are small and deferred by the owner. |
+| 11 | ✅ **Pass** — Page mode position round-trips, existing notifications unaffected. |
+| 12 | ✅ **Pass** — **the N22 fix confirmed on hardware for the first time.** The nudge arrives *during* the sitting while navigating, not on the next open. |
+| 12a | ✅ **Pass** — the open itself is silent with only the threshold trigger on, including straight after Reset (N26). |
+| 12b | ✅ **Pass** — with both triggers on, a reopen within a minute still nudges; the open no longer loses its short grace to the threshold's long one (N27). |
+| 13 | ✅ **Pass** — the timed check fires on a feed that produces no window changes, and is correctly dropped when the user has already left. |
+| 14 | ❓ **Not reported** — the no-usage-access path. |
+| 15 | ✅ **Pass** — the credit (N23): the unlock names what it bought, the clock resets, a nudge is refunded, and leaving a read early credits nothing. |
+| 16 | ⚠️ **Half.** Counters confirmed clear the next day. The half N24 actually fixed — a suppression earned before midnight surviving it — was **not** exercised, because the run happened the next day rather than across the boundary. |
+
+**Item 8 detail — both halves were correct behaviour, not defects.** Reported as "airplane
+mode gives me no nudge and no notification". Neither is a bug, but it took a properly
+sequenced run to show it, which is worth recording because the same report will come back.
+
+*The notification works.* Id `1003` posted on the right channel with the throttle stamp
+written — but only on a genuine online→offline transition **with the app backgrounded**, after
+the 30s confirm window. `notifications.js:276` is `if (await _isForeground()) return;`, and
+flipping airplane mode means holding the phone with FlowRead open. That is §11's own anti-spam
+rule ("do not fire if the app is currently open") doing its job. Every other gate was verified
+independently while backgrounded: `isActive:false`, `connected:false`, permission granted,
+`_hasReadToday()` false, throttle clear.
+
+*The missing nudge had nothing to do with the network.* Nothing in detection or the gate
+touches it, and `analytics-ping.js:59` returns on `if (!ENDPOINT) return;` before any `fetch`.
+The gate was simply at cap — 3 of 3 nudges, 3 dismissals — which is the back-off holding.
+
+**⚠️ Items 3, 12, 12a, 12b, 13 and 15 are owner-reported, not independently corroborated.**
+They are recorded above as the owner reported them. Logging the honest caveat because these
+six are exactly the N22/N23/N26/N27 fixes this checklist exists to gate. Reading the stored
+gate state immediately afterwards (for item 8) showed `nudges: 3` with
+`lastNudgeAt: 2026-10-13 03:43`, and `opens` unchanged at 30 across the whole session.
+`nudges` and `lastNudgeAt` are written together on every fire (`NudgeGate.java:554-555`), so
+by that record no nudge fired after 03:43 that day, and the gate spent the rest of it at cap
+and backed off — a state in which it cannot nudge. Reset during 12a would have removed the
+entry entirely (`resetApp` does `remove(pkg)`), so that does not account for it either.
+
+There are innocent explanations not visible from here — a different device or build, or
+reporting partly from the weeks of real use that produced the field round. **Asked, not yet
+answered.** Until it is, treat the §9.3 reversal as confirmed by field use rather than by this
+checklist. Re-running 3, 12, 12a, 12b and 13 takes about ten minutes on a clean day's
+counters.
 
 **Item 1 detail.** All three **N29** routes to the accessibility grant raise the prominent
 disclosure first, with focus never leaving the app and `fr_nudge_disclosed` still unset until
