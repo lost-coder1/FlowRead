@@ -455,15 +455,31 @@ const NudgeFeature = (function() {
     const p = _plugin();
     if (p && typeof p.launchApp === 'function') {
       try {
-        /* "Every time I open it" means exactly that: skipping this one cannot
+        /* Which trigger actually raised THIS nudge, not which toggles happen to
+           be on. Reading the toggle meant that with both enabled, a threshold
+           nudge was handed the open-grace: the user skipped, two minutes
+           passed, and the threshold — still crossed, because they were still
+           in the same sitting — fired again immediately. `inSession` is the
+           gate's own discriminator (it mirrors newOpen), so use that.
+
+           "Every time I open it" means exactly that: skipping this one cannot
            buy ten minutes of silence, or the next open — the one the user asked
            to be nudged on — is swallowed. The daily cap still bounds it. */
-        const everyOpen = hasTrigger(MODE_EVERY_OPEN);
+        const raisedByOpen = !ctx.inSession && hasTrigger(MODE_EVERY_OPEN);
+        /* A threshold nudge is answered by starting the stretch again, not by a
+           fixed silence. The setting reads "after a while in the app", so after
+           a skip the next one is due after that while, counted from now —
+           anything shorter contradicts the words the user chose it by. Both
+           halves are set to the same interval so neither can undercut the
+           other: the clock restarts AND nothing is due until it has run. */
+        const threshold = settings().minMinutes;
         await p.launchApp({
           packageName: ctx.packageName,
-          suppressMinutes: everyOpen
-            ? EVERY_OPEN_SKIP_SUPPRESS_MINUTES : DISMISS_SUPPRESS_MINUTES,
-          dismissed: !everyOpen,
+          suppressMinutes: raisedByOpen
+            ? EVERY_OPEN_SKIP_SUPPRESS_MINUTES
+            : (ctx.inSession ? threshold : DISMISS_SUPPRESS_MINUTES),
+          dismissed: !raisedByOpen,
+          restartSitting: !!ctx.inSession,
         });
         /* N20. The nudge view is still what FlowRead is showing — we handed the
            user to another app, we did not navigate. Leave it up and the next

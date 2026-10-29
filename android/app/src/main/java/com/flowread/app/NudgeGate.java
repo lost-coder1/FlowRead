@@ -376,7 +376,8 @@ final class NudgeGate {
         return Math.max(0L, (System.currentTimeMillis() - sessionStart) / 60000L);
     }
 
-    /** Start the sitting over: on a new open, after a read, and on Reset. */
+    /** Start the sitting over: on a new open, after a read, after a skipped
+     *  threshold nudge, and on Reset. */
     private static void anchorSession(JSONObject app) throws Exception {
         app.put("sessionStart", System.currentTimeMillis());
     }
@@ -669,12 +670,40 @@ final class NudgeGate {
 
     /** Stop nudging this one app for a while. Other targets are untouched (9.7). */
     static void suppress(Context ctx, String pkg, long millis, boolean countDismissal) {
+        suppress(ctx, pkg, millis, countDismissal, false);
+    }
+
+    /**
+     * restartSitting answers a threshold nudge by starting the stretch again
+     * rather than buying a fixed silence.
+     *
+     * The threshold's condition does not go away when the nudge is dismissed --
+     * the user is still in the same sitting, still past the limit -- so a plain
+     * suppression only defers the re-fire to the moment it lapses. Skipping
+     * then produced another nudge a couple of minutes later, which is not what
+     * "after a while in the app" says. Moving sessionStart to now makes the
+     * next one due after that while, counted from the skip.
+     *
+     * It is not a way to dodge the gate: the dismissal is still counted toward
+     * the back-off, and the nudge already came off the daily cap. Reading still
+     * buys strictly more (9.2 step 8) -- it also zeroes the open count, clears
+     * the dismissal streak and refunds a nudge.
+     */
+    static void suppress(Context ctx, String pkg, long millis, boolean countDismissal,
+                         boolean restartSitting) {
         if (pkg == null) return;
         SharedPreferences p = prefs(ctx);
         JSONObject state = loadState(p);
         JSONObject app = appState(state, pkg);
         try {
             app.put("suppressUntil", System.currentTimeMillis() + millis);
+            if (restartSitting) {
+                /* Survives the hand-off: anchorSession is otherwise only called
+                   on a new open, and going straight to the target app leaves
+                   lastSeen recent, so the next event is not one. */
+                anchorSession(app);
+                Log.d(TAG, "sitting restarted for " + pkg + " after a skip");
+            }
             if (countDismissal) {
                 app.put("dismissals", app.optInt("dismissals", 0) + 1);
             } else {

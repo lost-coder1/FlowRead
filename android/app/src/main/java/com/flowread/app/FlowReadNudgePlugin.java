@@ -377,7 +377,11 @@ public class FlowReadNudgePlugin extends Plugin {
         }
         int minutes = call.getInt("suppressMinutes", 10);
         boolean dismissed = Boolean.TRUE.equals(call.getBoolean("dismissed", Boolean.TRUE));
-        NudgeGate.suppress(getContext(), pkg, minutes * 60_000L, dismissed);
+        /* Set when the skipped nudge came from the minutes threshold: the gap
+           before the next one is that threshold again, measured from now, not
+           a fixed silence that lapses while the user is still over the limit. */
+        boolean restartSitting = Boolean.TRUE.equals(call.getBoolean("restartSitting", Boolean.FALSE));
+        NudgeGate.suppress(getContext(), pkg, minutes * 60_000L, dismissed, restartSitting);
 
         try {
             Intent launch = getContext().getPackageManager().getLaunchIntentForPackage(pkg);

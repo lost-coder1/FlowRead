@@ -251,6 +251,40 @@ The minutes threshold must therefore be allowed to fire from inside a session. T
 
 Two rules on it. `every_open` fires only on an actual open — firing it mid-session would make it the wall §9.1 forbids — and **it wins the grace when both triggers are satisfied at once**: a threshold-raised nudge takes a 5-minute breather, because its condition does not go away once crossed and a shorter one would spend the whole daily cap inside two minutes of scrolling, but applying that breather to an *open* swallows the next open for five minutes, which is exactly what "Every time I open it" promises not to do and what Settings tells the user it does not do.
 
+### 9.3b Skipping a Threshold Nudge Restarts the Stretch (added 2026-10-29)
+
+Reported from use: with both triggers on, a nudge arriving after the chosen time was followed
+by another **two minutes** after it was dismissed, instead of after the chosen time again.
+
+Two causes, one line apart. `continueToApp()` picked the post-skip grace from **which toggles
+were enabled** rather than **which trigger raised that nudge**, so with `every_open` on, a
+threshold nudge was handed the 2-minute open-grace — and `dismissed: !everyOpen` meant the
+skip was not counted toward the back-off either. The gate already makes this distinction
+correctly for its own grace (`overEveryOpen` vs `overMinutes`); the JS simply was not using
+it. `inSession` travels in the handoff for exactly this and is now what decides.
+
+The deeper cause is that **a threshold's condition does not end when the nudge is dismissed.**
+The user is still in the same sitting and still past the limit, so any fixed suppression only
+defers the re-fire to the moment it lapses. A skipped threshold nudge therefore **restarts the
+sitting** (`sessionStart` → now) and suppresses for the threshold itself, so both halves agree
+and neither can undercut the other. The next one is due after the interval the user chose,
+counted from the skip — which is what *"After a while in the app"* says.
+
+This is not a way to dodge the gate: the dismissal still counts toward the back-off, and the
+nudge has already come off the daily cap. Reading still buys strictly more (§9.2 step 8) — it
+also zeroes the open count, clears the dismissal streak and refunds a nudge against the cap.
+
+**An open-raised nudge is unchanged** and must stay so: it keeps the 2-minute grace and does
+not restart anything, because "Every time I open it" means the next open is still nudged
+(§9.3a). The opens fallback keeps the ordinary 10-minute dismissal grace — restarting a clock
+that was not what gated it would do nothing.
+
+**Not to be confused with §9.3a's five-minute breather, which is a different moment.** That
+one stops the gate re-raising a nudge that is *already on screen*, while the target app keeps
+emitting window changes underneath it; it is set by the gate when the nudge is shown and is
+spent whether or not the user ever answers. This one is the gap *after* the user has answered
+by skipping. Both exist, they do not overlap, and changing either does not change the other.
+
 ### 9.4 Android Implementation Notes — SUPERSEDED, see 9.4a
 
 *Original text, kept because it explains what was tried and why it does not work:*
