@@ -382,6 +382,10 @@ public class FlowReadNudgePlugin extends Plugin {
            a fixed silence that lapses while the user is still over the limit. */
         boolean restartSitting = Boolean.TRUE.equals(call.getBoolean("restartSitting", Boolean.FALSE));
         NudgeGate.suppress(getContext(), pkg, minutes * 60_000L, dismissed, restartSitting);
+        /* The arrival we are about to cause is ours, not the user's (see
+           NudgeGate.noteHandoff). suppressApp deliberately does not do this --
+           there the user stays in FlowRead and opens the app later, or not. */
+        NudgeGate.noteHandoff(getContext(), pkg);
 
         try {
             Intent launch = getContext().getPackageManager().getLaunchIntentForPackage(pkg);

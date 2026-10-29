@@ -668,6 +668,33 @@ final class NudgeGate {
         Log.d(TAG, "counters reset for " + pkg);
     }
 
+    /**
+     * We are putting the user into this app ourselves, so the arrival is not an
+     * open they chose and must not be counted as one.
+     *
+     * Without this the return was usually a new session: the nudge screen is in
+     * front while they decide, so the target emits no events, and lastSeen goes
+     * stale past SESSION_GAP_MS -- a timer-raised nudge makes that near
+     * certain, since the timer does not touch lastSeen either. The open count
+     * then climbs by one every time the user skips. Harmless under "every time
+     * I open it", where the return is suppressed anyway, but the opens fallback
+     * gates on exactly that number, so an ungranted setup reached "Nth open
+     * today" early -- counting its own interruptions as the user's opens.
+     *
+     * Only moves lastSeen, so a genuine open later still starts a new session
+     * on the ordinary gap rule.
+     */
+    static void noteHandoff(Context ctx, String pkg) {
+        if (pkg == null) return;
+        SharedPreferences p = prefs(ctx);
+        JSONObject state = loadState(p);
+        JSONObject app = appState(state, pkg);
+        try {
+            app.put("lastSeen", System.currentTimeMillis());
+            saveState(p, state);
+        } catch (Exception ignored) {}
+    }
+
     /** Stop nudging this one app for a while. Other targets are untouched (9.7). */
     static void suppress(Context ctx, String pkg, long millis, boolean countDismissal) {
         suppress(ctx, pkg, millis, countDismissal, false);

@@ -1017,11 +1017,26 @@ it from §9.3a's five-minute *while-showing* grace, which is a different moment.
 | Log | `sitting restarted for com.reddit.frontpage after a skip`, then `suppressed for another 179s` (was 119s) |
 | Next nudge | **17:42:37 skip → 17:45:37 nudge, exactly 3:00**, `minutes=3` |
 
-**Noticed while verifying, not fixed, pre-existing:** the hand-off back to the target app counts
-as a new open (`opens` 1 → 2), because `lastSeen` has gone stale past `SESSION_GAP_MS` while the
-nudge screen was up. Harmless with `every_open` (the return is suppressed), but it inflates the
-count the **opens fallback** gates on, so an ungranted setup can reach "Nth open today" slightly
-early. Worth a decision: being sent back is arguably not an open the user chose.
+#### N34 — the nudge counted its own hand-off as one of the user's opens ✅ fixed, device-verified
+
+Found while verifying N33. Returning the user to the target app counted as a new open
+(`opens` 1 → 2): the nudge screen is in front while they decide, so the target emits no events
+and `lastSeen` goes stale past `SESSION_GAP_MS`. A timer-raised nudge makes it near certain,
+since the timer does not touch `lastSeen` either.
+
+Harmless under `every_open`, where the return is suppressed anyway — but the **opens fallback**
+gates on exactly that number, so an ungranted setup reached "Nth open today" early, counting the
+app's own interruptions as the user's opens. Owner called it 2026-10-29: being sent back is not
+an open the user chose.
+
+`NudgeGate.noteHandoff()` moves `lastSeen` to now, called from `launchApp` — the one path that
+puts the user into the app. `suppressApp` deliberately does not: there the user stays in
+FlowRead and opens the app later, or not at all. Only `lastSeen` moves, so a genuine open later
+still starts a new session on the ordinary gap rule.
+
+**Verified** by writing a state with `lastSeen` five minutes stale — the exact condition — then
+calling the hand-off: `opens` stayed at **1** where it previously became 2, with `dismissals`
+still incrementing and the sitting still restarting.
 
 #### N32 — counts read "1 pages" ✅ fixed
 
