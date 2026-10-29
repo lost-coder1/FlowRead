@@ -988,6 +988,41 @@ as the rest (Q10).
 toggle despite the correctly-scoped intent, so that one is OEM behaviour, not ours. Usage
 access opens the list, which is what the checklist expects.
 
+#### N33 — a skipped threshold nudge came back in two minutes ✅ fixed, device-verified
+
+Reported from use 2026-10-29: with both triggers on, a nudge arriving after the chosen time was
+followed by another one **two minutes** later instead of after the chosen time again.
+
+Two bugs on adjacent lines in `continueToApp()`. It chose the post-skip grace from
+`hasTrigger(MODE_EVERY_OPEN)` — **which toggles are enabled** — rather than which trigger raised
+that nudge, so with `every_open` on, a threshold nudge got the 2-minute open-grace. And
+`dismissed: !everyOpen` meant the skip was **not counted toward the back-off at all**, silently
+disabling that safety valve for anyone running both toggles. The gate already draws the
+distinction for its own grace (`overEveryOpen` vs `overMinutes`) and `inSession` travels in the
+handoff for exactly this; the JS simply was not reading it.
+
+The deeper cause is that a threshold's condition does not end when the nudge is dismissed — same
+sitting, still over the limit — so any fixed suppression only defers the re-fire to the moment it
+lapses. A skipped threshold nudge now restarts the sitting and suppresses for the threshold
+itself, so neither half can undercut the other. `Claude.md` §9.3b records the rule and separates
+it from §9.3a's five-minute *while-showing* grace, which is a different moment.
+
+**Device run, 2026-10-29, threshold set to 3 min so the old and new behaviour differ visibly:**
+
+| | observed |
+|---|---|
+| Open-nudge, skipped | `suppressUntil +1.9 min`, `dismissals 0`, sitting **not** restarted — unchanged, as required |
+| Threshold nudge | `fromTimer=true, inSession=true, minutes=3` — fired from inside the sitting |
+| After skipping it | `dismissals 0 → 1`, `sessionStart` −3.7 min → −0.1 min, `suppressUntil +2.9 min` |
+| Log | `sitting restarted for com.reddit.frontpage after a skip`, then `suppressed for another 179s` (was 119s) |
+| Next nudge | **17:42:37 skip → 17:45:37 nudge, exactly 3:00**, `minutes=3` |
+
+**Noticed while verifying, not fixed, pre-existing:** the hand-off back to the target app counts
+as a new open (`opens` 1 → 2), because `lastSeen` has gone stale past `SESSION_GAP_MS` while the
+nudge screen was up. Harmless with `every_open` (the return is suppressed), but it inflates the
+count the **opens fallback** gates on, so an ungranted setup can reach "Nth open today" slightly
+early. Worth a decision: being sent back is arguably not an open the user chose.
+
 #### N32 — counts read "1 pages" ✅ fixed
 
 Found on the nudge screen during item 14: *"Read 1 pages?"*. `t()` has no plural handling, and
