@@ -63,7 +63,7 @@ Each is tagged with whether it blocks *starting* the task or only *finishing* it
 
 | # | Question | Blocks | Start/Finish | Ref |
 |---|---|---|---|---|
-| Q1 | Subscription price (monthly / annual) | 16.1 | Finish — plumbing can be built first | §4 |
+| ~~Q1~~ | ~~Subscription price (monthly / annual)~~ | — | **Resolved 2026-10-30: ₹149/mo, ₹999/yr as `flowread_plus`; lifetime `pro_lifetime` repriced to ₹2,999 and widened to include OCR; `ocr_vision` retired from sale but honoured forever.** See 16.1. | §4 |
 | ~~Q2~~ | ~~Nudge default thresholds~~ | — | **Resolved 2026-09-20: 15 min / 2 pages, both settings** | §9.2, §9.3 |
 | ~~Q3~~ | ~~Is the nudge permission ask inline in onboarding or deferred?~~ | — | **Resolved 2026-09-25: neither, yet — onboarding is being designed as its own task first, and Q3 is answered inside that design.** N14's per-choice ask stands as the interim behaviour. See Task 16.3. | §10.2 |
 | Q4 | Monthly book-drop count, and bundled vs. remote-fetched catalog | 16.4 | **Start** | §4, §13 |
@@ -170,17 +170,58 @@ The **2026-08-31** deadline had already passed when this work started, leaving t
 
 ## Task 16.1 — Subscription IAP
 
-**Status:** Blocked (Q1 to finish) · **Ref:** §4 · **Blocked by:** 16.0b (same pass) · **Size:** M
+**Status:** Unblocked — **Q1 answered 2026-10-30.** Play Console setup in progress; the code is
+scheduled for its own session. · **Ref:** §4 · **Size:** M
 
 **Why:** The subscription tier's value is recurring by nature (monthly book drops, ongoing nudge personalization) and can't honestly be sold as a one-time purchase.
 
+### Pricing and product shape — decided 2026-10-30
+
+| | |
+|---|---|
+| Subscription product ID | **`flowread_plus`**, two base plans |
+| Monthly | **₹149** |
+| Annual | **₹999** |
+| Lifetime | **₹2,999** — the existing `pro_lifetime`, **repriced**, not a new product |
+| Intended later | lifetime rises to **₹4,999** once sales justify it |
+
+**The existing products are repriced, never deleted.** `pro_lifetime` is repriced to ₹2,999 and
+widened to unlock OCR as well, so it becomes the single one-time product. `ocr_vision` may be
+deactivated for new sales but **must keep resolving forever** — Play will not delete a product
+that has purchases, and §1.3 forbids removing the lifetime option regardless. Existing
+`pro_lifetime` owners gain OCR at no charge; that is deliberate goodwill, not an oversight.
+
+**Everything unlocks everything.** Subscriber and lifetime both get Pro + OCR + unlimited nudge
+apps. Free keeps today's access and gains **one** app for the nudge.
+
+**Lifetime is "everything as it exists today" — not future monthly book drops.** That boundary
+is what stops ₹2,999 from undercutting ₹999/year, and it is the reason §4 made the drops
+subscription-exclusive. Hold it when the drops ship.
+
+**The subscription is deliberately positioned as a price anchor** for the lifetime deal
+(owner's framing, 2026-10-30). That is ordinary pricing and not a dark pattern on its own — but
+it puts weight on §1.3: the lifetime option must stay prominently offered and genuinely
+purchasable, cancellation must stay one tap, and the store copy must describe what a subscriber
+actually receives. An anchor that misdescribes itself is where this would turn into one.
+
+**⚠️ Known and accepted: at launch the subscription contains no recurring value.** A subscriber
+gets Pro + OCR + unlimited apps — all of which ₹2,999 buys outright. The drops, badges, nudge
+scheduling and strict mode are unbuilt. §1.3 warns against exactly this (recurring value must
+never be static value relabelled), and it is also what drives month-two cancellation. Flagged
+2026-10-30 and accepted by the owner given the anchor strategy. **Revisit when the drops ship.**
+
 **Steps**
-- [ ] Create the subscription SKU in Play Console. **Price is Q1 — ask before hardcoding anything.**
+- [x] Q1 resolved — see the table above.
+- [ ] Play Console: create `flowread_plus`, add benefits/description/icon, add the two base
+      plans, optionally an offer, then **activate** — an inactive base plan is invisible to the app.
+- [ ] Play Console: reprice `pro_lifetime` to ₹2,999 and set prices for non-India markets.
+- [ ] Play Console: add license testers so purchases can be exercised without real charges.
 - [ ] `FlowReadIapPlugin.java`: add `ProductType.SUBS` alongside the existing `ProductType.INAPP`. Subscriptions query separately from INAPP and require selecting an **offer token** at purchase time — this is the main structural difference from the existing one-time flow.
 - [ ] `purchase.js`: add `hasSubscription()` and `AppState.isSubscriber`, mirroring the existing `hasProAccess()` / `AppState.isPro` pattern.
-- [ ] Treat entitlements as **independent** (§4): a user may hold Lifetime Pro without a subscription, a subscription without Lifetime Pro, both, or neither. Subscription implies everything Lifetime Pro + OCR unlocks; the reverse is not true.
+- [ ] Treat entitlements as **independent** (§4): a user may hold Lifetime Pro without a subscription, a subscription without Lifetime Pro, both, or neither. **As of the 2026-10-30 pricing, each one alone unlocks everything that exists today** — so the gating question is "subscriber OR lifetime", not a hierarchy. Keep them separate flags anyway: the drops will need to tell them apart.
+- [ ] `ocr_vision` must still resolve for anyone who bought it, even once deactivated for new sales.
 - [ ] Reuse the existing `showPaywall()` (`purchase.js:230`) rather than writing a second paywall.
-- [ ] Gate the five subscription-exclusive items behind `isSubscriber`, not `isPro`: unlimited nudge apps (free = 1), nudge scheduling, nudge strict mode, monthly book drops, leaderboard badges.
+- [ ] Gate the five subscription-exclusive items behind paid access rather than `isPro` alone: unlimited nudge apps (free = 1), nudge scheduling, nudge strict mode, monthly book drops, leaderboard badges. **Monthly book drops are the one that stays subscription-only** — lifetime buys everything as it exists today, not a perpetual content feed.
 - [ ] ⚠️ **Restore `FREE_APP_LIMIT` to 1 in `nudge-apps.js`.** It was raised to 2 on 2026-09-25 (Q12) purely because no subscription existed to lift the gate; the moment one does, §4's rule applies again. `syncToNative()` truncates an over-limit selection, so lowering it degrades existing two-app users cleanly — but check that the truncation is surfaced rather than silent (§1.5).
 - [ ] Store subscription state in **Capacitor Preferences, never localStorage** (§21).
 - [ ] Wire `subscription_started` / `subscription_cancelled` analytics events (§9.6) — depends on 16.2's `analytics-ping.js`; stub the calls if 16.2 hasn't landed.

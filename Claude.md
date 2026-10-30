@@ -151,10 +151,38 @@ Billing **7.1.1 → 9.1.0**. Went past the required v8 minimum because v8 carrie
 
 | Tier | Price | What It Unlocks |
 |---|---|---|
-| **Free** | $0 | Unlimited PDFs, all 5 reading engines, Free Books library (full catalog, all languages/categories), bridge, dictionary, calm mode, basic dashboard, nudge system limited to **1 selected app** (**temporarily 2** — see below), opt-in leaderboard participation (view only, no badges) |
-| **Lifetime Pro** | $9.99 one-time (launch price; PPP-adjusted regionally) | DOCX/TXT/URL support, full dashboard, extra themes/fonts, Google Drive sync, device sync, share extension. Does **not** include unlimited nudge-app selection or monthly book drops — those are subscription-exclusive. |
-| **OCR Add-on** | $4.99 one-time (Pro required) | On-device OCR, Latin + Devanagari |
-| **Subscription** | TBD monthly/annual price (open item — ask product owner, do not hardcode a number) | Everything in Lifetime Pro + OCR, **plus**: unlimited nudge-app selection (vs 1 for free), nudge scheduling (time-of-day rules), nudge "strict mode," monthly curated book drops (5 books/month placeholder, from legal sources only — Section 13.2), opt-in leaderboard badges + monthly recognition |
+**Prices decided 2026-10-30.** The earlier split — Pro at $9.99, OCR as a $4.99 add-on, and a
+subscription holding the only unlimited nudge access — is superseded.
+
+| Tier | Price | What It Unlocks |
+|---|---|---|
+| **Free** | ₹0 | Unlimited PDFs, all 5 reading engines, Free Books library (full catalog, all languages/categories), bridge, dictionary, calm mode, basic dashboard, nudge system limited to **1 selected app**, opt-in leaderboard participation (view only, no badges) |
+| **Lifetime** | **₹2,999** one-time — the existing `pro_lifetime`, **repriced and widened**, not a new product | Everything that exists today: Pro *and* OCR *and* unlimited nudge-app selection. Does **not** include future monthly book drops. |
+| **Subscription** `flowread_plus` | **₹149/month** or **₹999/year** | Everything the lifetime tier unlocks, **plus** what is recurring by nature: monthly curated book drops (from legal sources only — Section 13.2), nudge scheduling, nudge "strict mode," leaderboard badges + monthly recognition |
+| **OCR Add-on** (`ocr_vision`) | **Retired from sale** | Folded into the lifetime tier. Deactivated for new purchases, but **must keep resolving forever** for anyone who bought it — Play will not delete a product with purchases, and §1.3 forbids withdrawing what someone paid for. |
+
+Existing `pro_lifetime` owners gain OCR at no charge. That is deliberate goodwill, not an
+oversight — one product is simpler to reason about than three, and it costs nothing we were
+otherwise collecting.
+
+**Intended trajectory:** lifetime rises to **₹4,999** once sales justify it. Not scheduled.
+
+**Monthly book drops are the boundary that makes the two paid tiers distinct**, and the reason
+they are subscription-only. Lifetime buys the product as it stands, not a perpetual content
+feed; without that line ₹2,999 strictly dominates ₹999/year and the subscription has no reason
+to exist.
+
+**The subscription is positioned as a price anchor for the lifetime deal** (owner's framing,
+2026-10-30). Ordinary pricing, not a dark pattern in itself — but it puts weight on §1.3. The
+lifetime option stays prominently offered and genuinely purchasable, cancellation stays one tap,
+and the store copy describes what a subscriber actually receives. An anchor that misdescribes
+itself is where this would become one.
+
+**⚠️ Known gap, accepted 2026-10-30:** at launch the subscription carries **no recurring value**
+— the drops, badges, scheduling and strict mode are all unbuilt, so a subscriber pays monthly
+for what ₹2,999 buys outright. This is the thing the design intent below explicitly warns
+against, and it is what drives month-two cancellation. Accepted for now given the anchor
+strategy; **revisit when the drops ship.**
 
 **Design intent behind the split:** the free tier must remain genuinely generous. Subscription value must be *recurring* value, never a re-labeling of static value. Lifetime Pro exists permanently as the non-recurring option and must never be discontinued or degraded to push subscription uptake.
 
@@ -170,7 +198,9 @@ Billing **7.1.1 → 9.1.0**. Went past the required v8 minimum because v8 carrie
 **Temporary deviation — free nudge-app limit is 2, not 1 (decided 2026-09-25).** `hasSubscription()` is hardcoded false until Task 16.1, which is blocked on pricing, so at a limit of 1 *no user could ever select a second app* — making Section 9.7's scoped unlock unreachable in production and untestable on device. `FREE_APP_LIMIT` in `nudge-apps.js` is therefore 2 for now, carrying a revert note. **Task 16.1 must restore it to 1** when the subscription ships.
 
 ### Task — Subscription IAP (Phase 16)
-Extend `FlowReadIapPlugin` and `purchase.js` for a subscription product alongside the existing lifetime products, as part of the Section 3.1 billing-library upgrade pass. Requires: new subscription SKU in Play Console, subscription-state checks distinct from lifetime-purchase checks throughout the paywall/gating logic (a user can have Lifetime Pro without a subscription, or a subscription without ever buying Lifetime Pro — independent entitlements, except where this table says subscription includes everything Lifetime Pro includes). **Final subscription price is an open item — ask product owner before hardcoding.** This task must also **restore `FREE_APP_LIMIT` to 1** (see the temporary deviation above).
+Extend `FlowReadIapPlugin` and `purchase.js` for the `flowread_plus` subscription alongside the repriced lifetime product. Subscriptions query separately from one-time products (`ProductType.SUBS`) and require selecting an **offer token** at purchase — the main structural difference from the existing flow.
+
+Keep subscription and lifetime as **separate entitlement flags** even though each alone currently unlocks everything: the monthly book drops will need to tell them apart, and collapsing them now would have to be undone then. This task must also **restore `FREE_APP_LIMIT` to 1** (see the temporary deviation above). Prices are settled — see the table.
 
 
 
