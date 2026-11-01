@@ -37,6 +37,10 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
 
     private static final String PRODUCT_PRO = "pro_lifetime";
     private static final String PRODUCT_OCR = "ocr_vision";
+    private static final String PRODUCT_SUB = "flowread_plus";
+
+    private static final String[] ONE_TIME_PRODUCTS = { PRODUCT_PRO, PRODUCT_OCR };
+    private static final String[] SUB_PRODUCTS      = { PRODUCT_SUB };
 
     private BillingClient billingClient;
     private final Map<String, ProductDetails> productDetailsCache = new HashMap<>();
@@ -46,6 +50,9 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
     // Which product that pending call was for — needed to recover the existing
     // purchase when Play answers ITEM_ALREADY_OWNED.
     private String pendingProductId = null;
+    // And of which type, because ITEM_ALREADY_OWNED recovery has to query the
+    // matching product type — a subscription is not found in an INAPP query.
+    private String pendingProductType = null;
 
     // ─── Error taxonomy ───────────────────────────────────────────────────────
     // Every non-OK path rejects with a stable machine-readable token as the
@@ -121,23 +128,58 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
     }
 
     // ─── queryProducts ────────────────────────────────────────────────────────
+    /**
+     * One-time products and subscriptions cannot be fetched in a single query —
+     * Play rejects a mixed product list — so this runs two queries and merges the
+     * results into one answer for the JS layer.
+     *
+     * A failure in one type does not fail the whole call. The two products are
+     * independently purchasable (Claude.md §4), so letting a broken subscription
+     * query block the lifetime purchase would take revenue off the table for a
+     * reason the user has nothing to do with. The failing type is reported in
+     * `errors` instead, and the call only rejects if nothing at all resolved.
+     */
     @PluginMethod
     public void queryProducts(PluginCall call) {
         if (!isBillingReady(call)) return;
 
+        productDetailsCache.clear();
+
+        final JSArray products  = new JSArray();
+        final JSArray unfetched = new JSArray();
+        final JSArray errors    = new JSArray();
+
+        queryProductType(BillingClient.ProductType.INAPP, ONE_TIME_PRODUCTS,
+            products, unfetched, errors, () ->
+                queryProductType(BillingClient.ProductType.SUBS, SUB_PRODUCTS,
+                    products, unfetched, errors, () -> {
+                        if (products.length() == 0 && errors.length() > 0) {
+                            call.reject("queryProducts: " + firstErrorToken(errors),
+                                        firstErrorToken(errors));
+                            return;
+                        }
+                        JSObject ret = new JSObject();
+                        ret.put("products",  products);
+                        ret.put("unfetched", unfetched);
+                        ret.put("errors",    errors);
+                        call.resolve(ret);
+                    })
+        );
+    }
+
+    /** Fetch one product type, append to the shared accumulators, then continue. */
+    private void queryProductType(String productType, String[] productIds,
+                                  JSArray products, JSArray unfetched, JSArray errors,
+                                  Runnable next) {
         List<QueryProductDetailsParams.Product> productList = new ArrayList<>();
-        productList.add(
-            QueryProductDetailsParams.Product.newBuilder()
-                .setProductId(PRODUCT_PRO)
-                .setProductType(BillingClient.ProductType.INAPP)
-                .build()
-        );
-        productList.add(
-            QueryProductDetailsParams.Product.newBuilder()
-                .setProductId(PRODUCT_OCR)
-                .setProductType(BillingClient.ProductType.INAPP)
-                .build()
-        );
+        for (String id : productIds) {
+            productList.add(
+                QueryProductDetailsParams.Product.newBuilder()
+                    .setProductId(id)
+                    .setProductType(productType)
+                    .build()
+            );
+        }
 
         QueryProductDetailsParams params = QueryProductDetailsParams.newBuilder()
             .setProductList(productList)
@@ -145,41 +187,30 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
 
         billingClient.queryProductDetailsAsync(params, (billingResult, productDetailsResult) -> {
             if (billingResult.getResponseCode() != BillingClient.BillingResponseCode.OK) {
-                rejectWith(call, "queryProducts", billingResult);
+                String token = tokenFor(billingResult.getResponseCode());
+                Log.w(TAG, "queryProducts(" + productType + ") failed: " + token
+                    + " (code=" + billingResult.getResponseCode() + ") "
+                    + billingResult.getDebugMessage());
+                JSObject err = new JSObject();
+                err.put("productType", productType);
+                err.put("code", token);
+                errors.put(err);
+                next.run();
                 return;
             }
 
-            productDetailsCache.clear();
-            JSArray products = new JSArray();
-
             for (ProductDetails details : productDetailsResult.getProductDetailsList()) {
                 productDetailsCache.put(details.getProductId(), details);
-
-                ProductDetails.OneTimePurchaseOfferDetails offerDetails =
-                    details.getOneTimePurchaseOfferDetails();
-
-                JSObject product = new JSObject();
-                product.put("id",          details.getProductId());
-                product.put("title",       details.getTitle());
-                product.put("description", details.getDescription());
-
-                if (offerDetails != null) {
-                    product.put("price",       offerDetails.getFormattedPrice());
-                    product.put("priceMicros", offerDetails.getPriceAmountMicros());
-                    product.put("currency",    offerDetails.getPriceCurrencyCode());
+                if (BillingClient.ProductType.SUBS.equals(productType)) {
+                    appendSubscriptionOffers(details, products);
                 } else {
-                    product.put("price",       "");
-                    product.put("priceMicros", 0);
-                    product.put("currency",    "");
+                    appendOneTimeProduct(details, products);
                 }
-
-                products.put(product);
             }
 
             // Billing 8+ reports products Play could not fetch separately rather than
             // leaving them silently absent. Surface them — a misconfigured Play Console
             // product otherwise looks identical to a working one that simply failed.
-            JSArray unfetched = new JSArray();
             try {
                 List<UnfetchedProduct> unfetchedList = productDetailsResult.getUnfetchedProductList();
                 if (unfetchedList != null) {
@@ -193,11 +224,90 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
                 Log.w(TAG, "queryProducts: unfetched product list unavailable", t);
             }
 
-            JSObject ret = new JSObject();
-            ret.put("products", products);
-            ret.put("unfetched", unfetched);
-            call.resolve(ret);
+            next.run();
         });
+    }
+
+    private void appendOneTimeProduct(ProductDetails details, JSArray products) {
+        ProductDetails.OneTimePurchaseOfferDetails offerDetails =
+            details.getOneTimePurchaseOfferDetails();
+
+        JSObject product = new JSObject();
+        product.put("id",          details.getProductId());
+        product.put("productType", BillingClient.ProductType.INAPP);
+        product.put("title",       details.getTitle());
+        product.put("description", details.getDescription());
+
+        if (offerDetails != null) {
+            product.put("price",       offerDetails.getFormattedPrice());
+            product.put("priceMicros", offerDetails.getPriceAmountMicros());
+            product.put("currency",    offerDetails.getPriceCurrencyCode());
+        } else {
+            product.put("price",       "");
+            product.put("priceMicros", 0);
+            product.put("currency",    "");
+        }
+
+        products.put(product);
+    }
+
+    /**
+     * A subscription product carries one offer per base plan, and each offer has
+     * its own token that `launchBillingFlow` requires. So one Play product becomes
+     * one JS entry *per base plan* — the monthly and the annual plan are separate
+     * things to the user and have to be separately selectable.
+     *
+     * The base plan IDs are not hardcoded: they are read from whatever Play
+     * returns, and the billing period (`P1M`, `P1Y`) is what tells the JS layer
+     * which is which. A renamed base plan in Play Console therefore cannot
+     * silently stop working.
+     *
+     * Offer tokens are deliberately not persisted anywhere — they are only valid
+     * for the query that produced them, which is why every purchase re-queries.
+     */
+    private void appendSubscriptionOffers(ProductDetails details, JSArray products) {
+        List<ProductDetails.SubscriptionOfferDetails> offers =
+            details.getSubscriptionOfferDetails();
+        if (offers == null || offers.isEmpty()) {
+            Log.w(TAG, "subscription " + details.getProductId() + " has no offers — "
+                + "is a base plan active in Play Console?");
+            return;
+        }
+
+        for (ProductDetails.SubscriptionOfferDetails offer : offers) {
+            List<ProductDetails.PricingPhase> phases =
+                offer.getPricingPhases().getPricingPhaseList();
+            if (phases == null || phases.isEmpty()) continue;
+
+            // The last phase is the recurring one; earlier phases are intro or
+            // free-trial pricing, which must never be shown as the ongoing price.
+            ProductDetails.PricingPhase recurring = phases.get(phases.size() - 1);
+
+            JSObject product = new JSObject();
+            product.put("id",            details.getProductId());
+            product.put("productType",   BillingClient.ProductType.SUBS);
+            product.put("title",         details.getTitle());
+            product.put("description",   details.getDescription());
+            product.put("basePlanId",    offer.getBasePlanId());
+            product.put("offerId",       offer.getOfferId());
+            product.put("offerToken",    offer.getOfferToken());
+            product.put("billingPeriod", recurring.getBillingPeriod());
+            product.put("price",         recurring.getFormattedPrice());
+            product.put("priceMicros",   recurring.getPriceAmountMicros());
+            product.put("currency",      recurring.getPriceCurrencyCode());
+            // An intro or trial phase exists whenever there is more than one.
+            product.put("hasIntroOffer", phases.size() > 1);
+
+            products.put(product);
+        }
+    }
+
+    private static String firstErrorToken(JSArray errors) {
+        try {
+            return errors.getJSONObject(0).getString("code");
+        } catch (Throwable t) {
+            return "UNKNOWN";
+        }
     }
 
     // ─── purchaseProduct ──────────────────────────────────────────────────────
@@ -217,21 +327,41 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
             return;
         }
 
-        if (details.getOneTimePurchaseOfferDetails() == null) {
+        boolean isSubscription = details.getSubscriptionOfferDetails() != null;
+
+        if (!isSubscription && details.getOneTimePurchaseOfferDetails() == null) {
             call.reject("Product offer details unavailable.", "ITEM_UNAVAILABLE");
             return;
         }
 
+        BillingFlowParams.ProductDetailsParams.Builder paramsBuilder =
+            BillingFlowParams.ProductDetailsParams.newBuilder()
+                .setProductDetails(details);
+
+        if (isSubscription) {
+            // A subscription purchase must name which base plan is being bought.
+            // The token is only valid for the query that produced it, so a stale
+            // one is a real possibility — resolve it against the current details
+            // rather than trusting what JS passed back.
+            String offerToken = resolveOfferToken(details, call.getString("offerToken"),
+                                                  call.getString("basePlanId"));
+            if (offerToken == null) {
+                call.reject("No matching subscription offer. Re-query products.",
+                            "OFFER_NOT_LOADED");
+                return;
+            }
+            paramsBuilder.setOfferToken(offerToken);
+        }
+
         pendingPurchaseCall = call;
         pendingProductId = productId;
+        pendingProductType = isSubscription
+            ? BillingClient.ProductType.SUBS
+            : BillingClient.ProductType.INAPP;
         call.setKeepAlive(true);
 
         List<BillingFlowParams.ProductDetailsParams> productDetailsParamsList = new ArrayList<>();
-        productDetailsParamsList.add(
-            BillingFlowParams.ProductDetailsParams.newBuilder()
-                .setProductDetails(details)
-                .build()
-        );
+        productDetailsParamsList.add(paramsBuilder.build());
 
         BillingFlowParams billingFlowParams = BillingFlowParams.newBuilder()
             .setProductDetailsParamsList(productDetailsParamsList)
@@ -247,11 +377,41 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
         }
     }
 
+    /**
+     * Pick the offer to buy. Prefers an exact token match against the current
+     * details, falls back to the named base plan, and refuses to guess when
+     * neither is given and more than one base plan exists — charging someone the
+     * annual price when they tapped monthly is not a recoverable mistake.
+     */
+    private static String resolveOfferToken(ProductDetails details,
+                                            String requestedToken, String basePlanId) {
+        List<ProductDetails.SubscriptionOfferDetails> offers =
+            details.getSubscriptionOfferDetails();
+        if (offers == null || offers.isEmpty()) return null;
+
+        if (requestedToken != null && !requestedToken.isEmpty()) {
+            for (ProductDetails.SubscriptionOfferDetails offer : offers) {
+                if (requestedToken.equals(offer.getOfferToken())) return offer.getOfferToken();
+            }
+            Log.w(TAG, "offerToken no longer valid — falling back to basePlanId");
+        }
+
+        if (basePlanId != null && !basePlanId.isEmpty()) {
+            for (ProductDetails.SubscriptionOfferDetails offer : offers) {
+                if (basePlanId.equals(offer.getBasePlanId())) return offer.getOfferToken();
+            }
+            return null;
+        }
+
+        return offers.size() == 1 ? offers.get(0).getOfferToken() : null;
+    }
+
     // ─── PurchasesUpdatedListener ─────────────────────────────────────────────
     @Override
     public void onPurchasesUpdated(@NonNull BillingResult billingResult, List<Purchase> purchases) {
         PluginCall call = pendingPurchaseCall;
         String productId = pendingProductId;
+        String productType = pendingProductType;
         clearPending();
 
         int code = billingResult.getResponseCode();
@@ -259,7 +419,7 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
         if (code == BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED) {
             // NOT a failure: the user owns this product. Telling a paying customer
             // their purchase failed — and leaving them locked out — was the H4 bug.
-            recoverOwnedPurchase(productId, call, billingResult);
+            recoverOwnedPurchase(productId, productType, call, billingResult);
             return;
         }
 
@@ -304,7 +464,8 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
      * acknowledge it if Play never got an ack, and resolve as a success so the
      * entitlement unlocks.
      */
-    private void recoverOwnedPurchase(String productId, PluginCall call, BillingResult originalResult) {
+    private void recoverOwnedPurchase(String productId, String productType,
+                                      PluginCall call, BillingResult originalResult) {
         if (call == null) return;
 
         if (billingClient == null || !billingClient.isReady()) {
@@ -313,8 +474,11 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
             return;
         }
 
+        // Must match the type being bought: a subscription is never returned by an
+        // INAPP query, so recovery would silently find nothing and report failure
+        // to someone who is actually subscribed.
         QueryPurchasesParams params = QueryPurchasesParams.newBuilder()
-            .setProductType(BillingClient.ProductType.INAPP)
+            .setProductType(productType != null ? productType : BillingClient.ProductType.INAPP)
             .build();
 
         billingClient.queryPurchasesAsync(params, (queryResult, purchaseList) -> {
@@ -336,29 +500,71 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
     }
 
     // ─── queryPurchases ───────────────────────────────────────────────────────
+    /**
+     * Both product types, merged — and `checkedTypes` reports which queries
+     * actually succeeded. That last part matters: the JS layer revokes a lapsed
+     * subscription from this answer, so it must be able to tell "Play says you
+     * have no subscription" from "we could not ask". Revoking on the second
+     * would cut off a paying subscriber whose network dropped.
+     */
     @PluginMethod
     public void queryPurchases(PluginCall call) {
         if (!isBillingReady(call)) return;
 
+        final JSArray purchases    = new JSArray();
+        final JSArray checkedTypes = new JSArray();
+        final JSArray errors       = new JSArray();
+
+        queryPurchasesOfType(BillingClient.ProductType.INAPP, purchases, checkedTypes, errors, () ->
+            queryPurchasesOfType(BillingClient.ProductType.SUBS, purchases, checkedTypes, errors, () -> {
+                if (checkedTypes.length() == 0) {
+                    call.reject("queryPurchases: " + firstErrorToken(errors),
+                                firstErrorToken(errors));
+                    return;
+                }
+                JSObject ret = new JSObject();
+                ret.put("purchases",    purchases);
+                ret.put("checkedTypes", checkedTypes);
+                ret.put("errors",       errors);
+                call.resolve(ret);
+            })
+        );
+    }
+
+    private void queryPurchasesOfType(String productType, JSArray purchases,
+                                      JSArray checkedTypes, JSArray errors, Runnable next) {
         QueryPurchasesParams params = QueryPurchasesParams.newBuilder()
-            .setProductType(BillingClient.ProductType.INAPP)
+            .setProductType(productType)
             .build();
 
         billingClient.queryPurchasesAsync(params, (billingResult, purchaseList) -> {
             if (billingResult.getResponseCode() != BillingClient.BillingResponseCode.OK) {
-                rejectWith(call, "queryPurchases", billingResult);
+                String token = tokenFor(billingResult.getResponseCode());
+                Log.w(TAG, "queryPurchases(" + productType + ") failed: " + token + " "
+                    + billingResult.getDebugMessage());
+                JSObject err = new JSObject();
+                err.put("productType", productType);
+                err.put("code", token);
+                errors.put(err);
+                next.run();
                 return;
             }
 
-            JSArray purchases = new JSArray();
+            checkedTypes.put(productType);
+
             for (Purchase purchase : purchaseList) {
                 if (purchase.getPurchaseState() != Purchase.PurchaseState.PURCHASED) continue;
 
                 for (String productId : purchase.getProducts()) {
                     JSObject item = new JSObject();
                     item.put("productId",     productId);
+                    item.put("productType",   productType);
                     item.put("purchaseToken", purchase.getPurchaseToken());
                     item.put("acknowledged",  purchase.isAcknowledged());
+                    // A cancelled subscription keeps resolving until the period it
+                    // was paid for runs out, so the entitlement is not revoked here
+                    // — but the JS layer needs to know not to re-offer it.
+                    item.put("autoRenewing",  purchase.isAutoRenewing());
                     purchases.put(item);
 
                     if (!purchase.isAcknowledged()) {
@@ -367,9 +573,7 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
                 }
             }
 
-            JSObject ret = new JSObject();
-            ret.put("purchases", purchases);
-            call.resolve(ret);
+            next.run();
         });
     }
 
@@ -403,6 +607,7 @@ public class FlowReadIapPlugin extends Plugin implements PurchasesUpdatedListene
     private void clearPending() {
         pendingPurchaseCall = null;
         pendingProductId = null;
+        pendingProductType = null;
     }
 
     private void acknowledgePurchaseAndResolve(Purchase purchase, PluginCall call) {

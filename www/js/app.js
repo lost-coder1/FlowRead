@@ -70,6 +70,12 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (typeof hasSubscription === 'function') {
       await hasSubscription();
     }
+    /* Stored state first so the UI renders immediately, then reconcile with Play
+       in the background. A subscription can lapse while the app is closed, and
+       nothing should wait on the network to find that out. */
+    if (typeof refreshEntitlements === 'function') {
+      refreshEntitlements().catch(function() {});
+    }
   } catch (_) {
     AppState.isPro = false;
   }
@@ -124,6 +130,14 @@ document.addEventListener('DOMContentLoaded', async function() {
       if (!state || !state.isActive) {
         backgroundedAt = Date.now();
         return;
+      }
+
+      /* A subscription bought, cancelled or lapsed outside the app (Play's own
+         screens, or simply time passing) is only visible on a resume. Runs
+         unawaited so it never delays the nudge below — that one is time-critical
+         and this one is not. */
+      if (typeof refreshEntitlements === 'function') {
+        refreshEntitlements().catch(function() {});
       }
 
       if (typeof NudgeFeature !== 'undefined') {

@@ -45,20 +45,6 @@ const FlowReadContent = {
       body: 'Requires internet for the initial article fetch. Parsing happens locally on device. Article content is never transmitted to any server we control. Even with internet, some sites cannot be imported because of paywalls, login walls, bot protection, blocked fetching, or unsupported page structure.',
     },
   ],
-  calibrationSample: [
-    'FlowRead is built for readers who want less friction and more momentum.',
-    'The goal of this calibration is not to impress you with a big number.',
-    'It is to help you find a pace that feels steady, legible, and calm.',
-    'Raise the speed until comprehension starts to slip, then back off slightly.',
-    'That number is a better starting point than chasing an arbitrary target.',
-    'You can change it anytime later from Settings.',
-  ].join(' '),
-  calibrationTiers: {
-    slow: 'You are reading this at a comfortable pace. Every word lands clearly. You have time to build a mental picture as you go. This is a great starting point for longer reading sessions where you want full comprehension. Books, articles, research papers — at this speed nothing slips past you. You will finish more than you think. The goal is not to rush. The goal is to keep moving without losing the thread. Comfortable and steady wins.',
-    medium: 'You are tracking this at a solid reading pace. Most trained readers live here. You are picking up meaning word by word without effort. This is the zone where reading feels effortless and comprehension stays high. You can push slightly faster and still follow everything. Try it. If you feel yourself re-reading words mentally, back off ten notches. If everything lands on the first pass, you may have room to go faster. Trust your instincts.',
-    fast: 'You are moving quickly now. This is the zone where practice separates good readers from great ones. Your eyes are locked on the centre. Your brain is processing before the next word arrives. Comprehension is still there but it takes focus. You cannot let your mind drift. Distractions cost you more at this speed. If you felt you missed a word just now, you probably did. That is normal here. With practice this speed starts to feel easy.',
-    veryFast: 'This is pushing the upper edge of comfortable reading for most people. Words are arriving fast. Your brain is making predictions and filling gaps rather than reading every single word deliberately. Some readers train to this level over months. If you are comprehending everything here, this is your zone. If words are blurring together or meaning is slipping, drop back twenty notches. Speed without comprehension is just watching words go by. Find the edge where you are still in control.',
-  },
 };
 
 const FlowReadThemes = [
@@ -174,197 +160,6 @@ function syncTypographyChips() {
   });
 }
 
-function renderOnboarding(stepIndex) {
-  closeActiveModal();
-  const view = qs('#view-onboarding');
-  if (!view) return;
-
-  const settings = getSettings();
-  AppState.settings = settings;
-  AppState.onboardingCalibrationWpm = 200;
-  const step = Math.max(0, Math.min(3, stepIndex || 0));
-
-  if (step === 0) {
-    view.innerHTML = `
-      <div class="onboarding-screen">
-        <div class="onboarding-card">
-          <p class="onboarding-kicker">${t('onboarding.step0.kicker')}</p>
-          <h1 class="onboarding-title">${t('onboarding.step0.title')}</h1>
-          <p class="onboarding-body">${t('onboarding.step0.body')}</p>
-          <div class="onboarding-actions">
-            <button class="btn btn-primary" id="btn-onboarding-next">${t('btn.continue')}</button>
-          </div>
-        </div>
-      </div>
-    `;
-  } else if (step === 1) {
-    view.innerHTML = `
-      <div class="onboarding-screen">
-        <div class="onboarding-card">
-          <p class="onboarding-kicker">${t('onboarding.step1.kicker')}</p>
-          <h1 class="onboarding-title">${t('onboarding.step1.title')}</h1>
-          <ul class="onboarding-list">
-            <li><strong>PDF</strong> — ${escapeHtml(t('onboarding.step1.pdf').replace(/^PDF — /, ''))}</li>
-            <li><strong>Paste Text</strong> — ${escapeHtml(t('onboarding.step1.paste').replace(/^Paste Text — /, ''))}</li>
-            <li><strong>URL Reader</strong> — ${escapeHtml(t('onboarding.step1.url').replace(/^URL Reader — /, ''))}</li>
-            <li><strong>DOCX</strong> — ${escapeHtml(t('onboarding.step1.docx').replace(/^DOCX — /, ''))}</li>
-            <li><strong>TXT</strong> — ${escapeHtml(t('onboarding.step1.txt').replace(/^TXT — /, ''))}</li>
-            <li><strong>Image / Scan</strong> — ${escapeHtml(t('onboarding.step1.image').replace(/^Image \/ Scan — /, ''))}</li>
-            <li>${escapeHtml(t('onboarding.step1.engines'))}</li>
-            <li>${escapeHtml(t('onboarding.step1.features'))}</li>
-          </ul>
-          <div class="onboarding-actions">
-            <button class="btn btn-ghost" id="btn-onboarding-back">${t('btn.back')}</button>
-            <button class="btn btn-primary" id="btn-onboarding-next">${t('btn.continue')}</button>
-          </div>
-        </div>
-      </div>
-    `;
-  } else if (step === 2) {
-    view.innerHTML = `
-      <div class="onboarding-screen">
-        <div class="onboarding-card onboarding-card-wide">
-          <p class="onboarding-kicker">${t('onboarding.step2.kicker')}</p>
-          <h1 class="onboarding-title">${t('onboarding.step2.title')}</h1>
-          <ol class="limitations-list">
-            ${FlowReadContent.limitations.map(function(item, i) {
-              const bodyKey = 'limitations.' + (i+1) + '.body';
-              const bodyText = t(bodyKey);
-              return `<li><strong>${escapeHtml(t('limitations.' + (i+1) + '.title'))}</strong> — ${escapeHtml(bodyText === bodyKey ? item.body : bodyText)}</li>`;
-            }).join('')}
-          </ol>
-          <div class="onboarding-actions">
-            <button class="btn btn-ghost" id="btn-onboarding-back">${t('btn.back')}</button>
-            <button class="btn btn-primary" id="btn-onboarding-next">${t('btn.continue')}</button>
-          </div>
-        </div>
-      </div>
-    `;
-  } else {
-    view.innerHTML = `
-      <div class="onboarding-screen">
-        <div class="onboarding-card onboarding-card-wide">
-          <p class="onboarding-kicker">${t('onboarding.step3.kicker')}</p>
-          <h1 class="onboarding-title">${t('onboarding.step3.title')}</h1>
-          <p class="onboarding-body">${t('onboarding.step3.body')}</p>
-          <div class="calibration-rsvp-container">
-            <div class="calibration-rsvp-stage" id="calibration-rsvp-stage">
-              <span class="calibration-rsvp-word" id="calibration-rsvp-word">—</span>
-            </div>
-          </div>
-          <div class="calibration-controls">
-            <button class="btn btn-ghost" id="btn-calibration-dec">−</button>
-            <input type="range" id="calibration-slider" min="120" max="600" step="10" value="${AppState.onboardingCalibrationWpm}" />
-            <button class="btn btn-ghost" id="btn-calibration-inc">+</button>
-            <span class="wpm-display" id="calibration-display">${formatWPM(AppState.onboardingCalibrationWpm)}</span>
-          </div>
-          <div class="onboarding-actions">
-            <button class="btn btn-ghost" id="btn-onboarding-back">${t('btn.back')}</button>
-            <button class="btn btn-primary" id="btn-onboarding-finish">${t('btn.finish')}</button>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  switchView('view-onboarding');
-  bindOnboarding(step);
-}
-
-function bindOnboarding(step) {
-  const next = qs('#btn-onboarding-next');
-  const back = qs('#btn-onboarding-back');
-  const finish = qs('#btn-onboarding-finish');
-
-  if (next) next.addEventListener('click', function() { renderOnboarding(step + 1); });
-  if (back) back.addEventListener('click', function() { renderOnboarding(step - 1); });
-  if (finish) {
-    finish.addEventListener('click', function() {
-      updateSetting('defaultWpm', AppState.onboardingCalibrationWpm);
-      saveWPM(AppState.onboardingCalibrationWpm);
-      AppState.wpm = AppState.onboardingCalibrationWpm;
-      saveOnboardingComplete();
-      renderUpload();
-      switchView('view-upload');
-    });
-  }
-
-  if (step === 3) {
-    startCalibrationPreview();
-    const slider = qs('#calibration-slider');
-    const display = qs('#calibration-display');
-
-    function applyCalibration(value) {
-      AppState.onboardingCalibrationWpm = value;
-      if (slider) slider.value = value;
-      if (display) display.textContent = formatWPM(value);
-      /* Restart RSVP preview with new speed and text tier */
-      startCalibrationPreview();
-    }
-
-    slider.addEventListener('input', function() {
-      applyCalibration(parseInt(this.value, 10));
-    });
-    qs('#btn-calibration-dec').addEventListener('click', function() {
-      applyCalibration(Math.max(120, AppState.onboardingCalibrationWpm - 10));
-    });
-    qs('#btn-calibration-inc').addEventListener('click', function() {
-      applyCalibration(Math.min(600, AppState.onboardingCalibrationWpm + 10));
-    });
-  } else {
-    stopCalibrationPreview();
-  }
-}
-
-function _getCalibrationText(wpm) {
-  if (wpm < 200) return FlowReadContent.calibrationTiers.slow;
-  if (wpm < 300) return FlowReadContent.calibrationTiers.medium;
-  if (wpm < 450) return FlowReadContent.calibrationTiers.fast;
-  return FlowReadContent.calibrationTiers.veryFast;
-}
-
-function startCalibrationPreview() {
-  stopCalibrationPreview();
-  const wordEl = qs('#calibration-rsvp-word');
-  if (!wordEl) return;
-
-  const text = _getCalibrationText(AppState.onboardingCalibrationWpm);
-  const words = text.split(/\s+/);
-  let wordIdx = 0;
-
-  function updateWord() {
-    if (!qs('#view-onboarding') || AppState.currentView !== 'view-onboarding') return;
-    const w = words[wordIdx % words.length];
-    wordIdx++;
-
-    /* Scale font down for long words so they stay in the box */
-    const len = w.length;
-    wordEl.style.fontSize = len > 10 ? Math.max(28, 48 - (len - 10) * 2) + 'px' : '';
-
-    /* Highlight the ORP letter at ~33% into the word */
-    const orpIdx = Math.max(0, Math.floor(len * 0.33));
-    const before = escapeHtml(w.slice(0, orpIdx));
-    const orp = escapeHtml(w[orpIdx] || '');
-    const after = escapeHtml(w.slice(orpIdx + 1));
-    wordEl.innerHTML = before + '<span class="calibration-orp-letter">' + orp + '</span>' + after;
-
-    const delayMs = 60000 / AppState.onboardingCalibrationWpm;
-    window._calibrationTimer = setTimeout(updateWord, delayMs);
-  }
-
-  updateWord();
-}
-
-function stopCalibrationPreview() {
-  if (window._calibrationTimer) {
-    clearTimeout(window._calibrationTimer);
-    window._calibrationTimer = null;
-  }
-  if (window._calibrationRaf) {
-    cancelAnimationFrame(window._calibrationRaf);
-    window._calibrationRaf = null;
-  }
-}
 
 /* Reminder status copy. `reschedule()` records why it could not arm the
  * reminder; the note is where the user finds out, rather than nothing firing. */
@@ -601,6 +396,9 @@ function renderSettings() {
         <h2>${t('settings.section.library')}</h2>
         <p class="settings-copy">${t('settings.library.local_only')}</p>
         <button class="btn btn-ghost settings-restore-btn" id="btn-settings-restore">${t('settings.btn.restore')}</button>
+        ${AppState.isSubscriber ? `
+        <button class="btn btn-ghost settings-restore-btn" id="btn-settings-manage-sub">${t('settings.btn.manage_sub')}</button>
+        <p class="settings-copy text-muted">${t('settings.manage_sub.note')}</p>` : ''}
       </section>
 
       <!-- ABOUT & HELP -->
@@ -712,6 +510,16 @@ function bindSettings() {
   if (restoreBtn) {
     restoreBtn.addEventListener('click', function() {
       if (typeof restorePurchases === 'function') restorePurchases();
+    });
+  }
+
+  /* §1.3: cancellation must be genuinely one tap. Shown only to subscribers —
+     Play's subscription screen is meaningless to anyone else — and it goes
+     straight to this product's entry rather than the Play Store's front door. */
+  const manageSubBtn = qs('#btn-settings-manage-sub');
+  if (manageSubBtn) {
+    manageSubBtn.addEventListener('click', function() {
+      if (typeof openSubscriptionManagement === 'function') openSubscriptionManagement();
     });
   }
 

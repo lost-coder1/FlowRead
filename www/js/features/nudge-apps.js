@@ -12,17 +12,12 @@
 
 const NudgeAppsFeature = (function() {
   const KEY_APPS = 'fr_nudge_apps';
-  /* §4's rule is free = 1 app, subscriber = unlimited. **Temporarily 2**
-     (Q12, product-owner decision 2026-09-25) because the subscription does not
-     exist: `hasSubscription()` is hardcoded false until Task 16.1, which is
-     blocked on pricing. At a limit of 1 nobody could ever select a second app,
-     which made §9.7's scoped unlock unreachable in production and untestable on
-     device — an advertised feature no user could get to.
-
-     ⚠️ **Task 16.1 must set this back to 1** when the subscription ships.
-     `syncToNative()` already truncates an over-limit selection, so lowering it
-     degrades existing users cleanly rather than leaving native prefs adrift. */
-  const FREE_APP_LIMIT = 2;
+  /* §4: free = 1 app, paid = unlimited. Restored to 1 by Task 16.1 (2026-11-01),
+     having been temporarily 2 since 2026-09-25 (Q12) only because no purchase
+     could lift the gate — at a limit of 1 with nothing to buy, nobody could ever
+     select a second app and §9.7's scoped unlock was unreachable. There is now
+     something to buy, so §4's rule applies again. */
+  const FREE_APP_LIMIT = 1;
 
   /* Icons are the expensive part of the native call, so the list is fetched
      once per app run and reused for every re-open of the picker. */
@@ -46,8 +41,12 @@ const NudgeAppsFeature = (function() {
     }
   }
 
+  /* Either paid tier lifts the limit (§4: as of the 2026-10-30 pricing the
+     lifetime purchase includes unlimited nudge apps too). `isPro` is the derived
+     "has paid" gate that already answers both — gating on isSubscriber alone
+     would refuse the feature to someone who had just paid ₹2,999 for it. */
   function appLimit() {
-    return AppState.isSubscriber ? Infinity : FREE_APP_LIMIT;
+    return AppState.isPro ? Infinity : FREE_APP_LIMIT;
   }
 
   async function setTargets(packages) {
@@ -174,26 +173,28 @@ const NudgeAppsFeature = (function() {
           if (idx !== -1) {
             current.splice(idx, 1);
           } else {
-            /* §4: free tier gets one app, subscribers get unlimited.
+            /* §4: free tier gets one app, either paid tier gets unlimited.
 
-               N17 — do NOT open the Pro paywall here. This gate is on
-               isSubscriber, and the subscription does not exist yet: Task 16.1
-               is blocked on pricing, there is no SUBS product in Play Console,
-               and hasSubscription() is hardcoded false. Offering Lifetime Pro
-               therefore sold the user something that could not lift the gate.
-               Someone who already owned Pro got "you already own this", restored,
-               and hit the same wall again — the same class of defect as H4, where
-               a paying customer was told their purchase failed (§1.5).
+               N17 said do NOT open a paywall here, because the gate was on
+               isSubscriber and nothing on sale could lift it — offering Lifetime
+               Pro sold the user something that left them against the same wall,
+               the H4 class of defect (§1.5). Task 16.1 removes that reason: both
+               paid tiers now include unlimited apps, so the paywall is an honest
+               answer to this gate and appLimit() checks the same two flags the
+               purchase sets. Reinstated 2026-11-01.
 
-               Until 16.1 ships, say plainly what the limit is and what will lift
-               it. No purchase prompt for something unpurchasable (§1.3). */
+               The paywall replaces the picker rather than stacking on it — never
+               more than one modal at a time (§21). */
             if (current.length >= appLimit()) {
               /* The number comes from the constant, not the copy, so the two
-                 cannot drift when 16.1 lowers the limit back to 1 — which is
-                 also why there is a singular form to fall back to. */
+                 cannot drift if the limit changes again. */
               const lim = appLimit();
               showToast(t(lim === 1 ? 'nudge.toast.free_limit.one'
                                     : 'nudge.toast.free_limit', { n: lim }));
+              if (typeof showProPaywall === 'function') {
+                closeActiveModal();
+                showProPaywall('nudge-apps');
+              }
               return;
             }
             current.push(pkg);
@@ -231,14 +232,47 @@ const NudgeAppsFeature = (function() {
   /* Keeps native prefs in step with localStorage — they can drift if the app
      data is restored from a backup, or if 16.1 later downgrades a lapsed
      subscriber back to the one-app limit. */
+  /* Truncation is not silent (§1.5). Lowering FREE_APP_LIMIT from 2 back to 1
+     (Task 16.1) takes an app away from existing free users who had picked two,
+     and a nudge that simply stops arriving for an app still listed in Settings
+     reads as the feature being broken. Said once, naming the app, and only to
+     someone it actually happened to — the flag is keyed to the dropped packages
+     so it cannot re-fire every launch, and re-fires if a *different* app is
+     later dropped. */
+  const KEY_TRIM_NOTICE = 'fr_nudge_apps_trimmed_notice';
+
   async function syncToNative() {
     const targets = getTargets();
     const limit = appLimit();
+
     if (targets.length > limit) {
-      await setTargets(targets.slice(0, limit));
+      const kept    = targets.slice(0, limit);
+      const dropped = targets.slice(limit);
+      await setTargets(kept);
+      _noticeTrimmed(dropped);
       return;
     }
+
     await setTargets(targets);
+    try { localStorage.removeItem(KEY_TRIM_NOTICE); } catch (_) {}
+  }
+
+  function _noticeTrimmed(dropped) {
+    const stamp = dropped.join(',');
+    try {
+      if (localStorage.getItem(KEY_TRIM_NOTICE) === stamp) return;
+      localStorage.setItem(KEY_TRIM_NOTICE, stamp);
+    } catch (_) {}
+
+    const labels = dropped.map(labelFor).join(', ');
+    /* Deferred so it does not land underneath the boot render, or on top of a
+       nudge arriving in the same breath — that screen is the one the user is
+       actually there for. */
+    setTimeout(function() {
+      if (typeof showToast === 'function') {
+        showToast(t('nudge.toast.apps_trimmed', { apps: labels }));
+      }
+    }, 2500);
   }
 
   return {

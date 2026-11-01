@@ -598,6 +598,91 @@
   box-shadow: 0 20px 80px rgba(0, 0, 0, 0.25);
 }
 
+/* ── Onboarding, Task 16.3 (§10) ────────────────────────────── */
+
+/* Language choice on the first screen. Two states, no dropdown: with exactly
+   two languages a picker would be more chrome than choice (§17). */
+.onboarding-lang {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.onboarding-lang-btn {
+  flex: 1;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+
+.onboarding-lang-btn:hover { border-color: var(--text-muted); }
+
+.onboarding-lang-on {
+  border-color: var(--accent);
+  color: var(--text);
+  background: var(--rsvp-stage-bg);
+}
+
+.onboarding-pick-label {
+  font-size: 14px;
+  color: var(--text);
+  margin-top: var(--space-sm);
+}
+
+/* The chosen app, once picked: states what will happen and stays changeable,
+   so the decision never feels locked in. */
+.onboarding-chosen {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: var(--rsvp-stage-bg);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+}
+
+.onboarding-chosen-label {
+  font-size: 15px;
+  color: var(--text);
+}
+
+.onboarding-actions-inline {
+  display: flex;
+}
+
+.onboarding-perms {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.onboarding-perm-on {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--success);
+  white-space: nowrap;
+}
+
+/* The limitations did not vanish, they moved (§1.5). Quiet, but present on the
+   last screen rather than occupying one of its own. */
+.onboarding-limitations-link {
+  align-self: flex-start;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.onboarding-limitations-link:hover { color: var(--text); }
+
 .onboarding-card-wide {
   width: min(860px, 100%);
 }
@@ -1018,6 +1103,72 @@
   font-family: var(--font-mono);
   font-size: 13px;
   color: var(--accent);
+}
+
+/* ── Paywall plan picker (§4 pricing, §16 palette) ──────────── */
+.paywall-plans {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+/* Each plan is a radio, not a button that buys — nothing is charged until
+   Continue, so the row never reads as a commitment. */
+.paywall-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  padding: var(--space-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.paywall-plan:hover {
+  border-color: var(--text-muted);
+}
+
+/* The selected plan is marked by border and a tinted ground, never by hiding
+   the others — the lifetime option has to stay as legible as the subscription
+   it is anchoring (Claude.md §1.3). */
+.paywall-plan-selected {
+  border-color: var(--accent);
+  background: var(--rsvp-stage-bg);
+}
+
+.paywall-plan-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.paywall-plan-label {
+  font-size: 15px;
+  color: var(--text);
+}
+
+.paywall-plan-price {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.paywall-plan-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.paywall-sub-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.5;
 }
 
 /* ── Reader stub (Phase 1 — replaced in Phase 2) ────────────── */

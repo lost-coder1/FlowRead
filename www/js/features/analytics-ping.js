@@ -34,6 +34,14 @@ const AnalyticsPing = (function() {
      * only which entry point was used — never the book, the stat or the app the
      * user shared to. */
     'stats_shared',
+    /* Added 2026-11-01 (product-owner approved) for Task 16.3. §10.2's inline
+     * permission ask was chosen to maximise grant rates, and a grant rate has a
+     * denominator — without these two there is no way to tell whether that
+     * choice was right, and §10.1 asks for it to be testable rather than
+     * assumed. A decline needs no event of its own: it is completed minus
+     * granted. Neither carries any parameter. */
+    'onboarding_completed',
+    'nudge_permission_granted',
   ];
 
   /* Meta is whitelisted to non-identifying scalars. Anything else — a filename,

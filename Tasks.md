@@ -40,6 +40,10 @@ Previously, 2026-09-25 — **Fifth device round: N17–N20 found, three fixed, N
 | 2026-09-20 | **`PACKAGE_USAGE_STATS` is optional**, not required. | Three settings-page grants before the feature does anything would be brutal onboarding. Granted it upgrades the trigger to real minutes-in-app; denied it falls back to "3rd open today" and Settings says so (§1.5). |
 | 2026-09-20 | **Q2 defaults: 15 min → nudge, 2 pages → unlock**, cap 3/app/day, back off after 3 dismissals. | Starting values, all exposed as settings. Q9 copy review still outstanding. |
 | 2026-09-25 | **Q12: `FREE_APP_LIMIT` temporarily raised 1 → 2**, to be restored to 1 by Task 16.1. | §4 says free = 1 app and unlimited is subscriber-only, but `hasSubscription()` is hardcoded false until 16.1, which is blocked on Q1 pricing. At a limit of 1, *no user could ever select a second app* — so §9.7's scoped unlock was unreachable in production and checklist item 5 was untestable. Leaving it would have meant shipping an advertised feature nobody could get to. The limit is one constant with a revert note on it, and `syncToNative()` already truncates an over-limit selection so lowering it later degrades cleanly. |
+| 2026-11-01 | **`AppState.isPro` now means "has paid", not "owns lifetime"**; the lifetime purchase gets its own flag, `ownsLifetime`. | 16.1 kept the two *stored* entitlements independent as §4 requires, but every one of the 24 Pro gates in the app reads `AppState.isPro` — so leaving that as the lifetime flag would have locked a subscriber out of the very features they had just paid for. Making the *gate* a derived third thing keeps the Preferences keys separate (what the rule actually protects — the drops can gate on `isSubscriber` alone) without needing all 24 call sites to be found and changed correctly. |
+| 2026-11-01 | **A subscription is revoked only from a query Play answered**, never from a failed one. | The first entitlement in this app that can stop being true. `queryPurchases` reports `checkedTypes` so "Play says no subscription" is distinguishable from "we could not ask" — revoking on the second would cut a paying subscriber off for having poor signal, the §1.5 failure mode at its most expensive. One-time purchases are still never revoked. |
+| 2026-11-01 | **Subscription base plans are matched by billing period, not by base plan ID.** | A hardcoded plan ID is a silent breakage waiting for whoever renames it in Play Console. `P1M`/`P1Y` is what the user is actually choosing between. Offer tokens are never persisted (valid only for the query that produced them) and the native side re-resolves them against current details rather than trusting JS — charging the annual price to someone who tapped monthly is not a recoverable mistake. |
+| 2026-11-01 | **The subscription's paywall copy does not mention monthly book drops.** | They are unbuilt — the §4 gap the owner accepted on 2026-10-30. The anchor strategy is ordinary pricing, but §1.3 only holds if the copy describes what a subscriber actually receives; promising unshipped content is where it would become a dark pattern. The line says what is true today (same tools, paid over time) and is flagged for rewrite when the drops ship. |
 | 2026-09-25 | **Q11: sharing emits `stats_shared`**, carrying the entry point and nothing else. | §22 puts the product in a distribution bottleneck, and how often a card is actually shared is the direct measure of whether 16.6 addresses it. Widening the §9.6 allowlist was a privacy decision, so it was asked rather than assumed. No book, stat, or destination app is sent (§1.4). |
 | 2026-09-25 | **Onboarding (16.3) becomes its own design task**; Q3 is answered inside it rather than ahead of it. | Q3 (inline vs deferred permission ask) is a design question, not an implementation flag, and answering it in the abstract before the onboarding narrative exists would have decided it backwards. N14's per-choice ask is the interim behaviour and is working. |
 | 2026-09-25 | **The share card is free for everyone**, with a home-header entry point alongside the Pro dashboard one. | §15 puts Share on the dashboard, which is Pro-gated — so the feature prioritized *for distribution* (§22) would have been invisible to exactly the users whose shares reach non-users. `Claude.md` §15 updated to match. |
@@ -65,7 +69,7 @@ Each is tagged with whether it blocks *starting* the task or only *finishing* it
 |---|---|---|---|---|
 | ~~Q1~~ | ~~Subscription price (monthly / annual)~~ | — | **Resolved 2026-10-30: ₹149/mo, ₹999/yr as `flowread_plus`; lifetime `pro_lifetime` repriced to ₹2,999 and widened to include OCR; `ocr_vision` retired from sale but honoured forever.** See 16.1. | §4 |
 | ~~Q2~~ | ~~Nudge default thresholds~~ | — | **Resolved 2026-09-20: 15 min / 2 pages, both settings** | §9.2, §9.3 |
-| ~~Q3~~ | ~~Is the nudge permission ask inline in onboarding or deferred?~~ | — | **Resolved 2026-09-25: neither, yet — onboarding is being designed as its own task first, and Q3 is answered inside that design.** N14's per-choice ask stands as the interim behaviour. See Task 16.3. | §10.2 |
+| ~~Q3~~ | ~~Is the nudge permission ask inline in onboarding or deferred?~~ | — | **Resolved 2026-11-01: inline**, and placed *after* the user names an app so the ask is concrete. Skippable throughout; N4's home card stays as the second chance for skippers. See Task 16.3. | §10.2 |
 | Q4 | Monthly book-drop count, and bundled vs. remote-fetched catalog | 16.4 | **Start** | §4, §13 |
 | Q5 | Leaderboard backend — reuse the analytics Worker with a new endpoint, or something more structured? | 16.5 | **Start** | §14 |
 | Q6 | Exact copy/tone for the offline-triggered notification | 16.7 | Finish | §11 |
@@ -73,7 +77,7 @@ Each is tagged with whether it blocks *starting* the task or only *finishing* it
 | ~~Q8~~ | ~~Is `AccessibilityService` escalation ever pursued?~~ | — | **Resolved 2026-09-20: yes, signed off. `UsageStatsManager` cannot do it without a permanent notification** | §9.4a |
 | ~~Q9~~ | ~~Nudge screen copy/tone sign-off~~ | — | **Signed off 2026-09-25.** | §19 |
 | ~~Q10~~ | ~~Share card / sheet / milestone copy + Hindi sign-off~~ | — | **Accepted as-is 2026-09-25 ("okay for now").** Owner-written Hindi may still replace the current Hinglish-register draft later; not a blocker. | §15 |
-| ~~Q12~~ | ~~Should the one-app limit stand while the subscription does not exist?~~ | — | **Resolved 2026-09-25: (b) — `FREE_APP_LIMIT` temporarily raised to 2.** ⚠️ **Task 16.1 must set it back to 1.** | §4, §9.7 |
+| ~~Q12~~ | ~~Should the one-app limit stand while the subscription does not exist?~~ | — | **Resolved 2026-09-25: (b) — `FREE_APP_LIMIT` temporarily raised to 2.** ✅ **Restored to 1 by Task 16.1 on 2026-11-01**, with the truncation now surfaced rather than silent. | §4, §9.7 |
 | ~~Q11~~ | ~~Should sharing emit an analytics event?~~ | — | **Resolved 2026-09-25: yes.** `stats_shared` added to the `analytics-ping.js` allowlist, carrying the entry point only (`home` / `dashboard` / `milestone`) — never the book, the stat, or the app shared to. Inert until the Worker endpoint exists. | §9.6, §15 |
 
 ---
@@ -92,7 +96,7 @@ Each is tagged with whether it blocks *starting* the task or only *finishing* it
 
 ---
 
-# Block A — Compliance ✅ shipped (16.1 still open)
+# Block A — Compliance ✅ shipped (16.1 code complete 2026-11-01)
 
 The **2026-08-31** deadline had already passed when this work started, leaving the app unable to publish any update. A Play Console extension (valid to 2026-11-01) covered the gap, and 1.4.5 cleared both notices on 2026-09-16. 16.1 (Subscription IAP) remains open but gates nothing.
 
@@ -170,8 +174,9 @@ The **2026-08-31** deadline had already passed when this work started, leaving t
 
 ## Task 16.1 — Subscription IAP
 
-**Status:** Unblocked — **Q1 answered 2026-10-30.** Play Console setup in progress; the code is
-scheduled for its own session. · **Ref:** §4 · **Size:** M
+**Status:** **Code complete 2026-11-01.** Q1 answered 2026-10-30, Play Console setup done by the
+owner. Remaining work is a device test against a license tester, Hindi copy sign-off, and the
+privacy-policy/store copy for a subscription product. · **Ref:** §4 · **Size:** M
 
 **Why:** The subscription tier's value is recurring by nature (monthly book drops, ongoing nudge personalization) and can't honestly be sold as a one-time purchase.
 
@@ -212,24 +217,105 @@ never be static value relabelled), and it is also what drives month-two cancella
 
 **Steps**
 - [x] Q1 resolved — see the table above.
-- [ ] Play Console: create `flowread_plus`, add benefits/description/icon, add the two base
+- [x] Play Console: create `flowread_plus`, add benefits/description/icon, add the two base
       plans, optionally an offer, then **activate** — an inactive base plan is invisible to the app.
-- [ ] Play Console: reprice `pro_lifetime` to ₹2,999 and set prices for non-India markets.
-- [ ] Play Console: add license testers so purchases can be exercised without real charges.
-- [ ] `FlowReadIapPlugin.java`: add `ProductType.SUBS` alongside the existing `ProductType.INAPP`. Subscriptions query separately from INAPP and require selecting an **offer token** at purchase time — this is the main structural difference from the existing one-time flow.
-- [ ] `purchase.js`: add `hasSubscription()` and `AppState.isSubscriber`, mirroring the existing `hasProAccess()` / `AppState.isPro` pattern.
-- [ ] Treat entitlements as **independent** (§4): a user may hold Lifetime Pro without a subscription, a subscription without Lifetime Pro, both, or neither. **As of the 2026-10-30 pricing, each one alone unlocks everything that exists today** — so the gating question is "subscriber OR lifetime", not a hierarchy. Keep them separate flags anyway: the drops will need to tell them apart.
-- [ ] `ocr_vision` must still resolve for anyone who bought it, even once deactivated for new sales.
-- [ ] Reuse the existing `showPaywall()` (`purchase.js:230`) rather than writing a second paywall.
-- [ ] Gate the five subscription-exclusive items behind paid access rather than `isPro` alone: unlimited nudge apps (free = 1), nudge scheduling, nudge strict mode, monthly book drops, leaderboard badges. **Monthly book drops are the one that stays subscription-only** — lifetime buys everything as it exists today, not a perpetual content feed.
-- [ ] ⚠️ **Restore `FREE_APP_LIMIT` to 1 in `nudge-apps.js`.** It was raised to 2 on 2026-09-25 (Q12) purely because no subscription existed to lift the gate; the moment one does, §4's rule applies again. `syncToNative()` truncates an over-limit selection, so lowering it degrades existing two-app users cleanly — but check that the truncation is surfaced rather than silent (§1.5).
-- [ ] Store subscription state in **Capacitor Preferences, never localStorage** (§21).
-- [ ] Wire `subscription_started` / `subscription_cancelled` analytics events (§9.6) — depends on 16.2's `analytics-ping.js`; stub the calls if 16.2 hasn't landed.
-- [ ] Verify the §1.3 no-dark-patterns rules hold: lifetime option still prominently offered, cancellation genuinely one tap via platform billing.
+- [x] Play Console: reprice `pro_lifetime` to ₹2,999 and set prices for non-India markets.
+- [x] Play Console: add license testers so purchases can be exercised without real charges.
+- [x] `FlowReadIapPlugin.java`: add `ProductType.SUBS` alongside the existing `ProductType.INAPP`. Subscriptions query separately from INAPP and require selecting an **offer token** at purchase time — this is the main structural difference from the existing one-time flow.
+- [x] `purchase.js`: add `hasSubscription()` and `AppState.isSubscriber`, mirroring the existing `hasProAccess()` / `AppState.isPro` pattern.
+- [x] Treat entitlements as **independent** (§4): a user may hold Lifetime Pro without a subscription, a subscription without Lifetime Pro, both, or neither. **As of the 2026-10-30 pricing, each one alone unlocks everything that exists today** — so the gating question is "subscriber OR lifetime", not a hierarchy. Keep them separate flags anyway: the drops will need to tell them apart.
+- [x] `ocr_vision` must still resolve for anyone who bought it, even once deactivated for new sales.
+- [x] Reuse the existing `showPaywall()` (`purchase.js:230`) rather than writing a second paywall.
+- [x] Gate the five subscription-exclusive items behind paid access rather than `isPro` alone: unlimited nudge apps (free = 1), nudge scheduling, nudge strict mode, monthly book drops, leaderboard badges. **Monthly book drops are the one that stays subscription-only** — lifetime buys everything as it exists today, not a perpetual content feed.
+- [x] ⚠️ **Restore `FREE_APP_LIMIT` to 1 in `nudge-apps.js`.** It was raised to 2 on 2026-09-25 (Q12) purely because no subscription existed to lift the gate; the moment one does, §4's rule applies again. `syncToNative()` truncates an over-limit selection, so lowering it degrades existing two-app users cleanly — but check that the truncation is surfaced rather than silent (§1.5).
+- [x] Store subscription state in **Capacitor Preferences, never localStorage** (§21).
+- [x] Wire `subscription_started` / `subscription_cancelled` analytics events (§9.6) — depends on 16.2's `analytics-ping.js`; stub the calls if 16.2 hasn't landed.
+- [x] Verify the §1.3 no-dark-patterns rules hold: lifetime option still prominently offered, cancellation genuinely one tap via platform billing.
 
-**Files:** `android/app/src/main/java/com/flowread/app/FlowReadIapPlugin.java` · `www/js/features/purchase.js` · gating call sites across `views/` · `www/i18n/en.json` + `hi.json`
+### What the implementation settled — 2026-11-01
+
+Five things the step list did not anticipate, each of which changed the shape of the code:
+
+**1. The stored entitlements stay separate; the *gate* became a third, derived thing.** Every Pro
+surface in the app reads `AppState.isPro`, and all 24 of those call sites would have locked a
+subscriber out of the features they had just paid for. So `AppState.isPro` now means **"has paid
+for anything still good"** — either tier — and `AppState.ownsLifetime` is the lifetime purchase
+specifically. The Preferences keys (`fr_purchase_pro`, `fr_purchase_subscription`) are untouched
+and still independent, which is what the separate-flags rule actually protects: the drops can
+gate on `isSubscriber` alone. Gating on the lifetime flag by name was the alternative and it is
+a trap — `hasProAccess()` is the one gate, and it answers the question every feature means to ask.
+
+**2. A subscription is the first entitlement in this app that can stop being true.** Sticky-`true`
+storage had no way to express that. The rule adopted: **the subscription flag is only ever
+rewritten from a query Play actually answered.** `queryPurchases` therefore returns
+`checkedTypes`, so "Play says you have no subscription" is distinguishable from "we could not
+ask" — revoking on the second would cut off a paying subscriber whose network dropped, which is
+the §1.5 failure mode in its most expensive form. One-time entitlements are granted but never
+revoked, as before: a refund is rare and wrongly cutting off someone who paid once is worse.
+`refreshEntitlements()` runs unawaited at boot and on every resume, because a lapse is only ever
+visible on a resume, and unawaited so it never delays the nudge handoff.
+
+**3. `subscription_cancelled` has nothing to hang off.** Play provides no cancellation callback. A
+`true`→`false` transition on a query it *did* answer is the only honest moment to emit it, and
+that is where it fires.
+
+**4. Base plan IDs are not hardcoded.** Offers are classified by the billing period Play returns
+(`P1M`/`P1Y`), so renaming a base plan in Play Console cannot silently break the purchase. Offer
+tokens are never persisted — they are valid only for the query that produced them — so every
+purchase re-queries, and the native side **re-resolves the token against current details** rather
+than trusting what JS passed back: a stale token would otherwise charge the wrong plan, which is
+not a recoverable mistake. A product query failure in one type no longer fails the whole call
+either, since the two products are independently purchasable.
+
+**5. The subscription's one differentiator cannot be described yet.** Copy promising monthly book
+drops would be false — they are unbuilt (the accepted gap above). `paywall.plan.sub_extra`
+therefore says only what is true today: the plans unlock the same tools, paid over time instead
+of at once. ⚠️ **Rewrite that line when the drops ship.**
+
+Also: OCR has no paywall of its own any more and **`buyOcr()` is retired** — charging for
+something the same purchase now grants would be the H4 defect over again. Lowering
+`FREE_APP_LIMIT` takes an app away from existing two-app free users, so `syncToNative()`'s
+truncation is **no longer silent** (§1.5): it names the dropped app once, keyed to the dropped
+packages so it cannot re-fire every launch. A **Manage subscription** row in Settings deep-links
+to this product's Play entry for §1.3's one-tap cancellation — shown only to subscribers.
+
+**Verified off-device:** 46 assertions across two harnesses in the scratchpad — entitlement
+derivation for all four ownership combinations plus the legacy `ocr_vision`-only case, base plan
+classification, lapse-revokes / failed-query-does-not-revoke / lifetime-never-revoked, the
+cancelled-but-still-paid case, and paywall rendering including lifetime-first ordering, single
+preselection, and graceful absence of inactive base plans. `:app:compileDebugJavaWithJavac`
+passes.
+
+**Not verified, and needs the device:** every real Play interaction — the purchase sheet itself.
+
+**Files:** `android/app/src/main/java/com/flowread/app/FlowReadIapPlugin.java` · `www/js/features/purchase.js` · `www/js/features/nudge-apps.js` · `www/js/app.js` · `www/js/state.js` · `www/js/views/settings.js` · `www/css/components.css` · `www/i18n/en.json` + `hi.json`
 
 **Done when:** A test account can subscribe, the five gated items unlock, lifetime and subscription entitlements resolve independently, and all 16.0b regression flows still pass.
+
+**Uploaded to Internal testing as 1.5.0 / versionCode 38 on 2026-11-01**, and a subscription
+purchase completed on a clean license-tester account.
+
+**First finding, and it is a testing constraint rather than a defect:** on an account that owns
+`pro_lifetime`, *everything* is unlocked and **no paywall can be reached at all** — every entry
+point is behind `if (!pro)`, and `appLimit()` returns `Infinity`. Four checklist items are
+therefore unreachable from the owner's own account. Two causes stack: §4 widened lifetime to
+include OCR and unlimited apps (intended goodwill), and 16.1's `refreshEntitlements()` now
+restores entitlements at boot, where previously a fresh install stayed locked until *Restore
+Purchases* was tapped. **Subscription testing needs a second license-tester account** — clearing
+app data does not help, because the next launch re-grants from Play. Worth remembering for every
+future purchase-flow change.
+
+**Device checklist:**
+- [ ] Subscribe on the **monthly** base plan; Pro surfaces unlock, `fr_purchase_subscription` is `true`.
+- [ ] Subscribe on the **annual** base plan — confirms the offer token is per-plan and the right one is charged.
+- [ ] Cancel in Play; the entitlement **persists** to period end and the Manage row still works.
+- [ ] Let it lapse (or revoke as a tester); access closes on the next resume and the Pro surfaces re-render locked.
+- [ ] **Airplane mode on a live subscriber** — access must survive, nothing revoked.
+- [ ] Restore purchases on a fresh install for: lifetime only, subscription only, both, legacy `ocr_vision` only.
+- [ ] Lifetime regression: fresh purchase, already-owned, restore (the 16.0b/H4 flows).
+- [ ] OCR reachable for a subscriber who has never bought `ocr_vision`.
+- [ ] Nudge app picker at the limit of 1 → paywall opens, picker closes (never two modals, §21).
+- [ ] An existing two-app free user on upgrade: one app dropped, and **told once** which.
 
 **Guardrail:** Lifetime Pro must never be removed or degraded to push subscriptions (§1.3, §4).
 
@@ -628,6 +714,12 @@ around the already-owned/restore path forever.
 This is the same class of defect as H4: a paying customer sent in a circle by a purchase flow.
 §1.5 and §1.3 (no dark patterns) both bite.
 
+**Reopened and properly closed 2026-11-01 by Task 16.1.** The toast was the right answer to an
+unliftable gate, not to this gate forever. Now that either paid tier includes unlimited apps,
+`appLimit()` checks the derived "has paid" flag that the purchase actually sets, so the paywall
+can be shown and buying from it genuinely lifts the limit. The N17 loop is closed at its root —
+the gate and the purchase now refer to the same thing — rather than by withholding the prompt.
+
 - [x] No purchase prompt for something unpurchasable. The limit now states itself in plain
       language: *"One app for now — choosing several will arrive with the subscription."*
 - [x] **Q12 answered 2026-09-25: `FREE_APP_LIMIT` 1 → 2 temporarily.** The honest message fixed
@@ -977,12 +1069,13 @@ return works — the row flips `On` → `Turn on` after a background/foreground 
 reads *"Usage access is off, so opens are counted too: 30 of 3 today"* and names the daily cap
 as the reason for silence.
 
-**Item 2 detail — the checklist text is stale, not the code.** It expects a *paywall* on the
-second app. The code shows an explanatory toast instead (*"2 apps for now — choosing more will
-arrive with the subscription"*), which is correct while 16.1 is blocked on Q1: there is no
-subscription SKU to sell, so a paywall would be a dead end, and §1.5 prefers the plain
-statement. **Task 16.1 must restore the paywall expectation here along with
-`FREE_APP_LIMIT` → 1.**
+**Item 2 detail — ✅ resolved 2026-11-01, the checklist text was right all along.** It expects a
+*paywall* on the second app. Until 16.1 the code showed an explanatory toast instead, which was
+correct while there was no subscription SKU to sell — a paywall would have been a dead end, and
+§1.5 prefers the plain statement. **16.1 removed that reason:** both paid tiers now include
+unlimited apps and `appLimit()` reads the same derived `isPro` gate the purchase sets, so the
+paywall is an honest answer. `FREE_APP_LIMIT` is back to 1 and the paywall is reinstated, closing
+the picker first so there is never a second modal (§21).
 
 #### N30 — the accessibility grant lands on the top-level menu, not FlowRead's entry ✅ fixed
 
@@ -1203,42 +1296,143 @@ grant on reinstall as a security measure; `enabled_accessibility_services` read 
 Re-granting restored it. **Worth knowing for the release:** testers who sideload over an
 existing install will silently lose the grant and see the nudge do nothing.
 
-**Still outstanding:** upload 1.4.9 / 37 to Internal testing and confirm Play Console's
-Obfuscation figure actually moves off 1% — the number is computed by Play, not by us, so the
-local 93% is strong evidence but not the acceptance criterion.
+**Still outstanding:** confirm Play Console's Obfuscation figure actually moves off 1% — the
+number is computed by Play, not by us, so the local 93% is strong evidence but not the
+acceptance criterion.
+
+**Note (2026-11-01):** 1.4.9 / 37 was never uploaded, so its content ships inside **1.5.0 /
+versionCode 38** alongside Task 16.1. That makes 38 the **first build on which R8 is exercised on
+a device at all** — the IAP plugin's five `@PluginMethod` names were checked against
+`mapping.txt` and are preserved, but every other R8 consequence is unverified on hardware.
 
 ---
 
 ## Task 16.3 — Onboarding redesign
 
-**Status:** Not started — unblocked. **Scoped as a design-first task (decided 2026-09-25):** the
-onboarding narrative gets designed before it gets built, and **Q3 is answered inside that design**
-rather than ahead of it. · **Ref:** §10 · **Blocked by:** 16.2 (needs the nudge flow to hand off
-to — satisfied) · **Size:** L
+**Status:** **Code complete 2026-11-01.** Designed first (as decided 2026-09-25), then built in
+the same session once the design was signed off. **Q3 answered inside that design: inline.**
+Remaining is a device run and Hindi copy sign-off. · **Ref:** §10 · **Size:** L
 
 **Why:** Current onboarding is RSVP-calibration-first, built entirely under the pre-pivot speed-reading identity. Full-surface redesign, not a copy tweak.
 
 **Steps**
-- [ ] Extract `renderOnboarding()` (currently `views/settings.js:176`) into a new `www/js/views/onboarding.js`; register it in `index.html` and keep the `app.js:91` routing intact.
-- [ ] Lead with the **reading-habit** pitch. Engines stay in the app and may still be introduced, but de-emphasized.
-- [ ] Explain the nudge concept in plain language **before** any permission ask — the user must understand *why* FlowRead watches for app-opens before being sent to a settings page. Poor framing here tanks grant rates and trust.
-- [ ] **Design the flow first, then build it.** Product-owner decision 2026-09-25: this is a
+- [x] Extract `renderOnboarding()` (currently `views/settings.js:176`) into a new `www/js/views/onboarding.js`; register it in `index.html` and keep the `app.js:91` routing intact.
+- [x] Lead with the **reading-habit** pitch. Engines stay in the app and may still be introduced, but de-emphasized.
+- [x] Explain the nudge concept in plain language **before** any permission ask — the user must understand *why* FlowRead watches for app-opens before being sent to a settings page. Poor framing here tanks grant rates and trust.
+- [x] **Design the flow first, then build it.** Product-owner decision 2026-09-25: this is a
       narrative redesign (§10 calls it a full-surface redesign, not a copy tweak), and the
       permission question below is a consequence of the narrative, not an input to it.
-- [ ] **Q3 — inline vs deferred permission ask — is decided as part of that design**, not
+- [x] **Q3 — inline vs deferred permission ask — is decided as part of that design**, not
       pre-answered. §10.2 still applies: implement it as a configurable/testable point rather
       than a hardcoded assumption, and review before calling the task done.
       **Interim behaviour today:** N14's per-choice ask (each permission requested at the moment
       the setting needing it is switched on) plus N4's one-time home card. Whichever way the
       design goes, that card in `upload.js` should be absorbed or replaced — a comment there
       points here.
-- [ ] End on Free Books — the user finishes already reading, or one tap from it. No empty import screen.
-- [ ] Keep an honest-limitations screen, repositioned to fit the new narrative rather than removed (§1.5, §10.1).
-- [ ] Every string through `t()` into `en.json` + `hi.json` **from day one**, not retrofitted (§17, §10.1).
+- [x] End on Free Books — the user finishes already reading, or one tap from it. No empty import screen.
+- [x] Keep an honest-limitations screen, repositioned to fit the new narrative rather than removed (§1.5, §10.1).
+- [x] Every string through `t()` into `en.json` + `hi.json` **from day one**, not retrofitted (§17, §10.1).
 
 **Files:** NEW `www/js/views/onboarding.js` · `www/js/views/settings.js` (remove onboarding) · `www/js/app.js` · `www/index.html` · `www/js/storage.js` · `www/i18n/*.json` · `www/css/components.css`
 
-**Done when:** A fresh install reaches "reading something" without touching the import screen, Hindi is complete, and the permission-flow variant is toggleable.
+### The flow as built — 2026-11-01
+
+Four screens, three when the nudge is skipped or unavailable. `_sequence()` is recomputed on
+every render rather than being a fixed list, so choosing or clearing an app changes how many
+screens exist and index-based navigation stays correct in both directions.
+
+| | Screen | Job |
+|---|---|---|
+| 1 | **intro** | "Read more. Scroll less." The habit pitch, one privacy line, and an explicit **EN / हिंदी** choice. |
+| 2 | **nudge** | The mechanic in plain language, the escape hatch promised up front, then **one app** chosen via the existing picker modal. |
+| 3 | **permissions** | Only if an app was chosen. Live-state rows for accessibility + overlay. |
+| 4 | **ready** | Daily reminder toggle, a link to the relocated limitations, then into Free Books. |
+
+**Q3 resolved: inline** (owner, 2026-11-01) — the higher-conversion, higher-friction option, on
+the grounds that the nudge *is* the pivot and a user who never sets it up has a plain reader. Two
+things carry that choice:
+
+- **The ask follows the app choice**, so it reads "FlowRead needs to notice when you open
+  Instagram" rather than something abstract. The service does nothing without a target anyway.
+- **Nothing dead-ends.** The forward button reads *Not now* until the grants are in, and backing
+  out of the disclosure or the settings screen returns to the same screen.
+
+**Onboarding does not restate the prominent disclosure.** It calls `openAccessibilitySettings()`
+and lets N29's choke-point guard do it — one copy of that text in one place is the whole point of
+N29. The screen motivates and defers.
+
+**Three removals, each reversing something the old flow did:**
+- **The RSVP calibration.** It tuned one engine of five, which a habit-first user may never open,
+  and asked for a judgement before the user had read a word to base it on. `defaultWpm` keeps its
+  default and the reader teaches it, where trying a speed costs a tap and means something. The
+  dead `calibrationSample` / `calibrationTiers` content went with it.
+- **The formats/engines list.** §10.1 keeps the engines but de-emphasised; a list of modes before
+  the first read is a catalogue, not an onboarding.
+- **The limitations wall.** §1.5 is not weakened — they moved to the Settings accordion, linked
+  from the last screen, and to the error modals that already explain scanned PDFs and legacy
+  encodings *at the moment they bite*. A caveat read when relevant is read; a wall of them on
+  screen three of four is not.
+
+**The notification permission is asked at the end, not with the accessibility one** — one heavy
+ask at a time. `fr_reminder_enabled` has always been opt-out, so the toggle defaulting on
+reflects existing behaviour rather than introducing a pre-ticked box, and Android's own dialog is
+the real consent gate. **If the user declines it, the stored setting is corrected to `false`**
+rather than left claiming reminders are on (§1.5). No time picker: 21:00 was already the default
+and picking a time is another judgement with no basis yet.
+
+**N4's home card is kept, not absorbed** — `shouldPromptSetup()` is false as soon as any app is
+chosen, so it now reaches only someone who skipped the onboarding step. The inline ask buys grant
+rate at the cost of a harder refusal, and without the card a user who declined during onboarding
+would never be offered the pivot feature again. One card, dismissible, never repeated.
+
+**Two analytics events added** (§9.6 allowlist, owner-approved): `onboarding_completed` and
+`nudge_permission_granted`. Inline was chosen *for* grant rate, and a grant rate needs a
+denominator. A decline needs no event: it is completed minus granted. `nudge_permission_granted`
+is emitted from the stored permission state, not from whether a button was pressed, so a grant
+made by wandering into Settings mid-onboarding counts the same.
+
+**Verified off-device:** 37 assertions driving the real flow in a stub DOM — sequence computation
+for all three shapes, the app pick inserting the permission screen, live grant state, the Hindi
+toggle re-rendering with no missing keys, the disclosure *not* being duplicated, the handoff into
+Free Books, and both the granted and declined notification paths. i18n parity holds at 590 keys
+and every `t()` key in the app resolves.
+
+**Not verified, needs the device:** the real accessibility round-trip from inside onboarding, the
+POST_NOTIFICATIONS dialog, and how screen 2 looks with a long app list on a small screen.
+
+### Device round 1 — 2026-11-02 (1.5.1 / 39)
+
+**O1 — "Browse books" did nothing. ✅ fixed.** The last screen awaited
+`NotificationsFeature.requestPermission()` before handing off, and on device that promise never
+settled, so the await never returned and the view never switched. **No error was shown because
+there was nothing to catch:** a promise that never settles is not a rejection, so `app.js`'s
+global boundary never fired — the button was simply inert. `reschedule()` is ruled out as the
+culprit since it runs on every boot without stalling.
+
+The real defect was structural, not the specific call: **finishing onboarding had no business
+depending on the notification subsystem being healthy.** Three changes, so the class of bug
+cannot come back:
+
+- The permission request is **fire-and-forget**. It records the grant (and corrects
+  `fr_reminder_enabled` to `false` on a decline, §1.5) whenever it answers, and logs if it never
+  does. Nothing waits on it.
+- `_finish()` is now **fully synchronous** — nothing in it can block the handoff.
+- `_handoff()` **switches the view before rendering** and falls back to the home screen if Free
+  Books throws, so a catalogue failure can never strand the user on a finished onboarding screen
+  with a dead button.
+
+Covered by six new assertions: the never-settling plugin, a throwing plugin, no plugin at all,
+and a throwing Free Books — all of which must still leave the user somewhere they can act.
+
+**O2 — the reminder toggle is gone from the last screen** (owner, 2026-11-02).
+`fr_reminder_enabled` is already opt-out, so asking the user to confirm something that is on by
+default was a decision with no consequence; the only thing they actually have to answer is
+Android's own dialog, which still gets asked. The owner's original complaint was the **Settings**
+notification section and its time picker — that is a separate piece of work and Settings was
+deliberately left untouched.
+
+**Done when:** A fresh install reaches "reading something" without touching the import screen, and
+Hindi is signed off.
 
 ---
 
@@ -1612,8 +1806,8 @@ The permission is denied by default at API 33+ for non-alarm-clock apps, and not
 
 | Block | Tasks | State |
 |---|---|---|
-| **A — Compliance** | ✅ 16.0a, ✅ 16.0b · 16.1 open | Shipped as 1.4.5 / versionCode 32, published 2026-09-16. 16.1 blocked on Q1 to finish, not to start. |
-| **B — Pivot core** | ✅ 16.2 (shipped to Internal testing) · 16.3 | **16.2 is on Internal testing as 1.4.8 / 36 (2026-10-13)** — both hard gates cleared, declaration submitted, privacy policy live. N22–N28 moved the threshold onto the current sitting and made the nudge fire *during* one; N29 closed a disclosure gap the declaration form surfaced. Before that: N1–N16 over four device rounds. **Remaining: the device checklist (never run) and production promotion.** 16.3 unblocked but design-first and owner-led. |
+| **A — Compliance** | ✅ 16.0a, ✅ 16.0b, ✅ 16.1 (code complete) | Shipped as 1.4.5 / versionCode 32, published 2026-09-16. **16.1 went code complete 2026-11-01** once Q1 settled; it is not on a build yet and wants a license-tester device run. |
+| **B — Pivot core** | ✅ 16.2 (shipped to Internal testing), ✅ 16.3 (code complete 2026-11-01) | **16.2 is on Internal testing as 1.4.8 / 36 (2026-10-13)** — both hard gates cleared, declaration submitted, privacy policy live. N22–N28 moved the threshold onto the current sitting and made the nudge fire *during* one; N29 closed a disclosure gap the declaration form surfaced. Before that: N1–N16 over four device rounds. **Remaining: the device checklist (never run) and production promotion.** **16.3 is code complete 2026-11-01** — designed then built, Q3 answered inline, onboarding extracted into its own view file. |
 | **C — Features** | ✅ 16.9, ✅ 16.7, ✅ 16.6 (shipped to Internal testing) · 16.8, 16.4, 16.5, 16.10 open | 16.9 and 16.7 verified in 1.4.7 (2026-09-20); 16.7's copy still needs Q6 sign-off. **16.6 is on Internal testing in 1.4.8** — N25 added covers and extension-free titles. Outstanding: the native share path and the PDF page-one cover on a real device, plus Q10 copy. 16.4/16.5 still need Q4/Q5. **16.10 is now the active product task** — the store listing is being rewritten onto the habit framing, which is wider than the India CSL this task was originally scoped as. |
 | **D — Housekeeping** | ✅ H1, ✅ H2, ✅ **H4** · H3 substantially done | **H4 verified on a Play build 2026-09-20 — the revenue blocker is closed.** H3's fix is live and scheduling works; only the two denial-path checks remain. |
 
@@ -1638,7 +1832,7 @@ Why it, now that Q3 has been answered:
 - **It compounds with what just shipped.** 16.9 put in-progress books at the top of home and 16.6
   made progress shareable; a widget puts the current book one tap from the launcher. All three
   attack the same friction — the distance between wanting to read and reading.
-- **16.1 stays blocked** on Q1 pricing; 16.4/16.5 on Q4/Q5; 16.10 wants 16.3's screenshots.
+- **16.1 is code complete** (2026-11-01) and wants a device run, not more design; 16.4/16.5 stay on Q4/Q5; 16.10 wants 16.3's screenshots.
 
 **Worth noting:** three features — 16.2, 16.6 and the H4 copy fix — are now sitting on `master`
 unreleased, and 1.4.7 is still on Internal testing. 16.2 additionally cannot ship at all until the
@@ -1656,7 +1850,7 @@ queue is getting further ahead of the release queue with each task.
   included) before it gets built. Product work, not currently blocking engineering.
 - **16.6 (Share stats)** — ✅ built 2026-09-25, Q10 and Q11 both answered. Owes only a **device
   test** of the native `Filesystem` → `Share` path.
-- **16.1 (Subscription IAP)** — still blocked on Q1 pricing, but materially cheaper now that H4 gave the purchase flow a real error taxonomy.
+- **16.1 (Subscription IAP)** — ✅ code complete 2026-11-01. H4's error taxonomy carried straight over, and two new codes joined it (`OFFER_NOT_LOADED` for an inactive base plan, plus per-type query errors). Remaining: the device checklist in 16.1, Hindi sign-off, privacy-policy and store copy for a subscription product.
 
 ---
 

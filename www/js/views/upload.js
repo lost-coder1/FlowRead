@@ -28,10 +28,14 @@ function renderUpload() {
         <!-- Populated by renderLibrary() -->
       </div>
 
-      <!-- One-time nudge setup offer. Deliberately a single card rather than a
-           first-boot walk through three system settings screens (Claude.md
-           §9.4a). Whether this ask belongs in onboarding at all is Q3 / Task
-           16.3 — that rebuild should absorb or replace this. -->
+      <!-- One-time nudge setup offer, and since Task 16.3 (2026-11-01) it is the
+           second chance rather than the first ask: onboarding now asks inline
+           (§10.2), so shouldPromptSetup() — which is false as soon as any app is
+           chosen — shows this card only to someone who skipped that step. That
+           is deliberately kept, not absorbed away: the inline ask buys higher
+           grant rates at the cost of a harder refusal, and a user who declines
+           during onboarding would otherwise never be offered the pivot feature
+           again. One card, dismissible, never repeated (§9.1). -->
       <div id="nudge-setup-prompt" class="nudge-setup-prompt" hidden>
         <p class="nudge-setup-title">${t('nudge.prompt.title')}</p>
         <p class="nudge-setup-body">${t('nudge.prompt.body')}</p>

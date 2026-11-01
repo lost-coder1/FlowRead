@@ -5,8 +5,15 @@ const AppState = {
   currentIndex: 0,       /* current word position across all engines */
   wpm: 260,
   settings: {},
-  isPro: false,
-  isSubscriber: false,  /* Claude.md §4 — independent of isPro; always false until Task 16.1 */
+  isPro: false,       /* derived gate: "has paid for anything still good" — either tier.
+                         NOT the lifetime purchase; that is ownsLifetime below. */
+  ownsLifetime: false,  /* the one-time pro_lifetime purchase specifically */
+  isSubscriber: false,  /* an active flowread_plus subscription. Stored and read
+                           independently of ownsLifetime (§4) — either alone unlocks
+                           everything that exists today, but the monthly book drops
+                           will need to tell the two apart. */
+  subscriptionRenewing: false,  /* false for a cancelled subscription still inside the
+                                   period it was paid for — entitled, but don't re-offer */
   isPlaying: false,
   currentView: 'view-upload',
   currentEngine: 'rsvp',
