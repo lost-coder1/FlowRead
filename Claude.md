@@ -1,8 +1,18 @@
 # FlowRead — Build Manual for Claude Code
 
 > **READ THIS ENTIRE FILE BEFORE WRITING ANY CODE.**
-> Single source of truth. If something isn't covered here, ask the user before improvising.
-> This document was substantially rewritten to reflect a strategic pivot (see Section 0.1) and to capture urgent Play Store compliance requirements (Section 3). Older phase-by-phase implementation notes for already-shipped work have been compressed into Section 18 ("Work Completed So Far") — the code itself is the source of truth for exact implementation details of completed work; this file specifies what's still being built and why.
+> The contract. If something isn't covered here, ask the user before improvising.
+>
+> **Three documents, one rule for which is which:**
+> - **`Claude.md`** (this file) — what the product *is* and the constraints that bind it. Spec and
+>   reasoning, not status. Rewritten for the pivot (§0.1); §18 summarises shipped phases, and the
+>   code is the authority on their details.
+> - **`Tasks.md`** — the live board. What is open, what it waits on, and every decision taken.
+> - **`Tasks-archive.md`** — completed work and resolved device findings. Nothing in it is current.
+>
+> **The split rule:** anything that would change a future decision belongs here or in `Tasks.md`;
+> a record of an action already taken belongs in the archive. Status narrative does not belong in
+> this file.
 
 ---
 
@@ -119,23 +129,30 @@ it will silently never be committed.
 
 Both Play Console notices are cleared. Retained as a record of what was done and why, not as outstanding work. **Historical note worth keeping:** the Aug 31 2026 deadline was *missed* — it had already passed when this work began on 2026-09-16, leaving the app unable to publish any update. A Play Console extension (Policy status → extension form, available until Nov 1 2026) covered the gap. The lesson is that a dated compliance item in this document needs acting on well before the date, not at it.
 
-### 3.1 Google Play Billing Library — done
-Billing **7.1.1 → 9.1.0**. Went past the required v8 minimum because v8 carries all the breaking changes and v9 removed no APIs, so the migration cost was identical and the runway longer.
+### 3.1 Billing Library 7.1.1 → 9.1.0 — done
 
-- Only one source change was required in `FlowReadIapPlugin.java`: `queryProductDetailsAsync` now hands back `QueryProductDetailsResult` rather than `List<ProductDetails>`. Call `getProductDetailsList()`. Products Play cannot fetch are reported separately via `getUnfetchedProductList()` instead of being silently absent — **currently unused; worth surfacing rather than letting a missing product fail silently.**
-- Verified in production: restore purchases resolves existing `pro_lifetime` / `ocr_vision` entitlements.
-- **Verified:** restore purchases in production, and — via the H4 investigation — the changed `queryProductDetailsAsync` path itself, since Play's purchase sheet (`ProxyBillingActivity`) only opens if product details resolved and `launchBillingFlow` returned OK.
-- **Still unverified:** completing a fresh purchase (blocked by Task H4) and the silent `USER_CANCELED` handling. Confirm both while fixing H4.
-- Subscription support (Section 4) was **not** folded into this pass, contrary to the original plan here — the compliance fix was shipped alone to stop the bleeding. Task 16.1 remains open.
+Went past the required v8 minimum because v8 carries all the breaking changes and v9 removed no
+APIs, so the migration cost was identical and the runway longer. One source change was needed:
+`queryProductDetailsAsync` now returns `QueryProductDetailsResult` — call `getProductDetailsList()`,
+and products Play cannot fetch come back separately via `getUnfetchedProductList()` rather than
+being silently absent. **Surface those rather than letting a missing product fail silently** (16.1
+now does).
 
-### 3.2 Target API Level — Android 16 (API 36) — done
-`compileSdk`/`targetSdk` **35 → 36**, shipped and verified on a real Android 16 device.
+### 3.2 Target API 36 — done
 
-- **These live in `android/variables.gradle`, not `android/app/build.gradle`** — the earlier text here was wrong and cost time.
-- This was not a one-line bump. compileSdk 36 needs AGP ≥8.9, which Capacitor 6 does not ship, so it required **Capacitor 6.2.1 → 8.5.2** across every `@capacitor/*` package plus keep-awake, **AGP 8.2.1 → 8.13.0**, **Gradle 8.2.1 → 8.13**, and **Java 17 → 21**. Budget accordingly for the next SDK bump.
-- **`minSdk` 22 → 24** is forced by `org.apache.cordova:framework:14.0.1`, which Capacitor 8 pulls in. Dropped support for API 22–23 (Android 5.1 and 6.0 Marshmallow) — 1,641 device models per Play Console. The Cordova bridge is an empty shell (this project has zero Cordova plugins), so the dependency could in principle be stripped to restore 22, but Capacitor 8 officially requires 24 and `npx cap sync` regenerates the module, so the override would silently revert.
-- Regression-tested on device at API 36: `FlowReadDeviceSyncPlugin` (MediaStore), `FlowReadOcrPlugin` (Latin + Devanagari), share intent, all five engines including Page mode, and notification scheduling. `FlowReadNudgePlugin` does not exist yet — **Section 9 must still test nudge detection against API 36 when built.**
-- `MANAGE_EXTERNAL_STORAGE` re-application (Section 18) is still open and should be evaluated against API 36 policy.
+`compileSdk`/`targetSdk` 35 → 36, verified on a real Android 16 device.
+
+- **These live in `android/variables.gradle`, not `android/app/build.gradle`.** The earlier text
+  here was wrong and cost time.
+- **Not a one-line bump, and budget the same next time.** compileSdk 36 needs AGP ≥8.9, which
+  Capacitor 6 does not ship, so it required Capacitor 6.2.1 → 8.5.2 across every `@capacitor/*`
+  package plus keep-awake, AGP 8.2.1 → 8.13.0, Gradle 8.2.1 → 8.13, and Java 17 → 21.
+- **`minSdk` 22 → 24** is forced by `org.apache.cordova:framework:14.0.1`, which Capacitor 8 pulls
+  in. Dropped ~1,641 device models. The Cordova bridge is an empty shell here (zero Cordova
+  plugins), but Capacitor 8 officially requires 24 and `npx cap sync` regenerates the module, so
+  an override would silently revert.
+- `MANAGE_EXTERNAL_STORAGE` re-application (§18) is still open and should be evaluated against
+  API 36 policy.
 
 ### 3.3 Build environment (required to build this project at all)
 - **JDK 21.** Capacitor 8's `capacitor-android` sets `sourceCompatibility 21` *without* a toolchain, so Gradle must genuinely run on 21 — toolchain config alone will not do it.
@@ -149,8 +166,6 @@ Billing **7.1.1 → 9.1.0**. Went past the required v8 minimum because v8 carrie
 
 ### Tiers
 
-| Tier | Price | What It Unlocks |
-|---|---|---|
 **Prices decided 2026-10-30.** The earlier split — Pro at $9.99, OCR as a $4.99 add-on, and a
 subscription holding the only unlimited nudge access — is superseded.
 
@@ -200,21 +215,9 @@ strategy; **revisit when the drops ship.**
 **~~Temporary deviation — free nudge-app limit is 2, not 1~~ — resolved 2026-11-01.** `FREE_APP_LIMIT` is back to 1 in `nudge-apps.js`, as Task 16.1 required. It was 2 from 2026-09-25 only because `hasSubscription()` was hardcoded false and nothing on sale could lift the gate, so at a limit of 1 *no user could ever select a second app* — making Section 9.7's scoped unlock unreachable in production and untestable on device. Lowering it takes an app away from existing two-app free users, so `syncToNative()`'s truncation is no longer silent: it names the dropped app once (Section 1.5), keyed to the packages dropped so it cannot re-fire every launch.
 
 ### Task — Subscription IAP (Phase 16)
-Extend `FlowReadIapPlugin` and `purchase.js` for the `flowread_plus` subscription alongside the repriced lifetime product. Subscriptions query separately from one-time products (`ProductType.SUBS`) and require selecting an **offer token** at purchase — the main structural difference from the existing flow.
 
-Keep subscription and lifetime as **separate entitlement flags** even though each alone currently unlocks everything: the monthly book drops will need to tell them apart, and collapsing them now would have to be undone then. This task must also **restore `FREE_APP_LIMIT` to 1** (see the temporary deviation above). Prices are settled — see the table.
-
-**Shipped 2026-11-01 (code complete, device test outstanding).** What the implementation settled, beyond the step list:
-
-- **The stored entitlements stay separate; the *gate* is a third, derived thing.** Every Pro surface in the app reads `AppState.isPro`, so leaving that as "owns the lifetime product" would have locked a subscriber out of the very features they had just paid for. `AppState.isPro` now means **"has paid for anything still good"** (either tier) and `AppState.ownsLifetime` is the lifetime purchase specifically. The Preferences keys are untouched and independent, which is what the separate-flags rule actually protects — the drops can gate on `isSubscriber` alone.
-- **A subscription is the first entitlement in this app that can stop being true**, which the sticky-`true` storage had no way to express. The rule: the subscription flag is only ever rewritten from a query Play *answered*. `queryPurchases` therefore reports `checkedTypes`, so "Play says you have no subscription" is distinguishable from "we could not ask" — revoking on the second would cut off a paying subscriber whose network dropped. One-time entitlements are granted but never revoked, as before. `refreshEntitlements()` runs unawaited at boot and on every resume, since a lapse is only ever visible on a resume.
-- **`subscription_cancelled` has no callback to hang off** — Play does not provide one. A `true`→`false` transition on a query it did answer is the only honest moment to emit it.
-- **Base plan IDs are not hardcoded.** Offers are classified by the billing period Play returns (`P1M`/`P1Y`), so renaming a base plan in Play Console cannot silently break the purchase. Offer tokens are never persisted — only valid for the query that produced them — so every purchase re-queries, and the native side re-resolves the token against current details rather than trusting what JS passed back.
-- **One paywall, not three** (owner decision 2026-10-30), with lifetime listed first and preselected. OCR has no paywall of its own any more and `buyOcr()` is retired — charging for something the same purchase now grants would be the H4 defect again. A base plan that is inactive in Play Console simply produces no row, rather than a row that opens a sheet and fails (Section 1.5).
-- **A lifetime owner is never shown the subscription** (owner decision 2026-10-30): until the drops exist there is nothing it could sell them. Revisit when the drops ship.
-- **⚠️ The subscription's one differentiator cannot be described yet.** Copy promising monthly book drops would be false — they are unbuilt (the accepted gap above). `paywall.plan.sub_extra` therefore says only what is true today: the plans unlock the same tools, paid over time instead of at once. **Rewrite this line when the drops ship** — it is the point at which the anchor framing starts describing itself accurately.
-
-
+Shipped 2026-11-01. See above for what it settled, and `Tasks.md` 16.1 for what the device still
+owes.
 
 ---
 
@@ -373,7 +376,7 @@ When the read-threshold is met, only the specific requested app unlocks — othe
 
 ---
 
-## 10. Onboarding Redesign — NEW
+## 10. Onboarding — rebuilt for the pivot (Task 16.3, 2026-11-01)
 
 The current onboarding (RSVP calibration screen, adaptive difficulty text, speed-reading-first framing per Section 18) was built entirely under the pre-pivot identity. It must be redesigned to match Section 0.1's new positioning. This is a full-surface redesign, not a copy tweak.
 
@@ -385,21 +388,32 @@ The current onboarding (RSVP calibration screen, adaptive difficulty text, speed
 - **Fully localized in Hindi from day one of the rebuild** — every onboarding string goes through `t()` into both `en.json` and `hi.json` from the start, not retrofitted after an English-only build (see Section 17, i18n rules).
 - **Retain the honest-limitations principle** (Section 1.5) — a limitations screen still belongs somewhere in or right after onboarding, just repositioned to fit the new narrative rather than removed.
 
-### 10.2 Open Design Question
-Whether the nudge permission ask is inline in first-run onboarding or deferred to a later "getting started" prompt is not decided — implement with this as a configurable/testable point, not a hardcoded assumption, and flag for product-owner review before considering this task done.
+### 10.2 Permission Placement — RESOLVED
 
-**Resolved 2026-09-25 as a matter of sequencing:** this question is answered *inside* the onboarding design, not ahead of it. The redesign is design-first — the narrative gets designed, then built — because the permission placement is a consequence of the narrative rather than an input to it.
-
-**Answered 2026-11-01: the ask is inline.** Owner decision, taking the higher-conversion and higher-friction option over deferral, on the grounds that the nudge is the pivot and a user who never sets it up has a plain reader. Two things carry that choice and must not be weakened:
+**The ask is inline** (owner, 2026-11-01), taking the higher-conversion and higher-friction option
+over deferral, because the nudge is the pivot and a user who never sets it up has a plain reader.
+Three things carry that choice and must not be weakened:
 
 - **The ask comes after the user has named an app**, never before. The permission screen can then say "FlowRead needs to notice when you open Instagram" instead of something abstract, and the accessibility service does nothing without a target anyway, since `packageNames` is narrowed to the user's own picks (§9.4a).
 - **Every route past it is skippable without dead-ending.** Declining must not cost the user the rest of the app. The forward button reads *Not now* until the grants are in, and backing out of the disclosure or the settings screen returns to the same screen rather than stalling.
 
-**Onboarding does not restate the prominent disclosure.** It calls `openAccessibilitySettings()`, which carries N29's guarantee at the choke point — one copy of that text, in one place, is the whole point of N29. The onboarding screen motivates and defers to it.
+- **Usage access is offered, never required** (§9.4a). It is a third, explicitly optional row and
+  must never gate the forward button. It is shown only when a trigger that uses it is on —
+  `triggers()` defaults to the threshold, and without the grant §9.3a's timed check cannot run at
+  all, so a new user would otherwise land in the degraded mode having never been asked.
+
+**Onboarding does not restate the prominent disclosure.** It calls `openAccessibilitySettings()`,
+which carries N29's guarantee at the choke point — one copy of that text, in one place, is the
+whole point of N29. The onboarding screen motivates and defers to it.
+
+**N4's home card is kept, not absorbed.** `shouldPromptSetup()` is false once any app is chosen,
+so it now reaches only someone who skipped the onboarding step — the inline ask buys grant rate
+at the cost of a harder refusal, and without the card a user who declined would never be offered
+the pivot feature again.
 
 ---
 
-## 11. Offline-Triggered Reading Notification — NEW
+## 11. Offline-Triggered Reading Notification — built (1.4.7)
 
 Extends the existing notification system (`notifications.js`, already shipping two types: primary daily reminder id `1001`, streak-protection nudge id `1002` — see Section 18). Adds a third trigger type, based on connectivity rather than time-of-day.
 
@@ -412,7 +426,7 @@ Extends the existing notification system (`notifications.js`, already shipping t
 
 ---
 
-## 12. Home Screen Widget — NEW, Android Only
+## 12. Home Screen Widget — not built yet, Android only
 
 ### Requirements
 - Android home-screen widget (`AppWidgetProvider` + `RemoteViews`) showing the user's most recent in-progress book — title, and reasonable progress indication (percentage or similar, keep it simple/legible at widget scale).
@@ -446,7 +460,7 @@ Badges tie to the monthly curated book drops — start with 1-2 badge types, exp
 
 ---
 
-## 15. Share Stats Feature — Built (Task 16.6, 2026-09-25); device test outstanding
+## 15. Share Stats Feature — built; device test outstanding
 
 Elevated in priority because it doubles as a distribution mechanic, not just retention — relevant given the product's current distribution-bottleneck stage (Section 22).
 
@@ -514,24 +528,39 @@ Phases 0–15 are functionally complete and shipped (Android versionCode 24–28
 
 ## 19. Current Phase — Phase 16: Reading Habit Pivot
 
-All items below are net-new, motivated by Section 0.1. The compliance tasks are done; the rest of the list is open.
+All items are net-new, motivated by §0.1.
 
-**Day-to-day task tracking lives in `Tasks.md` at the repo root** — status, blockers, per-task steps, decisions log, and the open-questions table. This section stays the authoritative list of *what* Phase 16 contains; `Tasks.md` tracks *where each item stands*. Keep them consistent.
+**This section is the authoritative list of *what* Phase 16 contains. `Tasks.md` tracks *where
+each item stands*** — status, blockers, per-task steps, the decisions log and the open-questions
+table. Completed detail and resolved device findings are in `Tasks-archive.md`. Keep the three
+consistent, and do not grow status narrative here: that is `Tasks.md`'s job.
 
-- [x] **Task 16.0a — API 36 target bump** (Section 3.2) — shipped in 1.4.5, versionCode 32, 2026-09-16
-- [x] **Task 16.0b — Billing Library upgrade** (Section 3.1) — shipped in 1.4.5; Billing 9.1.0
-- [x] **Task H4 — Pro purchase fails with a generic error.** Fixed 2026-09-16, **verified on a Play-distributed build 2026-09-20** (1.4.7 / versionCode 34): fresh purchase, restore, and the already-owned case all behave correctly. The revenue blocker is closed. One follow-up noted in `Tasks.md` — the already-owned case resolves via the JS fallback rather than the plugin's primary recovery path; user-facing outcome is correct either way. Reported 2026-09-16 on 1.4.5: unlocking Pro shows "Purchase could not be completed." **Not a Billing 9 regression** — logcat shows Play's `ProxyBillingActivity` opening, so `queryProductDetailsAsync` and `launchBillingFlow` both succeeded; the non-OK code comes back through `onPurchasesUpdated`. Most likely `ITEM_ALREADY_OWNED` (restore had just run, so the account already owns `pro_lifetime`), which the plugin collapses into a generic failure — meaning a customer who *does* own Pro is told their purchase failed. Root defect: every non-OK `BillingResponseCode` funnels into one string in `FlowReadIapPlugin.onPurchasesUpdated` and again in `purchase.js:_handlePurchaseError`, so failures are indistinguishable to user and developer alike (violates Section 1.5). Fix the error taxonomy, not just the symptom. **Do together with Task 16.1** — same purchase flow. Full detail in `Tasks.md`.
-- [x] **Task 16.1 — Subscription IAP** (Section 4) — **code complete 2026-11-01.** Unblocked by the 2026-10-30 pricing decision. `ProductType.SUBS` queries and the offer-token purchase path in `FlowReadIapPlugin`, real `hasSubscription()`, a `refreshEntitlements()` that can revoke a lapsed subscription without revoking on a failed query, one unified paywall with lifetime preselected, OCR folded into lifetime with `ocr_vision` still honoured, `FREE_APP_LIMIT` restored to 1, and a Play-deeplink Manage subscription row for Section 1.3's one-tap cancellation. See Section 4 for what the implementation settled. **Remaining is not code:** a device test against a license tester (fresh subscribe on both base plans, cancel, lapse, restore, and the lifetime regression flows), Hindi copy sign-off, and the privacy-policy/store-listing copy for a subscription product. Was meant to ship with 16.0b but was deliberately deferred so the compliance fix could go out alone.
-- [x] **Task H3 — Notifications fail silently when exact-alarm permission is denied.** Fixed 2026-09-16, shipped in 1.4.7; scheduling confirmed working on device. Two denial-path checks remain unexercised (see `Tasks.md`). Note the original diagnosis was wrong — Capacitor 8's plugin already degrades exact→inexact; see `Tasks.md` for the corrected analysis. `notifications.js` schedules with `allowWhileIdle: true` (exact alarms), which Android denies by default for apps targeting 33+, and the failure is swallowed by a bare `catch`. Users without the grant get no reminders and no explanation — a direct violation of Section 1.5. Fix before Task 16.7, which builds on the same machinery.
-- [x] **Task 16.2 — Habit Interception System ("Nudge")** (Section 9) — **code complete 2026-09-25.** Built 2026-09-20, then hardened across four device-test rounds (N1–N16 in `Tasks.md`). Detection, the nudge screen, the escape hatch, the unlock prompt and the scoped return all work on hardware. The original blocker (N1) was a JSON key mismatch in the service→JS handoff; it is now read-render-clear across three idempotent paths. Also in: engine-agnostic unlock counting (every engine, not just Page mode), independent trigger toggles, a visible gate-status line with a reset, per-choice permission asks, session-based open detection, and rotating habit-framing copy. Built on `AccessibilityService` per the Q8 sign-off in 9.4a, not `UsageStatsManager`. All six sub-steps landed: target-app picker, detection service + gate, trigger logic, nudge screen, scoped unlock, analytics pings. **Remaining work is not code:** one end-to-end device checklist run, Q9 copy/tone review plus Hindi sign-off, the Play Console Accessibility API declaration, and the privacy-policy update. `analytics-ping.js` ships inert until the Cloudflare Worker endpoint exists. **Field round 2026-10-06 (N22–N24, N26–N28), after several weeks of real use — all fixed, none device-verified.** The minutes threshold only ever fired at the start of a session, so it reported time instead of interrupting it (N22, fixed per §9.3a with navigation re-checks plus one pending timed check; N28 then found that timed check measuring itself against a usage-stats figure that does not tick while the user is inside the app, so a sitting is now timed by the wall clock). It also counted the whole day rather than the current sitting, which at small thresholds degenerated into "every open" and left Reset unable to clear the one number that mattered (N26 — §9.3 rewritten; this reverses what that section originally specified). Reading now pays the clock back and refunds a nudge against the cap (§9.2 step 8). A suppression earned before midnight survives it (N24), and an open no longer loses its short grace to the threshold's long one when both triggers are on (N27). **Shipped to Internal testing as 1.4.8 / versionCode 36 on 2026-10-13**, with the Play accessibility declaration submitted and the privacy policy live — both hard gates cleared. Filling in that declaration surfaced **N29**: the prominent disclosure guarded only the master toggle while two other controls reached the grant without it, a gap no existing user could have hit (see §9.4a). **What is left on this task is not engineering:** the device checklist (items 1–16) has still never been run end to end, and production promotion.
-- [x] **Task 16.3 — Onboarding Redesign** (Section 10) — **code complete 2026-11-01.** Designed first (decided 2026-09-25), then built. Extracted out of `settings.js` into `www/js/views/onboarding.js` as §10 specifies. Four screens, or three when the nudge is skipped or unavailable: *what this is* (with an explicit EN/हिंदी choice), *the nudge explained then one app chosen*, *the permissions that app needs*, *the daily reminder then straight into Free Books*. **§10.2 resolved: the permission ask is inline**, owner decision 2026-11-01. Three things removed — the RSVP calibration, the formats/engines list, and the limitations wall. Remaining: device run and Hindi copy sign-off.
-- [ ] **Task 16.4 — Monthly Curated Book Drops** (Section 4, Section 13 pipeline) — rotation/update mechanism (bundled vs. remote-fetched catalog) needs product-owner input.
-- [ ] **Task 16.5 — Opt-In Leaderboard & Badges** (Section 14)
-- [x] **Task 16.6 — Share Stats Feature** (Section 15) — **code complete 2026-09-25.** Card, sheet, both always-available entry points and both milestone triggers built and verified against the real app CSS. Free for everyone, not Pro-gated (see Section 15). **Remaining: a device test of the native `Filesystem` → `Share` path, the Q10 copy/Hindi sign-off, and Q11.** **2026-10-06 (N25):** the card now carries the book's cover and its extension-free title (§15). The PDF page-one render is the one piece that could not be verified off-device — headless Chrome cannot run pdf.js under virtual time — so it is the thing to watch in the device run; it falls back to the typographic cover on failure or after 4 seconds. **Shipped to Internal testing in 1.4.8 / 36 (2026-10-13)**, so the native share path and the PDF cover can now be exercised on a real device.
-- [x] **Task 16.7 — Offline-Triggered Reading Notification** (Section 11) — shipped in 1.4.7 and device-verified 2026-09-20. Q6 copy still needs sign-off.
-- [ ] **Task 16.8 — Home Screen Widget** (Section 12)
-- [x] **Task 16.9 — Home Screen Reorder (Friction Fix)** — done 2026-09-16, shipped in 1.4.7. — move active/in-progress files to the top of the home screen, above Free Books and the import grid. Small, self-contained, ship independently and early.
-- [ ] **Task 16.10 — Store listing rewrite onto the habit framing** — Play Console config task, no app code. **Widened 2026-10-13:** originally scoped as the India custom store listing alone, this is now the *main* listing too — title, short and full description, screenshots and feature graphic all still sell the pre-pivot speed reader (§0.1). The nudge is in a build for the first time, so the listing can finally describe what the product actually is. Still needs two missing screenshots (Free Books catalog, Page mode), and new ones showing the nudge screen and the share card.
+| Task | What it is | § | Status |
+|---|---|---|---|
+| **16.0a** | API 36 target bump + the toolchain upgrade it forced | 3.2 | ✅ 1.4.5 / 32 |
+| **16.0b** | Play Billing 7.1.1 → 9.1.0 | 3.1 | ✅ 1.4.5 / 32 |
+| **16.1** | Subscription IAP (`flowread_plus`) alongside the repriced lifetime product | 4 | ✅ code complete; device test, Hindi and store/privacy copy outstanding |
+| **16.2** | Habit interception — the pivot mechanic | 9 | ✅ code complete, on Internal testing; **checklist never run**, not promoted |
+| **16.3** | Onboarding redesign onto the habit pitch | 10 | ✅ code complete; device run and Hindi outstanding |
+| **16.4** | Monthly curated book drops | 4, 13 | ⬜ needs Q4 (count; bundled vs remote catalog) |
+| **16.5** | Opt-in leaderboard & badges | 14 | ⬜ needs Q5 (backend approach) |
+| **16.6** | Share stats card | 15 | ✅ code complete, on Internal testing; device test of the native share path + PDF cover outstanding |
+| **16.7** | Offline-triggered reading notification | 11 | ✅ 1.4.7, device-verified; Q6 copy outstanding |
+| **16.8** | Home screen widget | 12 | ⬜ **next engineering task**; needs Q7 (classic vs Glance) |
+| **16.9** | Home screen reorder (in-progress books first) | — | ✅ 1.4.7 |
+| **16.10** | Store listing rewrite onto the habit framing | 0.1 | ⬜ **next product task**; now the main listing, not just the India CSL |
+| **H3** | Notifications failed silently without exact-alarm permission | 1.5 | ✅ 1.4.7 |
+| **H4** | Pro purchase failed with a generic error | 1.5 | ✅ verified on a Play build; revenue blocker closed |
+| **R8** | DEX optimization / obfuscation | — | ✅ done locally (1% → 93%); Play-side figure unconfirmed |
+
+**Two notes that outlived their tasks and still constrain work:**
+
+- **H4's real defect was the error taxonomy**, not the symptom: every non-OK
+  `BillingResponseCode` collapsed into one string, so a customer who *owned* Pro was told their
+  purchase failed. 16.1 is built on the taxonomy that replaced it — keep it.
+- **H3's original diagnosis was wrong.** Capacitor 8's LocalNotifications plugin already degrades
+  exact → inexact on its own, so `SCHEDULE_EXACT_ALARM` was *removed* rather than requested.
+  Don't re-add it.
 
 ### Open items requiring product-owner input during Phase 16
 - ~~Exact nudge default thresholds~~ — **resolved 2026-09-20: 15 min / 2 pages. See 9.2.**
@@ -569,14 +598,28 @@ Before any new dependency. Before changing palette or typography. Before adding 
 
 ## 22. Project Status
 
-- **Current phase:** Phase 16 — Reading Habit Pivot (Section 19). Task tracking in `Tasks.md`.
-- **Most recent work:** **Task 16.1 (Subscription IAP) went code-complete 2026-11-01**, unblocked by the 2026-10-30 pricing decision — `flowread_plus` at ₹149/mo and ₹999/yr, lifetime repriced to ₹2,999 and widened to include OCR, one unified paywall with lifetime preselected, and `FREE_APP_LIMIT` back to 1. Not yet on a build; needs a device test against a Play license tester. Before that: **1.4.8 / versionCode 36 went to Internal testing on 2026-10-13** — the first build carrying the pivot mechanic (16.2) and the share card (16.6), and the first to ship an `AccessibilityService` at all. Both hard release gates are cleared: the Play accessibility declaration is submitted with its disclosure video, and the privacy policy is live. It also carries the 2026-10-06 field round (N22–N28), whose substantive change is a reversal — the minutes threshold now counts the **current sitting** and fires **during** it, where §9.3 had specified cumulative daily time evaluated at the next open — plus **N29**, a disclosure gap that filling in the Play declaration is what exposed.
-- **Immediate priority:** **Task 16.8 (Home screen widget)** for engineering, and the **store-listing rewrite** (Task 16.10, now broader than the India CSL it was scoped as) for product. 16.3 is design-first and owner-led; 16.4/16.5 are on their own open questions. **16.1 is code complete (2026-11-01) and now wants a device test** against a license tester — subscribe on both base plans, cancel, lapse, restore, plus the lifetime regression flows — alongside Hindi copy sign-off and privacy-policy/store copy for a subscription product. **The two things actually standing between 1.4.8 and production are not engineering:** the device checklist has never been run end to end (deferred twice, items 1–16 — battery is the one with no data behind it at all), and the release has to be promoted. Production is still on 1.4.5.
-- **Android versionCode:** **38 (versionName "1.5.0")** — built 2026-11-01 carrying Task 16.1 (subscription IAP) plus the never-uploaded content of 1.4.9/37 (R8, N31–N34) and 1.4.6/33 and 1.4.7/34. Previously: **36 (versionName "1.4.8")** — on Internal testing 2026-10-13; **not yet promoted to production**, where 32 / 1.4.5 is still live. 1.4.6 (33) and 1.4.7 (34) never left Internal testing, so 1.4.8 carries their content too. targetSdk 36, minSdk 24, Capacitor 8.5.2, Billing 9.1.0, `@capacitor/network` 8.0.1, `@capacitor/share` 8.0.2. Verify against actual Play Console state before assuming current.
-- **Minimum Android:** 7.0 (API 24) as of 1.4.5, raised from 5.1 (API 22). Dropped ~1,641 device models (Section 3.2).
-- **Build requirements:** JDK 21 and Node ≥22 — see Section 3.3 before attempting a build on a new machine.
-- **Target platforms:** Android first. iOS store setup not started. No iOS path planned for the nudge system or home screen widget specifically.
+- **Current phase:** Phase 16 — Reading Habit Pivot (§19). Day-to-day tracking in `Tasks.md`;
+  completed detail in `Tasks-archive.md`.
+- **Latest build:** **1.5.2 / versionCode 40** (2026-11-02), carrying 16.1 (subscription IAP) and
+  16.3 (onboarding redesign). A subscription purchase has completed on a clean license-tester
+  account. **Verify against actual Play Console state before assuming current.**
+- **Production is still 1.4.5 / 32.** Builds 33, 34, 36, 37, 38, 39 and 40 have never left
+  Internal testing — which means the entire pivot is unreleased.
+- **The three things between here and production, none of them engineering:** the 16.2 device
+  checklist (items 1–16, never run end to end, deferred four times — battery has no data behind
+  it at all); privacy policy and store listing describing a subscription and the habit framing
+  (Task 16.10); and the promotion itself. 1.5.x is also the first build where **R8 actually runs
+  on a device**.
+- **Immediate priority:** **16.8 (home screen widget)** for engineering, **16.10** for product.
+- **Toolchain:** targetSdk 36, minSdk 24 (7.0, raised from 5.1 in 1.4.5 — dropped ~1,641 device
+  models), Capacitor 8.5.2, Billing 9.1.0, `@capacitor/network` 8.0.1, `@capacitor/share` 8.0.2.
+  **JDK 21 and Node ≥22 required** — read §3.3 before building on a new machine.
+- **Target platforms:** Android first. iOS store setup not started, and no iOS path is planned for
+  the nudge system or the widget.
 - **Target launch of pivot:** TBD — quality over speed.
-- **Distribution context (for product decisions, not implementation):** the product is currently in a distribution-bottleneck stage, not a retention or monetization-bottleneck stage — this is why the share-stats feature (Section 15) is prioritized partly for distribution value, and why Phase 16 favors mechanics with plausible organic/viral reach alongside pure retention plays.
+- **Distribution context (for product decisions, not implementation):** the product is in a
+  **distribution** bottleneck, not a retention or monetization one. That is why the share card
+  (§15) is prioritized partly for reach, and why Phase 16 favours mechanics with plausible
+  organic spread alongside pure retention plays.
 
 *This document is the contract. Update it before changing direction, not after.*

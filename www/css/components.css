@@ -661,6 +661,12 @@
   gap: 2px;
 }
 
+.onboarding-perm-optional {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
 .onboarding-perm-on {
   font-family: var(--font-mono);
   font-size: 13px;

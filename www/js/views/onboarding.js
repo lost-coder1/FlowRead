@@ -140,14 +140,39 @@ const OnboardingFlow = (function() {
     const pkg = _chosenApp();
     const label = pkg ? NudgeAppsFeature.labelFor(pkg) : '';
     const rows = [
-      { id: 'accessibility', granted: state.accessibility,
+      { id: 'accessibility', granted: state.accessibility, required: true,
         label: t('settings.nudge.perm_accessibility'),
         note:  t('settings.nudge.perm_accessibility_note') },
-      { id: 'overlay', granted: state.overlay,
+      { id: 'overlay', granted: state.overlay, required: true,
         label: t('settings.nudge.perm_overlay'),
         note:  t('settings.nudge.perm_overlay_note') },
     ];
-    const allGranted = rows.every(function(r) { return r.granted; });
+
+    /* Usage access, offered and never required (§9.4a). Without it §9.3a's timed
+       check cannot run at all — it needs isForeground() to prove the user has
+       not already left, and a timer firing without that proof is the ambush N19
+       was about — so the threshold trigger degrades to firing only on
+       navigation events, missing exactly the person sitting still on one feed.
+       That is the case N22/N28 existed to fix, and `triggers()` defaults to
+       MODE_THRESHOLD, so a new user lands in the degraded mode by default and
+       was never told. Asking here costs a row on a screen they are already on,
+       at the one moment they have just understood why FlowRead watches for
+       app-opens.
+
+       Shown only when a trigger that actually uses it is on, matching what
+       Settings asks for — never ask for a permission the user's own
+       configuration has no use for. */
+    const wantsUsage = typeof NudgeFeature.hasTrigger === 'function' &&
+                       NudgeFeature.hasTrigger(NudgeFeature.MODE_THRESHOLD);
+    if (wantsUsage) {
+      rows.push({ id: 'usage', granted: state.usageAccess, required: false,
+                  label: t('settings.nudge.perm_usage'),
+                  note:  t('settings.nudge.perm_usage_note') });
+    }
+
+    /* Only the required pair decides whether this screen is satisfied. An
+       optional grant must never be what stands between the user and Continue. */
+    const ready = rows.every(function(r) { return !r.required || r.granted; });
 
     return `
       <div class="onboarding-screen">
@@ -161,7 +186,9 @@ const OnboardingFlow = (function() {
                  two surfaces should look like one feature, and the note sits as
                  a sibling paragraph there rather than inside the label. */
               return `<div class="settings-row nudge-perm-row">
-                  <span class="settings-row-label">${escapeHtml(r.label)}</span>
+                  <span class="settings-row-label">${escapeHtml(r.label)}${
+                    r.required ? '' : ' <span class="onboarding-perm-optional">' +
+                      escapeHtml(t('settings.nudge.perm_optional')) + '</span>'}</span>
                   ${r.granted
                     ? `<span class="onboarding-perm-on">${escapeHtml(t('settings.nudge.perm_on'))}</span>`
                     : `<button class="btn btn-ghost settings-inline-btn" data-grant="${r.id}">${
@@ -170,11 +197,11 @@ const OnboardingFlow = (function() {
                 <p class="settings-copy text-muted nudge-perm-note">${escapeHtml(r.note)}</p>`;
             }).join('')}
           </div>
-          ${allGranted ? `<p class="onboarding-note">${escapeHtml(t('onboarding.perm.granted'))}</p>` : ''}
+          ${ready ? `<p class="onboarding-note">${escapeHtml(t('onboarding.perm.granted'))}</p>` : ''}
           <div class="onboarding-actions">
             <button class="btn btn-ghost" id="btn-onb-back">${escapeHtml(t('btn.back'))}</button>
-            <button class="btn ${allGranted ? 'btn-primary' : 'btn-ghost'}" id="btn-onb-next">${
-              escapeHtml(allGranted ? t('btn.continue') : t('onboarding.btn.not_now'))}</button>
+            <button class="btn ${ready ? 'btn-primary' : 'btn-ghost'}" id="btn-onb-next">${
+              escapeHtml(ready ? t('btn.continue') : t('onboarding.btn.not_now'))}</button>
           </div>
         </div>
       </div>`;
@@ -275,8 +302,9 @@ const OnboardingFlow = (function() {
           const id = btn.getAttribute('data-grant');
           btn.disabled = true;
           try {
-            if (id === 'accessibility') await NudgeFeature.openAccessibilitySettings();
-            else                        await NudgeFeature.openOverlaySettings();
+            if (id === 'accessibility')  await NudgeFeature.openAccessibilitySettings();
+            else if (id === 'usage')      await NudgeFeature.openUsageAccessSettings();
+            else                          await NudgeFeature.openOverlaySettings();
           } catch (_) {}
           /* Backing out of the disclosure or the settings screen resolves false
              and lands here, so re-rendering is what reflects either outcome. */
