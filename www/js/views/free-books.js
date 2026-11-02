@@ -116,6 +116,12 @@ var FreeBooksView = (function() {
       'classics':         t('freebooks.cat.classics'),
       'buddhism':         t('freebooks.cat.buddhism'),
       'biography_history':t('freebooks.cat.biography_history'),
+      'poetry':           t('freebooks.cat.poetry'),
+      'history_politics': t('freebooks.cat.history_politics'),
+      'science_fiction':  t('freebooks.cat.science_fiction'),
+      'drama':            t('freebooks.cat.drama'),
+      'essays':           t('freebooks.cat.essays'),
+      'strategy':         t('freebooks.cat.strategy'),
     };
     return map[cat] || cat;
   }

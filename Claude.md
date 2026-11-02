@@ -445,6 +445,47 @@ Classic `AppWidgetProvider`/`RemoteViews` vs. Jetpack Glance — default to the 
 ### 13.1 Status
 Implemented (Phase 15). 88 curated books in `www/data/free-books.json`, region-aware sorting, language tabs, category filters, auto-OCR for catalog entries, full i18n.
 
+### 13.2 Legal Sourcing — What May Enter the Catalogue
+
+The rule §4, §14 and §21 all point at. Written 2026-11-03; it was cited from the day the catalogue
+existed and was never actually in this document, so for three months the one constraint meant to
+keep this project away from legal exposure on book content pointed at nothing.
+
+**Two source types are allowed, and nothing else:**
+
+1. **Public domain.** Verified by the *edition's* status, not the work's age — a 1890 text in a
+   2015 translation is a 2015 copyright. Check the author's death date against the term in the
+   country of publication, and check the specific edition being linked.
+2. **Works whose licence permits redistribution** — CC-BY, CC-BY-SA, or an explicit written grant
+   from the rights holder. A licence that forbids derivatives is still fine here; the app
+   redistributes the text unchanged.
+
+**"Free to read" is not "free to re-host."** This is the distinction that actually matters, and
+the one that is easy to get wrong in good faith. A publisher putting a PDF on their own site for
+anyone to download grants no redistribution right whatsoever. Reading it is permitted; serving a
+copy from somewhere else is publishing it. The absence of a paywall is not a licence.
+
+**Linking and hosting are different legal positions.** The 23 off-site catalogue entries
+(`castefreeindia.com`, `mkgandhi.org`, `tipitaka.org`, `archive.org`) are *references* to someone
+else's server — FlowRead is not the distributor. Serving the same file from a domain this project
+controls makes it the publisher. Both are acceptable; **they are not interchangeable**, and moving
+a book from the first to the second is a legal change, not a hosting change.
+
+**Non-negotiable, regardless of convenience:** Z-Library, Library Genesis, Anna's Archive, and any
+equivalent shadow library. Not as a source, not as a mirror, not as a fallback, not "just for the
+ones we cannot find elsewhere."
+
+**Per-book provenance is deliberately not recorded** (owner, 2026-11-03). It was proposed as a
+catalogue field and declined for both the bundled 88 and the monthly drops. The consequence to
+accept knowingly: a future challenge on any single book has to be answered by re-deriving why that
+edition was clear, which is harder the further it is from the day it was added. The mitigation is
+that this section's allowlist is narrow enough that a book outside it should never have been added
+in the first place.
+
+**Monthly drops (§4, Task 16.4) are bound by this section exactly as the bundled catalogue is.**
+A drop is new content on infrastructure this project controls, which is the publisher position
+above — so the licence question is not "may I read this" but "may I serve this," every time.
+
 ### 13.3 Known Issue — RESOLVED
 Previously: catalog entries with `fileType: "html"` failed with a download error. The catalog now holds only `pdf` (23) and `txt` (65) entries and `free-books.js` branches on exactly those two, so there is nothing left to fix. **If you add a catalog entry, it must be `pdf` or `txt`** — an `html` entry would hit the PDF parser and fail.
 
@@ -540,7 +581,7 @@ consistent, and do not grow status narrative here: that is `Tasks.md`'s job.
 | **16.0a** | API 36 target bump + the toolchain upgrade it forced | 3.2 | ✅ 1.4.5 / 32 |
 | **16.0b** | Play Billing 7.1.1 → 9.1.0 | 3.1 | ✅ 1.4.5 / 32 |
 | **16.1** | Subscription IAP (`flowread_plus`) alongside the repriced lifetime product | 4 | ✅ code complete; device test, Hindi and store/privacy copy outstanding |
-| **16.2** | Habit interception — the pivot mechanic | 9 | ✅ code complete, on Internal testing; **checklist never run**, not promoted |
+| **16.2** | Habit interception — the pivot mechanic | 9 | ✅ **code complete and device-verified** (checklist 1–16 passed 2026-11-02 on 1.5.3 / 41, R8 active); not promoted |
 | **16.3** | Onboarding redesign onto the habit pitch | 10 | ✅ code complete; device run and Hindi outstanding |
 | **16.4** | Monthly curated book drops | 4, 13 | ⬜ needs Q4 (count; bundled vs remote catalog) |
 | **16.5** | Opt-in leaderboard & badges | 14 | ⬜ needs Q5 (backend approach) |
@@ -605,12 +646,14 @@ Before any new dependency. Before changing palette or typography. Before adding 
   account. **Verify against actual Play Console state before assuming current.**
 - **Production is still 1.4.5 / 32.** Builds 33, 34, 36, 37, 38, 39 and 40 have never left
   Internal testing — which means the entire pivot is unreleased.
-- **The three things between here and production, none of them engineering:** the 16.2 device
-  checklist (items 1–16, never run end to end, deferred four times — battery has no data behind
-  it at all); privacy policy and store listing describing a subscription and the habit framing
-  (Task 16.10); and the promotion itself. 1.5.x is also the first build where **R8 actually runs
-  on a device**.
-- **Immediate priority:** **16.8 (home screen widget)** for engineering, **16.10** for product.
+- **Between here and production, neither thing engineering:** privacy policy and store listing
+  describing a subscription and the habit framing (Task 16.10), and the promotion itself. The
+  16.2 device checklist (items 1–16) is **done — run and passed 2026-11-02 on 1.5.3 / 41**, the
+  first build with **R8 active on a device**, after four deferrals; item 9 (battery) showed no
+  measurable idle drain.
+- **Immediate priority:** **16.10 (store listing + privacy policy)**, which is now the only thing
+  standing between the finished pivot and production. **16.8 (home screen widget)** is the next
+  engineering task, deliberately queued behind the release.
 - **Toolchain:** targetSdk 36, minSdk 24 (7.0, raised from 5.1 in 1.4.5 — dropped ~1,641 device
   models), Capacitor 8.5.2, Billing 9.1.0, `@capacitor/network` 8.0.1, `@capacitor/share` 8.0.2.
   **JDK 21 and Node ≥22 required** — read §3.3 before building on a new machine.

@@ -8,7 +8,10 @@ decision taken. Completed work and resolved device findings live in
 **[Tasks-archive.md](Tasks-archive.md)**. The split rule: anything that would change a future
 decision stays here or in `Claude.md`; a record of an action already taken goes to the archive.
 
-**Last updated:** 2026-11-02 — **1.5.2 / versionCode 40** built, carrying **16.1 (subscription
+**Last updated:** 2026-11-02 — **16.2's device checklist is done**: all sixteen items run and
+passed on device against **1.5.3 / versionCode 41**, with R8 active for the first time. Item 9
+(battery) showed no measurable idle drain. The nudge system now has no open engineering or
+verification work — only promotion. Earlier the same day, **1.5.2 / versionCode 40** was built, carrying **16.1 (subscription
 IAP)** and **16.3 (onboarding redesign)**. A subscription purchase completed on a clean
 license-tester account; onboarding's O1 (a dead *Browse books* button, caused by awaiting a
 notification promise that never settled) is fixed. Taglines across splash, home and onboarding
@@ -17,15 +20,39 @@ reader. Usage access is now offered as an explicitly optional row on onboarding'
 screen, because `triggers()` defaults to the threshold and without that grant §9.3a's timed
 check cannot run at all, so a new user was landing in the degraded mode unasked.
 
+**✅ 1.5.4 / versionCode 42 IS IN PRODUCTION (2026-11-02).** The pivot is released. Production had
+been on 1.4.5 / 32 since September with builds 33–42 stuck in Internal testing; that backlog is
+cleared in one promotion. Release notes in `release-notes-1.5.4.txt` (six locales, all within
+Play's 500-char limit). **Still owed on the listing: 8 screenshots and the 1024×500 feature
+graphic** — planned in `screenshots-and-books-plan.md`, and not a gate, which is why they did not
+hold the release.
+
+**Release order, decided 2026-11-02:** **promote the build and publish the listing text in the
+same sitting; screenshots follow within the week.** Screenshots are conversion surface, not a
+correctness gate — stale ones cost installs, they do not make the listing false — and they can
+only honestly be captured from the build being shipped, so waiting inverts the order. The text,
+however, **must not go live ahead of the build**: a listing describing the nudge while production
+is 1.4.5 promises a feature the installed app does not have. **Promote at a 20% staged rollout** —
+this is the first time R8 and the accessibility service reach production at all, and the battery
+checklist passed on one device rather than a fleet.
+
 **The three things between here and production, none of them engineering:**
-1. The **16.2 device checklist** (items 1–16) has still never been run end to end — deferred
-   four times. 1.5.x is also the first build where **R8 actually runs on a device**.
-2. **Privacy policy and store listing** must describe a subscription and the habit framing
-   (Task 16.10). Hard gate on selling `flowread_plus`.
+1. ~~The **16.2 device checklist**~~ — ✅ **run and passed 2026-11-02** against 1.5.3 / 41, with
+   R8 active. All sixteen items, battery included. No longer a gate.
+2. **Store listing** must describe the subscription and the habit framing (Task 16.10). Hard gate
+   on selling `flowread_plus`. The **privacy policy is done** — rewritten 2026-11-02 and now
+   version-controlled as `privacy_policy.html` — but it still has to be **published to the hosted
+   URL**, and **Play Console Data safety must be re-filed** (a separate form; editing the policy
+   does not touch it).
 3. **Production promotion.** Production is still on **1.4.5 / 32** — builds 33, 34, 36, 37, 38,
    39 and 40 have never left Internal testing, which includes the entire pivot.
 
-Next engineering task: **16.8 (home screen widget)**. Next product task: **16.10**.
+**2026-11-03 — Q4 resolved and 16.4 Phase A shipped.** `Claude.md` §13.2 now exists, and the 6
+unlabelled category chips are fixed. The catalogue work is re-scoped into four phases (see Task
+16.4): growth for free users, drops for subscribers, deliberately not the same job. **Next
+engineering task: 16.4 Phase B** — the Gutenberg batch, which ships alone with no backend.
+**16.8 (home screen widget) is deferred by the owner until the app has traction.** Next product
+task: **16.10**'s remaining screenshots + feature graphic.
 Earlier status entries are in the archive.
 
 **Status legend:** `Not started` · `In progress` · `Blocked` · `Done`
@@ -62,6 +89,11 @@ Earlier status entries are in the archive.
 | 2026-10-13 | **`isAccessibilityTool` stays unset (false), and the declaration says "App functionality" with no sensitive data collected.** | FlowRead is not an assistive tool for users with disabilities and claiming otherwise is a fast rejection. "No sensitive data" is defensible on the facts: the only input is a package name the user picked, it never leaves the device, and §9.6's closed allowlist keeps package names out of analytics. **That last clause is load-bearing — an event carrying a target package name would make the declaration wrong.** |
 | 2026-10-06 | **A completed read refunds one nudge against the daily cap** (N23), on top of zeroing the clock. | Asked and answered by the product owner. Resetting a clock the gate has no nudges left to act on is theatre — the user would read, earn their fresh minutes, and never be interrupted again that day. The cap still holds between reads, so the only way past it is to have read. |
 | 2026-10-06 | **Share-card covers are offline-only** (N25): PDF page one, else a typographic cover. | 65 of 88 catalogue books have a real cover, but as a remote Gutenberg URL with no CORS headers — fetching it would taint the canvas and fail the export outright, and the workaround adds a network path to a feature that has none. §1.1 and the §15 "works on a plane" promise both point the same way. |
+| 2026-11-03 | **`Claude.md` §13.2 written**, and **per-book provenance declined** with the cost recorded in it. | The section was cited by §4, §14 and §21 — including the rule that governs book sourcing — and was not in the document. Writing it before the catalogue grows is the whole point; after a book is added it is an audit, not a constraint. Provenance was proposed as a field and declined by the owner for both the bundled 88 and the drops, which makes §13.2's allowlist the only thing standing between the project and a legal question about one book. That is a narrower margin, so the margin is written down. |
+| 2026-11-03 | **Catalogue growth and monthly drops are separate tasks**, not one rotation mechanism. | §4 grants the free tier the *full catalog*, so a drop can never be one of the bundled 88 moved behind the paywall. Different audience, different source, different file. Merging them would have made the paywall boundary arbitrary and taken books off free users to populate it. |
+| 2026-11-03 | **Q4: 3 drops/month; `catalog.json` hand-edited on public GitHub; book files in the WP media library; the existing 23 stay where they are.** | The owner's requirement was that a monthly drop never need an app release, and that the editing surface not be code. WordPress blocks `.json` uploads but accepts `.txt`/`.pdf`, so splitting the two puts each file where it can actually live. GitHub additionally gives version history, so a broken edit is diffable — which matters because the app's only safe response to malformed JSON is to fall back silently and say nothing. |
+| 2026-11-03 | **No `generateFileId` change, and the previously-proposed fix must not be applied.** | It was correct only while the 23 off-site books were expected to move. With them staying put, dropping `sourceUrl` from the seed would re-key all 88 and orphan the position of every current reader — causing precisely the damage it was written to prevent. Replaced by two rules: never edit an existing entry's `sourceUrl`, and give each new self-hosted book its final URL on day one. |
+| 2026-11-03 | **A drop's rotation hides the card, never the downloaded file** — and a lapsed subscription keeps what it downloaded. | The file is on the user's device and they paid for the month in which they got it. Reclaiming it would be the clearest §1.3 violation available to this product. The cost is that "rotating, not cumulative" is true of the catalogue and not of any individual user's library, which is the right way round. |
 | 2026-09-16 | **Strict `Claude.md` order** — compliance block fully verified on a real device before any feature work starts. No parallel nudge development. | §3.3 sequencing. Avoids re-testing feature work against a shifting toolchain. |
 
 ---
@@ -75,7 +107,7 @@ Each is tagged with whether it blocks *starting* the task or only *finishing* it
 | ~~Q1~~ | ~~Subscription price (monthly / annual)~~ | — | **Resolved 2026-10-30: ₹149/mo, ₹999/yr as `flowread_plus`; lifetime `pro_lifetime` repriced to ₹2,999 and widened to include OCR; `ocr_vision` retired from sale but honoured forever.** See 16.1. | §4 |
 | ~~Q2~~ | ~~Nudge default thresholds~~ | — | **Resolved 2026-09-20: 15 min / 2 pages, both settings** | §9.2, §9.3 |
 | ~~Q3~~ | ~~Is the nudge permission ask inline in onboarding or deferred?~~ | — | **Resolved 2026-11-01: inline**, and placed *after* the user names an app so the ask is concrete. Skippable throughout; N4's home card stays as the second chance for skippers. See Task 16.3. | §10.2 |
-| Q4 | Monthly book-drop count, and bundled vs. remote-fetched catalog | 16.4 | **Start** | §4, §13 |
+| ~~Q4~~ | ~~Monthly book-drop count, and bundled vs. remote-fetched catalog~~ | — | **Resolved 2026-11-03: 3 books/month, rotating. `catalog.json` hand-edited on a public GitHub repo (raw URL); book files uploaded to the WP media library. The existing 23 off-site books do not move.** No per-book provenance. See Task 16.4. | §4, §13 |
 | Q5 | Leaderboard backend — reuse the analytics Worker with a new endpoint, or something more structured? | 16.5 | **Start** | §14 |
 | Q6 | Exact copy/tone for the offline-triggered notification | 16.7 | Finish | §11 |
 | Q7 | Widget: classic `AppWidgetProvider` vs. Jetpack Glance | 16.8 | Finish — default to classic, evaluate briefly first | §12 |
@@ -84,6 +116,41 @@ Each is tagged with whether it blocks *starting* the task or only *finishing* it
 | ~~Q10~~ | ~~Share card / sheet / milestone copy + Hindi sign-off~~ | — | **Accepted as-is 2026-09-25 ("okay for now").** Owner-written Hindi may still replace the current Hinglish-register draft later; not a blocker. | §15 |
 | ~~Q12~~ | ~~Should the one-app limit stand while the subscription does not exist?~~ | — | **Resolved 2026-09-25: (b) — `FREE_APP_LIMIT` temporarily raised to 2.** ✅ **Restored to 1 by Task 16.1 on 2026-11-01**, with the truncation now surfaced rather than silent. | §4, §9.7 |
 | ~~Q11~~ | ~~Should sharing emit an analytics event?~~ | — | **Resolved 2026-09-25: yes.** `stats_shared` added to the `analytics-ping.js` allowlist, carrying the entry point only (`home` / `dashboard` / `milestone`) — never the book, the stat, or the app shared to. Inert until the Worker endpoint exists. | §9.6, §15 |
+
+---
+
+## ✅ Resolved finding — `Claude.md` §13.2 was missing
+
+Found 2026-11-02 while planning the WordPress book hosting; **§13.2 written 2026-11-03**.
+
+`Claude.md` cites **"the verified-legal sources in Section 13.2"** three times — §4's tier table,
+§14's rejected list, and **§21's stop-and-ask rule**, which is the rule that governs book sourcing.
+The section is absent: the document goes 13.1 → 13.3. So the one constraint meant to keep this
+project away from legal exposure on book content **points at nothing**.
+
+This was harmless while every book was a link to someone else's server. It stops being harmless
+the moment books are served from a domain the project controls, because that makes the project the
+**publisher** rather than a referrer.
+
+**Written 2026-11-03.** Two allowed source types (public domain verified on the *edition*, not the
+work's age; licences that permit redistribution), the load-bearing distinction that **"free to
+read" is not "free to re-host"**, linking and hosting recorded as different legal positions that
+are both fine but **not interchangeable**, shadow libraries out with no exception, and an explicit
+line binding the monthly drops to the same rule. **Per-book provenance was proposed and declined**
+(owner, 2026-11-03) for both the bundled 88 and the drops; §13.2 records what that costs — a
+challenge on one book must be answered by re-deriving why that edition was clear — so the
+allowlist is now the only thing doing that job.
+
+Related, and also found 2026-11-02: **`generateFileId('freebook', book.id, book.sourceUrl)` hashes
+the source URL**, so a book's identity is its location. Re-hosting any existing book orphans every
+reader's copy and position and leaves a duplicate in their library.
+
+**Closed by decision, not by code (owner, 2026-11-03): the existing 88 are not moving.** So
+nothing to fix — and the fix originally proposed here (drop `sourceUrl` from the seed) would now
+*cause* the damage it was meant to prevent, since re-keying all 88 orphans the positions of every
+current reader. **Do not apply it.** Two rules replace it: never edit the `sourceUrl` of an
+existing entry, and give every new self-hosted book its final URL on the day it is added. The trap
+only bites when a URL *changes*.
 
 ---
 
@@ -143,7 +210,10 @@ ships**, and rewrite `paywall.plan.sub_extra`, which deliberately promises nothi
 **Remaining — none of it is code:**
 - [ ] The device checklist below, against a Play **license tester**.
 - [ ] Hindi copy sign-off on the paywall strings (drafted, not owner-written).
-- [ ] Privacy policy + store copy describing a **subscription** product. Hard gate on production.
+- [~] Privacy policy + store copy describing a **subscription** product. Hard gate on production.
+      **Policy done 2026-11-02** (`privacy_policy.html`, rewritten — see 16.2). Still owed: it
+      must be **published to the hosted URL**, Data safety re-filed, and the **store listing**
+      copy (Task 16.10).
 
 **Device checklist (never run):**
 - [ ] Subscribe on the **monthly** base plan; Pro surfaces unlock, `fr_purchase_subscription` is `true`.
@@ -177,9 +247,9 @@ hard gates now cleared. Built 2026-09-20; hardened across four device rounds to 
 then **N29** found while filling in the Play declaration itself. The field round changed what the
 minutes threshold means: it fires *during* a sitting rather than reporting on the last one, and it
 counts the sitting rather than the day. §9.3 was rewritten to match.
-**Still open:** the end-to-end device checklist (items 1–16) was **deliberately deferred** to the
-Internal testing period rather than run before upload (owner's call, 2026-10-06) — so the field
-fixes are confirmed only by use, not by the checklist. Production promotion is also still open.
+**Device checklist run and passed 2026-11-02** against 1.5.3 / 41, with R8 active — four
+deferrals closed in one pass, including item 9 (battery), which had no data behind it at all.
+**Nothing engineering-side is open. The only thing left on 16.2 is production promotion.**
 Q2/Q8 resolved · **Ref:** §9, §9.3a, §9.4a, §1.6 · **Size:** XL — largest single feature in Phase 16
 
 **Why:** The core mechanic of the pivot (§0.1). Redirects time in distracting apps toward reading.
@@ -190,22 +260,26 @@ Q2/Q8 resolved · **Ref:** §9, §9.3a, §9.4a, §1.6 · **Size:** XL — larges
 
 ### Still open before this ships
 
-- [~] Device verification at API 36 — **four rounds run, 2026-09-21 to 2026-09-25.** Detection,
+- [x] Device verification at API 36 — **four rounds plus the full checklist, 2026-09-21 to
+      2026-11-02.** Detection,
       the nudge screen, the escape hatch, the unlock prompt and the scoped return are all
       confirmed working on hardware. Each round surfaced the next layer of behaviour, which is
       what N1–N16 are.
 - [x] **Fix N1–N16** — all sixteen done, 2026-09-21 to 2026-09-25. `:app:compileDebugJavaWithJavac`
       and `assembleDebug` clean, JS syntax clean, en/hi **532 keys each, full parity**.
 - [x] **Fix N22–N24, N26–N28** — field round 2026-10-06. `assembleDebug` clean, JS syntax clean,
-      en/hi **566 keys each, full parity**. **Not device-verified** — checklist items 12–16.
-- [ ] **Run the full device checklist (items 1–16).** Still outstanding, and now deferred twice:
-      first to the release test pass (2026-09-25), then past the upload itself (2026-10-06,
-      "testing later"). 1.4.8 went to Internal testing without it. Never exercised end to end:
-      scoped unlock with two targets (5), cold start (6), **battery (9)**, Hindi (10), the
-      Page-mode regression (11), and all of 12–16 from the field round.
-      **Item 9 is the one with no data behind it at all** — the timed in-session check is new, and
-      a Handler waking every ≤10 minutes to run a 6-hour `queryEvents` is the kind of thing Play
-      vitals notices before a developer does. Internal testing is the cheapest place to find out.
+      en/hi **566 keys each, full parity**. **Device-verified 2026-11-02** via checklist items 12–16.
+- [x] **Device checklist (items 1–16) — RUN AND PASSED on device, 2026-11-02.** All sixteen
+      items exercised end to end against **1.5.3 / versionCode 41**, after being deferred four
+      times. This is also the first device run with **R8 active**, so the obfuscated native
+      plugin surface (`FlowReadNudgePlugin`, the accessibility service, the IAP plugin) is
+      confirmed working rather than assumed. The items that had never been exercised against any
+      build — scoped unlock with two targets (5), cold start (6), **battery (9)**, Hindi (10),
+      the Page-mode regression (11) — and all of 12–16 from the field round are now covered.
+      **Item 9 finally has data behind it:** the timed in-session check and its ≤6-hour
+      `queryEvents` show no measurable idle drain, which was the one risk with no evidence either
+      way and the kind Play vitals would have surfaced before a developer did.
+      **16.2 has no open engineering or verification work left — only production promotion.**
 - [x] **Q9 — nudge copy and tone: signed off 2026-09-25.**
 - [x] **Play Console Accessibility API declaration — submitted 2026-10-13** against 1.4.8
       (versionCode 36), with the prominent-disclosure video. Declared **App functionality** only
@@ -216,12 +290,50 @@ Q2/Q8 resolved · **Ref:** §9, §9.3a, §9.4a, §1.6 · **Size:** XL — larges
       package name, this declaration becomes wrong and has to be amended.**
       Note the form does not live in App content: it is triggered by uploading a build containing
       the service, which is why 35 had to go up before it could be filled in.
-- [x] **Privacy policy — live 2026-10-13.** Covers the accessibility service (what it sees, what
-      it structurally cannot see, that the app list is user-chosen, that nothing leaves the
-      device), optional usage access, and the anonymous pings (§9.6) including `stats_shared`.
-      The pings are described although they are inert in this build, so the policy does not need
-      re-issuing when the Worker endpoint goes live — but Data safety **does**, and that is the
-      trigger for it.
+- [x] **Privacy policy — rewritten 2026-11-02, now in the repo as `privacy_policy.html`.**
+      **The 2026-10-13 entry here was wrong and overstated what was live.** That version did not
+      describe the §9.6 pings — it stated *"no analytics of any kind"* and *"no network requests
+      except in two specific cases"*, which denied them outright and also omitted Free Books
+      downloads. The claim that it would not need re-issuing when the Worker goes live was
+      therefore false: the policy contradicted the shipped allowlist rather than merely omitting
+      it. The accessibility section was also missing *"cannot read your screen"*, the single
+      disclosure the Play declaration rests on.
+      The rewrite covers: the accessibility service (what it receives, that screen reading is off
+      **in the service's own configuration** so it is not a choice FlowRead could make, that the
+      app list is user-chosen, that nothing is stored or transmitted); optional usage access and
+      what declining costs; the pings in full (the fixed event list, date-without-time, the
+      explicit never-included list, best-effort delivery); all five network cases; on-device OCR;
+      launcher-only app listing; and **the subscription** — Google Play as sole processor, only
+      yes/no entitlement flags stored locally, no receipts or tokens, cancellation via Play with
+      no step in front of it (§1.3).
+      **The policy now lives in the repo** so an amendment is a diff rather than archaeology, and
+      so the text that shipped with a given build is recoverable. **Publish it to the hosted URL —
+      that is a manual step and is not done by committing the file.**
+- [~] **Play Console Data safety — filed 2026-11-02, and must be re-filed once more.** The first
+      filing had to answer *collection is required*, because no opt-out existed. An opt-out was
+      then built the same day (below), so the answer becomes **Optional** — **re-file before
+      promoting**, since the form as it stands understates the user's control and reads badly on
+      a privacy-positioned listing.
+- [x] **Analytics opt-out — built 2026-11-02.** `fr_analytics_opt_out`, a toggle in Settings →
+      About, checked inside `logEvent()` on every call so it takes effect immediately rather than
+      at the next launch. Three properties worth keeping: the storage key is the opt-**out** while
+      the control reads as *share*, so absent means opted in and the checkbox still matches the
+      user's intent; a localStorage throw is treated as opted **out**, because a consent check is
+      the one place failing closed is correct; and it is deliberately **not** routed through
+      `updateSetting()`/`AppState`, because `AnalyticsPing` reads localStorage directly and a
+      second copy of a consent flag is a way for the two to disagree.
+      **Why it was built rather than filed around:** §1.1 calls the pings "opt-out-safe-by-design",
+      but that only ever meant *fails silently when offline* — there was no user-facing choice, so
+      Data safety had to say collection was required. For an app positioned on §1.4
+      privacy-by-architecture, that line is conspicuous on the listing.
+      Hindi is **drafted, not signed off** — same standing as the other 16.1/16.3 strings.
+- [ ] **Data safety, original note — still applies.** Editing the policy does not touch it; it is
+      a separate form. Two triggers now, not one: the subscription, and the pings. Recommended
+      declaration: **App activity → App interactions**, *not* linked to identity, *not* used for
+      tracking or advertising — filed **now**, while `ENDPOINT = ''` makes it over-declaration,
+      because the alternative is a declaration that silently becomes false on a one-character code
+      change nobody will connect to a compliance form. Declare **nothing** under financial info:
+      Google receives payment data, FlowRead never does.
 - [ ] **Cloudflare Worker endpoint** — `analytics-ping.js` has `ENDPOINT = ''` and is inert until one exists. This is a safe shipping state, not a bug.
 - [x] ~~Decide whether the nudge setup belongs in onboarding (Q3)~~ — **resolved 2026-09-25:
       answered inside Task 16.3's design, not ahead of it.** N14's per-choice ask is the interim
@@ -362,9 +474,81 @@ Prioritized partly as a **distribution** mechanic — the product's current bott
 
 ---
 
+## Task 16.11 — Settings + onboarding text reduction
+
+**Status:** ✅ Code complete 2026-11-02 · **Ref:** §1.5, §16, §17, §21 · **Size:** S–M
+
+**Why:** reported from use — every option on Settings carried a permanent explanatory paragraph,
+six of them in the nudge section alone, and onboarding's permission screen opened with 196
+characters of prose above three more notes. §1.5 asks for honest limitations, not for every
+explanation to be open at once; availability is the requirement, not simultaneity.
+
+**What was built**
+- **Inline disclosure (ⓘ).** One short line stays on screen per option; the full text — *the same
+  string that used to sit there permanently* — moves behind a tap. Nothing is deleted, so no
+  Hindi is lost and the only new translation is the short lines. `infoHint()` in `settings.js`,
+  `.settings-hint` / `.settings-info-btn` / `.settings-info-body` in `components.css`.
+- **Not a modal, deliberately** (§21 allows one at a time, and Settings has real ones — the app
+  picker, the paywall — this must not compete with). The button is a 2px-radius square, not the
+  conventional circular badge, because §16 rules out pills.
+- **Delegated handler on the view**, not per button: permissions, the reminder note and the mode
+  note all re-render their own markup, and a handler bound to a replaced node is a dead control.
+- **Applied settings-wide** (nudge, notifications, library, about) **plus onboarding screen 4**,
+  rather than to the two surfaces reported, to avoid a half-converted page carrying two patterns.
+- **All three permission surfaces now agree** — Settings, onboarding, and `nudge.js`'s prompt
+  modal share the short lines, which is what the "should look like one feature" note in
+  `onboarding.js` asked for. The long text's single home is the Settings ⓘ.
+
+**Two things kept deliberately visible**
+- **A denied or failed reminder permission.** That is the one case the user has to act on, so it
+  stays fully expanded; only the healthy note folds away (§1.5).
+- **The escape-hatch promise.** Its short line carries the guarantee itself ("every nudge has a
+  one-tap way to carry on anyway") and only the no-penalty elaboration folds. §21 makes the
+  hatch on the *nudge screen* non-negotiable; that screen is untouched by this task.
+
+**Two stale strings fixed in passing, both factually wrong rather than merely long**
+- `settings.nudge.intro` said *"already spent a while in it **today**"* — the day-cumulative model
+  §9.3 explicitly reversed on 2026-10-06. Now reads as a sitting.
+- `settings.about.privacy` said *"no analytics backend"*, which stopped being true when the
+  §9.6 pings shipped — and after the opt-out work it sat directly above a *"Share anonymous
+  usage counts"* toggle. Rewritten to describe what actually happens and point at the toggle.
+
+`onboarding.perm.body` (196 chars) is **removed**, not folded: `body_short` carries its substance
+and the accessibility specifics belong to the prominent disclosure (§10.2/N29), which is the one
+place that text should live.
+
+**i18n:** 599 keys, en/hi parity verified. **Hindi is drafted, not signed off** — 10 short lines
+plus the two rewrites, same standing as the other 16.1/16.3 strings (§17).
+
+**Second round, same day — both reported from the device:**
+
+- **The gate status was three lines of prose to say "0 of 2".** It joined up to five full
+  sentences, each written to be read on its own. Now one scannable line of counters —
+  `Instagram · 0/2 nudges · 12/15 min` — with the full sentences, unchanged, behind the ⓘ.
+  The day's total moves into the ⓘ rather than off the screen: §1.5 wants it available, because
+  a sitting figure far below the phone's own screen-time number reads as a bug, but it is context
+  and does not belong on the glance line. An **exceptional state stays visible** (`daily limit
+  reached`, `paused ~4 min`, `stopped until tomorrow`) — that is news, not explanation. The row
+  label dropped from *"Today so far"* to *"Today"*, since the line under it now says the rest.
+- **`Reset` did not look pressable — and nor did any other inline row button.** The cause is
+  that `.settings-inline-btn` is a `.btn-ghost`, which is `background: transparent` **and**
+  `border-color: transparent`, so in a settings row it rendered as muted text with no edge.
+  Reset, Grant, Change and Restore were all affected; Reset is simply the one next to a label
+  that reads like a heading. Fixed by giving inline row actions a face and an edge
+  (`--surface-2` / `--border`, accent on press), **scoped to `.settings-inline-btn.btn-ghost`**
+  rather than changed on `.btn-ghost`, which modals and onboarding rely on being invisible.
+
+**Device test owed:** the ⓘ expand/collapse on a real touch target, that a hint inside a `<label>`
+does not toggle its setting when the ⓘ is tapped, the Hindi line lengths at 400px, and that the
+compact status line does not wrap on a narrow screen in Hindi.
+
+---
+
 ## Task 16.8 — Home screen widget (Android only)
 
-**Status:** Not started — unblocked; Q7 needed to finish · **Ref:** §12 · **Size:** L
+**Status:** **Deferred (owner, 2026-11-03)** — revisit once the app has traction. Unblocked and ready; Q7 needed to finish · **Ref:** §12 · **Size:** L
+
+Not blocked by anything and not a dependency of anything. Deferred because it is polish for an app with an existing user base, and 16.4's drops close §4's revenue gap instead.
 
 **Steps**
 - [ ] Briefly evaluate classic `AppWidgetProvider`/`RemoteViews` vs. Jetpack Glance (Q7). **Default to classic** — consistent with the existing Java, no-Compose native plugin style. Flag if the evaluation says otherwise; don't force it.
@@ -380,20 +564,124 @@ Prioritized partly as a **distribution** mechanic — the product's current bott
 
 ---
 
-## Task 16.4 — Monthly curated book drops
+## Task 16.4 — Free-books catalogue growth + monthly curated drops
 
-**Status:** Blocked — **Q4 blocks start** · **Ref:** §4, §13 · **Size:** M
+**Status:** **Q4 resolved 2026-11-03. Phase A done; B, C, D open.** · **Ref:** §4, §13, §13.2 ·
+**Size:** M
 
-**Why:** The recurring value that justifies the subscription tier existing at all (§1.3).
+**Why:** The drops are the recurring value that justifies the subscription tier existing at all
+(§1.3) — §4's accepted gap closes when they ship. The catalogue growth (Phase B) is separate and
+is for *free* users.
 
-**Steps**
-- [ ] **Resolve Q4 first** — drop count (5/month is a placeholder) and bundled vs. remote-fetched catalog. The mechanism choice determines the whole implementation.
-- [ ] Extend `www/data/free-books.json` and `views/free-books.js` with a rotation mechanism. Rotating, **not cumulative** (§4).
-- [ ] Gate on `isSubscriber` (16.1).
-- [ ] **Legal sources only.** Z-Library or any non-legal sourcing is non-negotiable and out (§4, §13.2). Ask before sourcing from anything not already verified.
+### The constraint that shapes the whole task
+
+§4 grants the free tier the **full catalog**. So the 3 monthly books **can never be 3 of the
+bundled 88 moved behind the paywall** — that takes books away from free users, which is the one
+thing §4's "genuinely generous" clause rules out. **A drop is net-new content.** Catalogue growth
+and drops are therefore two different jobs with different audiences, different sources and
+different files, and must not be merged:
+
+| | Phase B — catalogue growth | Phase D — monthly drops |
+|---|---|---|
+| Audience | everyone, free, forever | subscribers only |
+| Source | gutenberg.org links, **not re-hosted** | owner-authored, WP-hosted files |
+| Lives in | bundled `www/data/free-books.json` | remote `catalog.json` |
+| Cadence | one-time batches | 3/month, rotating |
+
+### Q4's answers (owner, 2026-11-03)
+
+- **3 books per month**, rotating, not cumulative.
+- **`catalog.json` lives on a public GitHub repo**, hand-edited, read over its raw URL. **Book
+  files (`.txt`/`.pdf`) go in the WP media library** — WordPress rejects `.json` uploads but takes
+  `.txt` and `.pdf` without complaint, so each tool does the thing it is good at. Workflow:
+  upload book to WP → copy the media URL → paste it into the JSON on GitHub. **No app release for
+  a monthly drop, ever** — that was the owner's requirement and it is what the design is for.
+- **The existing 23 off-site books do not move.** The self-hosting phase in
+  `screenshots-and-books-plan.md` is cancelled — not to be confused with Phase B below, which is
+  the Gutenberg batch and reuses the letter.
+- **No per-book provenance field**, anywhere (§13.2 records the cost).
+
+**`CapacitorHttp` is enabled in `capacitor.config.json`**, which routes `fetch` through native and
+bypasses CORS entirely. That is why the Gutenberg downloads work today, and it means **the GitHub
+raw URL needs no CORS header**. This was the one thing that could have made the hand-edited-JSON
+plan impossible. Verified 2026-11-03.
+
+### Phases
+
+**A — Foundations. ✅ done 2026-11-03.**
+- [x] `Claude.md` §13.2 written (see the resolved finding above).
+- [x] The 6 missing category labels fixed — `poetry`, `history_politics`, `science_fiction`,
+      `drama`, `essays`, `strategy` rendered as **raw slugs** on the filter chips in both
+      languages, because `_categoryLabel()` mapped 6 of the catalogue's 12 categories. Had to land
+      before Phase B, which adds more categories and so more slugs.
+- ~~Add `provenance`/`drop` fields to the 88~~ — **dropped (owner):** the bundled 88 are fixed
+  links to other people's servers and nothing about them is changing. Retrofitting a field onto
+  data that does not need it.
+- ~~Make `_loadCatalog()` merge-capable~~ — **moved to Phase C**, where it belongs; it was one
+  change split into two for no reason.
+
+**B — Gutenberg batch (free users, ships alone, no backend). Next.**
+- [ ] One-time script against **Gutendex** (`gutendex.com/books?languages=en&sort=popular`)
+      emitting entries in the existing schema. URL patterns are already proven in the catalogue:
+      `cache/epub/<id>/pg<id>.txt` and `pg<id>.cover.medium.jpg`. All `fileType: "txt"`;
+      `_stripGutenberg()` already handles the header.
+- [ ] **Target ~88 → ~150, curated — not a dump.** A curated shelf *is* the feature; 60,000
+      undifferentiated public-domain titles is what every other free-books app already is, and it
+      makes the region-aware sort in `_sorted()` meaningless. `free-books.json` is also bundled in
+      the APK, so it is not free weight.
+- [ ] **Verify each candidate's `.txt` decodes as UTF-8** at build time. Gutenberg serves some
+      older texts as latin-1, which would mangle accented characters silently.
+- [ ] Any new category needs labels in both locales *and* a `_categoryLabel()` entry, or it
+      renders as a raw slug — the Phase A bug, re-introduced.
+
+**C — Remote catalogue.**
+- [ ] `_loadCatalog()` reads bundled + remote, dedupes on `id`, remote wins. The bundled file stays
+      in the app **forever as the offline floor** (§1.1) — a fresh install with no internet still
+      has a library. The remote file only ever *adds*.
+- [ ] **Cache-bust the request** (`?v=<timestamp>`). Without it an edit is invisible for hours and
+      "I updated it and nothing happened" becomes a monthly frustration. `raw.githubusercontent`
+      serves a ~5-minute cache, which is tolerable; WP's was not.
+- [ ] **Fail silently to the bundled 88** on any error — invalid JSON, no network, timeout. A
+      hand-edited file breaks on one trailing comma, and the user must never see an empty library.
+      Trade-off to accept knowingly: the owner gets no feedback that their edit was malformed.
+      A small local HTML form that emits valid JSON was offered and not taken up; revisit if
+      hand-editing proves error-prone.
+- [ ] **Privacy policy gains a line** — a catalogue fetch is a new network request, and the GitHub
+      /WP servers see IPs. §1.1 needs the exception recorded too.
+
+**D — Monthly drops.**
+- [ ] `drops` is a **flat array of 3 ids** in `catalog.json` — no month keys. The owner edits it to
+      this month's three; the app shows whatever is in it. A calendar in the file would be a
+      calendar the owner has to maintain.
+- [ ] **Never delete an entry from `books[]`** — only ever edit `drops`. A book that vanishes while
+      someone has it downloaded leaves the id-lookup paths with nothing to resolve. The file grows
+      3/month; 36 a year is nothing.
+- [ ] Gate on `AppState.isSubscriber` (16.1), **not** `isPro` — the drops are the one thing §4
+      makes subscription-only, and `isPro` is now true for lifetime owners too (see the 2026-11-01
+      decision).
+- [ ] **Rotation controls visibility, never a downloaded file.** A subscriber who downloads
+      December's book keeps it in January and forever; rotation only stops showing the card.
+      Deleting it would be indefensible. Same for a **lapsed subscription** — keeps what was
+      downloaded, loses future drops. The paywall copy must say so.
+- [ ] **Non-subscribers see drop cards locked, not hidden**, with a Plus badge that opens the
+      paywall. Hidden means nobody learns the subscription has recurring value, which is §4's
+      month-two cancellation problem restated.
 - [ ] New i18n keys both languages.
 
-**Files:** `www/data/free-books.json` · `www/js/views/free-books.js` · `www/i18n/*.json`
+### UI placement — decided 2026-11-03, needs owner confirmation on one half
+
+- **A "This month" shelf pinned to the top of the Free Books section** is the canonical home for
+  drops. Always present, above the language tabs.
+- **On home, a card only when the `drops` list has changed, only for subscribers, dismissing
+  itself once tapped.** Not a standing card: 16.9 deliberately reordered home to put in-progress
+  books first, and a permanent card pushes reading back down.
+- **Free users get no home card.** A monthly home-screen card advertising something they cannot
+  have is an upsell on the main screen — close enough to §4's rejected "in-app advertising" and
+  §1.3's dark-pattern line that the locked shelf inside the library is the honest version. A user
+  who opened the library is already looking for books. ⚠️ **Owner has not confirmed this half.**
+
+**Files:** `www/data/free-books.json` · `www/js/views/free-books.js` · `www/i18n/*.json` ·
+`privacy_policy.html` (Phase C) · NEW build script for Phase B (not shipped in the app)
 
 ---
 
@@ -414,9 +702,42 @@ Lowest priority in Block C — needs backend work beyond the anonymous pings.
 
 ---
 
-## Task 16.10 — India Custom Store Listing (messaging revision)
+## Task 16.10 — Store listing rewrite onto the habit framing
 
-**Status:** Not started — unblocked · **Ref:** §19, §18 · **Size:** S — Play Console config, **no app code**
+**Status:** **English copy drafted 2026-11-02** in **[store_listing.md](store_listing.md)** —
+title, short and full descriptions, all three measured against Play's hard limits (28/30, 71/80,
+**3960/4000**). Hindi and screenshots outstanding. · **Ref:** §0.1, §19, §18 · **Size:** S —
+Play Console config, **no app code**
+
+**Wider than the India CSL this task was originally scoped as**: this is now the main listing,
+because the pivot changed what the app *is*, not just how it is pitched in one region.
+
+**Three things in the draft that are decisions, not wording:**
+- **No prices in the copy.** Play shows them per region and the lifetime price is expected to rise
+  to ₹4,999 (§4) — hardcoding it buys a listing edit later.
+- **The escape hatch is in the third paragraph, not the fine print.** Burying it would attract the
+  users who want a hard blocker, who then leave one-star reviews on discovering it is not one
+  (§9.1).
+- **"No analytics" is claimed nowhere.** It was in the old privacy policy and stopped being true.
+
+**The book-drops line was cut, 2026-11-02 (owner).** The draft had sold monthly curated drops as
+a Plus feature while **16.4 is not built**. In the app §4 records that gap as accepted; in a
+listing it is a promise made to someone *before* they pay, which is a different thing. **Put it
+back when 16.4 ships, not before.** Full description now 3891/4000.
+
+**Outstanding**
+- [x] Data safety re-filed as **Optional**, 2026-11-02.
+- [~] Hindi title / short / full — **"okay for now" (owner, 2026-11-02)**, same standing as Q10:
+      the English listing can go live, and owner-written Hindi may replace the drafts later. The
+      India CSL leads with the habit framing, **not** a translation of the Phase 15 speed-reading
+      drafts (§18).
+- [ ] **Screenshots — 8 planned, captioned, in `store_listing.md`.** Play requires a minimum of 2
+      and allows 8; eight is conversion surface, not a gate, which is why it does **not** block
+      promotion. Capture from **1.5.4+** — taglines, the onboarding permission screen and the
+      whole Settings surface changed after 1.5.2. The first three carry the pivot alone, since
+      Play shows roughly three in search results: the nudge *with its escape hatch visible*, the
+      book catalogue, then the reader.
+- [ ] **Feature graphic, 1024×500** — required, and the thing listings actually get rejected for.
 
 **Steps**
 - [ ] Rewrite the CSL copy to lead with the **habit/nudge** angle. The Phase 15 drafts were written under the speed-reading identity, which underperformed with a real test audience — **do not treat old drafts as final** (§18).
@@ -474,8 +795,8 @@ Stale facts corrected in `Claude.md`.
 | Block | Tasks | State |
 |---|---|---|
 | **A — Compliance** | ✅ 16.0a, ✅ 16.0b, ✅ 16.1 (code complete) | Shipped as 1.4.5 / versionCode 32, published 2026-09-16. **16.1 went code complete 2026-11-01** once Q1 settled; it is not on a build yet and wants a license-tester device run. |
-| **B — Pivot core** | ✅ 16.2 (shipped to Internal testing), ✅ 16.3 (code complete 2026-11-01) | **16.2 is on Internal testing as 1.4.8 / 36 (2026-10-13)** — both hard gates cleared, declaration submitted, privacy policy live. N22–N28 moved the threshold onto the current sitting and made the nudge fire *during* one; N29 closed a disclosure gap the declaration form surfaced. Before that: N1–N16 over four device rounds. **Remaining: the device checklist (never run) and production promotion.** **16.3 is code complete 2026-11-01** — designed then built, Q3 answered inline, onboarding extracted into its own view file. |
-| **C — Features** | ✅ 16.9, ✅ 16.7, ✅ 16.6 (shipped to Internal testing) · 16.8, 16.4, 16.5, 16.10 open | 16.9 and 16.7 verified in 1.4.7 (2026-09-20); 16.7's copy still needs Q6 sign-off. **16.6 is on Internal testing in 1.4.8** — N25 added covers and extension-free titles. Outstanding: the native share path and the PDF page-one cover on a real device, plus Q10 copy. 16.4/16.5 still need Q4/Q5. **16.10 is now the active product task** — the store listing is being rewritten onto the habit framing, which is wider than the India CSL this task was originally scoped as. |
+| **B — Pivot core** | ✅ 16.2 (shipped to Internal testing), ✅ 16.3 (code complete 2026-11-01) | **16.2 is on Internal testing as 1.4.8 / 36 (2026-10-13)** — both hard gates cleared, declaration submitted, privacy policy live. N22–N28 moved the threshold onto the current sitting and made the nudge fire *during* one; N29 closed a disclosure gap the declaration form surfaced. Before that: N1–N16 over four device rounds. **Device checklist run and passed on device 2026-11-02** against 1.5.3 / 41 with R8 active — all sixteen items, battery included. **Remaining: production promotion only.** **16.3 is code complete 2026-11-01** — designed then built, Q3 answered inline, onboarding extracted into its own view file. |
+| **C — Features** | ✅ 16.9, ✅ 16.7, ✅ 16.6 (shipped to Internal testing) · 16.8, 16.4, 16.5, 16.10 open | 16.9 and 16.7 verified in 1.4.7 (2026-09-20); 16.7's copy still needs Q6 sign-off. **16.6 is on Internal testing in 1.4.8** — N25 added covers and extension-free titles. Outstanding: the native share path and the PDF page-one cover on a real device, plus Q10 copy. **Q4 is resolved (2026-11-03) and 16.4 Phase A has shipped**; 16.5 still needs Q5. **16.10 is now the active product task** — the store listing is being rewritten onto the habit framing, which is wider than the India CSL this task was originally scoped as. |
 | **D — Housekeeping** | ✅ H1, ✅ H2, ✅ **H4** · H3 substantially done | **H4 verified on a Play build 2026-09-20 — the revenue blocker is closed.** H3's fix is live and scheduling works; only the two denial-path checks remain. |
 
 **Merged to `master` as `33ed6d1` on 2026-09-20.** H4, H3, 16.9 and 16.7 all shipped in 1.4.7 (versionCode 34) and verified on a Play-distributed build. The revenue blocker is closed.
@@ -499,7 +820,7 @@ Why it, now that Q3 has been answered:
 - **It compounds with what just shipped.** 16.9 put in-progress books at the top of home and 16.6
   made progress shareable; a widget puts the current book one tap from the launcher. All three
   attack the same friction — the distance between wanting to read and reading.
-- **16.1 is code complete** (2026-11-01) and wants a device run, not more design; 16.4/16.5 stay on Q4/Q5; 16.10 wants 16.3's screenshots.
+- **16.1 is code complete** (2026-11-01) and wants a device run, not more design; **16.4 is unblocked and moving — Phase B next**; 16.5 stays on Q5; 16.10 wants 16.3's screenshots.
 
 **Worth noting:** three features — 16.2, 16.6 and the H4 copy fix — are now sitting on `master`
 unreleased, and 1.4.7 is still on Internal testing. 16.2 additionally cannot ship at all until the
