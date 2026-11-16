@@ -302,6 +302,35 @@ half is what carries it; without it the rule scores 81%. A missed break merges t
 paragraphs, which is no worse than the old behaviour. `।` counts as a sentence ending
 (§17). Free Books can be re-downloaded for an exact result.
 
+### 6.2 Chapter detection classifies paragraphs, not lines (added 2026-11-16)
+
+The same flatten broke the index. `detectChapters` judged each `rawLine` on its own, so a
+wrapped heading became several entries and any prose line beginning with the word "part"
+became a chapter — *Wealth of Nations* returned 207 chapters for a book with about 65, and
+99 of those were mid-sentence fragments. It takes the file now and groups through
+`ParagraphStructure`, so the index is built from the same boundaries Page mode renders.
+
+Four rules bind future work on it:
+
+1. **A heading is a short, standalone paragraph.** Not a line, and not a fragment of a
+   longer paragraph. Every rule passes that gate before any pattern is tried.
+2. **Anchored rules may be long; guessed ones may not.** A paragraph opening with a heading
+   word *and an ordinal* is a heading however long it runs (250 chars) — 18th-century
+   chapter titles are sentences in length. Everything inferred from capitalisation alone
+   keeps a tight bound (110), because there length is most of what separates a heading from
+   a sentence.
+3. **A sentence boundary needs two or more letters before the stop.** `Chapter I. The
+   Twin-Verses` numbers itself; it does not end a sentence. Testing the stop alone rejects
+   nearly every numbered heading there is, which is how this was first got wrong.
+4. **Shape-based rules are dropped when the numbered structure dominates.** A book that
+   numbers its chapters does not need guesses, and they only add things that look like
+   headings. A book of tales or poems has nothing stronger, so there they are the whole
+   index and must be kept. Do not make either half unconditional.
+
+**`\b` is ASCII-only in JavaScript** and never matches against a Devanagari letter, so
+`/^(अध्याय|भाग)\b/` is dead code — use a lookahead. This holds for any Devanagari regex in
+this codebase (§17), and it is invisible in testing until a Hindi book is opened.
+
 ---
 
 ## 7. Bridge System
@@ -655,7 +684,7 @@ consistent, and do not grow status narrative here: that is `Tasks.md`'s job.
 | **16.9** | Home screen reorder (in-progress books first) | — | ✅ 1.4.7 |
 | **16.12** | Page-mode pagination rewrite; restores §9.5's nudge entry | 5.1 | ✅ code complete; device run outstanding |
 | **16.13** | Paragraph structure end to end; Page mode becomes the default engine | 6.1 | ✅ code complete; device run outstanding |
-| **16.14** | Chapter detection is wrong on every file | 6.1 | ⬜ diagnosed, not fixed |
+| **16.14** | Chapter detection is wrong on every file | 6.2 | ✅ code complete; device run owed |
 | **16.10** | Store listing rewrite onto the habit framing | 0.1 | ⬜ **next product task**; now the main listing, not just the India CSL |
 | **H3** | Notifications failed silently without exact-alarm permission | 1.5 | ✅ 1.4.7 |
 | **H4** | Pro purchase failed with a generic error | 1.5 | ✅ verified on a Play build; revenue blocker closed |

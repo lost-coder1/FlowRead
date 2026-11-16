@@ -41,7 +41,7 @@ function renderReader(options) {
   AppState.currentIndex = startIndex;
   AppState.currentEngine = savedEngine;
   AppState.lastReaderEngine = savedEngine;
-  AppState.chapters = detectChapters(file.rawLines, file.pageWordIndex);
+  AppState.chapters = detectChapters(file);
   AppState.isIndexOpen = false;
 
   view.innerHTML = `

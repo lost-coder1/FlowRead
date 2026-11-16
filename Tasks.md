@@ -63,7 +63,9 @@ word indices; Page mode renders an indent, no blank line. Books already in the l
 be re-parsed (only PDFs keep raw bytes) so they get an inferred fallback at 94.6% precision.
 **Page mode is now the default engine for new installs** — and could not be chosen at all
 before, the Settings dropdown having never listed it. **Chapter detection turns out to be
-broken by the same root cause and is now Task 16.14**, diagnosed but not fixed.
+broken by the same root cause and is now Task 16.14**, **fixed the same day** — 910 detections
+across nine real books became 466, with the prose fragments going from 131 to zero and no
+`CHAPTER`-opening paragraph missed on *Wealth of Nations*.
 
 **2026-11-16 — Page mode rewritten (Task 16.12).** Opening a book in Page mode no longer scales
 with its length: 150k words went from **14.7s to 434ms**, first paint is one slab regardless of
@@ -732,7 +734,7 @@ passing.
 
 ---
 
-## Task 16.14 — Chapter detection is wrong on every file  ⬜ diagnosed, not fixed
+## Task 16.14 — Chapter detection is wrong on every file  ✅ code complete, device run owed
 
 **Reported:** "Index of chapters is not detecting chapters correctly. It always mess up for
 any file." Confirmed, and the cause is **the same flatten as 16.13**.
@@ -759,16 +761,81 @@ being split across `rawLines` and prose fragments being indistinguishable from t
 short paragraph**, not a line fragment. That one condition should remove most of the 142
 false positives on its own, before touching the regexes.
 
-Likely shape of the fix, to be confirmed against real books:
-- Classify **paragraphs**, not lines — join a paragraph's wrapped lines first.
-- Require the paragraph to be short and standalone.
-- Anchor the first rule: `\b(chapter|part)\b` followed by a numeral or roman numeral, and
-  the paragraph substantially consumed by it.
-- Check against a PDF, a DOCX and a Devanagari book, not only Gutenberg TXT.
+### What was built (2026-11-16)
 
-**Not started.** Headings styled as headings inside Page mode (§16) are deliberately
-deferred behind this — styling off a detector this noisy would put false headings in the
-middle of paragraphs.
+`detectChapters(file)` now classifies **paragraphs**, not lines — it takes the file rather
+than `rawLines` so it can group through `ParagraphStructure`, the same boundaries Page mode
+renders. The index therefore agrees with what is on screen. The classifier is the whole
+file, rewritten:
+
+- **A heading is a short, standalone paragraph.** Gates on every rule: starts with a capital
+  or a Devanagari letter, opens with a word rather than punctuation, does not end
+  mid-clause, and contains no sentence boundary. That last one needed care — a sentence
+  boundary is *two or more letters* before the stop, so `Chapter I. The Twin-Verses` is a
+  heading while `…his own labour. But if…` is prose. Testing the stop alone rejected every
+  `CHAPTER I. TITLE` heading in the corpus.
+- **The `chapter|part` rule is anchored**: a heading word followed by an ordinal — a numeral,
+  a roman numeral, a spelled-out number (`CHAPTER ONE`), or `the First`. This is the single
+  fix for the reported bug. It no longer `return null`s when the ordinal is absent but falls
+  through to the later rules, which is what let `CHAPTER ONE PLAYING PILGRIMS` be found.
+- **Two length gates, not one.** An anchored heading may run to 250 characters, because
+  `CHAPTER V. OF THE REAL AND NOMINAL PRICE OF COMMODITIES, OR OF THEIR PRICE IN LABOUR, AND
+  THEIR PRICE IN MONEY.` is unambiguous however long it is, and an 18th-century book is full
+  of them. Every rule that merely *guesses* from capitalisation keeps the tight 110-character
+  bound, where length is most of what separates a heading from a sentence.
+- **Shape-based rules are dropped when the numbered structure dominates** (strong ≥ 5 and
+  strong > weak). A book that numbers its chapters does not need the guesses, and they only
+  add things that look like headings — an all-caps line inside a story, a name centred under
+  a poem. *Little Women* has an in-fiction newspaper whose mastheads are all-caps; they go.
+  A book of fairy tales or poems has nothing stronger, so there the guesses are the whole
+  index and are kept. This single rule is what separates Grimms (78 tales kept) from Little
+  Women (32 mastheads dropped).
+- **Contents-page duplicates are dropped** when every earlier copy of a title sits in the
+  opening tenth of the book — that is the listing, and the last one is the chapter. A title
+  repeating deeper in (the roman numerals across a poetry collection) is left alone.
+- `Credits:`/`Language:` label lines and `*** START OF THE PROJECT GUTENBERG EBOOK ***`
+  markers are rejected.
+
+### Measured over nine real books
+
+Gutenberg TXT, fetched through the mirror `free-books.js` already defines. "junk" is a
+detection that is a piece of prose rather than a heading, counted mechanically.
+
+| book | words | before | junk | after | junk | ~real chapters |
+|---|---:|---:|---:|---:|---:|---:|
+| dhammapada | 15,247 | 60 | 0 | 38 | 0 | 26 |
+| grimms | 104,156 | 140 | 3 | 78 | 0 | 62 |
+| little women | 189,143 | 190 | 8 | 55 | 0 | 47 |
+| looking backward | 80,897 | 45 | 8 | 33 | 0 | 28 |
+| lyrical ballads | 31,468 | 19 | 5 | 68 | 0 | — |
+| self help | 142,731 | 41 | 5 | 22 | 0 | 13 |
+| tale of two cities | 138,931 | 130 | 2 | 55 | 0 | 45 |
+| treasure island | 71,668 | 78 | 1 | 50 | 0 | 34 |
+| **wealth of nations** | 384,153 | **207** | **99** | **67** | **0** | **65** |
+| **total** | | **910** | **131** | **466** | **0** | |
+
+**Zero prose fragments across all nine books**, and on *Wealth of Nations* — the book the
+bug was reported on — **not one `CHAPTER`-opening paragraph is missed**. Counts sit above
+the chapter count because books, parts and front matter are indexed too, which is what an
+index should do.
+
+**Verification.** A 17-assertion fixture suite covers what Gutenberg TXT cannot: Devanagari
+(keyword and keyword-less), DOCX, a heading wrapped across two lines arriving as one entry,
+the reported `part of the produce…` regression, output shape, empty input and contents-page
+duplicates. The Latin corpus was cross-checked title-for-title against an independent Python
+port — nine books, exact match — to confirm the port carried no drift.
+
+**One JS-specific defect the port surfaced:** `\b` in a JavaScript regex is ASCII-only and
+never matches against a Devanagari letter, so `/^(अध्याय|भाग)\b/` is dead code. Python's
+`\b` is Unicode-aware, which is why the two agreed on every Latin book and silently diverged
+on Hindi. It is a lookahead now. **Worth remembering for any future Devanagari regex in this
+codebase** (§17).
+
+**Device run owed:** a PDF, a DOCX and a Devanagari book — the three the TXT corpus cannot
+reach — plus a tap through the index to confirm each entry lands on its heading.
+
+**Still deferred behind this:** headings styled as headings inside Page mode (§16). Now
+unblocked — the detector is quiet enough to style from.
 
 ---
 
