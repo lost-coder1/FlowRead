@@ -14,6 +14,67 @@ var FreeBooksView = (function() {
   var _searchQuery = '';
   var _downloading = {};
 
+  /* ── Gutenberg mirror ────────────────────────────────────────────
+     127 of the 150 catalogue entries point at www.gutenberg.org, which takes
+     itself down for maintenance — on 2026-11-16 it answered a site-wide 503 and
+     most of the free library became undownloadable and coverless at once.
+     gutenberg.pglaf.org is official Project Gutenberg infrastructure serving the
+     identical /cache/epub tree over https (the other public mirrors carry only
+     /files and 404 on these paths), so a failed request is retried there.
+
+     The catalogue's own sourceUrl is never rewritten. generateFileId() hashes
+     it, so a book's identity *is* its URL, and editing one orphans the saved
+     position of every reader who already has it (Tasks.md, 2026-11-03). Only
+     the fetch moves; what we store stays what we shipped. */
+  var _PG_HOST   = 'https://www.gutenberg.org';
+  var _PG_MIRROR = 'https://gutenberg.pglaf.org';
+
+  /* Set the first time the main host fails, so the rest of the session goes
+     straight to the mirror instead of paying a dead round trip per request. It
+     matters most for a grid of 127 covers, each of which would otherwise wait
+     for its own 503 before retrying; on a 2 MB book the saving is noise.
+
+     Deliberately not persisted: the mirror is slower and is someone else's
+     courtesy bandwidth, so the preference dies with the session and the app
+     goes back to the main host on the next launch, which is how it finds out
+     that maintenance has ended. */
+  var _pgDown = false;
+
+  function _mirrorUrl(url) {
+    return url.indexOf(_PG_HOST) === 0 ? _PG_MIRROR + url.slice(_PG_HOST.length) : null;
+  }
+
+  /* Called by the cover <img> onerror, which is usually what fails first —
+     covers load on opening the library, long before anyone taps Download. */
+  function noteHostDown() { _pgDown = true; }
+
+  /* Resolves to a good response or throws. The thrown error carries `reason`,
+     because "the server answered badly" and "nothing answered" need different
+     words in front of the user (§1.5) — telling someone to check a connection
+     that is working sends them to fix the wrong thing. */
+  async function _fetchBook(url) {
+    var mirror = _mirrorUrl(url);
+    var attempts = mirror
+      ? (_pgDown ? [mirror, url] : [url, mirror])   /* known-down host goes last */
+      : [url];
+
+    var reason = 'network';
+    for (var i = 0; i < attempts.length; i++) {
+      try {
+        var res = await fetch(attempts[i]);
+        if (res.ok) return res;
+        reason = 'server';
+      } catch (_) {
+        reason = 'network';
+      }
+      if (attempts[i] !== mirror) _pgDown = true;
+    }
+
+    var err = new Error('download failed (' + reason + ')');
+    err.reason = reason;
+    throw err;
+  }
+
   /* ── Catalog ─────────────────────────────────────────────────── */
 
   async function _loadCatalog() {
@@ -159,11 +220,20 @@ var FreeBooksView = (function() {
     var langLabel = book.language === 'hi' ? 'हिंदी' : 'English';
     var coverHtml;
     if (book.coverImage) {
-      /* Show actual cover; on load failure fall back to the initials placeholder */
+      /* Show actual cover; retry once against the mirror, then fall back to the
+         initials placeholder. An <img> never goes through fetch(), so it cannot
+         use _fetchBook() and needs its own hop — without it a Gutenberg outage
+         leaves 127 of 150 cards blank even though the mirror has every cover. */
+      var coverMirror = _mirrorUrl(book.coverImage);
+      /* Once the host is known down, later cards go straight to the mirror —
+         otherwise every one of them waits for its own 503 first. */
+      var coverSrc = (coverMirror && _pgDown) ? coverMirror : book.coverImage;
       coverHtml = [
         '<div class="fb-card-cover fb-card-cover-img" style="background:' + _coverColor(book.id) + '">',
-        '<img class="fb-cover-img" src="' + escapeHtml(book.coverImage) + '" alt="" loading="lazy"',
-        ' onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">',
+        '<img class="fb-cover-img" src="' + escapeHtml(coverSrc) + '" alt="" loading="lazy"',
+        (coverMirror && coverSrc !== coverMirror) ? ' data-mirror="' + escapeHtml(coverMirror) + '"' : '',
+        ' onerror="if(this.dataset.mirror){var m=this.dataset.mirror;this.removeAttribute(\'data-mirror\');FreeBooksView.noteHostDown();this.src=m;}',
+        'else{this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\';}">',
         '<span class="fb-card-initials" style="display:none">' + escapeHtml(_initials(book.title)) + '</span>',
         '</div>',
       ].join('');
@@ -259,8 +329,7 @@ var FreeBooksView = (function() {
     showLoading(t('freebooks.loading.downloading', { title: book.title }));
 
     try {
-      var response = await fetch(book.sourceUrl);
-      if (!response.ok) throw new Error('HTTP ' + response.status);
+      var response = await _fetchBook(book.sourceUrl);
 
       var buffer = await _readWithProgress(response, book);
 
@@ -270,11 +339,14 @@ var FreeBooksView = (function() {
       } else {
         await _importPdf(book, buffer);
       }
-    } catch (_) {
+    } catch (e) {
       hideLoading();
       _downloading[book.id] = false;
       _refreshAction(book.id);
-      showToast(t('freebooks.error.download_failed', { title: book.title }));
+      /* Only a fetch sets `reason`; a parse failure keeps the generic message. */
+      showToast(t(e && e.reason === 'server'
+        ? 'freebooks.error.download_server'
+        : 'freebooks.error.download_failed', { title: book.title }));
     }
   }
 
@@ -619,7 +691,7 @@ var FreeBooksView = (function() {
     return '';
   }
 
-  return { render: render, authorForFileId: authorForFileId };
+  return { render: render, authorForFileId: authorForFileId, noteHostDown: noteHostDown };
 })();
 
 function renderFreeBooks() {

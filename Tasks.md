@@ -708,6 +708,54 @@ against the grown file on device or in a browser.
   §1.3's dark-pattern line that the locked shelf inside the library is the honest version. A user
   who opened the library is already looking for books. ⚠️ **Owner has not confirmed this half.**
 
+### ✅ Resolved finding — a Gutenberg outage took most of the library with it
+
+**Found on device 2026-11-16, hours after Phase B landed:** no Gutenberg cover rendered anywhere
+in the library, and downloads failed with *"Check your connection and try again."* Neither was
+caused by the batch. **`www.gutenberg.org` was returning a site-wide `503` maintenance page**,
+while Gutenberg's own mirrors answered `200` from the same machine at the same moment. The
+pre-existing 65 Gutenberg books were just as broken as the 62 new ones; the only covers still
+showing were the 23 off-site entries, which is exactly the split that was reported.
+
+**Phase B made an existing concentration worse and that is the real finding** — the catalogue went
+from 65 of 88 on one host (74%) to **127 of 150 (85%)**. An outage there is not a degraded
+library, it is most of the free product at once, on an app whose free catalogue is its main draw.
+
+**Two fixes, built and device-verified the same day (owner: "mirror retry will be automatic"):**
+
+- **Automatic mirror retry.** Any failed request to `www.gutenberg.org` is retried against
+  **`gutenberg.pglaf.org`**, official PG infrastructure serving the identical `/cache/epub` tree
+  over https. Four other public mirrors were probed and **404 on these paths** — they carry only
+  `/files`, so there is exactly one usable fallback, not a list. A session latch (`_pgDown`, set
+  by the first failure, **never persisted**) then puts the mirror first, so a grid of 127 covers
+  does not each wait for its own 503; the latch dies with the session, which is how the app
+  discovers maintenance has ended. The mirror is slower, so this restores the library — it does
+  not make a 2 MB download quick.
+- **Covers needed their own hop.** An `<img>` never goes through `fetch()`, so it cannot use
+  `_fetchBook()`; the `onerror` handler swaps to the mirror once, sets the latch, and only then
+  falls back to the initials placeholder. Covers are also what fail *first*, on opening the
+  library, long before anyone taps Download.
+
+**`sourceUrl` was deliberately not rewritten.** Pointing the 127 entries at the mirror would have
+been the obvious fix and would have orphaned the saved position of every reader who already had
+one — `generateFileId()` hashes the URL, so a book's identity *is* its location (the trap logged
+2026-11-03). **Only the fetch moves; what is stored stays what shipped.**
+
+**The error copy was misdiagnosing** (§1.5). `_fetchBook()` now throws with a `reason`, so a server
+that answered badly and a connection that never answered no longer share one string: the new
+`freebooks.error.download_server` says the book's server is not responding **and that it is not
+the user's connection**. Telling someone to check a working connection sends them to fix the wrong
+thing. Only a fetch sets `reason` — the four parse/OCR call sites keep the generic message.
+en/hi **612 keys, parity verified**; the **Hindi is drafted, not signed off** (§17), same standing
+as the 16.1/16.3/16.11 strings.
+
+**Device-verified 2026-11-16** against the live outage, which is the only honest way to test this:
+covers load, a 2.1 MB download of *The Wealth of Nations* completes. **Worth re-testing once
+Gutenberg is back**, since the healthy path — main host answers first, mirror never touched — has
+not been exercised since the fix.
+
+---
+
 **Files:** `www/data/free-books.json` · `www/js/views/free-books.js` · `www/i18n/*.json` ·
 `privacy_policy.html` (Phase C) · NEW build script for Phase B (not shipped in the app)
 

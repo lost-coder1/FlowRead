@@ -447,6 +447,7 @@
   "freebooks.loading.downloading_pct": "Downloading {title}… {pct}%",
   "freebooks.loading.downloading_mb": "Downloading {title}… {mb} MB",
   "freebooks.error.download_failed": "Could not download '{title}'. Check your connection and try again.",
+  "freebooks.error.download_server": "Could not download '{title}'. The book's server is not responding — this is not your connection. Try again later.",
   "freebooks.empty": "No books match your filters.",
   "freebooks.legal": "All titles are public domain or officially free. Downloaded files are saved on your device.",
   "btn.done": "Done",
