@@ -49,10 +49,14 @@ checklist passed on one device rather than a fleet.
 
 **2026-11-03 — Q4 resolved and 16.4 Phase A shipped.** `Claude.md` §13.2 now exists, and the 6
 unlabelled category chips are fixed. The catalogue work is re-scoped into four phases (see Task
-16.4): growth for free users, drops for subscribers, deliberately not the same job. **Next
-engineering task: 16.4 Phase B** — the Gutenberg batch, which ships alone with no backend.
+16.4): growth for free users, drops for subscribers, deliberately not the same job.
 **16.8 (home screen widget) is deferred by the owner until the app has traction.** Next product
 task: **16.10**'s remaining screenshots + feature graphic.
+
+**2026-11-16 — 16.4 Phase B shipped.** The catalogue is **150 books**, grown by a curated batch of
+62 weighted toward the genres the first 88 barely had. The 1.5.4 release state was also committed
+(it had been sitting staged on the branch, never committed), and the **privacy policy is now
+published to its hosted URL**. **Next engineering task: 16.4 Phase C** — the remote catalogue.
 Earlier status entries are in the archive.
 
 **Status legend:** `Not started` · `In progress` · `Blocked` · `Done`
@@ -211,9 +215,9 @@ ships**, and rewrite `paywall.plan.sub_extra`, which deliberately promises nothi
 - [ ] The device checklist below, against a Play **license tester**.
 - [ ] Hindi copy sign-off on the paywall strings (drafted, not owner-written).
 - [~] Privacy policy + store copy describing a **subscription** product. Hard gate on production.
-      **Policy done 2026-11-02** (`privacy_policy.html`, rewritten — see 16.2). Still owed: it
-      must be **published to the hosted URL**, Data safety re-filed, and the **store listing**
-      copy (Task 16.10).
+      **Policy done 2026-11-02** (`privacy_policy.html`, rewritten — see 16.2) and
+      **published to the hosted URL 2026-11-16**. Still owed: the **store listing** copy
+      (Task 16.10).
 
 **Device checklist (never run):**
 - [ ] Subscribe on the **monthly** base plan; Pro surfaces unlock, `fr_purchase_subscription` is `true`.
@@ -307,8 +311,9 @@ Q2/Q8 resolved · **Ref:** §9, §9.3a, §9.4a, §1.6 · **Size:** XL — larges
       yes/no entitlement flags stored locally, no receipts or tokens, cancellation via Play with
       no step in front of it (§1.3).
       **The policy now lives in the repo** so an amendment is a diff rather than archaeology, and
-      so the text that shipped with a given build is recoverable. **Publish it to the hosted URL —
-      that is a manual step and is not done by committing the file.**
+      so the text that shipped with a given build is recoverable. **Published to the hosted URL
+      2026-11-16** — that is a manual step and is not done by committing the file, so any future
+      amendment needs it done again.
 - [~] **Play Console Data safety — filed 2026-11-02, and must be re-filed once more.** The first
       filing had to answer *collection is required*, because no opt-out existed. An opt-out was
       then built the same day (below), so the answer becomes **Optional** — **re-file before
@@ -566,7 +571,7 @@ Not blocked by anything and not a dependency of anything. Deferred because it is
 
 ## Task 16.4 — Free-books catalogue growth + monthly curated drops
 
-**Status:** **Q4 resolved 2026-11-03. Phase A done; B, C, D open.** · **Ref:** §4, §13, §13.2 ·
+**Status:** **Q4 resolved 2026-11-03. Phases A and B done; C and D open.** · **Ref:** §4, §13, §13.2 ·
 **Size:** M
 
 **Why:** The drops are the recurring value that justifies the subscription tier existing at all
@@ -620,19 +625,42 @@ plan impossible. Verified 2026-11-03.
 - ~~Make `_loadCatalog()` merge-capable~~ — **moved to Phase C**, where it belongs; it was one
   change split into two for no reason.
 
-**B — Gutenberg batch (free users, ships alone, no backend). Next.**
-- [ ] One-time script against **Gutendex** (`gutendex.com/books?languages=en&sort=popular`)
-      emitting entries in the existing schema. URL patterns are already proven in the catalogue:
-      `cache/epub/<id>/pg<id>.txt` and `pg<id>.cover.medium.jpg`. All `fileType: "txt"`;
-      `_stripGutenberg()` already handles the header.
-- [ ] **Target ~88 → ~150, curated — not a dump.** A curated shelf *is* the feature; 60,000
-      undifferentiated public-domain titles is what every other free-books app already is, and it
-      makes the region-aware sort in `_sorted()` meaningless. `free-books.json` is also bundled in
-      the APK, so it is not free weight.
-- [ ] **Verify each candidate's `.txt` decodes as UTF-8** at build time. Gutenberg serves some
-      older texts as latin-1, which would mangle accented characters silently.
-- [ ] Any new category needs labels in both locales *and* a `_categoryLabel()` entry, or it
-      renders as a raw slug — the Phase A bug, re-introduced.
+**B — Gutenberg batch (free users, ships alone, no backend). ✅ done 2026-11-16.**
+- [x] One-time script — `scripts/build-gutenberg-batch.mjs`, **force-added**, since `.gitignore`
+      ignores `scripts/` wholesale. **Source is Gutenberg's own `pg_catalog.csv.gz` feed, not
+      Gutendex**, which this task named: gutendex.com resolves to Cloudflare but times out, so it
+      is not a dependency worth having when the publisher serves the same data directly. §13.2
+      position is unchanged — public domain, linked and not re-hosted.
+- [x] **88 → 150, curated.** The 62 titles are **hand-written in the script** as
+      title/author/category/slug; it resolves, verifies and measures them but never picks a book.
+      Weighted to fill the thin genres rather than chase popularity, per the owner's "healthy
+      combination of each genre": **science_fiction 2→12, drama 1→8, essays 1→7, strategy 1→5,
+      biography_history 4→10, constitution_law 2→4**, against only **+3 classics** on an existing
+      38. Indian titles added wherever a genre had one (Tagore's *The Post Office*, Naidu's *The
+      Golden Threshold*, the *Bhagavad-Gita* as *The Song Celestial*).
+- [x] **UTF-8 verified at build time** with a `fatal: true` decoder, per book, against the exact
+      URL that ships. All 62 pass.
+- [x] No new categories, so no new i18n keys — the batch deliberately uses only the existing 12,
+      all of which have `_categoryLabel()` entries and en/hi keys (re-checked).
+
+**Three things the batch had to be taught, each of which had produced a wrong entry:**
+- **Prefer a "— Complete" edition.** Gutenberg splits long works into numbered volumes that sort
+  *before* the collected edition, so lowest-id handed the reader volume 1 of Montaigne's 19 and
+  called it his *Essays*. Where no complete edition exists (Tocqueville is two volumes and
+  nothing else) the volume is kept and **the title says so** — *Democracy in America — Volume 1*,
+  §1.5.
+- **The feed's author field is cataloguing apparatus**, not a name: `H. G. (Herbert George)
+  Wells`, `552 BCE-480 BCE Confucius`, and *The Narrative of Sojourner Truth* credited to its
+  amanuensis. Dates (BCE forms included) and expanded initials are stripped, and a per-book
+  override exists for the rest.
+- **Titles carry subtitles** after a colon, a semicolon or a line break. Cut, because a card has
+  one line — but a `— Volume N` tail is kept deliberately: that is not decoration.
+
+**Verified:** 150 entries, no duplicate `id` or `sourceUrl`, all 62 cover URLs return 200, and
+every one of the 127 `txt` entries (the new and the original 65) carries a header marker
+`_stripGutenberg()` actually matches — its regex allows `THE PROJECT GUTENBERG` but not `THIS`,
+which older texts use. **Not yet exercised in the app** — the library view has not been opened
+against the grown file on device or in a browser.
 
 **C — Remote catalogue.**
 - [ ] `_loadCatalog()` reads bundled + remote, dedupes on `id`, remote wins. The bundled file stays

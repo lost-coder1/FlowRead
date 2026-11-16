@@ -17,3 +17,6 @@ launch-day-plan.md
 outputs/
 play-store-icon-512.png
 scripts/
+
+# Gutenberg catalogue feed cached by scripts/build-gutenberg-batch.mjs
+.cache/
