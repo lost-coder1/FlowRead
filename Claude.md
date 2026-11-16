@@ -289,6 +289,35 @@ reads that absence as "opens fast enough that a loading card would only flash".
 
 ---
 
+### 5.2 Reaching the end of a book marks it read (added 2026-11-16)
+
+**Completion is derived, not stored.** `isFileFullyRead()` (`views/upload.js`) asks
+`loadPosition(id) >= item.wordCount`, and the Mark read button simply writes `wordCount` as the
+position. So "finished" has to be expressed *as a position* — which is what RSVP's
+`_handleEnd` has always done by saving `_words.length`.
+
+Page mode had no equivalent, so a reader who turned to the last page had to leave the reader
+and mark the book read by hand. Turning to the last page now saves `_words.length`, as RSVP
+does. Three things this has to respect:
+
+- **`_index` stays the honest word the reader is on**, because the §7 bridge reads it. The end
+  is a *floor* every save is lifted to (`_savePos`), not a value written into `_index`.
+- **It must be the last page of the book, not of the grid.** During the background pass
+  `_pages` covers one slab and its last entry is nowhere near the end (§5.1 rule 3), so the
+  check is gated on `_pagesExact` — ungated it would declare a long book finished a few pages
+  in. A reader who reaches the end while the grid is still estimating is re-checked once it
+  becomes exact.
+- **Turning away from the last page clears the floor**, so the position is the position again
+  (§21). A book therefore un-marks itself if the reader pages back, exactly as it does when
+  they seek backwards after finishing in RSVP — completion and position are the same number,
+  so they cannot be made to disagree. Mark read remains for anyone who wants it to stick.
+
+**A fresh open never marks a book**, even when it resumes on the last page: only a deliberate
+turn counts. The cost is that a book whose whole text fits on one page can never be completed
+by reading it, since there is no page to turn — that is what the Mark read button is for.
+
+---
+
 ## 6. PDF Cleaning Engine
 
 Extracts text with positions, groups into lines, detects/strips headers/footers/page numbers/ISBN-DOI/bare URLs, converts tables/images/equations to tappable placeholders, builds `pageWordIndex[]`.
@@ -629,7 +658,24 @@ Elevated in priority because it doubles as a distribution mechanic, not just ret
 - Generate the card entirely on-device (Canvas API) — no server, no upload.
 - Must include app name/branding on the image itself, tasteful and small, not a loud ad.
 - User-editable before sharing: simple per-item toggle for which books/achievements to include.
-- **The book's cover and its real title (added 2026-10-06).** A book hero carries a cover panel beside the headline. Offline by construction (§1.1): for a PDF it is page one, rendered from the raw bytes already in IndexedDB; everything else gets a typographic cover drawn from the title's initials and the author, in §16 colours only — never a fetched image, and never the catalogue's own placeholder palette, which is outside §16. Titles go through `displayTitle()`, which strips the file extension for display everywhere in the app: the stored name stays a filename because library de-duplication keys on it, but "Finished जाति का विनाश.pdf" must never leave the device.
+- **The book's cover and its real title (added 2026-10-06).** A book hero carries a cover panel beside the headline. Offline by construction (§1.1): for a PDF it is page one, rendered from the raw bytes already in IndexedDB; everything else gets a typographic cover drawn from the title's initials and the author, in §16 colours only — and never the catalogue's own placeholder palette, which is outside §16.
+
+  **A Free Books title uses its catalogue cover (owner, 2026-11-16).** Its own artwork says
+  more than initials in a box, and two thirds of the catalogue is TXT with no page one to
+  render. **The card still fetches nothing**, which is the part of the original rule that
+  mattered: `BookCover.cacheRemote()` stores the cover at *download* time, when the device is
+  online by definition, and `get()` finds it in the same on-disk cache a rendered PDF page
+  would land in. It is self-validating — unless the bytes decode into an image nothing is
+  written, so an old WebView that cannot read AVIF falls back to the typographic cover instead
+  of showing a gap. A catalogue cover **takes precedence over page one** for a Free Books PDF,
+  but an already-cached page one is never replaced: that is a cover of the real edition, and
+  re-fetching on every library visit would be churn for a thumbnail. The share card itself was
+  not touched; the artwork arrives through the cache it already reads.
+
+  Covers are the same third-party artwork the library screen already displays, cached on the
+  user's own device — §13.2's distinction holds, this is not re-hosting. If a cover's licence
+  is ever challenged, the answer is to drop that `coverImage` from the catalogue, which costs
+  the placeholder and nothing else. Titles go through `displayTitle()`, which strips the file extension for display everywhere in the app: the stored name stays a filename because library de-duplication keys on it, but "Finished जाति का विनाश.pdf" must never leave the device.
 - **Hero-metric framing, not a data dump** — one strong stat per share ("Finished Annihilation of Caste in 4 days"), with at most three supporting lines under it. Hero priority: a finished book, then the streak, then total words — a named book is the most shareable thing on the card and the most on-brand; a bare streak could be any habit app.
 - **Design with a future "time reclaimed" stat in mind** once Section 9's nudge system is live (e.g., "You chose reading over Reddit 14 times this week") — not required for v1, but the card layout shouldn't need to be rebuilt to add it later. **Honoured:** the supporting lines are a flat ordered array in `_extraOptions()`, so adding the stat is one entry and no change to the drawing code. `NudgeGate` already holds the counters it would need.
 - Share via native share sheet (`Capacitor.Share`) — this inherently supports sharing to any installed app the user chooses, no platform-specific restriction needed.
@@ -710,6 +756,8 @@ consistent, and do not grow status narrative here: that is `Tasks.md`'s job.
 | **16.13** | Paragraph structure end to end; Page mode becomes the default engine | 6.1 | ✅ code complete; device run outstanding |
 | **16.14** | Chapter detection is wrong on every file | 6.2 | ✅ code complete; device run owed |
 | **16.15** | Chapter headings styled as headings in Page mode | 5.1 | ✅ code complete; device run owed |
+| **16.16** | Free Books titles use their catalogue cover on the share card | 15 | ✅ code complete; device run owed |
+| **16.17** | Reaching the last page in Page mode marks the book read | 5.2 | ✅ code complete; device run owed |
 | **16.10** | Store listing rewrite onto the habit framing | 0.1 | ⬜ **next product task**; now the main listing, not just the India CSL |
 | **H3** | Notifications failed silently without exact-alarm permission | 1.5 | ✅ 1.4.7 |
 | **H4** | Pro purchase failed with a generic error | 1.5 | ✅ verified on a Play build; revenue blocker closed |

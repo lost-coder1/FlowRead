@@ -892,6 +892,119 @@ render in Noto Sans Devanagari without clipping the taller glyphs at the larger 
 
 ---
 
+## Task 16.16 — Free Books titles use their catalogue cover on the share card  ✅ code complete, device run owed
+
+**Asked for:** "if it is from free library, it should show the cover image in the share card, if
+their own document, maybe use default we already using."
+
+The catalogue has carried a `coverImage` URL per book all along — the library screen displays
+it — but the share card never saw it. It rendered page one of a PDF, or a typographic cover
+from the title's initials. For the **101 TXT titles of 150** there is no page one to render, so
+every Gutenberg book shared as initials in a box.
+
+**§15 said "never a fetched image", and that clause is now narrower rather than gone.** The
+part that mattered was that the card must work offline — it is drawn when someone finishes a
+book, not when they have signal. So the cover is fetched at **download** time, when the device
+is online by definition, and stored in the on-disk cache `BookCover` already keeps. By the time
+a card is drawn the artwork is a data URL on disk and `get()` finds it before it would think
+about rendering a PDF page. **`share-stats.js` was not touched at all** — the artwork arrives
+through the cache it already reads, which is why this was a small change rather than a new path
+through the card.
+
+`BookCover.cacheRemote(fileId, urls)` does the work: fetch → blob → data URL → decode →
+downscale to the existing 640px target → JPEG. Reading the bytes into a data URL first is what
+keeps the canvas same-origin, so `toDataURL()` cannot be tainted; pointing an `<img>` at the
+remote URL would have failed on exactly the hosts that matter. CORS is not an issue because
+`CapacitorHttp` is enabled and patches `fetch` through native HTTP.
+
+**It is self-validating.** Unless the bytes decode into an image, nothing is written and the
+cover falls back to whatever it would have been — so an old WebView that cannot read AVIF (the
+format several catalogue covers use) shows the typographic cover rather than a gap. It takes
+the same mirror order the list already works out for a Gutenberg outage, and it is
+fire-and-forget: it never delays opening the book and never surfaces an error, because a
+missing cover is not worth a word to the reader (§1.5).
+
+**Precedence:** a catalogue cover wins over page one for a Free Books PDF, but an
+already-cached page one is never replaced — that is a cover of the real edition, and
+re-fetching on every library visit would be churn in exchange for a thumbnail.
+
+**Backfill.** Books downloaded before this change have no cover and the share card cannot go
+and get one. The Free Books screen is the one place the reader is both looking at the catalogue
+and online, so it fills the gap there, for the titles they actually downloaded rather than all
+150.
+
+**One real bug this surfaced**, caught by the test rather than on device: the re-fetch guard
+read only the on-disk flag, which is set after `_writeCache` succeeds. On a device with no
+writable Filesystem or a full one, every Free Books visit would have re-fetched every cover it
+already held in memory. The guard now also honours the in-memory cover and a per-session
+attempted set, so it is correct whether or not the write worked.
+
+**Legal note.** These are the same third-party images the library screen already displays,
+cached on the user's own device — §13.2's hosting/linking distinction holds and this is not
+re-hosting. If a cover's licence is ever challenged the answer is to drop that `coverImage`
+from the catalogue, which costs the placeholder and nothing else.
+
+**Verification.** A 15-assertion headless suite: a cover is fetched, downscaled, stored as JPEG
+and decodes; aspect ratio survives; a large cover is capped at 640px and stays well under a
+megabyte; **non-image bytes and a 404 are both refused and cache nothing**; the mirror fallback
+works; and an existing cover is never re-fetched or replaced.
+
+**Device run owed:** download a Free Books TXT and a PDF, share each, and confirm the real
+cover appears — and that an AVIF cover either appears or falls back cleanly on the test device.
+
+---
+
+## Task 16.17 — Reaching the last page in Page mode marks the book read  ✅ code complete, device run owed
+
+**Reported:** "In Page mode, if I am at last page, it is not registering that the book is
+completed. I have to get out of the page mode to home page and mark that book read manually."
+
+Confirmed. **Completion is derived, not stored:** `isFileFullyRead()` asks
+`loadPosition(id) >= item.wordCount`, and the Mark read button just writes `wordCount` as the
+position. So "finished" has to be expressed as a position — which RSVP's `_handleEnd` has
+always done by saving `_words.length`. Page mode had no equivalent, so the last page saved the
+last page's `startIndex` and the book stayed unread forever.
+
+Turning to the last page now saves `_words.length`, the same number RSVP writes. Three things
+it had to respect, and they are what took the thought rather than the code:
+
+- **`_index` stays the honest word the reader is on**, because the §7 bridge reads it. The end
+  is a *floor* every save is lifted to, not a value forced into `_index`. All three save sites
+  in the engine now go through one `_savePos()`, so the floor cannot be undone by whichever of
+  pause / seek / turn happens to fire last — which it would have been, since `pause()` ran on
+  the way out and wrote the raw `_index`.
+- **It has to be the last page of the *book*, not of the grid.** During the background pass
+  `_pages` covers one slab and its final entry is nowhere near the end (§5.1 rule 3), so the
+  check is gated on `_pagesExact`. Ungated, a long book would be declared finished a few pages
+  in. A reader who reaches the end while the grid is still estimating is re-checked the moment
+  it becomes exact.
+- **Turning away clears the floor**, so the position is the position again (§21).
+
+**The consequence to know about:** a book un-marks itself if the reader pages back from the
+end. That is not a workaround, it is forced — completion and position are the same number, so
+they cannot be made to disagree. It is also exactly what already happens if you seek backwards
+after finishing in RSVP, and Mark read is still there for anyone who wants it to stick. Fixing
+it properly means storing completion as its own field, which is a larger change to
+`isFileFullyRead` and every caller; **not done, and worth doing if this annoys anyone.**
+
+A fresh open never marks a book, even resuming on the last page — only a deliberate turn
+counts, so opening a book does not silently move it to Read. The cost: a book whose whole text
+fits on one page can never be completed by reading it, because there is no page to turn. Mark
+read covers that.
+
+A toast confirms it (`reader.page.finished`, both languages, §17) so the reader can see it
+registered rather than having to go and check.
+
+**Verification.** A 15-assertion headless suite over a 22-page book: not marked on open; marked
+on reaching the last page with exactly one toast; survives `pause()` and `destroy()`; paging
+back restores the real position and un-marks; returning re-marks without a second toast for the
+same page; and reopening resumes on the last page, still marked, with no toast.
+
+**Device run owed:** read to the end of a real book in Page mode and confirm the home screen
+moves it to Read without leaving the reader, and that a finished book reopens on its last page.
+
+---
+
 ## Task 16.8 — Home screen widget (Android only)
 
 **Status:** **Deferred (owner, 2026-11-03)** — revisit once the app has traction. Unblocked and ready; Q7 needed to finish · **Ref:** §12 · **Size:** L

@@ -41,6 +41,23 @@ const PageEngine = (function() {
   /* False while a background pass is still measuring. The grid on screen is then
      real but incomplete, so the page numbers next to it are estimates. */
   let _pagesExact = true;
+
+  /* Completion is derived from the saved position — `loadPosition(id) >=
+     item.wordCount` is what isFileFullyRead() asks (views/upload.js) — so
+     reaching the end of a book has to be expressed as a position, which is what
+     RSVP's _handleEnd already does by saving _words.length. Page mode had no
+     equivalent, so a reader who turned to the last page was left marking the
+     book read by hand.
+
+     _index stays the honest word the reader is on, because the §7 bridge reads
+     it; this is the floor every save is lifted to while the last page is open.
+     Turning away from the last page clears it, so the position is the position
+     again — the same way seeking backwards after finishing in RSVP does. */
+  let _endFloor = 0;
+
+  /* A fresh open must not mark a book read merely because it resumed on the last
+     page. Only a deliberate turn to the end counts. */
+  let _turnedThisSession = false;
   let _estWordsPerPage = 0;
 
   /* Measurement tuning. A slab is laid out in one pass and read with offsetTop;
@@ -66,6 +83,8 @@ const PageEngine = (function() {
     _words = words;
     _index = Math.max(0, startIndex || 0);
     _pageIndex = 0;
+    _endFloor = 0;
+    _turnedThisSession = false;
     _abortBuild = false;
     _buildComplete = false;
 
@@ -489,6 +508,10 @@ const PageEngine = (function() {
     _pageIndex = _pageForIndex(_index);
     _layoutPages();
     _updateNav();
+    /* A reader who swiped to the end while the grid was still estimating was on
+       the last page of a slab, not of the book, so _noteEndReached refused then.
+       Now that the grid is real, the same question has a real answer. */
+    if (measured && _turnedThisSession) _noteEndReached();
     _attachSwipeListeners();
     _attachChromeToggleListener();
     if (typeof _updateEngineLoadingProgress === 'function') {
@@ -624,6 +647,30 @@ const PageEngine = (function() {
     }
   }
 
+  /* Every save in this engine goes through here, so the completion floor cannot
+     be undone by whichever of pause/seek/turn happens to fire last. */
+  function _savePos() {
+    if (!AppState.currentFile) return;
+    savePosition(AppState.currentFile.id, Math.max(_index, _endFloor));
+  }
+
+  /* The last page of the whole book — not merely the last page measured so far.
+     During the background pass _pages covers one slab, and its final entry is
+     nowhere near the end (§5.1 rule 3), so without _pagesExact this would
+     declare a book finished a few pages into it. */
+  function _atLastPage() {
+    return _pagesExact && _buildComplete && _pages.length > 0
+      && _pageIndex === _pages.length - 1;
+  }
+
+  function _noteEndReached() {
+    if (!_atLastPage()) { _endFloor = 0; return; }
+    if (_endFloor) return;                /* already marked, don't re-toast */
+    _endFloor = _words.length;
+    _savePos();
+    showToast(t('reader.page.finished'));
+  }
+
   function _pageForIndex(idx) {
     if (_pages.length === 0) return 0;
     /* Binary search, not a scan: a long book is thousands of pages and this runs
@@ -649,7 +696,10 @@ const PageEngine = (function() {
     _index = _pages[_pageIndex].startIndex;
     _animateLayout(animate !== false);
     _updateNav();
-    if (AppState.currentFile) savePosition(AppState.currentFile.id, _index);
+    _turnedThisSession = true;
+    /* Before the save, so the floor it sets is the value written. */
+    _noteEndReached();
+    _savePos();
     _syncReaderPosition(_index, _words.length);
     /* Page mode is where a nudged read happens (§9.5), and it has no completion
        event, so the scoped-unlock counter rides on the page turn itself. */
@@ -930,7 +980,7 @@ const PageEngine = (function() {
   function play() { /* no-op: Page mode has no playback timer */ }
 
   function pause() {
-    if (AppState.currentFile) savePosition(AppState.currentFile.id, _index);
+    _savePos();
   }
 
   function destroy() {
@@ -967,7 +1017,7 @@ const PageEngine = (function() {
       _animateLayout(false);
     }
     _updateNav();
-    if (AppState.currentFile) savePosition(AppState.currentFile.id, _index);
+    _savePos();
   }
 
   function onWPMChange() { /* no-op: Page mode ignores WPM */ }

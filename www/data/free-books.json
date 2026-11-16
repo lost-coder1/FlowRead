@@ -303,7 +303,7 @@
       "author": "M.K. Gandhi",
       "language": "en",
       "category": "biography_history",
-      "coverImage": null,
+      "coverImage": "https://castefreeindia.com/wp-content/uploads/2026/11/autobiography-Gandhi.avif",
       "sourceUrl": "https://www.mkgandhi.org/ebks/An-Autobiography.pdf",
       "fileType": "pdf",
       "approxLength": "~500 pages"
@@ -314,7 +314,7 @@
       "author": "M.K. Gandhi",
       "language": "en",
       "category": "history_politics",
-      "coverImage": null,
+      "coverImage": "https://castefreeindia.com/wp-content/uploads/2026/11/hindswarajEng.avif",
       "sourceUrl": "https://www.mkgandhi.org/ebks/hind_swaraj.pdf",
       "fileType": "pdf",
       "approxLength": "~120 pages"
@@ -325,7 +325,7 @@
       "author": "महात्मा गांधी",
       "language": "hi",
       "category": "history_politics",
-      "coverImage": null,
+      "coverImage": "https://castefreeindia.com/wp-content/uploads/2026/11/hindswarajHindi.avif",
       "sourceUrl": "https://www.mkgandhi.org/ebks/hindi/hind-swaraj.pdf",
       "fileType": "pdf",
       "approxLength": "~120 pages"
@@ -347,7 +347,7 @@
       "author": "गौतम बुद्ध",
       "language": "hi",
       "category": "buddhism",
-      "coverImage": null,
+      "coverImage": "https://castefreeindia.com/wp-content/uploads/2026/11/dhammapada.avif",
       "sourceUrl": "https://www.tipitaka.org/hindi/Dhammapada.pdf",
       "fileType": "pdf",
       "approxLength": "~120 pages",
@@ -403,7 +403,7 @@
       "author": "Jawaharlal Nehru",
       "language": "en",
       "category": "history_politics",
-      "coverImage": null,
+      "coverImage": "https://castefreeindia.com/wp-content/uploads/2026/11/discoveryOfIndia.avif",
       "sourceUrl": "https://dn710700.ca.archive.org/0/items/in.ernet.dli.2015.98835/2015.98835.Jawaharlal-Nehru-The-Discovery-Of-India_text.pdf",
       "fileType": "pdf",
       "approxLength": "~600 pages"

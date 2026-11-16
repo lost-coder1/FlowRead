@@ -99,6 +99,20 @@ var FreeBooksView = (function() {
     try { localStorage.setItem('fr_freebook_' + bookId, fileId); } catch (_) {}
   }
 
+  /* Keep the catalogue cover for the share card (§15). Done here, at download
+     time, because the device is online by definition at this moment — the share
+     card itself must fetch nothing. A Free Books TXT has no page one to render a
+     cover from, so for two thirds of the catalogue this is the only artwork
+     there is. Fire-and-forget: it must not delay opening the book, and a cover
+     that fails to arrive is not worth a word to the reader (§1.5). */
+  function _keepCover(book, fileId) {
+    if (!book || !book.coverImage || !fileId) return;
+    if (typeof BookCover === 'undefined' || typeof BookCover.cacheRemote !== 'function') return;
+    var mirror = _mirrorUrl(book.coverImage);
+    var order = (mirror && _pgDown) ? [mirror, book.coverImage] : [book.coverImage, mirror];
+    BookCover.cacheRemote(fileId, order).catch(function() {});
+  }
+
   function _getState(book) {
     if (_downloading[book.id]) return 'downloading';
     if (_getSavedFileId(book.id)) return 'downloaded';
@@ -487,6 +501,7 @@ var FreeBooksView = (function() {
     saveRawPdf(fileId, storedBuffer);
 
     _setSavedFileId(book.id, fileId);
+    _keepCover(book, fileId);
     _downloading[book.id] = false;
     logEvent('free_book_downloaded', { lang: book.language || '' });
 
@@ -561,6 +576,7 @@ var FreeBooksView = (function() {
     await saveFileData(fileId, AppState.currentFile);
 
     _setSavedFileId(book.id, fileId);
+    _keepCover(book, fileId);
     _downloading[book.id] = false;
     logEvent('free_book_downloaded', { lang: book.language || '' });
 
@@ -671,6 +687,24 @@ var FreeBooksView = (function() {
 
     _renderGrid();
     _bindEvents(view);
+    _backfillCovers(catalog.books);
+  }
+
+  /* Books downloaded before covers were kept have none, and the share card
+     cannot go and get one — it fetches nothing by design (§15). This screen is
+     the one place the reader is both looking at the catalogue and online, so it
+     is where the gap can be closed, for the handful of titles they actually
+     downloaded rather than all 150.
+
+     Only where there is no cover at all: a PDF already carrying a rendered page
+     one has a cover of the real edition, and replacing it every visit would be
+     churn in exchange for a thumbnail. */
+  function _backfillCovers(books) {
+    if (typeof BookCover === 'undefined' || typeof BookCover.cacheRemote !== 'function') return;
+    (books || []).forEach(function(book) {
+      var fileId = _getSavedFileId(book.id);
+      if (fileId) _keepCover(book, fileId);
+    });
   }
 
   /* Author for a library file that came from the catalogue.

@@ -22,6 +22,12 @@ const BookCover = (function() {
   /* fileId → data URL, or null for "asked and there is none". */
   const _memo = {};
 
+  /* fileIds a remote cover has been attempted for this session. The disk flag
+     alone is not enough to stop a retry: it is only set once _writeCache
+     succeeds, so a device with no writable Filesystem, or a full one, would have
+     every Free Books visit re-fetch every cover it already holds in memory. */
+  const _remoteTried = {};
+
   function _fs() {
     const C = window.Capacitor;
     return (C && C.Plugins && C.Plugins.Filesystem) || null;
@@ -92,6 +98,84 @@ const BookCover = (function() {
     }
   }
 
+  /* Decode a data URL and redraw it at TARGET_WIDTH as a JPEG. The source is a
+     data URL, so the canvas is same-origin and toDataURL() cannot be tainted —
+     which is the reason the fetched bytes are read into one first rather than
+     pointing an <img> at the remote URL. */
+  function _downscale(dataUrl) {
+    return new Promise(function(resolve) {
+      const img = new Image();
+      img.onerror = function() { resolve(null); };
+      img.onload = function() {
+        if (!img.naturalWidth || !img.naturalHeight) return resolve(null);
+        try {
+          const scale = Math.min(1, TARGET_WIDTH / img.naturalWidth);
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+          canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', JPEG_QUALITY));
+        } catch (_) {
+          resolve(null);
+        }
+      };
+      img.src = dataUrl;
+    });
+  }
+
+  function _blobToDataUrl(blob) {
+    return new Promise(function(resolve) {
+      try {
+        const reader = new FileReader();
+        reader.onerror = function() { resolve(null); };
+        reader.onload = function() { resolve(reader.result || null); };
+        reader.readAsDataURL(blob);
+      } catch (_) {
+        resolve(null);
+      }
+    });
+  }
+
+  /**
+   * Store a catalogue cover for a Free Books title under its library file id.
+   *
+   * Called at download time, when the device is online by definition, so the
+   * share card keeps its guarantee of fetching nothing (§15): by the time a card
+   * is drawn the artwork is already a data URL on disk, and get() finds it in the
+   * cache before it would think about rendering a PDF page. A Free Books TXT has
+   * no page to render at all, which is where this matters most.
+   *
+   * Self-validating and silent: unless the bytes actually decode into an image,
+   * nothing is written and the cover falls back to whatever it would have been.
+   * Never throws, never blocks the read that triggered it, never surfaces an
+   * error — a missing cover is not something to tell the reader about (§1.5).
+   */
+  async function cacheRemote(fileId, urls) {
+    if (!fileId) return false;
+    if (localStorage.getItem(FLAG_PREFIX + fileId) === '1') return false;
+    if (_memo[fileId]) return false;
+    if (_remoteTried[fileId]) return false;
+    _remoteTried[fileId] = true;
+    const list = (Array.isArray(urls) ? urls : [urls]).filter(Boolean);
+
+    for (let i = 0; i < list.length; i++) {
+      try {
+        const res = await fetch(list[i]);
+        if (!res || !res.ok) continue;
+        const raw = await _blobToDataUrl(await res.blob());
+        if (!raw) continue;
+        const cover = await _downscale(raw);
+        if (!cover) continue;          /* not an image we can decode (old WebView, AVIF) */
+        await _writeCache(fileId, cover);
+        _memo[fileId] = cover;
+        return true;
+      } catch (_) {
+        /* Next mirror, or give up. */
+      }
+    }
+    return false;
+  }
+
   /**
    * A cover for a library item, or null when the file has no artwork to take
    * one from. Never throws and never blocks on the network.
@@ -123,6 +207,7 @@ const BookCover = (function() {
 
   function forget(fileId) {
     delete _memo[fileId];
+    delete _remoteTried[fileId];
     localStorage.removeItem(FLAG_PREFIX + fileId);
     const Filesystem = _fs();
     if (Filesystem && typeof Filesystem.deleteFile === 'function') {
@@ -131,5 +216,5 @@ const BookCover = (function() {
     }
   }
 
-  return { get: get, getImage: getImage, forget: forget };
+  return { get: get, getImage: getImage, cacheRemote: cacheRemote, forget: forget };
 })();
