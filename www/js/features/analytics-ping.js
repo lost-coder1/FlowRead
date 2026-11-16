@@ -15,7 +15,26 @@
  */
 
 const AnalyticsPing = (function() {
+  /* MUST be https when it is finally set. Play Console's Data safety declaration
+   * answers "encrypted in transit: yes" on this module's behalf, and that answer
+   * was filed long before this constant had a value — so a plain-http endpoint
+   * would silently make a filed compliance answer false, with nothing in the
+   * code to connect the two. Also keep it a first-party Worker: "not shared
+   * with third parties" rests on the receiver being a processor acting for us.
+   *
+   * While empty this module is inert (see the header). */
   const ENDPOINT = '';
+
+  /* The user's opt-out (§1.4). Read on every call rather than cached, because
+   * the Settings toggle has to take effect immediately — a privacy switch that
+   * waits for a restart is not one. Absent means opted in, matching the Data
+   * safety declaration of optional-and-on-by-default; any throw (private mode,
+   * blocked site data) is treated as opted OUT, because failing closed is the
+   * only safe direction for a consent check. */
+  function _optedOut() {
+    try { return localStorage.getItem('fr_analytics_opt_out') === 'true'; }
+    catch (_) { return true; }
+  }
 
   /* Only these may be sent. An unlisted name is dropped rather than forwarded,
    * so a future caller cannot quietly widen what we collect. */
@@ -65,6 +84,7 @@ const AnalyticsPing = (function() {
   function logEvent(name, meta) {
     try {
       if (!ENDPOINT) return;
+      if (_optedOut()) return;
       if (ALLOWED.indexOf(name) === -1) return;
 
       const body = JSON.stringify({
@@ -88,7 +108,7 @@ const AnalyticsPing = (function() {
     } catch (_) {}
   }
 
-  return { logEvent: logEvent };
+  return { logEvent: logEvent, optedOut: _optedOut };
 })();
 
 /* Short global alias — these calls are sprinkled across features. */

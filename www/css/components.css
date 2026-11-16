@@ -2623,6 +2623,24 @@
   font-size: 13px;
 }
 
+/* These are .btn-ghost, which is transparent-on-transparent — correct for a
+   Back button on its own card, but in a settings row it renders as muted text
+   with no edge, so Reset/Grant/Change did not read as pressable at all. Give
+   inline row actions a real edge and face. Scoped here rather than changed on
+   .btn-ghost, which modals and onboarding rely on being invisible. */
+.settings-inline-btn.btn-ghost {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.settings-inline-btn.btn-ghost:hover,
+.settings-inline-btn.btn-ghost:active {
+  background: var(--surface);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .nudge-perm-row {
   min-height: 40px;
 }
@@ -2641,6 +2659,69 @@
   font-family: var(--font-mono);
   font-size: 11px;
   color: var(--text-dim);
+}
+
+
+/* ── Inline disclosure (ⓘ) ───────────────────────────────────────────
+   §1.5 asks for honest limitations, not for every explanation to be open at
+   once. Each option keeps one short line on screen and parks its full text
+   behind a tap, so the page is scannable and nothing is lost.
+
+   Deliberately not a modal: §21 allows only one at a time, and Settings has
+   real modals (the app picker, the paywall) that this must never compete with. */
+.settings-hint {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin: 0 0 var(--space-md);
+}
+
+/* Square, 2px radius, no pill — §16. A circular badge is the conventional ⓘ
+   and is exactly what that rule rules out. */
+.settings-info-btn {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  /* Sits inline at the end of a 13px hint, so it has to align to the text
+     rather than the baseline, or it drags the line box down. */
+  vertical-align: middle;
+  margin-left: 2px;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+
+.settings-info-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.settings-info-btn[aria-expanded="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* The expanded text. Indented against a rule so it reads as belonging to the
+   row above it rather than as the next setting. */
+.settings-info-body {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  margin: 0 0 var(--space-md);
+  padding-left: var(--space-md);
+  border-left: 2px solid var(--border);
+}
+
+/* A hint directly followed by its own expanded body should not double the gap. */
+.settings-hint + .settings-info-body {
+  margin-top: calc(var(--space-md) * -0.5);
 }
 
 

@@ -304,17 +304,17 @@ const NudgeFeature = (function() {
     if (!state.accessibility) {
       rows.push({ id: 'accessibility', open: openAccessibilitySettings,
                   label: t('settings.nudge.perm_accessibility'),
-                  note: t('settings.nudge.perm_accessibility_note') });
+                  note: t('settings.nudge.perm_accessibility_short') });
     }
     if (!state.overlay) {
       rows.push({ id: 'overlay', open: openOverlaySettings,
                   label: t('settings.nudge.perm_overlay'),
-                  note: t('settings.nudge.perm_overlay_note') });
+                  note: t('settings.nudge.perm_overlay_short') });
     }
     if (opts && opts.usageAccess && !state.usageAccess) {
       rows.push({ id: 'usage', open: openUsageAccessSettings,
                   label: t('settings.nudge.perm_usage'),
-                  note: t('settings.nudge.perm_usage_note') });
+                  note: t('settings.nudge.perm_usage_short') });
     }
     if (!rows.length) return;
     _showPermissionModal(rows);

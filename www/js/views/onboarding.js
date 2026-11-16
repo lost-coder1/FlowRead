@@ -142,10 +142,10 @@ const OnboardingFlow = (function() {
     const rows = [
       { id: 'accessibility', granted: state.accessibility, required: true,
         label: t('settings.nudge.perm_accessibility'),
-        note:  t('settings.nudge.perm_accessibility_note') },
+        note:  t('settings.nudge.perm_accessibility_short') },
       { id: 'overlay', granted: state.overlay, required: true,
         label: t('settings.nudge.perm_overlay'),
-        note:  t('settings.nudge.perm_overlay_note') },
+        note:  t('settings.nudge.perm_overlay_short') },
     ];
 
     /* Usage access, offered and never required (§9.4a). Without it §9.3a's timed
@@ -167,7 +167,7 @@ const OnboardingFlow = (function() {
     if (wantsUsage) {
       rows.push({ id: 'usage', granted: state.usageAccess, required: false,
                   label: t('settings.nudge.perm_usage'),
-                  note:  t('settings.nudge.perm_usage_note') });
+                  note:  t('settings.nudge.perm_usage_short') });
     }
 
     /* Only the required pair decides whether this screen is satisfied. An
@@ -179,7 +179,7 @@ const OnboardingFlow = (function() {
         <div class="onboarding-card">
           <p class="onboarding-kicker">${escapeHtml(t('onboarding.perm.kicker'))}</p>
           <h1 class="onboarding-title">${escapeHtml(t('onboarding.perm.title', { app: label }))}</h1>
-          <p class="onboarding-body">${escapeHtml(t('onboarding.perm.body'))}</p>
+          <p class="onboarding-body">${escapeHtml(t('onboarding.perm.body_short'))}</p>
           <div class="onboarding-perms">
             ${rows.map(function(r) {
               /* Same markup as nudge.js's permission modal, deliberately — the

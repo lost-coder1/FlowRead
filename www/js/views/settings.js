@@ -179,21 +179,69 @@ async function syncVersionLabel() {
   el.textContent = t('settings.about.version', {version: label || '—'});
 }
 
+/* ─── Inline disclosure (Claude.md §1.5) ──────────────────────────────────
+ * §1.5 asks for honest limitations, not for every explanation to be open at
+ * once. Each option keeps one short line on screen; the full text — the same
+ * string that used to sit there permanently, so no translation is lost — moves
+ * behind a ⓘ.
+ *
+ * Not a modal, deliberately: §21 allows only one at a time and Settings already
+ * has real ones (the app picker, the paywall) that this must not compete with.
+ */
+function infoHint(id, shortText, longText) {
+  return '<p class="settings-hint">' + escapeHtml(shortText) + ' ' +
+      '<button class="settings-info-btn" data-info="' + id + '" aria-expanded="false" ' +
+        'aria-controls="info-' + id + '" aria-label="' + escapeHtml(t('settings.info.more')) +
+        '">i</button></p>' +
+    '<p class="settings-info-body hidden" id="info-' + id + '">' +
+      escapeHtml(longText) + '</p>';
+}
+
+/* Delegated on the view rather than per button, because three of these surfaces
+   re-render their own markup (permissions, the reminder note, the mode note) and
+   a handler bound to a replaced node is a dead control. A re-render simply
+   yields a fresh collapsed ⓘ, which is the right starting state anyway. */
+let _infoBound = false;
+function bindInfoDisclosures() {
+  if (_infoBound) return;
+  const view = qs('#view-settings');
+  if (!view) return;
+  _infoBound = true;
+  view.addEventListener('click', function(e) {
+    const btn = e.target.closest && e.target.closest('.settings-info-btn');
+    if (!btn || !view.contains(btn)) return;
+    /* Both needed: a hint can sit inside a <label>, where a bare click would
+       toggle the very setting the user is trying to read about. */
+    e.preventDefault();
+    e.stopPropagation();
+    const body = qs('#info-' + btn.getAttribute('data-info'));
+    if (!body) return;
+    const open = !body.classList.toggle('hidden');
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
+}
+
 function reminderNoteText() {
   const status = (typeof NotificationsFeature !== 'undefined'
     && typeof NotificationsFeature.lastStatus === 'function')
     ? NotificationsFeature.lastStatus() : null;
 
-  if (status === 'permission_denied') return t('settings.reminder.note_denied');
-  if (status === 'schedule_failed')    return t('settings.reminder.note_failed');
-  return t('settings.reminder.note');
+  /* A denial or a failure is not a detail to fold away — it is the one case the
+     user has to act on, so it stays fully visible (§1.5). Only the healthy
+     note, which is explanation rather than news, goes behind the ⓘ. */
+  if (status === 'permission_denied') return '<p class="settings-copy">' +
+      escapeHtml(t('settings.reminder.note_denied')) + '</p>';
+  if (status === 'schedule_failed')    return '<p class="settings-copy">' +
+      escapeHtml(t('settings.reminder.note_failed')) + '</p>';
+  return infoHint('reminder', t('settings.reminder.note_short'), t('settings.reminder.note'));
 }
 
 function syncReminderNote(enabled) {
   const note = qs('#settings-reminder-note');
   if (!note) return;
   note.style.display = enabled ? '' : 'none';
-  note.textContent = reminderNoteText();
+  /* reminderNoteText() now returns markup, not a bare string. */
+  note.innerHTML = reminderNoteText();
 }
 
 function renderSettings() {
@@ -317,7 +365,7 @@ function renderSettings() {
       <!-- READING NUDGE -->
       <section class="settings-section" id="settings-nudge-section" hidden>
         <h2>${t('settings.section.nudge')}</h2>
-        <p class="settings-copy">${t('settings.nudge.intro')}</p>
+        ${infoHint('nudge-intro', t('settings.nudge.intro_short'), t('settings.nudge.intro'))}
         <label class="settings-toggle">
           <span>${t('settings.nudge.toggle')}</span>
           <input type="checkbox" id="settings-nudge-enabled" />
@@ -351,7 +399,7 @@ function renderSettings() {
             <strong class="settings-row-value" id="settings-nudge-cap-value"></strong>
           </div>
           <input type="range" min="1" max="10" step="1" id="settings-nudge-cap" class="settings-slider" />
-          <p class="settings-copy text-muted" id="settings-nudge-cap-note">${t('settings.nudge.cap_note')}</p>
+          ${infoHint('nudge-cap', t('settings.nudge.cap_note_short'), t('settings.nudge.cap_note'))}
           <div class="settings-row">
             <span class="settings-row-label">${t('settings.nudge.status_label')}</span>
             <button class="btn btn-ghost settings-inline-btn" id="btn-settings-nudge-reset">${t('settings.nudge.reset')}</button>
@@ -362,7 +410,7 @@ function renderSettings() {
             <strong class="settings-row-value" id="settings-nudge-pages-value"></strong>
           </div>
           <input type="range" min="1" max="10" step="1" id="settings-nudge-pages" class="settings-slider" />
-          <p class="settings-copy text-muted">${t('settings.nudge.escape_note')}</p>
+          ${infoHint('nudge-escape', t('settings.nudge.escape_note_short'), t('settings.nudge.escape_note'))}
         </div>
       </section>
 
@@ -381,14 +429,14 @@ function renderSettings() {
           <span>${t('settings.toggle.streak_nudge')}</span>
           <input type="checkbox" id="settings-streak-nudge-enabled" ${AppState.settings.streakNudgeEnabled !== false ? 'checked' : ''} />
         </label>
-        <p class="settings-copy text-muted" id="settings-reminder-note" style="${AppState.settings.reminderEnabled ? '' : 'display:none'}">
+        <div id="settings-reminder-note" style="${AppState.settings.reminderEnabled ? '' : 'display:none'}">
           ${reminderNoteText()}
-        </p>
+        </div>
         <label class="settings-toggle">
           <span>${t('settings.toggle.offline_notif')}</span>
           <input type="checkbox" id="settings-offline-notif-enabled" ${AppState.settings.offlineNotifEnabled !== false ? 'checked' : ''} />
         </label>
-        <p class="settings-copy text-muted">${t('settings.offline_notif.note')}</p>
+        ${infoHint('offline-notif', t('settings.offline_notif.note_short'), t('settings.offline_notif.note'))}
       </section>
 
       <!-- LIBRARY -->
@@ -407,6 +455,12 @@ function renderSettings() {
         <p class="settings-copy" id="settings-version">${t('settings.about.version', {version: '…'})}</p>
         <p class="settings-copy">${t('settings.about.privacy')}</p>
         <p class="settings-copy">${t('settings.about.url_note')}</p>
+        <label class="settings-toggle">
+          <span>${t('settings.analytics.toggle')}</span>
+          <input type="checkbox" id="settings-analytics-enabled" ${
+            (typeof AnalyticsPing !== 'undefined' && AnalyticsPing.optedOut()) ? '' : 'checked'} />
+        </label>
+        <p class="settings-copy text-muted">${t('settings.analytics.note')}</p>
 
         <div class="settings-accordion">
           <button class="settings-accordion-header" id="btn-limitations-toggle" aria-expanded="false">
@@ -439,6 +493,7 @@ function renderSettings() {
 
   switchView('view-settings');
   bindSettings();
+  bindInfoDisclosures();
   syncVersionLabel();
 }
 
@@ -598,6 +653,18 @@ function bindSettings() {
       if (!enabled && typeof NotificationsFeature !== 'undefined') {
         NotificationsFeature.cancelOffline();
       }
+    });
+  }
+
+  /* Written inverted: the storage key is the opt-OUT, so absent means on, while
+     the control reads as "share" so the checked state matches the user's intent
+     rather than the flag's polarity. Not routed through updateSetting() — this
+     is consent, not a preference, and AnalyticsPing reads localStorage directly
+     so it cannot be out of step with AppState. */
+  const analyticsToggle = qs('#settings-analytics-enabled');
+  if (analyticsToggle) {
+    analyticsToggle.addEventListener('change', function() {
+      localStorage.setItem('fr_analytics_opt_out', this.checked ? 'false' : 'true');
     });
   }
 
@@ -867,35 +934,59 @@ async function syncNudgeStatus() {
   if (!st) { el.textContent = ''; return; }
 
   const name = NudgeAppsFeature.labelFor(pkg);
-  const parts = [t('settings.nudge.status_today', {
+
+  /* Two registers of the same state. `short` is one scannable line of counters,
+     which is what a glance at Settings is actually for; `long` keeps the full
+     sentences — the strings that used to be the whole status — behind the ⓘ.
+     Three lines of prose to say "0 of 2" was the complaint. */
+  const short = [t('settings.nudge.status_compact', {
+    app: name, n: st.nudges, cap: st.dailyCap,
+  })];
+  const long = [t('settings.nudge.status_today', {
     app: name, n: st.nudges, cap: st.dailyCap, skipped: st.dismissals,
   })];
+
   /* The threshold counts the current sitting, not the day. That number can sit
      far below what the phone's own screen-time screen reports, which reads as a
-     bug unless both are named and labelled (§1.5). */
+     bug unless both are named and labelled (§1.5) — so the day's total stays,
+     but as context inside the ⓘ rather than a third line on screen. */
   if (NudgeFeature.hasTrigger(NudgeFeature.MODE_THRESHOLD)) {
-    parts.push(t('settings.nudge.status_minutes', { n: st.minutes, target: st.minMinutes }));
+    long.push(t('settings.nudge.status_minutes', { n: st.minutes, target: st.minMinutes }));
     if (st.rawMinutes >= 0) {
-      parts.push(t('settings.nudge.status_today_total', { n: st.rawMinutes }));
+      short.push(t('settings.nudge.status_compact_mins', {
+        n: st.minutes, target: st.minMinutes,
+      }));
+      long.push(t('settings.nudge.status_today_total', { n: st.rawMinutes }));
     } else {
       /* No usage access: nothing can confirm the user is still in the app, so
          the sitting is only timed while they are navigating and the open count
          covers the moment of opening. Say so (§1.5). */
-      parts.push(t('settings.nudge.status_by_opens', { n: st.opens, target: st.minOpens }));
+      short.push(t('settings.nudge.status_compact_opens', {
+        n: st.opens, target: st.minOpens,
+      }));
+      long.push(t('settings.nudge.status_by_opens', { n: st.opens, target: st.minOpens }));
     }
   }
-  /* The back-off does not apply in every-open mode, so saying it does would be
-     a lie the user can check against their own screen. */
+
+  /* An exceptional state is news, not explanation, so it earns a place on the
+     visible line — abbreviated there, in full behind the ⓘ. The back-off does
+     not apply in every-open mode, so saying it does would be a lie the user can
+     check against their own screen. */
   if (!st.everyOpen && st.dismissals >= st.backoffAt) {
-    parts.push(t('settings.nudge.status_backed_off'));
+    short.push(t('settings.nudge.status_backed_off_short'));
+    long.push(t('settings.nudge.status_backed_off'));
   }
-  else if (st.nudges >= st.dailyCap) parts.push(t('settings.nudge.status_cap_reached'));
+  else if (st.nudges >= st.dailyCap) {
+    short.push(t('settings.nudge.status_cap_short'));
+    long.push(t('settings.nudge.status_cap_reached'));
+  }
   else if (st.suppressedSeconds > 0) {
-    parts.push(t('settings.nudge.status_paused', {
-      n: Math.max(1, Math.round(st.suppressedSeconds / 60)),
-    }));
+    const mins = Math.max(1, Math.round(st.suppressedSeconds / 60));
+    short.push(t('settings.nudge.status_paused_short', { n: mins }));
+    long.push(t('settings.nudge.status_paused', { n: mins }));
   }
-  el.textContent = parts.join(' ');
+
+  el.innerHTML = infoHint('nudge-status', short.join(' \u00b7 '), long.join(' '));
 }
 
 function syncNudgeApps() {
@@ -924,6 +1015,7 @@ async function syncNudgePermissions() {
       granted: state.accessibility,
       label: t('settings.nudge.perm_accessibility'),
       note: t('settings.nudge.perm_accessibility_note'),
+      short: t('settings.nudge.perm_accessibility_short'),
       open: NudgeFeature.openAccessibilitySettings,
       required: true,
     },
@@ -932,6 +1024,7 @@ async function syncNudgePermissions() {
       granted: state.overlay,
       label: t('settings.nudge.perm_overlay'),
       note: t('settings.nudge.perm_overlay_note'),
+      short: t('settings.nudge.perm_overlay_short'),
       open: NudgeFeature.openOverlaySettings,
       required: true,
     },
@@ -940,6 +1033,7 @@ async function syncNudgePermissions() {
       granted: state.usageAccess,
       label: t('settings.nudge.perm_usage'),
       note: t('settings.nudge.perm_usage_note'),
+      short: t('settings.nudge.perm_usage_short'),
       open: NudgeFeature.openUsageAccessSettings,
       required: false,
     },
@@ -955,7 +1049,7 @@ async function syncNudgePermissions() {
     return '<div class="settings-row nudge-perm-row">' +
         '<span class="settings-row-label">' + r.label + optional + '</span>' + status +
       '</div>' +
-      '<p class="settings-copy text-muted nudge-perm-note">' + r.note + '</p>';
+      infoHint('perm-' + r.id, r.short, r.note);
   }).join('');
 
   qsa('[data-perm]', host).forEach(function(btn) {

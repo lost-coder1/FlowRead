@@ -1,0 +1,42 @@
+<en-US>
+• New: reading nudges. Pick the apps that eat your time and FlowRead offers you a page first — always with a one-tap way to carry on anyway. A nudge, never a blocker.
+• Share your reading progress as a card, made on your device.
+• A gentle suggestion to read when you lose internet.
+• The one-time purchase now includes OCR Vision at no extra cost. FlowRead Plus is also available monthly or yearly.
+• Rebuilt onboarding, a far shorter Settings page, and anonymous usage counts can be turned off.
+</en-US>
+<de-DE>
+• Neu: Lese-Erinnerungen. Wähle die Apps, die deine Zeit fressen, und FlowRead bietet dir erst eine Seite an — immer mit einem Tipp, um trotzdem weiterzugehen. Ein Anstoß, keine Sperre.
+• Teile deinen Lesefortschritt als Karte, erstellt auf deinem Gerät.
+• Ein sanfter Lesevorschlag, wenn du offline gehst.
+• Der Einmalkauf enthält jetzt OCR Vision ohne Aufpreis. FlowRead Plus gibt es monatlich oder jährlich.
+• Neues Onboarding, kürzere Einstellungen, anonyme Zählungen abschaltbar.
+</de-DE>
+<es-419>
+• Nuevo: recordatorios de lectura. Elige las apps que te consumen el tiempo y FlowRead te ofrece una página antes, siempre con un toque para seguir igual. Un empujón, nunca un bloqueo.
+• Comparte tu progreso como una tarjeta, creada en tu dispositivo.
+• Una sugerencia amable para leer cuando pierdes internet.
+• La compra única ahora incluye OCR Vision sin costo extra. FlowRead Plus está por mes o por año.
+• Onboarding rediseñado, Ajustes más breves y conteos anónimos desactivables.
+</es-419>
+<es-ES>
+• Nuevo: recordatorios de lectura. Elige las apps que te consumen el tiempo y FlowRead te ofrece una página antes, siempre con un toque para continuar igual. Un empujón, nunca un bloqueo.
+• Comparte tu progreso como una tarjeta, creada en tu dispositivo.
+• Una sugerencia amable para leer cuando te quedas sin internet.
+• La compra única ya incluye OCR Vision sin coste adicional. FlowRead Plus está por mes o por año.
+• Onboarding rediseñado, Ajustes más breves y recuentos anónimos desactivables.
+</es-ES>
+<ja-JP>
+• 新機能: 読書リマインダー。時間を奪うアプリを選んでおくと、FlowRead がまず1ページを提案します。ワンタップでそのまま進めるので、ブロックではありません。
+• 読書の記録をカードとして共有できます。作成は端末内で完結します。
+• オフラインになったとき、読書をそっと提案します。
+• 買い切りに OCR Vision が追加費用なしで含まれるようになりました。月額・年額の FlowRead Plus もあります。
+• 初回ガイドを作り直し、設定画面を大幅に短縮。匿名の利用回数の送信はオフにできます。
+</ja-JP>
+<pt-BR>
+• Novidade: lembretes de leitura. Escolha os apps que consomem seu tempo e o FlowRead oferece uma página antes, sempre com um toque para seguir mesmo assim. Um empurrão, nunca um bloqueio.
+• Compartilhe seu progresso como um cartão, criado no seu aparelho.
+• Uma sugestão leve de leitura quando você fica sem internet.
+• A compra única agora inclui o OCR Vision sem custo extra. O FlowRead Plus está por mês ou por ano.
+• Onboarding refeito, Configurações mais curtas e contagens anônimas opcionais.
+</pt-BR>
