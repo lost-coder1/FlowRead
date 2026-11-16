@@ -681,6 +681,25 @@ exactly the old behaviour, so the failure mode degrades to today rather than to 
 wrong. The danda `।` is in the sentence-ending set (§17). Free Books can be re-downloaded
 for an exact result.
 
+**Follow-up, reported from device: the bottom fifth of the page was blank.** Raising the
+nav bar before measuring (below) exposed a double reservation that had been there all along.
+`.page-engine-nav` is a normal flex item in the `#view-reader` column and already takes its
+own ~65px out of the shell — calm mode only fades it, never removes it from layout — but
+`.page-leaf` *also* reserved `96px` of bottom padding for the same bar. Measuring against the
+unshrunk shell had been hiding half of it by letting the text run into the reserve. With the
+measurement corrected, both reservations applied at once and the dead strip went from 31px
+to 96px. The leaf's bottom padding is now an ordinary 24px reading margin, matching the top;
+the safe-area inset belongs to the nav bar below, which handles its own.
+
+| | usable height | blank below the text | share of the reader |
+|---|---|---|---|
+| before any of this | 580px (measured against a stage 65px too tall) | 31px + nav | 13.7% |
+| nav-first alone | 515px | 96px + nav | 23.0% |
+| **now** | **587px** | **29px + nav** | **13.4%** |
+
+So the page holds ~14% more text than the measurement ever intended, and the only blank left
+is the reading margin. 235 words on page one at the default scale.
+
 **Fixed in passing — pages were sized for a stage that does not exist.**
 `.page-engine-nav` is an ordinary flex item (`flex-shrink: 0`, no positioning), so putting
 it up **shrinks the shell by its own height** — but `_ensureNavBar()` ran in

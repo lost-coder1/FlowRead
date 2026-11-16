@@ -384,9 +384,11 @@ const PageEngine = (function() {
       _pages.push({ startIndex: 0, endIndex: Math.max(0, _words.length - 1), el: null });
     }
     _buildComplete = true;
+    /* Nav bar before layout: it is a flex item, so raising it shrinks the shell,
+       and laying leaves out first would make them reflow the moment it appears. */
+    _ensureNavBar();
     _pageIndex = _pageForIndex(_index);
     _layoutPages();
-    _ensureNavBar();
     _updateNav();
     _attachSwipeListeners();
     _attachChromeToggleListener();

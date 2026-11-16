@@ -857,7 +857,13 @@ body.engine-page .reader-normal-toggle { display: none !important; }
 .page-leaf {
   position: absolute;
   inset: 0;
-  padding: 24px 22px calc(96px + var(--safe-bottom)) 22px;
+  /* Bottom is an ordinary reading margin, matching the top. It used to reserve
+     96px for the nav bar, but .page-engine-nav is a normal flex item in the
+     #view-reader column and already takes its own height out of the shell — and
+     calm mode only fades it, never removes it from layout. Reserving for it here
+     as well left a dead strip roughly a fifth of the page tall. The safe-area
+     inset belongs to the nav bar below, which handles its own. */
+  padding: 24px 22px;
   color: var(--text);
   font-family: var(--font-body);
   font-size: calc(17px * var(--font-scale, 1));
