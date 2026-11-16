@@ -233,7 +233,31 @@ Unchanged from pre-pivot. Five engines, all built on the same word-array/`pageWo
 
 **Simple Scroll** — CSS `transform: translateY()`, GPU-composited. Speed multiplier 0.25×–4×.
 
-**Page** (added Phase 15) — same word stream/position system, rendered as swipeable, paginated normal-reading pages. DOM-measured pagination, cached per file/font/viewport. **Was the default landing engine for any read initiated via the nudge system (Section 9)** — RSVP/Chunk are too high-effort for the moment right after someone was redirected from a distracting app. **Temporarily overridden 2026-09-21 (device testing):** Page mode's first paint on a cold cache is slow enough that the user waits at exactly the moment the nudge is trying to be frictionless, so a nudged read now lands in the user's own engine. Restore this rule once Page-mode load time is addressed.
+**Page** (added Phase 15) — same word stream/position system, rendered as swipeable, paginated normal-reading pages. DOM-measured pagination, cached per file/font/viewport **and persisted** (§5.1). **The default landing engine for any read initiated via the nudge system (Section 9)** — RSVP/Chunk are too high-effort for the moment right after someone was redirected from a distracting app. The 2026-09-21 override that sent a nudged read to the user's own engine instead was lifted 2026-11-16, when the load time that caused it was fixed.
+
+### 5.1 Page-mode pagination — three rules that must hold
+
+Rewritten 2026-11-16. The original built a span for every word in the book and read
+`offsetHeight` after each one, so opening a book cost a forced layout per word and four
+word-tap listeners per word before anything painted — 16s for a 150k-word book on a desktop,
+and the reason §9.5 had to be overridden for two months.
+
+1. **Measure in slabs, never per word.** ~3000 words go into the hidden measure leaf in one
+   assignment, lay out once, and are read with `offsetTop`, which is free while nothing
+   mutates. Reading a geometry property after every DOM write is the thing that made this slow,
+   and it is easy to reintroduce without noticing.
+2. **Only the slide window exists as DOM.** A leaf is built when it enters prev/current/next and
+   released on an LRU of five. The boundaries are two integers per page; the spans are not.
+3. **First paint must not depend on the length of the book.** One slab is measured at the
+   reader's own position and painted; the grid for the whole book is measured behind it. Until
+   that finishes the page numbers are estimates and **say so with a tilde** (§1.5) — a grid
+   anchored mid-book genuinely cannot number its pages, and showing a confident wrong number
+   would be the silent failure §1.5 forbids.
+
+The result is cached in `localStorage` under `fr_page_layout_*` (boundaries only — integers,
+never content, §1.4), keyed by file + font + scale + viewport, LRU-evicted at ten entries, so a
+later open measures nothing at all. **Page mode deliberately exposes no `hasCache()`**: reader.js
+reads that absence as "opens fast enough that a loading card would only flash".
 
 ---
 
@@ -358,9 +382,12 @@ A prominent disclosure screen must precede the accessibility grant. That is Play
 No iOS implementation planned.
 
 ### 9.5 Reading Mode on Nudge-Entry
-Lands in the user's own reading engine. Resumes in-progress book, or opens Free Books library if none — avoids the "empty import screen" drop-off.
+Lands in Page mode. Resumes in-progress book, or opens Free Books library if none — avoids the "empty import screen" drop-off.
 
-**Was Page mode by default; overridden 2026-09-21 pending Page-mode load-time work** (Section 5). The reasoning for Page mode still stands and should be restored once opening it is fast; the reason for the override is that a slow first paint costs more here than the engine choice gains.
+**Page mode, as originally specified.** The 2026-09-21 override — which sent a nudged read to
+the user's own engine because Page mode's first paint was slow enough to leave them waiting at
+exactly the frictionless moment — was lifted 2026-11-16 once §5.1 made first paint independent of
+book size. `forceEngine: 'page'` applies to that read only and never writes `fr_last_engine`.
 
 **Unlock progress is engine-agnostic.** The threshold is expressed in pages, but it is counted through `savePosition()` — the seam every engine already goes through — so a nudged read counts in RSVP, Chunk, Scroll and Focus Bold too, converting pages to words (~220 words/page). Page mode keeps its exact page count. Counting only Page-mode turns meant a user reading in any other engine waited for an unlock that could never arrive (Section 1.5).
 
@@ -589,6 +616,7 @@ consistent, and do not grow status narrative here: that is `Tasks.md`'s job.
 | **16.7** | Offline-triggered reading notification | 11 | ✅ 1.4.7, device-verified; Q6 copy outstanding |
 | **16.8** | Home screen widget | 12 | ⬜ **next engineering task**; needs Q7 (classic vs Glance) |
 | **16.9** | Home screen reorder (in-progress books first) | — | ✅ 1.4.7 |
+| **16.12** | Page-mode pagination rewrite; restores §9.5's nudge entry | 5.1 | ✅ code complete; device run outstanding |
 | **16.10** | Store listing rewrite onto the habit framing | 0.1 | ⬜ **next product task**; now the main listing, not just the India CSL |
 | **H3** | Notifications failed silently without exact-alarm permission | 1.5 | ✅ 1.4.7 |
 | **H4** | Pro purchase failed with a generic error | 1.5 | ✅ verified on a Play build; revenue blocker closed |

@@ -649,7 +649,9 @@ function _switchEngine(key) {
   /* "Heavy" engines (Focus, Scroll) expose hasCache(). Light engines (RSVP, Chunk) don't —
      their init is fast enough that the loading card would just flash unnecessarily. */
   const isHeavyEngine = typeof engine.hasCache === 'function';
-  const skipLoadingCard = !isHeavyEngine;
+  /* Ask the engine, the way renderReader does. Without this the tab path showed
+     the loading card on every switch even when the engine had nothing to build. */
+  const skipLoadingCard = !isHeavyEngine || engine.hasCache(fileId);
   const transitionToken = ++_engineTransitionToken;
   _engineTransitionInFlight = true;
   const loaderShownAt = Date.now();

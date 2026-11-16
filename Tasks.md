@@ -53,6 +53,13 @@ unlabelled category chips are fixed. The catalogue work is re-scoped into four p
 **16.8 (home screen widget) is deferred by the owner until the app has traction.** Next product
 task: **16.10**'s remaining screenshots + feature graphic.
 
+**2026-11-16 — Page mode rewritten (Task 16.12).** Opening a book in Page mode no longer scales
+with its length: 150k words went from **14.7s to 434ms**, first paint is one slab regardless of
+size, and a re-open from the persisted grid is instant. The cause was a forced layout per word
+plus a span and four listeners per word built for the whole corpus up front. **This closes N7 and
+restores §9.5** — a nudged read lands in Page mode again, which it had not since 2026-09-21.
+Device run still owed.
+
 **2026-11-16 — 16.4 Phase B shipped.** The catalogue is **150 books**, grown by a curated batch of
 62 weighted toward the genres the first 88 barely had. The 1.5.4 release state was also committed
 (it had been sitting staged on the branch, never committed), and the **privacy policy is now
@@ -546,6 +553,75 @@ plus the two rewrites, same standing as the other 16.1/16.3 strings (§17).
 **Device test owed:** the ⓘ expand/collapse on a real touch target, that a hint inside a `<label>`
 does not toggle its setting when the ⓘ is tapped, the Hindi line lengths at 400px, and that the
 compact status line does not wrap on a narrow screen in Hindi.
+
+---
+
+## Task 16.12 — Page-mode pagination rewrite  ✅ code complete, device run outstanding
+
+**Governed by `Claude.md` §5.1** (written for this work), §9.5, §21 (performance).
+
+**Why.** Page mode's open time scaled with the book and was bad even on short ones. It built a
+span for every word in the corpus — four word-tap listeners each — and read `offsetHeight` after
+every single `appendChild`, so a forced layout per word. Measured on a desktop: **15k words 1.3s,
+60k words 5.2s, 150k words 14.7s**, and a phone is several times slower. This is the defect behind
+N7, and it is why §9.5's rule that a nudged read lands in Page mode had been overridden since
+2026-09-21 — the pivot's own entry point could not use the engine it specified.
+
+**What changed.**
+1. **Slab measurement.** ~3000 words laid out in one `innerHTML` assignment, one forced layout,
+   then `offsetTop` read off each word while layout is clean. Same single-flush trick FocusBold
+   already used (`focusbold.js:150`), but slab by slab so the book is never all in the document.
+2. **Lazy leaves.** Pages are two integers until they enter the prev/current/next window; leaves
+   are built on demand and released on an LRU of five. A 150k-word book went from ~150k spans and
+   ~600k listeners to ~550 spans and ~2,200 listeners.
+3. **Two-phase open.** One slab is measured at the reader's own position and painted; the grid
+   for the whole book is measured behind it on a 12ms frame budget. First paint no longer depends
+   on book length at all.
+4. **Persisted boundaries.** `fr_page_layout_*` in localStorage — integers only, never content —
+   keyed by file+font+scale+viewport, LRU-evicted at 10. A later open measures nothing.
+5. **Page mode dropped `hasCache()`**, so reader.js no longer shows it a loading card: first paint
+   is now inside the window where a card would only flash.
+
+**Measured (desktop Chrome, 412×700 stage, full pass):**
+
+| Book | Before | After | Forced layouts |
+|---|---|---|---|
+| 15k words | 1,317 ms | **43 ms** | 15,000 → 6 |
+| 60k words | 5,165 ms | **171 ms** | 60,000 → 21 |
+| 150k words | 14,720 ms | **434 ms** | 150,000 → 51 |
+
+First paint is one slab — **10–60 ms regardless of size** — and a re-open from the persisted grid
+is **synchronous, 0 ms**. Page sizes agree with the old algorithm to within 1.2%, erring toward
+slightly fewer words per page, so nothing overflows.
+
+**Also fixed while in here:**
+- `_switchEngine` never called `hasCache()`, so switching into Focus or Scroll showed the loading
+  card even on a warm cache, unlike `renderReader`. They agree now.
+- `seekTo()` snapped `_index` to the page start, rounding away intra-page position on a §7 bridge
+  round-trip. It keeps the exact word; only `_gotoPage` moves the position.
+- `_pageForIndex` was a linear scan over every page; it binary-searches.
+- A destroy mid-build threw away all measurement. Boundaries now survive it.
+- The nav bar — and with it the §7 bridge button — used to appear only when pagination finished.
+  It is up at first paint.
+
+**Honest limitation, by design (§1.5).** Resuming deep into a book that has not been measured
+before, the grid on screen starts at the reader's position and so cannot know its own page
+numbers. The indicator reads `~274 / ~341` until the background pass lands (sub-second), and the
+first/last-page buttons are disabled for that moment rather than jumping somewhere wrong.
+Resuming at word 0, or from a persisted grid, is exact immediately.
+
+**Verified:** 40-assertion headless-Chrome harness against the real `page.js`, `storage.js` and
+app CSS — grid contiguity (every word covered exactly once, no gaps), the provisional→canonical
+swap not moving the reader, LRU bounds, persistence round-trip, mid-build destroy leaving nothing
+behind. All pass. Harness is not committed; it is a scratch file.
+
+- [ ] **Device run.** Large book, cold cache: open time, swipe across 20+ pages, word-tap and
+      long-press dictionary on a page reached after LRU eviction, a `[Table — Tap to View]`
+      placeholder, §7 bridge both ways, rotation + font-scale change, engine round-trip to RSVP
+      and back (16.2 checklist item 11), kill-and-reopen (persisted grid), and a nudged read now
+      landing in Page mode with the unlock counter still advancing.
+- [ ] **Hindi.** Open a Devanagari book in Page mode — pagination and word tap unaffected. No new
+      user-facing strings were added, so there are no new i18n keys.
 
 ---
 

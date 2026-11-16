@@ -16,6 +16,72 @@ function loadPosition(fileId) {
   return v !== null ? parseInt(v, 10) : 0;
 }
 
+/* ── Page-mode layout cache ─────────────────────────────────── */
+/* Page mode paginates by DOM measurement, and that measurement is the expensive
+   part of opening it. What it produces is only word-index boundaries — integers,
+   never reading content — so it is cached here and a later open of the same book
+   measures nothing at all. The key carries the typography and the viewport as
+   well as the file, so a rotation or a font change misses cleanly instead of
+   restoring a grid that no longer fits the screen. */
+const PAGE_LAYOUT_PREFIX = 'fr_page_layout_';
+const PAGE_LAYOUT_MAX = 10;
+
+function savePageLayout(key, starts, wordCount) {
+  try {
+    localStorage.setItem(PAGE_LAYOUT_PREFIX + key, JSON.stringify({
+      v: 1, starts: starts, words: wordCount, ts: Date.now(),
+    }));
+  } catch (e) {
+    /* Quota, or storage blocked entirely. This is a cache: losing it costs one
+       re-measure and nothing the user should ever be told about (§1.5). */
+  }
+  _evictPageLayouts();
+}
+
+function loadPageLayout(key, wordCount) {
+  const entry = _readPageLayout(key, wordCount);
+  if (!entry) return null;
+  /* Touch recency so the books actually being read outlive the ones that aren't. */
+  try {
+    entry.ts = Date.now();
+    localStorage.setItem(PAGE_LAYOUT_PREFIX + key, JSON.stringify(entry));
+  } catch (e) { /* recency is a nicety, not a requirement */ }
+  return entry.starts;
+}
+
+function _readPageLayout(key, wordCount) {
+  try {
+    const raw = localStorage.getItem(PAGE_LAYOUT_PREFIX + key);
+    if (!raw) return null;
+    const entry = JSON.parse(raw);
+    if (!entry || entry.v !== 1 || !Array.isArray(entry.starts) || entry.starts.length === 0) return null;
+    /* A file re-imported under the same id can hold different text, and the
+       stored boundaries would then point into the wrong words. */
+    if (typeof wordCount === 'number' && entry.words !== wordCount) return null;
+    return entry;
+  } catch (e) {
+    return null;
+  }
+}
+
+function _evictPageLayouts() {
+  try {
+    const entries = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k || k.indexOf(PAGE_LAYOUT_PREFIX) !== 0) continue;
+      let ts = 0;
+      try { ts = (JSON.parse(localStorage.getItem(k)) || {}).ts || 0; } catch (e) { ts = 0; }
+      entries.push({ key: k, ts: ts });
+    }
+    if (entries.length <= PAGE_LAYOUT_MAX) return;
+    entries.sort(function(a, b) { return a.ts - b.ts; });
+    for (let i = 0; i < entries.length - PAGE_LAYOUT_MAX; i++) {
+      localStorage.removeItem(entries[i].key);
+    }
+  } catch (e) { /* if we cannot enumerate storage there is nothing to evict */ }
+}
+
 function saveWPM(wpm) {
   localStorage.setItem('fr_wpm', wpm);
 }

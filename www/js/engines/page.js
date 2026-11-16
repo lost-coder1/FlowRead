@@ -20,10 +20,24 @@ const PageEngine = (function() {
   let _abortBuild = false;
   let _buildComplete = false;
 
-  /* DOM cache survives engine destroy so re-entry skips re-pagination. */
-  let _domCache = null;
+  /* Page boundaries survive engine destroy so re-entry skips re-measurement, and
+     are persisted by storage.js so a later launch skips it too. The leaves do NOT
+     survive: they are rebuilt from _words on demand (_ensureLeaf), because a leaf
+     costs four event listeners per word and most of a book is never looked at. */
   let _cacheKey = null;       /* `${fileId}|${fontPreset}|${fontScale}|${vw}x${vh}` */
-  let _cacheFileId = null;    /* used by hasCache() — looser match (file only) */
+  let _leafLru = [];          /* page indices holding a live .el, oldest first */
+  const LEAF_LRU_MAX = 5;
+
+  /* False while a background pass is still measuring. The grid on screen is then
+     real but incomplete, so the page numbers next to it are estimates. */
+  let _pagesExact = true;
+  let _estWordsPerPage = 0;
+
+  /* Measurement tuning. A slab is laid out in one pass and read with offsetTop;
+     the budget keeps the frame responsive without making the frame count itself
+     the bottleneck, which is what a fixed words-per-frame chunk did. */
+  const SLAB_WORDS = 3000;
+  const FRAME_BUDGET_MS = 12;
 
   /* ── Cache key ───────────────────────────────────────────────── */
 
@@ -55,46 +69,57 @@ const PageEngine = (function() {
        flushed by reader.js on engine switch, view exit, visibilitychange, etc. */
     if (typeof _onEnginePlay === 'function') _onEnginePlay();
 
-    /* Cache hit: same file + same typography + same viewport — restore DOM */
-    if (key === _cacheKey && _domCache && _pages.length > 0) {
-      _clearEngineContent(container);
-      while (_domCache.firstChild) {
-        container.appendChild(_domCache.firstChild);
-      }
-      _domCache = null;
-      _buildComplete = true;
-      _pageIndex = _pageForIndex(_index);
-      _layoutPages();
-      _ensureNavBar();
-      _updateNav();
-      _attachSwipeListeners();
-      _attachChromeToggleListener();
-      _removeLoadingSpinner(container);
-      _syncReaderPosition(_index, _words.length);
-      return;
-    }
+    /* Same file, same typography, same viewport — the boundaries from the last
+       visit still describe this screen, so there is nothing to measure. Either
+       they are still in memory, or storage.js has them from an earlier launch. */
+    const reusable = (key === _cacheKey && _buildComplete && _pagesExact && _pages.length > 0)
+      ? _pages.map(function(p) { return p.startIndex; })
+      : loadPageLayout(key, _words.length);
 
     _pages = [];
-    _domCache = null;
+    _leafLru = [];
+    _pagesExact = true;
+    _estWordsPerPage = 0;
     _cacheKey = key;
-    _cacheFileId = AppState.currentFile && AppState.currentFile.id;
-    _render();
+
+    if (reusable && reusable.length > 0) {
+      _createShell(container);
+      _adoptStarts(reusable);
+      _finalizeBuild(container, false);
+      return;
+    }
+    _render(container);
   }
 
-  function _render() {
-    const container = qs('#rsvp-container');
-    _clearEngineContent(container);
+  /* Turn a boundary list back into pages. Only the first word of each page is
+     stored, so the end of one is the word before the start of the next. */
+  function _adoptStarts(starts) {
+    const total = _words.length;
+    for (let i = 0; i < starts.length; i++) {
+      const start = starts[i];
+      const end = (i + 1 < starts.length ? starts[i + 1] - 1 : total - 1);
+      if (start > end || start < 0 || end >= total) continue;
+      _pages.push({ startIndex: start, endIndex: end, el: null });
+    }
+  }
 
+  function _createShell(container) {
+    _clearEngineContent(container);
     const shell = document.createElement('div');
     shell.className = 'page-shell';
     shell.id = 'page-shell';
     shell.style.setProperty('--font-scale', String((AppState.settings && AppState.settings.fontScale) || 1));
     container.appendChild(shell);
+    return shell;
+  }
+
+  function _render(container) {
+    const shell = _createShell(container);
 
     /* Off-screen measurement page — auto-height (NOT absolute inset:0), positioned
        far off-screen. Width set inline so word wrap matches the visible leaves.
-       offsetHeight then reflects actual content height (including the leaf's own
-       padding), and we compare it against shell.clientHeight to detect overflow. */
+       Auto height is what lets a whole slab lay out at once, and the page breaks
+       are then read off each word's offsetTop against the shell's content box. */
     const tempPage = document.createElement('div');
     tempPage.className = 'page-leaf page-leaf-measure';
     shell.appendChild(tempPage);
@@ -105,88 +130,219 @@ const PageEngine = (function() {
       requestAnimationFrame(function() {
         if (_abortBuild) return;
         tempPage.style.width = shell.clientWidth + 'px';
-        _buildPagesFromWords(shell, tempPage, container);
+        _measurePages(shell, tempPage, container);
       });
     });
   }
 
-  function _buildPagesFromWords(shell, tempPage, container) {
+  /* Pagination measures in slabs, not word by word.
+
+     The old loop appended one span and then read tempPage.offsetHeight, which
+     forces a synchronous layout — per word, on a container that grows as the page
+     fills. That is what made opening a book scale with its length. Here a slab of
+     ~3000 words is written in a single innerHTML assignment, laid out once, and
+     then read with offsetTop, which is free as long as nothing mutates the DOM
+     in between. Same pattern as FocusBold's _paginateFromDOM, but slab by slab so
+     the whole corpus is never in the document at once. */
+  function _measurePages(shell, tempPage, container) {
     const containerH = shell.clientHeight || window.innerHeight;
     /* If layout hasn't settled, fall back to a fixed word count per page rather
        than letting the measurement loop produce one-word pages. */
     if (containerH < 200) {
       tempPage.remove();
-      _paginateByWordCount(shell);
-      _finalizeBuild(container);
+      _paginateByWordCount();
+      _finalizeBuild(container, false);
       return;
     }
-    /* offsetHeight of the auto-sized tempPage includes its padding (same padding as
-       the visible leaves), so overflow happens exactly when offsetHeight > shell height. */
-    const usableH = containerH;
+
+    /* The measure leaf carries the same padding as a visible leaf, and offsetTop
+       is read from the padding edge, so the content box is what has to fit. */
+    const cs = window.getComputedStyle(tempPage);
+    const padT = parseFloat(cs.paddingTop) || 0;
+    const padB = parseFloat(cs.paddingBottom) || 0;
+    const lineH = parseFloat(cs.lineHeight) || ((parseFloat(cs.fontSize) || 17) * 1.7);
+    const ctx = {
+      temp: tempPage,
+      usableH: Math.max(lineH, containerH - padT - padB),
+      lineH: lineH,
+    };
     const total = _words.length;
-    const CHUNK = 250; /* words per rAF yield — keeps the spinner animating */
 
-    let pageStart = 0;
-    let buffer = []; /* spans currently in tempPage */
-    let i = 0;
+    /* Phase A — measure one slab starting where the reader actually is, and paint
+       that. First paint then costs the same on a forty-page pamphlet and on War
+       and Peace, because it no longer depends on what comes before or after. */
+    const anchor = Math.max(0, Math.min(_index, Math.max(0, total - 1)));
+    _runMeasure(ctx, _pages, anchor, SLAB_WORDS, 0);
+    _estWordsPerPage = _averageWordsPerPage();
+    /* Exact already if that one slab happened to be the whole book — a short
+       article, or an empty one, needs no second pass. */
+    _pagesExact = total === 0 || (_pages.length > 0
+      && _pages[0].startIndex === 0
+      && _pages[_pages.length - 1].endIndex >= total - 1);
 
-    function flushPage(endIdx) {
-      _appendPage(shell, pageStart, endIdx, buffer.slice());
-      pageStart = endIdx + 1;
-      buffer = [];
-      tempPage.innerHTML = '';
+    _finalizeBuild(container, _pagesExact);
+
+    if (_pagesExact) {
+      tempPage.remove();
+      return;
     }
+    _startBackgroundPass(ctx, anchor);
+  }
+
+  /* Phase B — the grid for the whole book, measured across idle frames while the
+     user reads. Anchored at word 0 the visible array simply grows; anchored
+     anywhere else the pages on screen started mid-book and so cannot be numbered,
+     and a grid measured from word 0 replaces them once it is complete. */
+  function _startBackgroundPass(ctx, anchor) {
+    const total = _words.length;
+    const fromZero = anchor > 0;
+    const out = fromZero ? [] : _pages;
+    let cursor = fromZero
+      ? 0
+      : (_pages.length > 0 ? _pages[_pages.length - 1].endIndex + 1 : 0);
 
     function step() {
       if (_abortBuild) return;
-      const end = Math.min(i + CHUNK, total);
-      for (; i < end; i++) {
-        const span = _makeWordSpan(_words[i], i);
-        tempPage.appendChild(span);
-        buffer.push(span);
+      cursor = _runMeasure(ctx, out, cursor, Infinity, FRAME_BUDGET_MS);
 
-        if (tempPage.offsetHeight > usableH && buffer.length > 1) {
-          tempPage.removeChild(span);
-          buffer.pop();
-          flushPage(i - 1);
-          tempPage.appendChild(span);
-          buffer.push(span);
+      if (cursor < total) {
+        if (!fromZero) {
+          /* The visible grid grew: the estimate and the end-of-book state move
+             with it, so the nav bar has to follow. */
+          _estWordsPerPage = _averageWordsPerPage();
+          _updateNav();
         }
-      }
-
-      if (typeof _updateEngineLoadingProgress === 'function') {
-        _updateEngineLoadingProgress(total ? (i / total) * 95 : 95);
-      }
-
-      if (i < total) {
         requestAnimationFrame(step);
+        return;
+      }
+
+      if (fromZero) _swapInGrid(out);
+      _pagesExact = true;
+      _estWordsPerPage = _averageWordsPerPage();
+      _layoutPages();
+      _updateNav();
+      ctx.temp.remove();
+      _persistLayout();
+    }
+
+    requestAnimationFrame(step);
+  }
+
+  /* Put the canonical grid in place without moving the reader: _index is the
+     position and the page number is derived from it, never the other way round
+     (§21 — reading position is sacred). */
+  function _swapInGrid(pages) {
+    for (let i = 0; i < _pages.length; i++) _releaseLeaf(i);
+    _leafLru = [];
+    _pages = pages;
+    _pageIndex = _pageForIndex(_index);
+  }
+
+  /* Measure forward from `from`, appending pages to `out`, stopping after
+     `limitWords` have been covered or the frame budget has run out — whichever
+     comes first. Returns the word the next call should resume from, which is
+     always the start of a page, so a resumed pass never splits one. */
+  function _runMeasure(ctx, out, from, limitWords, budgetMs) {
+    const started = Date.now();
+    const total = _words.length;
+    const stopAt = Math.min(total, from + limitWords);
+    let cursor = from;
+    let slab = SLAB_WORDS;
+
+    /* Time-budgeted rather than fixed-size: a fast device gets through several
+       slabs in one frame instead of being held to one slab per frame. */
+    while (cursor < total && cursor < stopAt
+           && (!budgetMs || Date.now() - started < budgetMs)) {
+      const end = Math.min(cursor + slab, total);
+      const breaks = _measureSlab(ctx.temp, cursor, end, ctx.usableH, ctx.lineH);
+
+      if (breaks.length === 0) {
+        if (end >= total) {
+          out.push({ startIndex: cursor, endIndex: total - 1, el: null });
+          cursor = total;
+        } else {
+          /* A whole slab fitted on one page — a large screen with a small font
+             can do this. Widen rather than emit a page we haven't seen the end of. */
+          slab = slab * 2;
+        }
+        continue;
+      }
+
+      for (let i = 0; i < breaks.length; i++) {
+        out.push({ startIndex: cursor, endIndex: breaks[i] - 1, el: null });
+        cursor = breaks[i];
+      }
+      slab = SLAB_WORDS;
+      /* Whatever follows the last break is not a full page yet, so it carries
+         into the next slab — which is why cursor lands on it, not past it. */
+      if (end >= total && cursor < total) {
+        out.push({ startIndex: cursor, endIndex: total - 1, el: null });
+        cursor = total;
+      }
+    }
+    return cursor;
+  }
+
+  function _averageWordsPerPage() {
+    if (_pages.length === 0) return 0;
+    const covered = _pages[_pages.length - 1].endIndex - _pages[0].startIndex + 1;
+    return covered / _pages.length;
+  }
+
+  /* Lay out one slab and return the word indices a page must break at.
+     These spans are throwaway — no dataset.index, no word-tap binding, no
+     placeholder handler. They exist for a single layout pass and are dropped.
+     Only the typography has to match a real leaf, which the shared .page-leaf
+     and .page-placeholder CSS already guarantees. */
+  function _measureSlab(tempPage, from, to, usableH, lineH) {
+    const html = [];
+    for (let i = from; i < to; i++) {
+      const w = _words[i];
+      if (w && typeof w === 'object' && w.type === 'placeholder') {
+        html.push('<span class="page-word page-placeholder">' + escapeHtml(w.label || '[Content]') + ' </span>');
       } else {
-        if (pageStart < total) flushPage(total - 1);
-        tempPage.remove();
-        _finalizeBuild(container);
+        html.push('<span class="page-word">' + escapeHtml(typeof w === 'string' ? w : '') + ' </span>');
+      }
+    }
+    tempPage.innerHTML = html.join('');
+
+    const spans = tempPage.children;
+    const breaks = [];
+    if (spans.length === 0) return breaks;
+
+    /* This first read is the one forced layout for the whole slab. Every read
+       after it is served from clean layout, because nothing below mutates. */
+    let baseTop = spans[0].offsetTop;
+    let pageStart = 0;
+
+    for (let i = 0; i < spans.length; i++) {
+      const top = spans[i].offsetTop;
+      /* offsetHeight of an inline span is its font box, which is shorter than the
+         line it sits on — so the line height is the floor. A placeholder chip can
+         be taller than a line, and then its own height is what matters. */
+      const h = Math.max(lineH, spans[i].offsetHeight);
+      if (top - baseTop + h > usableH && i > pageStart) {
+        breaks.push(from + i);
+        pageStart = i;
+        baseTop = top;
       }
     }
 
-    step();
+    tempPage.innerHTML = '';
+    return breaks;
   }
 
-  function _paginateByWordCount(shell) {
+  function _paginateByWordCount() {
     const wordsPerPage = 180;
     const total = _words.length;
-    let i = 0;
-    while (i < total) {
-      const end = Math.min(i + wordsPerPage, total) - 1;
-      const spans = [];
-      for (let j = i; j <= end; j++) spans.push(_makeWordSpan(_words[j], j));
-      _appendPage(shell, i, end, spans);
-      i = end + 1;
+    for (let i = 0; i < total; i += wordsPerPage) {
+      _pages.push({ startIndex: i, endIndex: Math.min(i + wordsPerPage, total) - 1, el: null });
     }
   }
 
-  function _finalizeBuild(container) {
-    const shell = qs('#page-shell');
+  function _finalizeBuild(container, measured) {
     if (_pages.length === 0) {
-      _appendPage(shell, 0, Math.max(0, _words.length - 1), []);
+      _pages.push({ startIndex: 0, endIndex: Math.max(0, _words.length - 1), el: null });
     }
     _buildComplete = true;
     _pageIndex = _pageForIndex(_index);
@@ -200,16 +356,76 @@ const PageEngine = (function() {
     }
     _removeLoadingSpinner(container);
     _syncReaderPosition(_index, _words.length);
+    if (measured) _persistLayout();
   }
 
-  function _appendPage(shell, startIdx, endIdx, spans) {
+  function _persistLayout() {
+    if (!_cacheKey || _pages.length === 0) return;
+    /* Only a grid covering the whole book is worth storing — a partial one would
+       be restored as though it were complete. */
+    if (_pages[0].startIndex !== 0) return;
+    if (_pages[_pages.length - 1].endIndex < _words.length - 1) return;
+    const starts = [];
+    for (let i = 0; i < _pages.length; i++) starts.push(_pages[i].startIndex);
+    savePageLayout(_cacheKey, starts, _words.length);
+  }
+
+  /* ── Leaves, built on demand ─────────────────────────────────── */
+
+  /* A leaf costs a span and four word-tap listeners per word (word-tap.js), so
+     building every page of a book up front was most of the cold-start cost and
+     all of its memory. Only the pages inside the slide window exist as DOM; the
+     rest are a pair of word indices until the user comes near them. */
+  function _ensureLeaf(i) {
+    const page = _pages[i];
+    if (!page) return null;
+    if (page.el) { _touchLeaf(i); return page.el; }
+
+    const shell = qs('#page-shell');
+    if (!shell) return null;
+
     const leaf = document.createElement('div');
     leaf.className = 'page-leaf';
-    for (let j = 0; j < spans.length; j++) {
-      leaf.appendChild(spans[j]);
+    const frag = document.createDocumentFragment();
+    for (let j = page.startIndex; j <= page.endIndex; j++) {
+      frag.appendChild(_makeWordSpan(_words[j], j));
     }
+    leaf.appendChild(frag);
+    /* Park it off-screen until _layoutPages places it, so a leaf built mid-swipe
+       never flashes over the page being read. */
+    leaf.style.transform = 'translateX(' + (2 * window.innerWidth) + 'px)';
     shell.appendChild(leaf);
-    _pages.push({ startIndex: startIdx, endIndex: endIdx, el: leaf });
+    page.el = leaf;
+
+    _touchLeaf(i);
+    return leaf;
+  }
+
+  function _touchLeaf(i) {
+    const at = _leafLru.indexOf(i);
+    if (at !== -1) _leafLru.splice(at, 1);
+    _leafLru.push(i);
+    _evictLeaves();
+  }
+
+  function _evictLeaves() {
+    /* The window is three pages and the cap is five, so the guard can only be hit
+       by a corrupt list — but an unbounded loop here would hang the reader. */
+    let guard = _leafLru.length + 1;
+    while (_leafLru.length > LEAF_LRU_MAX && guard-- > 0) {
+      const victim = _leafLru.shift();
+      if (Math.abs(victim - _pageIndex) <= 1) { _leafLru.push(victim); continue; }
+      _releaseLeaf(victim);
+    }
+  }
+
+  function _releaseLeaf(i) {
+    const page = _pages[i];
+    const at = _leafLru.indexOf(i);
+    if (at !== -1) _leafLru.splice(at, 1);
+    if (!page || !page.el) return;
+    if (page.el.parentNode) page.el.parentNode.removeChild(page.el);
+    page.el = null;
   }
 
   function _makeWordSpan(word, index) {
@@ -242,10 +458,17 @@ const PageEngine = (function() {
 
   function _layoutPages() {
     /* Three slots: prev (translateX -100%), current (0%), next (+100%).
-       Other pages stay parked off-screen at +/- 200%. */
+       Those three are also the only pages that exist as DOM — anything the user
+       cannot see or reach with one swipe is released (_evictLeaves). */
     const w = window.innerWidth;
-    for (let i = 0; i < _pages.length; i++) {
-      const el = _pages[i].el;
+    _ensureLeaf(_pageIndex - 1);
+    _ensureLeaf(_pageIndex + 1);
+    _ensureLeaf(_pageIndex);   /* last, so the current page is the newest in the LRU */
+
+    const live = _leafLru.slice();
+    for (let n = 0; n < live.length; n++) {
+      const i = live[n];
+      const el = _pages[i] && _pages[i].el;
       if (!el) continue;
       const offset = i - _pageIndex;
       if (offset === 0) {
@@ -258,7 +481,7 @@ const PageEngine = (function() {
         el.style.transform = 'translateX(' + w + 'px)';
         el.classList.remove('page-leaf-current');
       } else {
-        /* Hide far pages; keep them in DOM so spans stay alive */
+        /* Still held by the LRU but outside the window — park it off-screen. */
         el.style.transform = 'translateX(' + (offset > 0 ? 2 : -2) * w + 'px)';
         el.classList.remove('page-leaf-current');
       }
@@ -266,10 +489,18 @@ const PageEngine = (function() {
   }
 
   function _pageForIndex(idx) {
-    for (let i = 0; i < _pages.length; i++) {
-      if (idx >= _pages[i].startIndex && idx <= _pages[i].endIndex) return i;
+    if (_pages.length === 0) return 0;
+    /* Binary search, not a scan: a long book is thousands of pages and this runs
+       on every seek and every position sync. */
+    let lo = 0;
+    let hi = _pages.length - 1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (idx < _pages[mid].startIndex) hi = mid - 1;
+      else if (idx > _pages[mid].endIndex) lo = mid + 1;
+      else return mid;
     }
-    return _pages.length > 0 ? _pages.length - 1 : 0;
+    return Math.max(0, Math.min(_pages.length - 1, lo));
   }
 
   function _gotoPage(newIdx, animate) {
@@ -500,17 +731,32 @@ const PageEngine = (function() {
 
   function _updateNav() {
     const ind = qs('#page-nav-indicator');
-    if (ind) ind.textContent = (_pageIndex + 1) + ' / ' + Math.max(1, _pages.length);
+    if (ind) {
+      if (_pagesExact) {
+        ind.textContent = (_pageIndex + 1) + ' / ' + Math.max(1, _pages.length);
+      } else {
+        /* Still measuring, so both numbers come from the words-per-page seen so
+           far. The tildes say they are estimates rather than letting a guess pass
+           for a count (§1.5); they disappear when the real grid lands. */
+        const avg = _estWordsPerPage || 180;
+        const cur = Math.max(1, Math.round(_index / avg) + 1);
+        ind.textContent = '~' + cur + ' / ~' + Math.max(cur, Math.ceil(_words.length / avg));
+      }
+    }
     const first = qs('#page-nav-first');
     const prev = qs('#page-nav-prev');
     const next = qs('#page-nav-next');
     const last = qs('#page-nav-last');
+    /* While a grid anchored mid-book is on screen, the pages before the anchor do
+       not exist yet, and the last page is not known until the pass finishes. Both
+       buttons come back a moment later rather than jumping somewhere wrong. */
+    const haveBookStart = _pages.length > 0 && _pages[0].startIndex === 0;
     const atStart = _pageIndex <= 0;
-    const atEnd = _pageIndex >= _pages.length - 1;
-    if (first) first.disabled = atStart;
+    const atLastBuilt = _pageIndex >= _pages.length - 1;
+    if (first) first.disabled = atStart || !haveBookStart;
     if (prev) prev.disabled = atStart;
-    if (next) next.disabled = atEnd;
-    if (last) last.disabled = atEnd;
+    if (next) next.disabled = atLastBuilt;
+    if (last) last.disabled = !_pagesExact || atLastBuilt;
     const fill = qs('#progress-bar-fill');
     if (fill && _words.length) {
       fill.style.width = ((_index / _words.length) * 100) + '%';
@@ -559,19 +805,16 @@ const PageEngine = (function() {
     _removeChrome();
     startIdleReleaseTimer();
 
-    const container = qs('#rsvp-container');
-    if (container && _pages.length > 0 && _buildComplete) {
-      _domCache = document.createElement('div');
-      Array.prototype.slice.call(container.children).forEach(function(child) {
-        if (!(child.classList && child.classList.contains('engine-loading'))) {
-          _domCache.appendChild(child);
-        }
-      });
-    } else {
-      _domCache = null;
+    /* Drop the leaves and their per-word listeners, but keep the boundaries:
+       re-entry then rebuilds three leaves instead of re-measuring the book. A
+       build that never finished is kept too — _persistLayout is what decides
+       whether a grid is complete enough to store. */
+    for (let i = 0; i < _pages.length; i++) _pages[i].el = null;
+    _leafLru = [];
+    _clearEngineContent(qs('#rsvp-container'));
+    if (!_buildComplete) {
       _pages = [];
       _cacheKey = null;
-      _cacheFileId = null;
     }
   }
 
@@ -579,24 +822,45 @@ const PageEngine = (function() {
 
   function seekTo(index) {
     _index = Math.max(0, Math.min(Math.max(0, _words.length - 1), index));
+    /* Keep the exact word. Snapping _index to the page start used to round a
+       bridge round-trip (§7) back to the top of the page the user came from. Only
+       an explicit page turn moves the position, and that is _gotoPage's job. */
     const target = _pageForIndex(_index);
     if (target !== _pageIndex) {
       _pageIndex = target;
-      _index = _pages[_pageIndex].startIndex;
       _animateLayout(false);
-      _updateNav();
-    } else {
-      _updateNav();
     }
+    _updateNav();
     if (AppState.currentFile) savePosition(AppState.currentFile.id, _index);
   }
 
   function onWPMChange() { /* no-op: Page mode ignores WPM */ }
 
-  function hasCache(fileId) {
-    return !!(fileId && fileId === _cacheFileId && _domCache && _pages.length > 0
-              && _buildComplete && _cacheKey === _currentCacheKey());
+  /* Diagnostics seam. Everything that makes Page mode correct lives in boundaries
+     that nothing on screen spells out, so this is how the grid is inspected from
+     DevTools on a device, and how the headless harness checks it. Read-only apart
+     from reset(), which drops the in-memory grid to stand in for a cold start. */
+  function _debugState() {
+    return {
+      pages: _pages,
+      pageIndex: _pageIndex,
+      index: _index,
+      exact: _pagesExact,
+      wordsPerPage: _estWordsPerPage,
+      leaves: _leafLru.slice(),
+      gotoPage: function(i, animate) { _gotoPage(i, animate); },
+      reset: function() {
+        _pages = [];
+        _leafLru = [];
+        _cacheKey = null;
+        _buildComplete = false;
+        _pagesExact = true;
+      },
+    };
   }
 
-  return { init, play, pause, destroy, getIndex, seekTo, onWPMChange, hasCache };
+  /* No hasCache(), deliberately. reader.js reads its absence as "this engine
+     opens fast enough that a loading card would only flash" — which is now true
+     of Page mode: first paint is one slab, whatever the length of the book. */
+  return { init, play, pause, destroy, getIndex, seekTo, onWPMChange, _debugState };
 })();

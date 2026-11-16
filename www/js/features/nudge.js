@@ -687,15 +687,12 @@ const NudgeFeature = (function() {
 
     const book = _inProgressBook();
     if (book && typeof resumeFromLibrary === 'function') {
-      /* §9.5 specifies Page mode here, on the reasoning that RSVP is too
-         high-effort right after an interception. Temporarily overridden
-         2026-09-21: Page mode's first paint is slow enough that the user is
-         left staring at a loading state at exactly the moment the nudge is
-         trying to be frictionless, which costs more than the engine choice
-         gains. Landing in whatever engine they actually read in is the
-         interim rule. Restore the §9.5 behaviour once Page-mode load time is
-         addressed. */
-      await resumeFromLibrary(book.item, 'nudge');
+      /* §9.5: Page mode, because RSVP and Chunk are too high-effort right after
+         an interception. The 2026-09-21 override that sent a nudged read to the
+         user's own engine instead is gone — it existed only because Page mode's
+         first paint was slow, and that is what this measures in one slab now.
+         forceEngine is for this read alone and does not touch fr_last_engine. */
+      await resumeFromLibrary(book.item, 'nudge', { forceEngine: 'page' });
       return;
     }
 
