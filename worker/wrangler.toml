@@ -2,6 +2,14 @@ name = "flowread-analytics"
 main = "src/index.js"
 compatibility_date = "2026-01-01"
 
+# Lets src/index.js `import DASH_HTML from './dash.html'` as a string, so the
+# dashboard stays an editable .html file instead of a template literal inside
+# JS — where every ${ } in its own script would need escaping.
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = false
+
 # No observability block on purpose: Worker request logs carry the client IP in
 # their metadata whether or not the code reads it, which is exactly what §9.6
 # promises not to retain. Turn logs on only for a short, deliberate debug

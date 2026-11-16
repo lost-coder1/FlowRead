@@ -81,6 +81,29 @@ pings lost that way are indistinguishable from a feature nobody used.
 - Confirm the privacy policy's event list matches `ALLOWED` in both files.
   Three lists have to agree: the client, this Worker, and the published policy.
 
+## The dashboard
+
+`GET /dash?token=<STATS_TOKEN>` — a private page served by this Worker that
+renders everything below as funnels, charts and a diagnostics strip. Open it in
+a browser; it is not part of the app and no user can reach it.
+
+It is served from here rather than hosted anywhere else for one reason: a page
+on another origin cannot read `/stats` without either opening CORS on it or
+copying the token into a third party. Same-origin keeps the secret in one place.
+The page itself reads nothing from the database — every figure is fetched
+client-side from `/stats`.
+
+Charts follow Claude.md §16, with one deliberate difference: marks use `#9d8530`
+rather than `--accent` `#e8c547`, which sits at OKLCH L 0.832 and fails the
+dark-surface lightness band for a fill. It is the same hue snapped into the
+band, and `--accent` is still used for text. Every chart is single-series — app
+opens and reading sessions are different scales, so they are two charts rather
+than one with two y-axes.
+
+**Responses are `no-store` and `noindex`**: the page embeds the token, so it must
+never be cached or crawled. The token is in the URL, so it lands in browser
+history — rotate it if that matters.
+
 ## Reading the numbers
 
 ```sh

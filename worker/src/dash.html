@@ -1,0 +1,521 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>FlowRead — usage</title>
+<style>
+  /* Claude.md §16 palette. Chart marks use --mark, which is the §16 accent's own
+     hue snapped into the dark-mode lightness band (L 0.48–0.67) and chroma floor
+     the dataviz checks require — #e8c547 itself sits at L 0.832 and fails as a
+     mark fill, while remaining correct for text. */
+  :root {
+    --bg: #0d0d0d; --surface: #141414; --surface-2: #1c1c1c; --border: #2a2a2a;
+    --accent: #e8c547; --accent-2: #c47a3a;
+    --text: #e8e4dc; --text-muted: #6b6660; --text-dim: #3a3632;
+    --success: #5a9a6a; --error: #c45a3a;
+    --mark: #9d8530;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 0 16px 64px;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; }
+  header { padding: 24px 0 16px; display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; justify-content: space-between; }
+  h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: .01em; }
+  h2 { font-size: 13px; font-weight: 600; margin: 0 0 2px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-muted); }
+  .sub { color: var(--text-muted); font-size: 12px; margin: 0; }
+  .num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+  .controls { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  button {
+    font: inherit; color: var(--text); background: var(--surface-2);
+    border: 1px solid var(--border); border-radius: 3px; padding: 5px 11px;
+    cursor: pointer; transition: background .14s, border-color .14s;
+  }
+  button:hover { background: var(--border); }
+  button[aria-pressed="true"] { border-color: var(--mark); color: var(--accent); }
+
+  section { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 16px; margin: 0 0 14px; }
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); }
+
+  /* Hero tiles — a bare number is the right form for a single value (no plot,
+     so no hover layer). */
+  .tiles { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin: 0 0 14px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 14px 16px; }
+  .tile .v { font-size: 30px; font-weight: 600; color: var(--accent); line-height: 1.15; }
+  .tile .k { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+  .tile .n { font-size: 11px; color: var(--text-muted); margin-top: 5px; }
+
+  /* Funnel: horizontal bars, ordered, one hue. Width encodes magnitude against
+     the first step; the step-to-step rate is the number that matters so it is
+     direct-labelled rather than left to a tooltip. */
+  .step { margin: 11px 0 0; }
+  .step-top { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; font-size: 13px; }
+  .step-name { color: var(--text); }
+  .step-v { color: var(--text-muted); font-size: 12px; }
+  .track { position: relative; height: 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 3px; margin-top: 5px; overflow: hidden; }
+  .fill { position: absolute; inset: 0 auto 0 0; background: var(--mark); border-radius: 0 3px 3px 0; min-width: 2px; }
+  .rate { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+  .rate b { color: var(--text-muted); font-weight: 600; }
+
+  /* Diagnostics: status colour never travels alone (§16 + a11y) — every chip
+     carries a glyph and a sentence. */
+  .diag { display: grid; gap: 8px; }
+  .chip { display: flex; gap: 9px; align-items: flex-start; padding: 9px 11px; border-radius: 3px; border: 1px solid var(--border); background: var(--surface-2); font-size: 13px; }
+  .chip .g { flex: 0 0 auto; font-weight: 700; }
+  .chip.bad { border-color: #5a2f22; } .chip.bad .g { color: var(--error); }
+  .chip.warn { border-color: #4a3a1c; } .chip.warn .g { color: var(--accent-2); }
+  .chip.ok { border-color: #244029; } .chip.ok .g { color: var(--success); }
+  .chip .why { color: var(--text-muted); display: block; margin-top: 2px; font-size: 12px; }
+
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .ax { stroke: var(--border); stroke-width: 1; }
+  .axlabel { fill: var(--text-muted); font-size: 11px; }
+  .bar { fill: var(--mark); }
+  .line { fill: none; stroke: var(--mark); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .dot { fill: var(--mark); }
+  .hit { fill: transparent; cursor: crosshair; }
+  .cross { stroke: var(--text-dim); stroke-width: 1; }
+
+  .tip {
+    position: fixed; z-index: 10; pointer-events: none; opacity: 0;
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 3px;
+    padding: 6px 9px; font-size: 12px; color: var(--text); white-space: nowrap;
+    transition: opacity .1s;
+  }
+  .tip.on { opacity: 1; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  th, td { text-align: left; padding: 5px 9px; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-muted); font-weight: 600; }
+  td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
+  .scroll { overflow-x: auto; }
+
+  .note { font-size: 12px; color: var(--text-muted); margin: 10px 0 0; }
+  .note b { color: var(--text); font-weight: 600; }
+  .err { color: var(--error); }
+  footer { color: var(--text-dim); font-size: 11px; padding: 8px 0 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>FlowRead — usage</h1>
+      <p class="sub" id="range-note">loading…</p>
+    </div>
+    <div class="controls">
+      <button data-days="7" aria-pressed="false">7d</button>
+      <button data-days="30" aria-pressed="true">30d</button>
+      <button data-days="90" aria-pressed="false">90d</button>
+      <button id="btn-table" aria-pressed="false">Tables</button>
+      <button id="btn-reload">Reload</button>
+    </div>
+  </header>
+
+  <div id="app"></div>
+
+  <footer>
+    Aggregate counters only — no identifiers, no per-event rows (Claude.md §9.6).
+    Served by the same Worker that receives the pings; nothing here leaves your browser.
+  </footer>
+</div>
+<div class="tip" id="tip"></div>
+
+<script data-token="__STATS_TOKEN__">
+/* The Worker substitutes the token placeholder above when it serves this page.
+   It travels in an attribute rather than in the fetch URL in the markup so it is
+   written exactly once, and the page is same-origin with /stats, so no CORS and
+   no second copy of the secret. */
+const TOKEN = document.currentScript.dataset.token;
+const tip = document.getElementById('tip');
+let DAYS = 30, SHOW_TABLES = false, DATA = null;
+
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+const n = v => (v == null ? 0 : Number(v));
+const fmt = v => n(v).toLocaleString();
+const pct = (a, b) => (!b ? '—' : (100 * a / b).toFixed(a / b < 0.1 ? 1 : 0) + '%');
+
+/* ── data ─────────────────────────────────────────────────────────────── */
+async function load() {
+  const app = document.getElementById('app');
+  app.innerHTML = '<section><p class="sub">Loading…</p></section>';
+  try {
+    const res = await fetch('/stats?token=' + encodeURIComponent(TOKEN) + '&days=' + DAYS);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    DATA = await res.json();
+    render();
+  } catch (e) {
+    app.innerHTML = '<section><p class="err">Could not load stats: ' + esc(e.message) +
+      '</p><p class="sub">If this says HTTP 404 the token is wrong — check STATS_TOKEN.</p></section>';
+  }
+}
+
+const byEvent = () => {
+  const m = {};
+  (DATA.totals || []).forEach(r => { m[r.event] = r; });
+  return m;
+};
+
+/* ── charts ───────────────────────────────────────────────────────────── */
+function showTip(html, ev) {
+  tip.innerHTML = html;
+  tip.classList.add('on');
+  const pad = 12;
+  let x = ev.clientX + pad, y = ev.clientY + pad;
+  const r = tip.getBoundingClientRect();
+  if (x + r.width > innerWidth - 4) x = ev.clientX - r.width - pad;
+  if (y + r.height > innerHeight - 4) y = ev.clientY - r.height - pad;
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
+}
+const hideTip = () => tip.classList.remove('on');
+
+/* Horizontal bars: one measure, named categories. Identity comes from the
+   label, never from colour — so there is no legend and no cycled hue. */
+function barsH(rows, opts) {
+  opts = opts || {};
+  if (!rows.length) return '<p class="sub">No data yet.</p>';
+  const max = Math.max.apply(null, rows.map(r => r.v)) || 1;
+  /* The viewBox width is deliberately close to the real column width (these sit
+     two-up in the grid, ~400px). A wider viewBox scales the whole drawing down,
+     and 10px type inside a 560-wide box rendered at 380 lands at ~7px — legible
+     in the editor and not on the page. Type is sized in viewBox units, so this
+     ratio is what decides whether labels can be read. */
+  const rowH = 32, labelW = 96, w = 420, h = rows.length * rowH;
+  /* Reserve for the value label from the longest one actually present, not a
+     fixed guess: "416 · 9.4 min avg" is twice the width of "26", and a fixed
+     reserve either clips the long one or wastes the bar's range on the short
+     one. ~6.3 units per character at 12px is close enough for a monospaced-digit
+     label and errs wide. */
+  const reserve = Math.max.apply(null, rows.map(r =>
+    (fmt(r.v) + (r.note ? ' · ' + r.note : '')).length)) * 6.3 + 12;
+  let s = '<svg viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + esc(opts.label || '') + '">';
+  rows.forEach((r, i) => {
+    const y = i * rowH, bw = Math.max(2, (w - labelW - reserve) * r.v / max);
+    s += '<text class="axlabel" x="0" y="' + (y + 19) + '" style="fill:var(--text);font-size:13px">' + esc(r.k) + '</text>';
+    /* 4px rounded data-end, anchored flat to the baseline at x=labelW. */
+    s += '<path class="bar" data-i="' + i + '" d="' + roundedRight(labelW, y + 9, bw, 12, 4) + '"/>';
+    s += '<text class="axlabel" x="' + (labelW + bw + 7) + '" y="' + (y + 19) + '" style="font-size:12px">' + fmt(r.v) +
+         (r.note ? ' · ' + esc(r.note) : '') + '</text>';
+    s += '<rect class="hit" data-i="' + i + '" x="0" y="' + y + '" width="' + w + '" height="' + rowH + '"/>';
+  });
+  return s + '</svg>';
+}
+function roundedRight(x, y, w, h, r) {
+  r = Math.min(r, w);
+  return 'M' + x + ' ' + y + 'h' + (w - r) + 'a' + r + ' ' + r + ' 0 0 1 ' + r + ' ' + r +
+         'v' + (h - 2 * r) + 'a' + r + ' ' + r + ' 0 0 1 ' + (-r) + ' ' + r + 'H' + x + 'z';
+}
+
+/* Single-series line over days. Two measures of different scale get two of
+   these side by side — never one chart with two y-axes. */
+function lineByDay(series, opts) {
+  opts = opts || {};
+  if (series.length < 2) {
+    return '<p class="sub">' + (series.length ? 'One day of data so far.' : 'No data yet.') + '</p>';
+  }
+  /* Same viewBox-to-column reasoning as barsH above. */
+  const w = 420, h = 136, padL = 30, padB = 18, padT = 8;
+  const max = Math.max.apply(null, series.map(d => d.v)) || 1;
+  const X = i => padL + i * (w - padL - 6) / (series.length - 1);
+  const Y = v => padT + (h - padT - padB) * (1 - v / max);
+  let d = '';
+  series.forEach((p, i) => { d += (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(p.v).toFixed(1); });
+  let s = '<svg viewBox="0 0 ' + w + ' ' + h + '" role="img" aria-label="' + esc(opts.label || '') + '">';
+  s += '<line class="ax" x1="' + padL + '" y1="' + Y(0) + '" x2="' + w + '" y2="' + Y(0) + '"/>';
+  s += '<text class="axlabel" x="0" y="' + (Y(max) + 4) + '">' + fmt(max) + '</text>';
+  s += '<text class="axlabel" x="0" y="' + (Y(0) + 4) + '">0</text>';
+  s += '<text class="axlabel" x="' + padL + '" y="' + (h - 5) + '">' + esc(series[0].k) + '</text>';
+  s += '<text class="axlabel" x="' + w + '" y="' + (h - 5) + '" text-anchor="end">' + esc(series[series.length - 1].k) + '</text>';
+  s += '<path class="line" d="' + d + '"/>';
+  /* >=8px markers only when the series is short enough to not read as noise. */
+  if (series.length <= 31) {
+    series.forEach((p, i) => { s += '<circle class="dot" cx="' + X(i).toFixed(1) + '" cy="' + Y(p.v).toFixed(1) + '" r="2.5"/>'; });
+  }
+  s += '<g id="cross-' + opts.id + '" style="display:none"><line class="cross" y1="' + padT + '" y2="' + Y(0) + '"/>' +
+       '<circle class="dot" r="4" stroke="var(--surface)" stroke-width="2"/></g>';
+  s += '<rect class="hit" id="hit-' + opts.id + '" x="' + padL + '" y="0" width="' + (w - padL) + '" height="' + h + '"/>';
+  s += '</svg>';
+  /* Hover wiring is attached after insertion; geometry is recomputed from the
+     same functions so the crosshair cannot drift from the marks. */
+  setTimeout(() => {
+    const hit = document.getElementById('hit-' + opts.id);
+    const g = document.getElementById('cross-' + opts.id);
+    if (!hit || !g) return;
+    const line = g.querySelector('line'), dot = g.querySelector('circle');
+    hit.addEventListener('pointermove', ev => {
+      const box = hit.getBoundingClientRect();
+      const rel = (ev.clientX - box.left) / box.width;
+      const i = Math.max(0, Math.min(series.length - 1, Math.round(rel * (series.length - 1))));
+      g.style.display = '';
+      line.setAttribute('x1', X(i)); line.setAttribute('x2', X(i));
+      dot.setAttribute('cx', X(i)); dot.setAttribute('cy', Y(series[i].v));
+      showTip('<b>' + fmt(series[i].v) + '</b> · ' + esc(series[i].k), ev);
+    });
+    hit.addEventListener('pointerleave', () => { g.style.display = 'none'; hideTip(); });
+  }, 0);
+  return s;
+}
+
+function table(cols, rows) {
+  let s = '<div class="scroll"><table><thead><tr>';
+  cols.forEach((c, i) => { s += '<th' + (i ? ' class="r"' : '') + '>' + esc(c) + '</th>'; });
+  s += '</tr></thead><tbody>';
+  rows.forEach(r => {
+    s += '<tr>';
+    r.forEach((v, i) => { s += '<td' + (i ? ' class="r"' : '') + '>' + esc(v) + '</td>'; });
+    s += '</tr>';
+  });
+  return s + '</tbody></table></div>';
+}
+
+/* ── funnels ──────────────────────────────────────────────────────────── */
+function funnel(title, note, steps) {
+  const top = steps[0].v || 0;
+  let s = '<section><h2>' + esc(title) + '</h2><p class="sub">' + note + '</p>';
+  steps.forEach((st, i) => {
+    const prev = i ? steps[i - 1].v : null;
+    s += '<div class="step"><div class="step-top"><span class="step-name">' + esc(st.k) +
+         '</span><span class="step-v num">' + fmt(st.v) + '</span></div>' +
+         '<div class="track"><div class="fill" style="width:' + (top ? Math.max(1, 100 * st.v / top) : 0) + '%"></div></div>';
+    if (i) {
+      const lost = Math.max(0, prev - st.v);
+      s += '<p class="rate"><b>' + pct(st.v, prev) + '</b> of the step above' +
+           (lost ? ' · ' + fmt(lost) + ' did not continue' : '') + '</p>';
+    }
+    s += '</div>';
+  });
+  if (SHOW_TABLES) s += '<div style="margin-top:14px">' + table(['Step', 'Count'], steps.map(x => [x.k, fmt(x.v)])) + '</div>';
+  return s + '</section>';
+}
+
+/* ── diagnostics ──────────────────────────────────────────────────────────
+   Only structural checks — a step that is zero while the step above it is not,
+   or data that has stopped arriving. No invented "good" thresholds: a rate
+   needs a baseline this product does not have yet, and a made-up benchmark
+   would be worse than no judgement at all. */
+function diagnose(e) {
+  const out = [];
+  const v = k => n((e[k] || {}).n);
+  const add = (cls, g, t, why) => out.push({ cls, g, t, why });
+
+  const days = (DATA.by_day || []);
+  const lastDay = days.length ? days[0].day : null;
+  const ageDays = lastDay ? Math.round((Date.now() - Date.parse(lastDay + 'T00:00:00Z')) / 86400000) : null;
+
+  if (!days.length) {
+    add('warn', '!', 'No events in this window.',
+      'Either no build with ENDPOINT set has shipped yet, or nothing is reaching the Worker. Send a test ping as platform=web to tell the two apart.');
+    return out;
+  }
+  if (ageDays != null && ageDays >= 2) {
+    add('bad', '✕', 'Nothing has arrived for ' + ageDays + ' days.',
+      'Pings are silent by design, so this is the only place a broken endpoint shows up. Check the Worker is deployed and ENDPOINT still points at it.');
+  }
+
+  if (v('app_opened') && !v('read_session_ended')) {
+    add('bad', '✕', 'The app is being opened and nobody is reading.',
+      'The core action is not happening at all. Look at what the home screen offers a user with no book yet.');
+  }
+  if (v('onboarding_completed') && !v('nudge_permission_granted')) {
+    add('bad', '✕', 'Onboarding completes but no one grants the nudge permission.',
+      '§10.2 chose the inline ask specifically to maximise this. If it stays at zero, that choice is wrong and deferring the ask is the alternative.');
+  }
+  if (v('nudge_shown') && !v('nudge_read_started')) {
+    add('bad', '✕', 'Nudges appear but never start a read.',
+      'Either the nudge screen is not persuasive or Start reading is failing. §9.5 sends it to Page mode — check that path on device.');
+  }
+  if (v('nudge_read_started') && !v('nudge_read_completed')) {
+    add('warn', '!', 'Nudged reads start but none reach the unlock threshold.',
+      'Two pages may be too many for the moment right after an interception, or the counter is not advancing. §9.5 counts through savePosition() in every engine.');
+  }
+  if (v('free_book_downloaded') && !v('book_opened')) {
+    add('bad', '✕', 'Free books download and are never opened.',
+      'This is the premise 16.4 rests on. Paying to curate monthly drops is hard to justify while the existing 150 go unread.');
+  }
+  if (v('book_opened') && !v('import_completed') && !v('free_book_downloaded')) {
+    add('warn', '!', 'Books are opened but nothing is being imported or downloaded.',
+      'Reads are all coming from content acquired before this build. Content acquisition may be broken.');
+  }
+  if (v('paywall_shown') && !v('pro_purchased') && !v('subscription_started')) {
+    add('warn', '!', fmt(v('paywall_shown')) + ' paywall views, no purchases.',
+      'Expected at low volume — one conversion needs a lot of views. Worth acting on only once the view count is large.');
+  }
+  if (v('subscription_cancelled') && v('subscription_started') &&
+      v('subscription_cancelled') >= v('subscription_started')) {
+    add('bad', '✕', 'Subscription cancellations match or exceed starts.',
+      '§4 accepted this risk knowingly: until the monthly drops ship, a subscriber pays monthly for what the lifetime tier buys outright. This is that gap, measured.');
+  }
+
+  const ten = (DATA.tenure || []);
+  const beyond = ten.filter(r => r.tenure && r.tenure !== '0').reduce((a, r) => a + n(r.opens), 0);
+  const day0 = ten.filter(r => r.tenure === '0').reduce((a, r) => a + n(r.opens), 0);
+  if (day0 && !beyond) {
+    add('warn', '!', 'Every app open is from an install-day device.',
+      'Nobody has come back a second day yet. Normal in the first days of a rollout — a real signal if it persists past a week.');
+  }
+
+  const eng = (DATA.engines || []);
+  const pageRow = eng.find(r => r.engine === 'page');
+  const total = eng.reduce((a, r) => a + n(r.sessions), 0);
+  if (total && (!pageRow || n(pageRow.sessions) / total < 0.5)) {
+    add('warn', '!', 'Page mode is not where most reading happens.',
+      '16.13 made it the default engine, so most sessions should be there. If they are not, readers are deliberately switching away — worth knowing why.');
+  }
+
+  if (!out.length) {
+    add('ok', '✓', 'No structural problems found.',
+      'Every funnel step with traffic above it has traffic of its own, and events are still arriving.');
+  }
+  return out;
+}
+
+/* ── render ───────────────────────────────────────────────────────────── */
+function render() {
+  const e = byEvent();
+  const v = k => n((e[k] || {}).n);
+  const app = document.getElementById('app');
+  document.getElementById('range-note').textContent =
+    'Since ' + DATA.since + ' · ' + DATA.days + ' days · ' +
+    fmt((DATA.totals || []).reduce((a, r) => a + n(r.n), 0)) + ' events';
+
+  const sharers = (DATA.sharing || []).reduce((a, r) => a + n(r.first_time_sharers), 0);
+  const shares = (DATA.sharing || []).reduce((a, r) => a + n(r.shares), 0);
+  const finishers = (DATA.finishing || []).reduce((a, r) => a + n(r.first_time_finishers), 0);
+  const finished = (DATA.finishing || []).reduce((a, r) => a + n(r.books_finished), 0);
+  const minutes = (e.read_session_ended || {}).minutes || 0;
+
+  let html = '';
+
+  /* Diagnostics first: the page's job is to surface problems, not to be browsed. */
+  html += '<section><h2>What this window says</h2><div class="diag">';
+  diagnose(e).forEach(d => {
+    html += '<div class="chip ' + d.cls + '"><span class="g">' + d.g + '</span><span>' + esc(d.t) +
+            '<span class="why">' + esc(d.why) + '</span></span></div>';
+  });
+  html += '</div></section>';
+
+  html += '<div class="tiles">' +
+    tile(fmt(finishers), 'people finished a book', finished ? fmt(finished) + ' books finished in all' : 'first finish per device') +
+    tile(fmt(sharers), 'people shared a card', shares ? fmt(shares) + ' shares in all' : 'first share per device') +
+    tile(fmt(Math.round(minutes)), 'minutes read', v('read_session_ended') ? fmt(v('read_session_ended')) + ' sessions' : '') +
+    tile(fmt(v('app_opened')), 'app opens', 'opens, not people — see the note below') +
+  '</div>';
+
+  html += funnel('Habit loop — the pivot', 'Same-session steps, so these rates are honest conversions.', [
+    { k: 'Nudge shown', v: v('nudge_shown') },
+    { k: 'Started reading', v: v('nudge_read_started') },
+    { k: 'Reached the unlock threshold', v: v('nudge_read_completed') },
+  ]) ;
+
+  html += '<div class="grid">';
+  html += funnel('Setup — does anyone turn the nudge on?', 'Cross-cohort: these are different people in the same window.', [
+    { k: 'Onboarding completed', v: v('onboarding_completed') },
+    { k: 'Nudge permission granted', v: v('nudge_permission_granted') },
+  ]);
+  html += funnel('Money', 'A purchase needs many views; read this only at volume.', [
+    { k: 'Paywall shown', v: v('paywall_shown') },
+    { k: 'Purchased (lifetime + subs)', v: v('pro_purchased') + v('subscription_started') },
+  ]);
+  html += '</div>';
+
+  html += funnel('Content — download to finished', 'The premise 16.4 rests on.', [
+    { k: 'Acquired a book (import + free books)', v: v('import_completed') + v('free_book_downloaded') },
+    { k: 'Opened a book', v: v('book_opened') },
+    { k: 'Finished a book', v: v('book_finished') },
+  ]);
+
+  html += '<div class="grid">';
+  html += '<section><h2>Where reading happens</h2><p class="sub">Sessions per engine. Page mode is the default since 16.13.</p>' +
+    barsH((DATA.engines || []).map(r => ({
+      k: r.engine || '(unset)', v: n(r.sessions),
+      note: n(r.sessions) ? (n(r.minutes) / n(r.sessions)).toFixed(1) + ' min avg' : '',
+    })), { label: 'Reading sessions per engine' }) +
+    (SHOW_TABLES ? table(['Engine', 'Sessions', 'Minutes', 'Pages'],
+      (DATA.engines || []).map(r => [r.engine || '(unset)', fmt(r.sessions), fmt(Math.round(n(r.minutes))), fmt(Math.round(n(r.pages)))])) : '') +
+    '</section>';
+
+  const order = ['0', '1', '2-3', '4-7', '8-30', '31+'];
+  const ten = order.map(k => {
+    const row = (DATA.tenure || []).find(r => r.tenure === k);
+    return { k: k === '0' ? 'install day' : k === '1' ? '1 day' : k + ' days', v: row ? n(row.opens) : 0 };
+  });
+  html += '<section><h2>Retention</h2><p class="sub">App opens by how long the device had been installed. No identifier — the shape is the signal, not any one bar.</p>' +
+    barsH(ten, { label: 'App opens by days since install' }) +
+    (SHOW_TABLES ? table(['Days since install', 'Opens'], ten.map(x => [x.k, fmt(x.v)])) : '') +
+    '</section>';
+  html += '</div>';
+
+  /* Two measures of different scale -> two charts. Never a second y-axis. */
+  const dayMap = {};
+  (DATA.by_day || []).forEach(r => { (dayMap[r.event] = dayMap[r.event] || {})[r.day] = n(r.n); });
+  const allDays = Array.from(new Set((DATA.by_day || []).map(r => r.day))).sort();
+  const seriesFor = ev => allDays.map(d => ({ k: d, v: n((dayMap[ev] || {})[d]) }));
+
+  html += '<div class="grid">';
+  html += '<section><h2>App opens per day</h2><p class="sub">Opens, not people.</p>' +
+    lineByDay(seriesFor('app_opened'), { id: 'opens', label: 'App opens per day' }) + '</section>';
+  html += '<section><h2>Reading sessions per day</h2><p class="sub">A session is &ge;10 words and &ge;3 seconds.</p>' +
+    lineByDay(seriesFor('read_session_ended'), { id: 'sessions', label: 'Reading sessions per day' }) + '</section>';
+  html += '</div>';
+
+  html += '<section><h2>Reading the numbers honestly</h2>' +
+    '<p class="note"><b>Counts are events, not people.</b> There is no identifier, so <i>app opens</i> is opens and nothing here is a user count — ' +
+    'except the two first-time tiles, which work because the client flags a device&rsquo;s first ever share or finish.</p>' +
+    '<p class="note"><b>Only same-session steps are real conversions.</b> Nudge shown &rarr; started &rarr; completed is one person&rsquo;s sequence, so those rates mean what they look like. ' +
+    'Onboarding &rarr; permission, and paywall &rarr; purchase, mix different people in one window: treat them as a ratio of volumes, not as a probability.</p>' +
+    '<p class="note"><b>A day is the device&rsquo;s local day</b>, and a ping more than 36 hours from the server&rsquo;s clock is dropped. Edges of the window are therefore slightly soft.</p>' +
+    '<p class="note"><b>Opt-outs are invisible.</b> Anyone who turned analytics off is absent from every number, by design, and there is no count of them.</p>' +
+    (SHOW_TABLES ? table(['Event', 'Count'], (DATA.totals || []).map(r => [r.event, fmt(r.n)])) : '') +
+    '</section>';
+
+  app.innerHTML = html;
+  wireBars();
+}
+
+function tile(v, k, note) {
+  return '<div class="tile"><div class="v num">' + v + '</div><div class="k">' + esc(k) + '</div>' +
+         (note ? '<div class="n">' + esc(note) + '</div>' : '') + '</div>';
+}
+
+/* Per-mark hover on bars; the hit area is the whole row, which is a bigger
+   target than the bar itself. */
+function wireBars() {
+  document.querySelectorAll('section svg').forEach(svg => {
+    const labels = Array.from(svg.querySelectorAll('text[style]')).map(t => t.textContent);
+    svg.querySelectorAll('rect.hit[data-i]').forEach(hitRect => {
+      const i = +hitRect.dataset.i;
+      const bar = svg.querySelector('path.bar[data-i="' + i + '"]');
+      hitRect.addEventListener('pointermove', ev => {
+        const vals = svg.querySelectorAll('text.axlabel:not([style])');
+        showTip('<b>' + esc(labels[i] || '') + '</b> · ' + esc(vals[i] ? vals[i].textContent : ''), ev);
+        if (bar) bar.style.fill = 'var(--accent)';
+      });
+      hitRect.addEventListener('pointerleave', () => { hideTip(); if (bar) bar.style.fill = ''; });
+    });
+  });
+}
+
+/* ── controls ─────────────────────────────────────────────────────────── */
+document.querySelectorAll('button[data-days]').forEach(b => {
+  b.addEventListener('click', () => {
+    DAYS = +b.dataset.days;
+    document.querySelectorAll('button[data-days]').forEach(o => o.setAttribute('aria-pressed', String(o === b)));
+    load();
+  });
+});
+document.getElementById('btn-table').addEventListener('click', function () {
+  SHOW_TABLES = !SHOW_TABLES;
+  this.setAttribute('aria-pressed', String(SHOW_TABLES));
+  if (DATA) render();
+});
+document.getElementById('btn-reload').addEventListener('click', load);
+
+load();
+</script>
+</body>
+</html>

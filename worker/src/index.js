@@ -29,6 +29,13 @@
  *    query can reconstruct one person's sequence of actions.
  */
 
+/* The owner-facing dashboard, served from this Worker rather than published
+ * anywhere: a page served from any other origin cannot read /stats without
+ * either opening CORS on it or handing the token to a third party, and a
+ * sandboxed page cannot reach this host at all. Same-origin keeps the token in
+ * one place and the data in none. */
+import DASH_HTML from './dash.html';
+
 /* Mirrors analytics-ping.js ALLOWED. */
 const ALLOWED = new Set([
   'app_opened',
@@ -226,6 +233,36 @@ async function stats(request, env) {
   });
 }
 
+/* The dashboard page. Gated on the same token as /stats and 404s identically
+ * without it, so the two cannot drift apart. The page is static markup plus the
+ * token; every figure on it is fetched client-side from /stats, which means this
+ * route reads nothing from the database itself. */
+function dash(request, env) {
+  const url = new URL(request.url);
+  const token = url.searchParams.get('token') || '';
+  if (!env.STATS_TOKEN || token !== env.STATS_TOKEN) {
+    return new Response('not found', { status: 404 });
+  }
+  /* Attribute-context escape. The token is our own hex secret, so this is
+   * belt-and-braces rather than a live injection path — but the page would be
+   * the place one could exist, and a rotated token is not guaranteed to stay
+   * hex. */
+  const safe = token.replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  /* split/join, not replace(): a string replace swaps only the first match, so
+   * a second mention of the placeholder anywhere in the page would ship raw. */
+  return new Response(DASH_HTML.split('__STATS_TOKEN__').join(safe), {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      /* Never cached anywhere: the response embeds the token. */
+      'Cache-Control': 'no-store',
+      'X-Robots-Tag': 'noindex, nofollow',
+      'Referrer-Policy': 'no-referrer',
+    },
+  });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -245,6 +282,9 @@ export default {
     }
     if (request.method === 'GET' && url.pathname === '/stats') {
       return stats(request, env);
+    }
+    if (request.method === 'GET' && url.pathname === '/dash') {
+      return dash(request, env);
     }
     return new Response('not found', { status: 404 });
   },
