@@ -20,3 +20,7 @@ scripts/
 
 # Gutenberg catalogue feed cached by scripts/build-gutenberg-batch.mjs
 .cache/
+
+# Cloudflare Worker local cache
+worker/.wrangler/
+worker/node_modules/

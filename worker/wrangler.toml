@@ -1,0 +1,24 @@
+name = "flowread-analytics"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+# No observability block on purpose: Worker request logs carry the client IP in
+# their metadata whether or not the code reads it, which is exactly what §9.6
+# promises not to retain. Turn logs on only for a short, deliberate debug
+# session, and off again afterwards.
+[observability]
+enabled = false
+
+# Every deployment otherwise also gets its own public Preview URL, i.e. a second
+# live copy of an endpoint that writes to the database. Nothing needs it — the
+# app posts to one address — and fewer public write surfaces is the right
+# default for this.
+preview_urls = false
+
+[[d1_databases]]
+binding = "DB"
+database_name = "flowread-analytics"
+database_id = "113da555-bd6f-4cb2-b375-8daaad9e3148"
+
+# STATS_TOKEN is a secret, not a var:
+#   npx wrangler secret put STATS_TOKEN

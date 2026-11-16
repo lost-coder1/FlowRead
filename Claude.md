@@ -107,6 +107,9 @@ www/
       share-stats.js      — Section 15 shareable stats card (built 2026-09-25)
       leaderboard.js      — NEW, Section 14 opt-in leaderboard + badges
       widget-bridge.js    — NEW, Section 12, pushes reading-position data to the native widget
+worker/              — NEW, §9.6's receiver. Cloudflare Worker + D1 schema + wrangler.toml.
+                       Aggregate counters only, never per-event rows; the request IP is never
+                       read, stored or logged. Not part of the app bundle.
 android/
   app/src/main/java/com/flowread/app/
     FlowReadIapPlugin.java        — on Billing 9.1.0; add subscription support (Section 4)
@@ -511,9 +514,50 @@ book size. `forceEngine: 'page'` applies to that read only and never writes `fr_
 **Unlock progress is engine-agnostic.** The threshold is expressed in pages, but it is counted through `savePosition()` — the seam every engine already goes through — so a nudged read counts in RSVP, Chunk, Scroll and Focus Bold too, converting pages to words (~220 words/page). Page mode keeps its exact page count. Counting only Page-mode turns meant a user reading in any other engine waited for an unlock that could never arrive (Section 1.5).
 
 ### 9.6 Anonymous Event Pings
-`analytics-ping.js` — `logEvent(eventName, meta)`, fire-and-forget `fetch()` to a Cloudflare Worker. Never includes a user/device identifier, file name, or reading content. Minimum event set: `app_opened`, `nudge_shown`, `nudge_read_started`, `nudge_read_completed`, `nudge_skipped`, `free_book_downloaded`, `pro_purchased`, `subscription_started`, `subscription_cancelled`, and `stats_shared` (added 2026-09-25 with product-owner approval; carries the share entry point only — `home` / `dashboard` / `milestone` — never the book, the stat, or the destination app). Privacy policy must disclose this.
+`analytics-ping.js` — `logEvent(eventName, meta)`, fire-and-forget `fetch()` to a Cloudflare
+Worker (`worker/`, D1-backed, built 2026-11-16). Never includes a user/device identifier, file name, or reading content. Minimum event set: `app_opened`, `nudge_shown`, `nudge_read_started`, `nudge_read_completed`, `nudge_skipped`, `free_book_downloaded`, `pro_purchased`, `subscription_started`, `subscription_cancelled`, and `stats_shared` (added 2026-09-25 with product-owner approval; carries the share entry point only — `home` / `dashboard` / `milestone` — never the book, the stat, or the destination app). Privacy policy must disclose this.
 
-**Adding an event to this list is a product decision, not an implementation detail.** The allowlist in `analytics-ping.js` drops anything unlisted precisely so a future caller cannot quietly widen what is collected — ask before extending it (§21).
+**Adding an event to this list is a product decision, not an implementation detail.** The allowlist in `analytics-ping.js` drops anything unlisted precisely so a future caller cannot quietly widen what is collected — ask before extending it (§21). **The same list is enforced a second time in the Worker**, because a client can be modified and a closed list that only exists on the client is not closed; the two copies, and the published privacy policy's event list, must be changed together or the policy becomes false.
+
+**Three properties of the receiver are load-bearing, not implementation detail** (`worker/src/index.js` states them as rules at the top):
+1. **The request IP is never read, stored or logged.** Cloudflare offers it, the country and the ASN for free; taking any of them turns an anonymous count into personal data with nothing in the client to connect the change to the policy. Worker request logs carry the IP in their own metadata, so observability is off in `wrangler.toml` — turn it on only for a deliberate debug session.
+2. **Nothing is stored per event.** A row is a counter for a (day, event, dimensions) tuple, incremented on arrival, so the database physically cannot hold one person's sequence of actions — which is what a raw event log is, identifier or not. The privacy property does not then depend on anyone remembering not to run the wrong query later.
+3. **No dimension can carry a package name**, which is what keeps the filed Play accessibility declaration (§9.4a) true.
+**Allowlist additions 2026-11-16 (Phase 1, product-owner approved):** `read_session_ended`,
+`book_finished`, `book_opened`, `paywall_shown`, `import_completed`. The original twelve could report that nudges
+fired and books downloaded, and nothing at all about whether anyone **read** — the product's core
+action was the one thing unmeasured, which left §4's monthly-drops question and §22's engine
+question both unanswerable. Each of the four is a denominator an existing event lacked:
+`book_opened` for `free_book_downloaded` (a catalogue downloaded and never opened is an argument
+against paying to curate drops), `paywall_shown` for `pro_purchased` (without it conversion is not
+merely unknown but unknowable), `import_completed` to tell a Free Books app from a
+bring-your-own-PDF one, and `read_session_ended` for the act itself.
+
+**`book_finished` is fired from `savePosition()`, gated once per book**, and the gate is the whole
+design. §5.2 makes completion *derived* from position, so paging back off the last page un-finishes
+a book — an ungated event would re-fire on every re-crossing and the count would drift upward
+without anyone reading anything. The gate is deliberately sticky across Mark unread and re-reads:
+the question is how many books were ever finished, not how many times. It is **not** fired from
+`checkMilestones()`, which looks like the natural place and is not: it runs only on the home
+screen, bails when a modal is open, and returns after the first new book, so it is a prompt
+mechanism rather than a counter. `source` separates reading to the end (`read`) from the Mark read
+button (`marked`), because bookkeeping and finishing are different claims and must stay
+separable.
+
+Two meta keys were added with them, and both exist to get a per-*person* figure without storing
+anything that identifies a person:
+
+- **`tenure`** on `app_opened` — days since first launch, as a coarse bucket (`0`, `1`, `2-3`,
+  `4-7`, `8-30`, `31+`). Counts across buckets are a retention curve while no row is linkable to
+  another. **A persistent install id would answer the same question and is refused**: it is the
+  device identifier this section rules out, and it would flip the Play declaration to collecting
+  one.
+- **`first`** — true on a device's first ever event of that name, set from a `firstTag` resolved
+  *after* the opt-out gate so a flag is never spent on a ping that was not sent. Counting the
+  flagged events gives "how many people have ever done this", which bare counts cannot. Known and
+  accepted: a reinstall counts as a new person, and a first action taken while opted out is
+  counted at the second instead.
+
 **Allowlist additions 2026-11-01 (Task 16.3, product-owner approved):** `onboarding_completed` and `nudge_permission_granted`. §10.2's inline permission ask was chosen *to maximise grant rates*, and a grant rate needs a denominator — without these two there is no way to tell whether that choice was right, which is what §10.1 asks to be testable rather than assumed. A decline needs no event of its own: it is completed minus granted. Neither carries any parameter.
 
 

@@ -1857,6 +1857,12 @@ function markLibraryItemUnread(fileId) {
 function markFileAsRead(fileId, wordCount) {
   if (!fileId || !wordCount) return;
   savePosition(fileId, wordCount);
+  /* savePosition() only counts a finish for the file open in the reader, so the
+     button needs its own call — with source 'marked', because bookkeeping and
+     reading to the end are not the same claim and the figures should be
+     separable (§9.6). The once-per-book gate inside is shared, so a file that
+     was read to the end and then marked is still one event. */
+  _logBookFinished(fileId, 'marked');
   renderLibrary();
 }
 

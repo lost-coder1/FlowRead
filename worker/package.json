@@ -1,0 +1,13 @@
+{
+  "name": "flowread-analytics-worker",
+  "private": true,
+  "description": "Receiver for FlowRead's anonymous usage pings (Claude.md §9.6). Deploy-time tooling only — nothing here ships in the app bundle.",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "schema": "wrangler d1 execute flowread-analytics --remote --file=./schema.sql",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "4.163.0"
+  }
+}

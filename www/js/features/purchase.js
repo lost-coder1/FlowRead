@@ -419,6 +419,15 @@ function showPaywall(source) {
   const root = qs('#modal-root');
   if (!root) return;
 
+  /* §9.6. pro_purchased had no denominator, so conversion was not merely
+     unknown but unknowable. Logged before the redraw below can re-enter this
+     function with the same paywall already on screen — otherwise a cold start
+     whose prices arrive late would count the same impression twice and halve
+     every conversion figure. */
+  if (AppState.activeModal !== 'paywall' && typeof logEvent === 'function') {
+    logEvent('paywall_shown', { source: source || 'unknown' });
+  }
+
   closeActiveModal();
   AppState.activeModal = 'paywall';
 

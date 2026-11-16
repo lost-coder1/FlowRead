@@ -44,6 +44,18 @@ function renderReader(options) {
   AppState.chapters = detectChapters(file);
   AppState.isIndexOpen = false;
 
+  /* §9.6. The denominator free_book_downloaded lacks — a catalogue book that
+     is downloaded and never opened argues against paying to curate drops
+     (§4). `bridgeReturn` excludes the §7 round-trip from Normal view: that is
+     the same book in the same sitting, and counting it would inflate opens by
+     however often someone used the bridge. */
+  if (!opts.bridgeReturn && typeof logEvent === 'function') {
+    logEvent('book_opened', {
+      source: AppState.readerSource || 'upload',
+      engine: savedEngine,
+    });
+  }
+
   view.innerHTML = `
     <div class="progress-bar-track">
       <div class="progress-bar-fill" id="progress-bar-fill"></div>
@@ -591,6 +603,21 @@ function _flushSessionIfActive() {
 
   /* Only record sessions with meaningful content — skip accidental taps */
   if (wordsRead >= 10 && durationMs >= 3000) {
+    /* §9.6. The same threshold the local recorder uses, so the ping and the
+       dashboard can never disagree about what counted as a session. Read
+       `readerSource` here rather than in the back handler: the handler resets
+       it to 'upload' immediately after calling us, and a nudged read that
+       reported itself as a chosen one would make the pivot look like it was
+       working when it was not. Minutes and pages are rounded — the Worker sums
+       them for a mean and nothing finer is wanted. */
+    if (typeof logEvent === 'function') {
+      logEvent('read_session_ended', {
+        minutes: Math.round(durationMs / 60000),
+        pages: Math.round(wordsRead / 220),
+        engine: AppState.currentEngine || '',
+        source: AppState.readerSource || 'upload',
+      });
+    }
     saveReadingSession({
       date: todayDateString(),
       wordsRead: wordsRead,

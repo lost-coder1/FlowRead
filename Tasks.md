@@ -411,7 +411,69 @@ Q2/Q8 resolved · **Ref:** §9, §9.3a, §9.4a, §1.6 · **Size:** XL — larges
       because the alternative is a declaration that silently becomes false on a one-character code
       change nobody will connect to a compliance form. Declare **nothing** under financial info:
       Google receives payment data, FlowRead never does.
-- [ ] **Cloudflare Worker endpoint** — `analytics-ping.js` has `ENDPOINT = ''` and is inert until one exists. This is a safe shipping state, not a bug.
+- [x] **Cloudflare Worker endpoint — deployed and live 2026-11-17.**
+      `https://flowread-analytics.flowread-android.workers.dev/e`, account
+      `bdf1a1bc473345a64ce54a543fd2ef49`, D1 `flowread-analytics` in **APAC**. `ENDPOINT` is
+      filled, so **the app is no longer inert** — the next build sends pings. Emptying that one
+      constant is the kill switch.
+      Round trip verified end to end on the live endpoint: four valid pings stored, three bad ones
+      (unlisted event carrying a package name, a date 7 years off, malformed JSON) stored nothing,
+      the OPTIONS preflight answers 204, `/stats` 404s without the token, two read sessions
+      aggregated into one row summing correctly, and both `first_time_*` counters read 1. Test rows
+      were sent as `platform='web'` and then deleted, so the table is empty and real data starts
+      clean.
+      **Three things learned doing it, all in `worker/README.md`:** a new account has no
+      workers.dev subdomain and the first deploy simply fails without one; the dashboard link
+      Wrangler prints for that **404s**, and there is no CLI command, so it was registered over the
+      API with the token Wrangler already holds; and TLS on a fresh subdomain takes a minute or two,
+      during which `curl` fails with SSL error 35 — that is propagation, not misconfiguration.
+      `preview_urls = false` was set: every deployment otherwise gets a second public URL that
+      writes to the same database, and nothing needs it.
+      Wrangler is a devDependency of `worker/` alone — the app's `package.json` is untouched (§21).
+      **Still owed:** re-file Data safety as *Optional* (below), re-publish the amended privacy
+      policy, and move to a custom domain when the domain is bought (a route plus one constant;
+      nothing migrates).
+      **Design notes on the receiver, written 2026-11-16 and still binding.**
+      **D1, not KV, and aggregate-only:** a row is a counter for one
+      (day, event, dimensions) tuple, so the store physically cannot hold a sequence of one
+      person's actions. That makes the privacy guarantee a property of the storage rather than of
+      whoever writes the next query. Numeric meta is summed (`n` + `sum_*`) instead of becoming a
+      dimension, which keeps the primary key from exploding on minutes/pages.
+      **Four things not to undo:** the client IP is never read, stored or logged, and
+      `[observability]` is off for the same reason (a Worker log line carries the IP in its own
+      metadata); the event allowlist is enforced *again* server-side, because a client can be
+      modified; `/stats` serves a fixed set of named questions behind `STATS_TOKEN` rather than
+      arbitrary SQL; and every request answers 204 whether it was stored or dropped, so the
+      response cannot be used to probe what the allowlist holds.
+- [x] **Phase 1 events — added 2026-11-16, owner-selected.** `read_session_ended`, `book_finished`,
+      `book_opened`, `paywall_shown`, `import_completed`, plus `tenure` on `app_opened` and a
+      `first` flag. See
+      Claude.md §9.6 for why each one is a denominator something already-collected was missing.
+      Wiring notes worth keeping, each of which was a way to get the number wrong:
+      `read_session_ended` fires from `_flushSessionIfActive()` on the *same* ≥10-word/≥3s
+      threshold as the local recorder (so the ping and the dashboard cannot disagree) and reads
+      `AppState.readerSource` there, because the back handler resets it one line later and a nudged
+      read reported as a chosen one would make the pivot look like it was working when it was not.
+      `book_opened` skips `bridgeReturn`, or the §7 round-trip inflates opens. `paywall_shown` is
+      logged before `showPaywall()`'s late-price redraw can re-enter it, or a cold start double-counts
+      and halves every conversion figure. `import_completed` fires from `saveFileToLibrary()` only
+      when the entry is genuinely new and the origin is not `'catalogue'` — a re-open rewrites
+      `lastOpened` through the same function, and a Free Books download already has
+      `free_book_downloaded`. `book_finished` is gated once per book because §5.2 makes completion
+      derived — paging back off the last page un-finishes a book, so an ungated event drifts
+      upward on re-crossings; the gate is sticky across Mark unread and re-reads on purpose, and
+      the opt-out is checked before it is consumed so opting in later still counts the next
+      finish. Both the read-through path and the Mark read button share that gate, so a book read
+      to the end and then marked is one event, not two.
+- [x] **Privacy policy amended 2026-11-16** for the four events, `tenure`, `first`, the no-IP
+      guarantee and the totals-only storage. **Needs publishing to the hosted URL again** — that
+      is a manual step and committing the file does not do it.
+- [ ] **"How many people have ever shared a card"** — answered without an identifier: the client
+      flags a device's *first ever* `stats_shared` (`firstTag`), and `/stats` counts the flagged
+      events. Two accepted limits: a reinstall counts as a new sharer, and a first share made
+      while opted out is counted at the second instead. **Verify on device** once the endpoint is
+      live — the flag is one-shot per install, so a bad first test cannot be repeated without
+      clearing `fr_an_first_share`.
 - [x] ~~Decide whether the nudge setup belongs in onboarding (Q3)~~ — **resolved 2026-09-25:
       answered inside Task 16.3's design, not ahead of it.** N14's per-choice ask is the interim
       behaviour.

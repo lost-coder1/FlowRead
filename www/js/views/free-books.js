@@ -483,7 +483,9 @@ var FreeBooksView = (function() {
     };
     AppState.currentIndex = loadPosition(fileId);
 
-    /* Persist only after confirming real content — prevents stuck "Open ✓" cards */
+    /* Persist only after confirming real content — prevents stuck "Open ✓" cards.
+       Saved as 'catalogue' so it is not counted as an import (§9.6): it has
+       free_book_downloaded of its own, and the two must not conflate. */
     saveFileToLibrary({
       id: fileId,
       kind: 'pdf',
@@ -495,7 +497,7 @@ var FreeBooksView = (function() {
       wordCount: result.metadata.wordCount,
       pageCount: result.metadata.pageCount,
       lastOpened: Date.now(),
-    });
+    }, 'catalogue');
 
     await saveFileData(fileId, AppState.currentFile);
     saveRawPdf(fileId, storedBuffer);
@@ -559,7 +561,9 @@ var FreeBooksView = (function() {
     };
     AppState.currentIndex = loadPosition(fileId);
 
-    /* Persist only after confirming real content — prevents stuck "Open ✓" cards */
+    /* Persist only after confirming real content — prevents stuck "Open ✓" cards.
+       Saved as 'catalogue' so it is not counted as an import (§9.6): it has
+       free_book_downloaded of its own, and the two must not conflate. */
     saveFileToLibrary({
       id: fileId,
       kind: 'txt',
@@ -571,7 +575,7 @@ var FreeBooksView = (function() {
       wordCount: result.metadata.wordCount,
       pageCount: result.metadata.pageCount,
       lastOpened: Date.now(),
-    });
+    }, 'catalogue');
 
     await saveFileData(fileId, AppState.currentFile);
 

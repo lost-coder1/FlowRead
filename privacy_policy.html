@@ -38,18 +38,30 @@
     <li>the calendar date — never a time of day;</li>
     <li>the platform (for example, Android);</li>
     <li>in some cases one small non-identifying value, such as a page count, a number of minutes, or
-    a language code.</li>
+    a language code;</li>
+    <li>when the app is opened, how long ago it was installed &mdash; as a broad range only
+    (today, yesterday, 2&ndash;3 days, 4&ndash;7 days, 8&ndash;30 days, or more than a month),
+    never an exact date;</li>
+    <li>whether it was the first time you had done that particular thing &mdash; a yes or no, used
+    to count how many people have tried a feature at all.</li>
   </ul>
-  <p>There is no device identifier, no user identifier, no advertising ID, no IP-based profile, and
-  nothing that links one event to another or to you. Because the date is recorded without a time,
-  separate events cannot be grouped into a session or a history.</p>
+  <p>There is no device identifier, no user identifier, no advertising ID and no IP-based profile.
+  Your IP address is not read, stored or logged by the server that receives these events. Nothing
+  links one event to another or to you: because the date is recorded without a time, separate
+  events cannot be grouped into a session or a history, and the server stores only running totals
+  per day rather than individual events, so a sequence of your actions cannot be reconstructed from
+  it even in principle.</p>
   <p>The events are limited to a fixed list inside the app, which cannot be extended remotely. They
-  are: app opened, reading reminder shown, reading started from a reminder, reading completed from a
-  reminder, reminder skipped, free book downloaded, onboarding completed, reminder permission
-  granted, statistics card shared, and the four purchase events named under In-app purchases below.</p>
+  are: app opened, book opened, a book finished (and whether you read to the end or marked it read
+  yourself), a reading session ended (with its length, the number of pages, and
+  which reading mode), a file imported (with its format), a purchase screen shown, reading reminder
+  shown, reading started from a reminder, reading completed from a reminder, reminder skipped, free
+  book downloaded, onboarding completed, reminder permission granted, statistics card shared, and
+  the four purchase events named under In-app purchases below.</p>
   <p><strong>What is never included:</strong> the names of the apps you choose for reading reminders,
   your file names, your file contents, anything you read, any text you look up, the books you choose,
-  or the app you share a statistics card to.</p>
+  which book a reading session was spent on, which book you finished, or the app you share a
+  statistics card to.</p>
   <p>These events are sent on a best-effort basis only. If you are offline or the request fails, it
   is discarded silently and nothing in the app is affected.</p>
   <p><strong>You can turn this off.</strong> Settings &rarr; About &rarr; "Share anonymous usage

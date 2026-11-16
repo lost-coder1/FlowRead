@@ -77,7 +77,8 @@ const NormalView = (function() {
     qs('#btn-normal-back').addEventListener('click', function() {
       if (_observer) _observer.disconnect();
       releaseWakeLock();
-      renderReader({ startIndex: AppState.currentIndex, silentResume: true });
+      /* bridgeReturn: not a new book_opened (§9.6), same book and sitting. */
+      renderReader({ startIndex: AppState.currentIndex, silentResume: true, bridgeReturn: true });
       switchView('view-reader');
     });
 

@@ -55,6 +55,9 @@ function jumpReaderToWord(wordIndex, options) {
     startIndex: AppState.currentIndex,
     autoPlay: opts.autoPlay === true,
     silentResume: opts.silentResume !== false,
+    /* Not a new book_opened (§9.6) — same book, same sitting, back from
+       Normal view. */
+    bridgeReturn: true,
   });
   switchView('view-reader');
 }

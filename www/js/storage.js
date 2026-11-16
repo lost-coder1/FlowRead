@@ -9,6 +9,41 @@ function savePosition(fileId, wordIndex) {
   if (typeof NudgeFeature !== 'undefined' && AppState.nudgeContext) {
     NudgeFeature.onReadProgress(wordIndex);
   }
+  /* And the one place reaching the end can be counted, for the same reason.
+     Compared against AppState rather than looked up in the library: this runs
+     on the playback path (§21 forbids work here), and a JSON.parse of the whole
+     library per saved word is exactly the kind of cost that rule is about. The
+     id check is what keeps it honest when the current file is not the one being
+     written — markFileAsRead() writes another file's position from the
+     library. */
+  if (AppState.currentFile && AppState.currentFile.id === fileId &&
+      AppState.currentFile.words && wordIndex >= AppState.currentFile.words.length) {
+    _logBookFinished(fileId, 'read');
+  }
+}
+
+/* §9.6. Finishing a book is the product's defining moment and was the one thing
+   unmeasured: read_session_ended says people read, never that anyone reached an
+   end.
+   Gated once per book, because §5.2 makes completion *derived* from position —
+   page back off the last page and the book un-finishes, so without this the
+   event would fire again on every re-crossing and the count would drift. The
+   gate is deliberately sticky across "mark unread" and re-reads: the question is
+   how many books were ever finished, not how many times.
+   The opt-out is checked *before* the gate is consumed, so a user who opts in
+   later still has their next finish counted rather than having spent it while
+   nothing was being sent. */
+function _logBookFinished(fileId, source) {
+  if (!fileId || typeof logEvent !== 'function') return;
+  if (typeof AnalyticsPing !== 'undefined' && AnalyticsPing.optedOut()) return;
+  const key = 'fr_an_done_' + fileId;
+  try {
+    if (localStorage.getItem(key) === '1') return;
+    localStorage.setItem(key, '1');
+  } catch (_) { return; }
+  /* firstTag is the device's first ever finish, which is a different question
+     from this book's: it answers how many *people* have finished anything. */
+  logEvent('book_finished', { source: source, firstTag: 'finish' });
 }
 
 function loadPosition(fileId) {
@@ -95,13 +130,27 @@ function loadWPM() {
 }
 
 /* ── File library ───────────────────────────────────────────── */
-function saveFileToLibrary(meta) {
+/* `origin` is 'import' (the default) or 'catalogue' for a Free Books download.
+   It exists only so §9.6's import_completed can tell the two apart: the whole
+   point of that event is "is this a Free Books app or a bring-your-own-PDF
+   app", and a catalogue book counted as an import answers neither. */
+function saveFileToLibrary(meta, origin) {
   /* Remove by exact id OR by same name+kind (covers re-import with different lastModified) */
-  const lib = loadLibrary().filter(function(item) {
+  const before = loadLibrary();
+  const lib = before.filter(function(item) {
     return item && item.id !== meta.id && !(item.name === meta.name && item.kind === meta.kind);
   });
   lib.unshift({ ...meta });
   localStorage.setItem('fr_library', JSON.stringify(lib));
+
+  /* Only a file that was not already in the library is an import. Re-opening
+     one comes through here too (it rewrites lastOpened), and counting that
+     would make the figure a measure of reading, not of importing. */
+  if ((origin || 'import') === 'import' &&
+      lib.length !== before.length &&
+      typeof logEvent === 'function') {
+    logEvent('import_completed', { source: meta.kind || '' });
+  }
 }
 
 function removeFileFromLibrary(fileId) {

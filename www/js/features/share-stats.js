@@ -669,7 +669,16 @@ const ShareStats = (function() {
            stat, or which app it went to (§1.4). Fire-and-forget, after the
            share has actually completed. */
         if (typeof AnalyticsPing !== 'undefined') {
-          AnalyticsPing.logEvent('stats_shared', { source: opts.source || 'unknown' });
+          /* firstTag makes an aggregate count answer "how many people have
+             ever shared a card", which a bare share count cannot: the Worker
+             counts the events flagged first, and that is one per device. No
+             identifier is stored to get it — see worker/README.md for the two
+             limits (a reinstall counts twice; a first share made while opted
+             out is counted at the second instead). */
+          AnalyticsPing.logEvent('stats_shared', {
+            source: opts.source || 'unknown',
+            firstTag: 'share',
+          });
         }
         closeActiveModal();
       } catch (err) {
