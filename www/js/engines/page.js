@@ -28,6 +28,10 @@ const PageEngine = (function() {
   let _leafLru = [];          /* page indices holding a live .el, oldest first */
   const LEAF_LRU_MAX = 5;
 
+  /* Word indices where a paragraph begins (features/paragraphs.js). Null until
+     init resolves it for the current file. */
+  let _paraStarts = null;
+
   /* False while a background pass is still measuring. The grid on screen is then
      real but incomplete, so the page numbers next to it are estimates. */
   let _pagesExact = true;
@@ -76,6 +80,12 @@ const PageEngine = (function() {
       ? _pages.map(function(p) { return p.startIndex; })
       : loadPageLayout(key, _words.length);
 
+    /* Resolve before any measuring: paragraph breaks change where pages end, so
+       a grid measured without them does not describe this layout. */
+    _paraStarts = (typeof ParagraphStructure !== 'undefined')
+      ? ParagraphStructure.startsFor(AppState.currentFile)
+      : null;
+
     _pages = [];
     _leafLru = [];
     _pagesExact = true;
@@ -115,6 +125,16 @@ const PageEngine = (function() {
 
   function _render(container) {
     const shell = _createShell(container);
+
+    /* The nav bar goes up before anything is measured, not after. It is an
+       ordinary flex item (engines.css: .page-engine-nav, flex-shrink 0, no
+       positioning), so adding it shrinks the shell by its own height — measure
+       first and every page is sized for a stage ~65px taller than the one it
+       will be rendered into, and the text creeps into the strip the bar is
+       supposed to have to itself. It also means the §7 bridge button on the bar
+       is there from the first frame rather than only once pagination ends. */
+    _ensureNavBar();
+    _updateNav();
 
     /* Off-screen measurement page — auto-height (NOT absolute inset:0), positioned
        far off-screen. Width set inline so word wrap matches the visible leaves.
@@ -289,24 +309,43 @@ const PageEngine = (function() {
     return covered / _pages.length;
   }
 
-  /* Lay out one slab and return the word indices a page must break at.
-     These spans are throwaway — no dataset.index, no word-tap binding, no
-     placeholder handler. They exist for a single layout pass and are dropped.
-     Only the typography has to match a real leaf, which the shared .page-leaf
-     and .page-placeholder CSS already guarantees. */
-  function _measureSlab(tempPage, from, to, usableH, lineH) {
+  /* The markup for a run of words — the single source of truth for what a page
+     looks like. Measurement and the visible leaves both go through here, because
+     the moment they build their own markup they can disagree about where a page
+     ends, and then pages overflow or come up short.
+
+     Interactivity is deliberately not in here: it is bound onto the spans
+     afterwards by _bindLeaf, so measurement pays nothing for listeners it is
+     going to throw away. Exactly one .page-word per word, so that binding can
+     match spans to words by position. */
+  function _wordsHtml(from, to) {
     const html = [];
     for (let i = from; i < to; i++) {
       const w = _words[i];
+      if (_paraStarts && _paraStarts.has(i)) {
+        /* A zero-height block splits the inline flow onto a new line without
+           adding vertical space; the indent on the first word is what marks the
+           paragraph, the way a printed book does. */
+        html.push('<b class="page-pb"></b>');
+      }
+      const indent = (_paraStarts && _paraStarts.has(i)) ? ' page-para-first' : '';
       if (w && typeof w === 'object' && w.type === 'placeholder') {
-        html.push('<span class="page-word page-placeholder">' + escapeHtml(w.label || '[Content]') + ' </span>');
+        html.push('<span class="page-word page-placeholder' + indent + '">' + escapeHtml(w.label || '[Content]') + ' </span>');
       } else {
-        html.push('<span class="page-word">' + escapeHtml(typeof w === 'string' ? w : '') + ' </span>');
+        html.push('<span class="page-word' + indent + '">' + escapeHtml(typeof w === 'string' ? w : '') + ' </span>');
       }
     }
-    tempPage.innerHTML = html.join('');
+    return html.join('');
+  }
 
-    const spans = tempPage.children;
+  /* Lay out one slab and return the word indices a page must break at. */
+  function _measureSlab(tempPage, from, to, usableH, lineH) {
+    tempPage.innerHTML = _wordsHtml(from, to);
+
+    /* Word spans only — the paragraph breaks are not words and must not be
+       counted as ones, or the break indices would be off by however many
+       paragraphs the slab contains. */
+    const spans = tempPage.querySelectorAll('.page-word');
     const breaks = [];
     if (spans.length === 0) return breaks;
 
@@ -386,11 +425,8 @@ const PageEngine = (function() {
 
     const leaf = document.createElement('div');
     leaf.className = 'page-leaf';
-    const frag = document.createDocumentFragment();
-    for (let j = page.startIndex; j <= page.endIndex; j++) {
-      frag.appendChild(_makeWordSpan(_words[j], j));
-    }
-    leaf.appendChild(frag);
+    leaf.innerHTML = _wordsHtml(page.startIndex, page.endIndex + 1);
+    _bindLeaf(leaf, page.startIndex);
     /* Park it off-screen until _layoutPages places it, so a leaf built mid-swipe
        never flashes over the page being read. */
     leaf.style.transform = 'translateX(' + (2 * window.innerWidth) + 'px)';
@@ -428,30 +464,29 @@ const PageEngine = (function() {
     page.el = null;
   }
 
-  function _makeWordSpan(word, index) {
-    const span = document.createElement('span');
-    span.className = 'page-word';
-    span.dataset.index = index;
+  /* Word tap, long-press dictionary and placeholder chips, bound onto the markup
+     _wordsHtml produced. Spans map to words by position — _wordsHtml emits
+     exactly one .page-word per word — which is why the paragraph breaks it also
+     emits carry a different element and class. */
+  function _bindLeaf(leaf, startIndex) {
+    const spans = leaf.querySelectorAll('.page-word');
+    for (let n = 0; n < spans.length; n++) {
+      const word = _words[startIndex + n];
+      const span = spans[n];
 
-    if (word && typeof word === 'object' && word.type === 'placeholder') {
-      span.className += ' page-placeholder';
-      span.textContent = word.label || '[Content]';
-      (function(w) {
-        span.addEventListener('click', function(e) {
-          e.stopPropagation();
-          openObjectPlaceholder(w);
-        });
-      })(word);
-      span.appendChild(document.createTextNode(' '));
-      return span;
+      if (word && typeof word === 'object' && word.type === 'placeholder') {
+        (function(w) {
+          span.addEventListener('click', function(e) {
+            e.stopPropagation();
+            openObjectPlaceholder(w);
+          });
+        })(word);
+        continue;
+      }
+      if (typeof word === 'string' && typeof WordTapFeature !== 'undefined') {
+        WordTapFeature.bindWord(span, word);
+      }
     }
-
-    span.textContent = typeof word === 'string' ? word : '';
-    span.appendChild(document.createTextNode(' '));
-    if (typeof word === 'string' && typeof WordTapFeature !== 'undefined') {
-      WordTapFeature.bindWord(span, word);
-    }
-    return span;
   }
 
   /* ── Layout (3-slot sliding window) ──────────────────────────── */

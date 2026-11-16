@@ -65,7 +65,12 @@ function getDefaultSettings() {
   return {
     defaultWpm: 260,
     defaultChunkSize: 3,
-    defaultMode: 'rsvp',
+    /* Page mode is the default read since 2026-11-16: it is the one engine that
+       asks nothing of a new user, and it opens instantly now (§5.1). Only new
+       installs see this — an existing user has defaultMode already written into
+       fr_settings, and fr_last_engine overrides it regardless, so nobody's
+       engine changes under them. */
+    defaultMode: 'page',
     fontScale: 1,
     fontPreset: 'roboto',
     theme: 'oled-black',
@@ -319,6 +324,7 @@ function renderSettings() {
             <option value="chunk" ${AppState.settings.defaultMode === 'chunk' ? 'selected' : ''}>${t('settings.mode.chunk')}</option>
             <option value="focus" ${AppState.settings.defaultMode === 'focus' ? 'selected' : ''}>${t('settings.mode.focus')}</option>
             <option value="scroll" ${AppState.settings.defaultMode === 'scroll' ? 'selected' : ''}>${t('settings.mode.scroll')}</option>
+            <option value="page" ${AppState.settings.defaultMode === 'page' ? 'selected' : ''}>${t('settings.mode.page')}</option>
           </select>
         </div>
 

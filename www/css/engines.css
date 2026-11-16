@@ -899,6 +899,20 @@ body.engine-page .reader-normal-toggle { display: none !important; }
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Paragraph structure. The word stream is flat — a paragraph routinely spans a
+   page break — so paragraphs are marked inline rather than wrapped in blocks.
+   A zero-height block box splits the inline flow onto a new line and adds no
+   vertical space of its own; the indent on the following word is what the eye
+   reads as a new paragraph, the way a printed book does it. */
+.page-pb {
+  display: block;
+  height: 0;
+}
+
+.page-para-first {
+  margin-left: 1.5em;
+}
+
 .page-placeholder {
   display: inline-block;
   padding: 2px 8px;

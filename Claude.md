@@ -96,6 +96,7 @@ www/
                         from app.js via the same renderOnboarding() entry point.
     features/
       chapter-detection.js · cleaning.js · bridge.js · keep-awake.js
+      paragraphs.js       — §6.1, recovers paragraph boundaries from rawLines
       purchase.js  (extend for subscription products — Section 4; billing library upgrade done)
       notifications.js  (extend with offline-triggered type — Section 11)
       word-tap.js
@@ -254,6 +255,14 @@ and the reason §9.5 had to be overridden for two months.
    anchored mid-book genuinely cannot number its pages, and showing a confident wrong number
    would be the silent failure §1.5 forbids.
 
+4. **Paragraph structure comes from the parsers, not from the engine.** `rawLines[]`
+   carries `paraStart`; `features/paragraphs.js` turns it into word indices; Page mode
+   renders a zero-height block plus a 1.5em indent on the first word. **Indent, no blank
+   line** (owner, 2026-11-16) — a printed-book paragraph, which costs no vertical space.
+   Both the measurement and the visible leaves build their markup from the *same*
+   function (`_wordsHtml`), and must keep doing so: the instant they build it separately
+   they can disagree about where a page ends, and pages overflow or come up short.
+
 The result is cached in `localStorage` under `fr_page_layout_*` (boundaries only — integers,
 never content, §1.4), keyed by file + font + scale + viewport, LRU-evicted at ten entries, so a
 later open measures nothing at all. **Page mode deliberately exposes no `hasCache()`**: reader.js
@@ -263,7 +272,35 @@ reads that absence as "opens fast enough that a loading card would only flash".
 
 ## 6. PDF Cleaning Engine
 
-Unchanged. Extracts text with positions, groups into lines, detects/strips headers/footers/page numbers/ISBN-DOI/bare URLs, converts tables/images/equations to tappable placeholders, builds `pageWordIndex[]`.
+Extracts text with positions, groups into lines, detects/strips headers/footers/page numbers/ISBN-DOI/bare URLs, converts tables/images/equations to tappable placeholders, builds `pageWordIndex[]`.
+
+### 6.1 Paragraph structure must survive parsing (added 2026-11-16)
+
+Every parser used to find paragraphs and then throw them away — `txt.js` split on blank
+lines and immediately flattened the blocks into lines — so `rawLines[]` recorded where
+each *line* began and nothing recorded where a *paragraph* did. Downstream, every engine
+received a flat word array and could only put spaces between words: a page of Wealth of
+Nations arrived as one unbroken wall of text, and chapter titles ran into the prose
+behind them. Real numbers from that book: **2,250 paragraphs in the source, all 2,249
+boundaries discarded.**
+
+`rawLines[]` therefore carries **`paraStart`**, and each parser owes it:
+- **TXT** — the blank-line block boundary, which is the only paragraph marker a plain
+  text file has. Exact.
+- **DOCX** — every line, because mammoth's `extractRawText` already emits one paragraph
+  per newline. Exact, and was always available.
+- **PDF** — inferred from geometry, because a PDF has no paragraph marks, only ink:
+  a line indented past the body's left margin, or one following a line that stopped well
+  short of the right margin. `finishLine()` keeps `x0`/`x1` for this.
+
+**Books imported before this cannot be re-parsed** — only PDFs keep their raw bytes
+(`saveRawPdf`), so a TXT in the library is stored as parsed data and its source is gone.
+`features/paragraphs.js` infers their boundaries from the stored line lengths instead:
+a line that stops short of the wrap width *and* ends a sentence ended its paragraph.
+Measured against the real book, **94.6% precision / 86.9% recall** — the sentence-ending
+half is what carries it; without it the rule scores 81%. A missed break merges two
+paragraphs, which is no worse than the old behaviour. `।` counts as a sentence ending
+(§17). Free Books can be re-downloaded for an exact result.
 
 ---
 
@@ -617,6 +654,8 @@ consistent, and do not grow status narrative here: that is `Tasks.md`'s job.
 | **16.8** | Home screen widget | 12 | ⬜ **next engineering task**; needs Q7 (classic vs Glance) |
 | **16.9** | Home screen reorder (in-progress books first) | — | ✅ 1.4.7 |
 | **16.12** | Page-mode pagination rewrite; restores §9.5's nudge entry | 5.1 | ✅ code complete; device run outstanding |
+| **16.13** | Paragraph structure end to end; Page mode becomes the default engine | 6.1 | ✅ code complete; device run outstanding |
+| **16.14** | Chapter detection is wrong on every file | 6.1 | ⬜ diagnosed, not fixed |
 | **16.10** | Store listing rewrite onto the habit framing | 0.1 | ⬜ **next product task**; now the main listing, not just the India CSL |
 | **H3** | Notifications failed silently without exact-alarm permission | 1.5 | ✅ 1.4.7 |
 | **H4** | Pro purchase failed with a generic error | 1.5 | ✅ verified on a Play build; revenue blocker closed |

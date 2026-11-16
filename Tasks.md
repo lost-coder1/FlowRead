@@ -53,6 +53,18 @@ unlabelled category chips are fixed. The catalogue work is re-scoped into four p
 **16.8 (home screen widget) is deferred by the owner until the app has traction.** Next product
 task: **16.10**'s remaining screenshots + feature graphic.
 
+**2026-11-16 — Paragraphs restored, and Page mode is now the default (Tasks 16.13, 16.14).**
+Page mode was rendering books as one unbroken wall of words with chapter titles run into
+the prose. The cause was not Page mode: **every parser found paragraphs and then threw them
+away** (`txt.js` flattened its blank-line blocks into lines), so all five engines got a flat
+word array. Wealth of Nations: 2,250 paragraphs in the source, **all 2,249 boundaries
+discarded**. `rawLines[]` now carries `paraStart` and `features/paragraphs.js` turns it into
+word indices; Page mode renders an indent, no blank line. Books already in the library cannot
+be re-parsed (only PDFs keep raw bytes) so they get an inferred fallback at 94.6% precision.
+**Page mode is now the default engine for new installs** — and could not be chosen at all
+before, the Settings dropdown having never listed it. **Chapter detection turns out to be
+broken by the same root cause and is now Task 16.14**, diagnosed but not fixed.
+
 **2026-11-16 — Page mode rewritten (Task 16.12).** Opening a book in Page mode no longer scales
 with its length: 150k words went from **14.7s to 434ms**, first paint is one slab regardless of
 size, and a re-open from the persisted grid is instant. The cause was a forced layout per word
@@ -622,6 +634,122 @@ behind. All pass. Harness is not committed; it is a scratch file.
       landing in Page mode with the unlock counter still advancing.
 - [ ] **Hindi.** Open a Devanagari book in Page mode — pagination and word tap unaffected. No new
       user-facing strings were added, so there are no new i18n keys.
+
+---
+
+## Task 16.13 — Paragraph structure end to end  ✅ code complete, device run outstanding
+
+**Governed by `Claude.md` §6.1** (written for this work), §5.1 rule 4, §17.
+
+**Why.** Reported from use: Page mode "just shows all the text, like with just spaces
+between words… no paragraphs, nothing", chapter names included. Confirmed against the real
+Gutenberg *Wealth of Nations*: the source has **2,250 paragraphs**, hard-wrapped at 74
+characters, and the parser kept 32,415 lines while discarding **all 2,249 paragraph
+boundaries**. One line did it — `txt.js` split on blank lines to find paragraphs and then
+`.flatMap`ped the blocks straight back into lines. **This was never a Page mode bug**; Page
+mode is just the only engine that shows a page of prose at once, so it is where it shows.
+
+**What changed.**
+1. **Parsers keep it.** `rawLines[]` carries `paraStart` — exact for TXT (the blank-line
+   block) and DOCX (mammoth already emits one paragraph per newline), inferred from
+   geometry for PDF, for which `finishLine()` now keeps the line's `x0`/`x1`.
+2. **`features/paragraphs.js`** turns `rawLines` into a Set of word indices, memoised per
+   file.
+3. **Page mode renders it** as a zero-height block plus a 1.5em indent on the first word —
+   indent, no blank line, per the owner's choice. Costs no vertical space, so the page
+   count barely moves.
+4. **One renderer.** `_measureSlab` and `_ensureLeaf` both build their markup from
+   `_wordsHtml` now. They were separate code paths that happened to agree; adding paragraph
+   markers to both would have doubled the chance of them disagreeing, and when they
+   disagree pages overflow. Word-tap binding moved to a second pass (`_bindLeaf`) over the
+   spans, matched to words by position.
+5. **Layout cache bumped to `v: 2`** — paragraphs move every page boundary, so a v1 grid
+   describes a layout that no longer exists.
+
+**Already-imported books.** Only PDFs keep their raw bytes (`saveRawPdf`), so a TXT in the
+library is stored as parsed data with its source gone and cannot be re-parsed. Those get an
+inferred fallback: a line that stops short of the wrap width **and ends a sentence** ended
+its paragraph. Against the real book:
+
+| Rule | Precision | Recall |
+|---|---|---|
+| previous line is short | 80.7% | 74.6% |
+| previous line is short **and ends a sentence** | **94.6%** | **86.9%** |
+
+The sentence-ending half is what carries it. A missed break merges two paragraphs, which is
+exactly the old behaviour, so the failure mode degrades to today rather than to something
+wrong. The danda `।` is in the sentence-ending set (§17). Free Books can be re-downloaded
+for an exact result.
+
+**Fixed in passing — pages were sized for a stage that does not exist.**
+`.page-engine-nav` is an ordinary flex item (`flex-shrink: 0`, no positioning), so putting
+it up **shrinks the shell by its own height** — but `_ensureNavBar()` ran in
+`_finalizeBuild`, *after* measurement. Every page was therefore measured against a stage
+~65px taller than the one it would be rendered into, and the text ran about a line closer to
+the nav bar than the 96px reserve intends. The bar now goes up before anything is measured,
+which also puts the §7 bridge button on screen from the first frame.
+
+**Page mode is now the default engine** for new installs (`settings.js`), and is listed in
+the Default Mode dropdown, **which never offered it** — rsvp/chunk/focus/scroll only, so it
+could not be chosen even deliberately. `settings.mode.page` added to `en.json` and
+`hi.json` as "Page" (engine names stay Roman, §17). Existing users are untouched: their
+`defaultMode` is already written into `fr_settings` and `fr_last_engine` overrides it
+regardless — nobody's engine changes under them.
+
+**Verified:** 12-assertion headless harness on a synthetic Gutenberg-shaped book (parser
+marks exactly the real paragraphs; the fallback scores 100%/89.7% on it; every opener is
+*measurably* indented; no blank line appears; no page spills into the nav-bar strip across
+60 page turns; one span per word with the right word in it), the full real *Wealth of
+Nations* end to end (**2,247 paragraphs recovered, 384,153 words, 2,924 pages**), a unit
+test of the PDF geometry (60/60 on an indented book), and the 40-assertion 16.12 suite still
+passing.
+
+- [ ] **Device run.** A TXT from Free Books, a PDF, and a DOCX: paragraphs where they
+      belong, indent reads right at both font scales, chapter titles no longer run into the
+      prose. A book already in the library from before this build, to see the fallback.
+      A Devanagari book for the danda. Page mode arriving as the default on a fresh install.
+- [ ] **Re-download one Free Book** already in the library and confirm it comes back with
+      exact paragraphs rather than inferred ones.
+
+---
+
+## Task 16.14 — Chapter detection is wrong on every file  ⬜ diagnosed, not fixed
+
+**Reported:** "Index of chapters is not detecting chapters correctly. It always mess up for
+any file." Confirmed, and the cause is **the same flatten as 16.13**.
+
+`classify ChapterLine` (`features/chapter-detection.js:23`) opens with
+`/^(chapter|part)\s+([a-z0-9ivxlcdm]+)/i` — case-insensitive, **no word boundary and no
+requirement that the line be standalone**. So *any wrapped line beginning with the word
+"part"* is a chapter. On *Wealth of Nations* it returns **207 chapters where the book has
+about 65**, and most of the extras are mid-sentence fragments:
+
+```
+rule1 chapter/part   part of the produce of his own labour, which is over and above his own
+rule1 chapter/part   part of this superfluity. But if this latter should chance to have nothi
+rule3 ALL-CAPS       THAT THE DIVISION OF LABOUR IS
+```
+
+Breakdown of the 207: 179 from the chapter/part rule, 24 all-caps, 4 title-case. The
+all-caps hits are *fragments of wrapped headings* — the heading was hard-wrapped across
+several lines and each piece was judged on its own.
+
+**Why it is worth doing after 16.13 rather than before.** Both symptoms come from headings
+being split across `rawLines` and prose fragments being indistinguishable from them. With
+`paraStart` the detector can finally ask the right question: a heading is a **standalone
+short paragraph**, not a line fragment. That one condition should remove most of the 142
+false positives on its own, before touching the regexes.
+
+Likely shape of the fix, to be confirmed against real books:
+- Classify **paragraphs**, not lines — join a paragraph's wrapped lines first.
+- Require the paragraph to be short and standalone.
+- Anchor the first rule: `\b(chapter|part)\b` followed by a numeral or roman numeral, and
+  the paragraph substantially consumed by it.
+- Check against a PDF, a DOCX and a Devanagari book, not only Gutenberg TXT.
+
+**Not started.** Headings styled as headings inside Page mode (§16) are deliberately
+deferred behind this — styling off a detector this noisy would put false headings in the
+middle of paragraphs.
 
 ---
 

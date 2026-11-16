@@ -11,24 +11,31 @@ async function parseTXT(arrayBuffer) {
   /* Normalize line endings */
   let text = decoded.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 
-  /* Split into paragraph blocks (blank-line delimited) */
-  const paragraphs = text
-    .split(/\n{2,}/)
-    .flatMap(function(block) { return block.split(/\n/); })
-    .map(function(line) { return line.trim(); })
-    .filter(function(line) { return line.length >= 2; });
+  /* Split into paragraph blocks (blank-line delimited), then into the lines each
+     block was hard-wrapped into. Which line opened a block is the only record of
+     where a paragraph begins — a plain text file has no other marker — so it is
+     carried through as `firstOfBlock` rather than flattened away. Losing it here
+     is what made every engine render a book as one unbroken wall of words. */
+  const paragraphs = [];
+  text.split(/\n{2,}/).forEach(function(block) {
+    block.split(/\n/).forEach(function(line, i) {
+      const trimmed = line.trim();
+      if (trimmed.length >= 2) paragraphs.push({ text: trimmed, firstOfBlock: i === 0 });
+    });
+  });
 
   /* Clean paragraphs */
   const cleaned = paragraphs.map(function(p) {
     /* Collapse whitespace */
-    p = p.replace(/[ \t]+/g, ' ').trim();
+    let text = p.text.replace(/[ \t]+/g, ' ').trim();
     /* Strip control chars */
-    p = p.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
-    return p;
+    text = text.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+    return { text: text, firstOfBlock: p.firstOfBlock };
   });
 
   /* Filter out page numbers, bare URLs */
-  const filtered = cleaned.filter(function(line) {
+  const filtered = cleaned.filter(function(p) {
+    const line = p.text;
     if (line.length < 2) return false;
     if (/^\d+$/.test(line)) return false;
     if (/^https?:\/\//.test(line) && line.length < 50) return false;
@@ -38,10 +45,10 @@ async function parseTXT(arrayBuffer) {
   /* Deduplicate adjacent identical lines */
   const deduplicated = [];
   let lastLine = '';
-  filtered.forEach(function(line) {
-    if (line !== lastLine) {
-      deduplicated.push(line);
-      lastLine = line;
+  filtered.forEach(function(p) {
+    if (p.text !== lastLine) {
+      deduplicated.push(p);
+      lastLine = p.text;
     }
   });
 
@@ -53,15 +60,20 @@ async function parseTXT(arrayBuffer) {
   const pageWordIndex = [0];
   let syntheticPage = 0;
 
-  deduplicated.forEach(function(line) {
-    const lineWords = line.split(/\s+/).filter(Boolean);
+  let first = true;
+  deduplicated.forEach(function(p) {
+    const lineWords = p.text.split(/\s+/).filter(Boolean);
     if (lineWords.length === 0) return;
 
     rawLines.push({
-      text: line,
+      text: p.text,
       pageIndex: Math.floor(wordIndex / PAGE_SIZE),
       wordIndex: wordIndex,
+      /* The opening line of the document starts a paragraph whatever the source
+         did, so a reader never lands on a continuation. */
+      paraStart: p.firstOfBlock || first,
     });
+    first = false;
 
     lineWords.forEach(function(word) {
       words.push(word);

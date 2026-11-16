@@ -57,6 +57,9 @@ async function parseDOCX(arrayBuffer) {
       text: line,
       pageIndex: Math.floor(wordIndex / PAGE_SIZE),
       wordIndex: wordIndex,
+      /* mammoth's extractRawText emits one paragraph per newline, and the split
+         above is on /\n+/ — so every line here is already a whole paragraph. */
+      paraStart: true,
     });
 
     lineWords.forEach(function(word) {

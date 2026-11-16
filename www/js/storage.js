@@ -29,7 +29,7 @@ const PAGE_LAYOUT_MAX = 10;
 function savePageLayout(key, starts, wordCount) {
   try {
     localStorage.setItem(PAGE_LAYOUT_PREFIX + key, JSON.stringify({
-      v: 1, starts: starts, words: wordCount, ts: Date.now(),
+      v: 2, starts: starts, words: wordCount, ts: Date.now(),
     }));
   } catch (e) {
     /* Quota, or storage blocked entirely. This is a cache: losing it costs one
@@ -54,7 +54,9 @@ function _readPageLayout(key, wordCount) {
     const raw = localStorage.getItem(PAGE_LAYOUT_PREFIX + key);
     if (!raw) return null;
     const entry = JSON.parse(raw);
-    if (!entry || entry.v !== 1 || !Array.isArray(entry.starts) || entry.starts.length === 0) return null;
+    /* v2 added paragraph breaks, which move every page boundary in the book, so
+       a v1 grid describes a layout that no longer exists. */
+    if (!entry || entry.v !== 2 || !Array.isArray(entry.starts) || entry.starts.length === 0) return null;
     /* A file re-imported under the same id can hold different text, and the
        stored boundaries would then point into the wrong words. */
     if (typeof wordCount === 'number' && entry.words !== wordCount) return null;

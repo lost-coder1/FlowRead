@@ -55,6 +55,10 @@ async function parsePDF(arrayBuffer) {
   const pageWordIndex = [];
   const rawLines = [];
 
+  const paraGeom = measureParagraphGeometry(allPageData, headerFooterSet);
+  /* The line before this one, carried across page boundaries — a paragraph does
+     not end just because a page did. */
+  let prevKept = null;
   let totalWordCount = 0;
 
   for (let i = 0; i < allPageData.length; i++) {
@@ -85,7 +89,13 @@ async function parsePDF(arrayBuffer) {
       if (headerFooterSet.has(normalized)) continue;
       if (isNoiseLine(line.text)) continue;
 
-      rawLines.push({ text: line.text, pageIndex: i, wordIndex: words.length });
+      rawLines.push({
+        text: line.text,
+        pageIndex: i,
+        wordIndex: words.length,
+        paraStart: _isParagraphStart(line, prevKept, paraGeom, rawLines.length === 0),
+      });
+      prevKept = line;
 
       const lineWords = line.text.split(/\s+/).filter(w => w.length > 0);
       for (const w of lineWords) {
@@ -197,6 +207,58 @@ async function parsePDF(arrayBuffer) {
 }
 
 /* ── Group text items into lines by y-coordinate ─────────────── */
+/* Where this book's text block actually sits on the page. Both paragraph rules
+   are relative to those margins, so they have to be measured from the book
+   rather than assumed — margins vary wildly between publishers. */
+function measureParagraphGeometry(allPageData, headerFooterSet) {
+  const lefts = [];
+  const rights = [];
+
+  for (let i = 0; i < allPageData.length; i++) {
+    const lines = allPageData[i].lines;
+    for (let j = 0; j < lines.length; j++) {
+      const line = lines[j];
+      if (typeof line.x0 !== 'number' || typeof line.x1 !== 'number') continue;
+      if (headerFooterSet.has(normalizeLine(line.text))) continue;
+      if (isNoiseLine(line.text)) continue;
+      lefts.push(line.x0);
+      rights.push(line.x1);
+    }
+  }
+  /* Too little text to tell a margin from an indent; better no paragraphs than
+     wrong ones (§1.5). */
+  if (lefts.length < 20) return null;
+
+  lefts.sort(function(a, b) { return a - b; });
+  rights.sort(function(a, b) { return a - b; });
+  const pct = function(arr, p) { return arr[Math.floor(arr.length * p)]; };
+
+  /* Indented first lines sit to the right of the margin, so a low percentile
+     finds the margin itself rather than the average of margin and indent. */
+  const bodyLeft = pct(lefts, 0.2);
+  const bodyRight = pct(rights, 0.8);
+  const width = bodyRight - bodyLeft;
+  if (width <= 0) return null;
+  /* Roughly one character, assuming a 60-ish character measure. */
+  const em = Math.max(4, width / 60);
+
+  return {
+    indentFrom: bodyLeft + em * 1.2,
+    shortBefore: bodyRight - em * 3,
+  };
+}
+
+function _isParagraphStart(line, prevKept, paraGeom, isFirstLine) {
+  if (isFirstLine) return true;
+  if (!paraGeom) return false;
+  /* This line is indented. */
+  if (typeof line.x0 === 'number' && line.x0 > paraGeom.indentFrom) return true;
+  /* The line before it stopped well short of the right margin, so it ended its
+     paragraph rather than wrapping into this one. */
+  if (prevKept && typeof prevKept.x1 === 'number' && prevKept.x1 < paraGeom.shortBefore) return true;
+  return false;
+}
+
 function groupIntoLines(items, pageHeight) {
   if (items.length === 0) return [];
 
@@ -230,10 +292,17 @@ function finishLine(items, y, pageHeight) {
   const lineMetrics = buildLineMetrics(items);
   const yFromTop = pageHeight - y;
   const pctFromTop = yFromTop / pageHeight;
+  const firstItem = items[0];
+  const lastItem = items[items.length - 1];
   return {
     text,
     y,
     yPct: pctFromTop,
+    /* Where the line starts and stops. A PDF carries no paragraph marks, so an
+       indent and a line that stops short of the margin are the only evidence
+       there is of where one paragraph ends and the next begins. */
+    x0: firstItem.x,
+    x1: lastItem.x + (lastItem.width || 0),
     isHeader: pctFromTop <= 0.22,
     isFooter: pctFromTop >= 0.78,
     itemCount: items.length,
