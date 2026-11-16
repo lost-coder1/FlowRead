@@ -183,7 +183,7 @@ Each is tagged with whether it blocks *starting* the task or only *finishing* it
 | ~~Q1~~ | ~~Subscription price (monthly / annual)~~ | — | **Resolved 2026-10-30: ₹149/mo, ₹999/yr as `flowread_plus`; lifetime `pro_lifetime` repriced to ₹2,999 and widened to include OCR; `ocr_vision` retired from sale but honoured forever.** See 16.1. | §4 |
 | ~~Q2~~ | ~~Nudge default thresholds~~ | — | **Resolved 2026-09-20: 15 min / 2 pages, both settings** | §9.2, §9.3 |
 | ~~Q3~~ | ~~Is the nudge permission ask inline in onboarding or deferred?~~ | — | **Resolved 2026-11-01: inline**, and placed *after* the user names an app so the ask is concrete. Skippable throughout; N4's home card stays as the second chance for skippers. See Task 16.3. | §10.2 |
-| ~~Q4~~ | ~~Monthly book-drop count, and bundled vs. remote-fetched catalog~~ | — | **Resolved 2026-11-03: 3 books/month, rotating. `catalog.json` hand-edited on a public GitHub repo (raw URL); book files uploaded to the WP media library. The existing 23 off-site books do not move.** No per-book provenance. See Task 16.4. | §4, §13 |
+| ~~Q4~~ | ~~Monthly book-drop count, and bundled vs. remote-fetched catalog~~ | — | **Mechanic revised 2026-11-17 — see Task 16.4 Phase D: ten curated books a month, the subscriber claims one, free users get none.** Original answer, still current for everything else — **Resolved 2026-11-03: 3 books/month, rotating. `catalog.json` hand-edited on a public GitHub repo (raw URL); book files uploaded to the WP media library. The existing 23 off-site books do not move.** No per-book provenance. See Task 16.4. | §4, §13 |
 | Q5 | Leaderboard backend — reuse the analytics Worker with a new endpoint, or something more structured? | 16.5 | **Start** | §14 |
 | Q6 | Exact copy/tone for the offline-triggered notification | 16.7 | Finish | §11 |
 | Q7 | Widget: classic `AppWidgetProvider` vs. Jetpack Glance | 16.8 | Finish — default to classic, evaluate briefly first | §12 |
@@ -1246,10 +1246,46 @@ against the grown file on device or in a browser.
 - [ ] **Privacy policy gains a line** — a catalogue fetch is a new network request, and the GitHub
       /WP servers see IPs. §1.1 needs the exception recorded too.
 
-**D — Monthly drops.**
-- [ ] `drops` is a **flat array of 3 ids** in `catalog.json` — no month keys. The owner edits it to
-      this month's three; the app shows whatever is in it. A calendar in the file would be a
-      calendar the owner has to maintain.
+**D — Monthly drops. Mechanic revised 2026-11-17: a choice of one from ten, subscribers only.**
+
+**What changed and why.** Q4 answered "3 books per month, rotating". The owner's revision is that
+a subscriber is shown **ten curated books each month and claims one of them**. Free users get
+**nothing new** — they already have the whole 150-book catalogue (§4), and the drops stay the one
+thing the subscription buys. Choosing is the point: a book someone picked is a book they meant to
+read, where three handed over is a list.
+
+- [ ] `catalog.json` gains **`dropMonth`** (e.g. `"2026-12"`), **`dropChoices`** (ten ids) and
+      nothing else. The ten are ordinary `books[]` entries; `dropChoices` only names them.
+- [ ] **`dropMonth` is the authority on what month it is — never the device clock.** The claim key
+      is `fr_drop_claim_<dropMonth>`. Three things fall out of that and all three matter: rotation
+      becomes purely an owner edit, with no scheduler and no calendar in the file; the device clock
+      is irrelevant, so there is no clock-change exploit and no timezone edge; and being late with
+      an edit breaks nothing — last month's set stays claimable, which is strictly better than a
+      month with no drop.
+- [ ] **The ten need not all be new.** `books[]` is never pruned, so a month's ten can be the three
+      newly added plus seven carried from earlier months that this subscriber did not claim. That
+      holds curation at Q4's **three new books a month** instead of ten, which is the difference
+      between 36 and 120 sourced-and-licence-checked books a year (§13.2) and is the thing most
+      likely to kill this task if got wrong.
+- [ ] **A failed download must not burn the claim.** Write the claim only after the parse-and-save
+      succeeds. One flaky connection otherwise costs a paying subscriber their month, silently
+      (§1.5).
+- [ ] **The claim is irreversible, so it has to be informed.** One confirm step naming the book,
+      in plain language, before it is spent. Springing "that was your one pick" afterwards is the
+      dark pattern §1.3 rules out; the confirm is not friction, it is the honesty.
+- [ ] **Never unpublish a hosted file, and never delete from `books[]`.** A claimed book survives
+      rotation because it is already on the device, but its library entry still resolves the URL
+      for covers and any re-download.
+- [ ] Gate on `AppState.isSubscriber` (16.1), **not** `isPro` — drops are the one thing §4 makes
+      subscription-only, and `isPro` is true for lifetime owners since the 2026-11-01 decision.
+- [ ] Reuses the existing download path wholesale: `_getSavedFileId`/`_setSavedFileId`, the
+      pdf/txt branch, `_keepCover`, `free_book_downloaded`.
+- [ ] **Decision owed — a `drop_claimed` event.** Adding to §9.6's allowlist is a product decision.
+      Without it there is no way to tell whether subscribers claim at all, which is the single
+      number that says whether this mechanic works.
+- [ ] i18n both languages from day one (§17).
+
+~~`drops` is a **flat array of 3 ids** in `catalog.json`~~ — superseded by the above.
 - [ ] **Never delete an entry from `books[]`** — only ever edit `drops`. A book that vanishes while
       someone has it downloaded leaves the id-lookup paths with nothing to resolve. The file grows
       3/month; 36 a year is nothing.
@@ -1327,6 +1363,132 @@ not been exercised since the fix.
 
 **Files:** `www/data/free-books.json` · `www/js/views/free-books.js` · `www/i18n/*.json` ·
 `privacy_policy.html` (Phase C) · NEW build script for Phase B (not shipped in the app)
+
+---
+
+## Task 16.18 — Reading plans (light / medium / hard)
+
+**Status:** Open, not started · **Ref:** §1.5, §1.6, §9.5, §17 · **Size:** M
+**Added 2026-11-17 (owner).** The user picks a reading plan — *light*, *medium*, *hard* — and the
+app turns it into a daily page target (roughly 2 / 10 / 20 pages). Offered in onboarding, and
+changeable later in Settings.
+
+**Why it is worth building:** the app currently has no notion of *enough for today*. Streaks count
+any reading at all, the daily reminder fires against a fixed internal threshold, and nothing tells
+a reader what they were aiming for. A plan gives every other mechanic here — the streak, the
+freeze, the reclaim, the reminder — one number to be about.
+
+**Four constraints, each of which is a way to get this wrong:**
+
+- [ ] **Pages are a display unit; the target has to be stored in words.** Every engine but Page
+      counts words, and §9.5 already solved exactly this for the nudge unlock by converting at
+      ~220 words/page. Reuse that constant rather than introducing a second one — two conversion
+      factors that disagree would make the dashboard and the plan contradict each other.
+- [ ] **The day's target is the sum of the day's sessions, not one session.** `_hasReadToday()`
+      in `notifications.js` today asks whether *any single* session crossed
+      `DAILY_WORDS_THRESHOLD`, so six short sessions can add to more than the threshold and still
+      read as "has not read". That is tolerable for a reminder and wrong for a plan, where a
+      reader who met their target in pieces must be told they met it.
+- [ ] **Changing the plan must not rewrite history.** Yesterday was met or not against the plan in
+      force then. A reader who moves from light to hard has not retroactively failed a week, and
+      showing that they did is the guilt §1.6 rules out. Store the target alongside the day, or
+      evaluate days against the plan active on that date.
+- [ ] **The streak definition does not change.** It stays "read at all", derived by
+      `computeStreak()` (below). Making the streak goal-based would break the streak of every
+      existing user who reads a little each day the moment they pick a plan — a punishment for
+      upgrading. The plan shows *progress toward today's target*; the streak stays about showing up.
+
+**Open decisions**
+- [ ] Exact page numbers per plan (2 / 10 / 20 are the owner's sketch, not signed off).
+- [ ] Whether a plan is also offered as *minutes* — some readers think in time, and the session
+      store already records `durationMs`. Likely a second plan type rather than a second unit on
+      the same one.
+- [ ] Where it sits in onboarding. §10.1 wants onboarding to end with the user reading, so a plan
+      step must not become another screen between them and a book.
+- [ ] A `plan_selected` event needs §9.6 allowlist approval if we want to know which plan people
+      pick.
+
+**Files:** `www/js/views/onboarding.js` · `www/js/views/settings.js` · `www/js/views/dashboard.js` ·
+`www/js/storage.js` · `www/js/features/notifications.js` · `www/i18n/*.json`
+
+---
+
+## Task 16.19 — Streak freeze
+
+**Status:** Open, not started · **Ref:** §1.6, §4, §14 · **Size:** M
+**Added 2026-11-17 (owner).** A freeze protects a streak through a day with no reading. **When a
+freeze is granted is the open question and the whole design.**
+
+**The architectural constraint that shapes everything here.** `computeStreak()` is *derived* from
+the session store and deliberately not stored — the comment says so: "so it can never drift out of
+sync with it". A freeze is by definition a claim that a day counts when no session exists, which
+derivation cannot express. Two ways out, and only one is acceptable:
+
+- **Write a synthetic session for the frozen day — do not do this.** It would inflate words,
+  minutes and page counts everywhere: the dashboard, the share card (§15), `read_session_ended`
+  (§9.6). A freeze would quietly become reading that never happened.
+- **Keep a separate set of credited dates** (`fr_streak_credits`) that `computeStreak()` consults
+  alongside the session dates. The streak stays derived, nothing else is touched, and the credits
+  are inspectable — which matters, because the user has to be able to see that a day was frozen
+  rather than read (§1.5).
+
+**Open decisions — the task is mostly these**
+- [ ] **How a freeze is earned.** Options: granted on a cadence (one per N days read), banked by
+      exceeding the plan (16.18), a fixed small allowance per month, or a subscriber benefit.
+- [ ] **Is it a subscription perk?** §4's value stack is closed — "do not add scope beyond this
+      without asking" — so this is explicitly a decision, not an assumption. It cuts both ways:
+      the subscription needs recurring value (§4's accepted gap), and the free tier is meant to be
+      genuinely generous. A middle path: everyone earns a small number by reading, subscribers
+      earn them faster or hold more.
+- [ ] **Never purchasable on its own.** A freeze bought with money, in the moment of losing a
+      streak, is a pressure sale against an anxiety the app created. That is the dark pattern
+      §1.3 forbids, whatever the price.
+- [ ] **Automatic or manual?** Automatic is kind and invisible; manual respects that some people
+      want to spend it deliberately. Automatic risks a user discovering they "had a streak" they
+      did not feel they earned.
+- [ ] Cap on how many can be held, and whether consecutive days can be frozen (they should not —
+      a week of freezes is a fiction).
+- [ ] Copy and tone (§1.6): no loss-aversion framing, no countdowns, no "don't lose your streak!".
+      Interacts with the existing streak-protection notification (id 1002, §18).
+
+**Files:** `www/js/storage.js` (`computeStreak`) · `www/js/views/dashboard.js` ·
+`www/js/features/notifications.js` · `www/i18n/*.json`
+
+---
+
+## Task 16.20 — Reclaim a lost streak by reading more
+
+**Status:** Open, not started · **Ref:** §1.6, §9.2 step 8 · **Size:** M
+**Added 2026-11-17 (owner).** A streak broken by a missed day can be won back by reading extra —
+the owner's sketch is ~10 pages beyond the plan. Shares `fr_streak_credits` with 16.19: a reclaim
+credits the missed date, it does not fabricate a session.
+
+**Why this one fits the product better than the freeze does.** §9.2 step 8 already establishes the
+pattern — reading pays the clock back, and the unlock modal names what it cost and what it bought.
+Reclaim is the same bargain: the only currency is reading. It is forgiving rather than punitive,
+which is what §1.6 asks of every mechanic that touches a habit.
+
+**Decisions owed**
+- [ ] **How far back a reclaim reaches.** Recommend **only the single most recent missed day, and
+      only on the following day.** Reclaiming a three-week gap makes the streak mean nothing, and
+      a number that can be bought back indefinitely is not a record of anything.
+- [ ] **The price in pages**, and whether it scales with the plan (16.18) or the streak's length.
+      A fixed 10 pages is trivial for a *hard* reader and a fortnight's work for a *light* one, so
+      it probably has to be expressed relative to the plan.
+- [ ] **Once per missed day, and a limit on how often.** Otherwise a reader alternates miss and
+      reclaim indefinitely and the streak is just a reading total with extra steps.
+- [ ] **Must be payable only in reading.** Never money, never an ad, never a subscription gate —
+      same reasoning as 16.19, and more sharply here because the moment of loss is the moment of
+      maximum pressure.
+- [ ] **It must be offered, not nagged.** One calm card on the home screen, like §15's milestone
+      rule: offered once, marked offered whether or not it is taken, and never re-raised over a
+      reader (§21 — position is sacred).
+- [ ] Extra pages counted through `savePosition()`, the engine-agnostic seam §9.5 already uses, so
+      a reclaim can be earned in any engine.
+- [ ] `streak_reclaimed` / `streak_frozen` events need §9.6 allowlist approval.
+
+**Files:** `www/js/storage.js` · `www/js/views/upload.js` (home card) · `www/js/views/dashboard.js` ·
+`www/i18n/*.json`
 
 ---
 

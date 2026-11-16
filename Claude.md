@@ -211,7 +211,14 @@ strategy; **revisit when the drops ship.**
 1. Unlimited apps selectable for nudge interception (free tier: 1 app only)
 2. Nudge scheduling — active only during user-defined hours/days
 3. Nudge "strict mode" — longer/harder bypass for users who want more resistance than the default gentle nudge
-4. Monthly curated book drops from legal sources (rotating, not cumulative; exact count TBD)
+4. Monthly curated book drops from legal sources — **ten curated books each month, of which the
+   subscriber claims one** (revised 2026-11-17; supersedes "3 books per month"). Rotating, not
+   cumulative. **Free users get none of this**: they already have the entire catalogue (above),
+   and the drops remain the one thing the subscription buys. Choosing is deliberate — a book
+   someone picked is a book they meant to read, where a handful handed over is a list. The ten
+   need not all be newly sourced: `books[]` is never pruned, so a month's ten can be three new
+   plus seven carried from earlier months, which holds curation at three books a month rather
+   than ten (36 a year against 120, each needing a §13.2 licence check).
 5. Opt-in leaderboard badges + monthly recognition (free users can view/participate in the leaderboard itself, but badges are subscriber-exclusive)
 
 **Explicitly rejected, do not build:** priority book request fulfillment, early access windows to new Free Books catalog additions, in-app advertising of any kind, Z-Library or any non-legal book sourcing (see Section 13.2 — legal exposure, non-negotiable).
@@ -802,6 +809,9 @@ consistent, and do not grow status narrative here: that is `Tasks.md`'s job.
 | **16.15** | Chapter headings styled as headings in Page mode | 5.1 | ✅ code complete; device run owed |
 | **16.16** | Free Books titles use their catalogue cover on the share card | 15 | ✅ code complete; device run owed |
 | **16.17** | Reaching the last page in Page mode marks the book read | 5.2 | ✅ code complete; device run owed |
+| **16.18** | Reading plans — light / medium / hard, as a daily page target | 4 | ⬜ added 2026-11-17 |
+| **16.19** | Streak freeze | — | ⬜ added 2026-11-17; *when it is granted* is the open design |
+| **16.20** | Reclaim a lost streak by reading more | — | ⬜ added 2026-11-17 |
 | **16.10** | Store listing rewrite onto the habit framing | 0.1 | ⬜ **next product task**; now the main listing, not just the India CSL |
 | **H3** | Notifications failed silently without exact-alarm permission | 1.5 | ✅ 1.4.7 |
 | **H4** | Pro purchase failed with a generic error | 1.5 | ✅ verified on a Play build; revenue blocker closed |
@@ -819,7 +829,13 @@ consistent, and do not grow status narrative here: that is `Tasks.md`'s job.
 ### Open items requiring product-owner input during Phase 16
 - ~~Exact nudge default thresholds~~ — **resolved 2026-09-20: 15 min / 2 pages. See 9.2.**
 - ~~Subscription pricing~~ — **resolved 2026-10-30; 16.1 shipped 2026-11-01. See Section 4.**
-- Monthly book-drop count and catalog-update mechanism (bundled vs. remote-fetched)
+- ~~Monthly book-drop count and catalog-update mechanism~~ — **resolved 2026-11-03, mechanic
+  revised 2026-11-17: ten choices, one claimed, subscribers only. See Section 4 and Task 16.4.**
+- **Streak freeze — when is it granted, and is it a subscription perk?** (Task 16.19.) §4's value
+  stack is closed, so adding it there is a decision rather than an assumption. Whatever the
+  answer, a freeze is never purchasable on its own: sold in the moment of losing a streak it is a
+  pressure sale against an anxiety the app created (§1.3).
+- **Reading-plan page targets** — 2 / 10 / 20 is the owner's sketch, not signed off (Task 16.18).
 - Leaderboard backend approach
 - ~~Whether `AccessibilityService` escalation is ever pursued~~ — **resolved 2026-09-20: yes, signed off. See 9.4a.**
 - ~~Whether the nudge permission ask is inline in onboarding or deferred~~ — **resolved 2026-11-01: inline, after the user has named an app. See 10.2.**
