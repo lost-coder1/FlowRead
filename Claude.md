@@ -263,9 +263,28 @@ and the reason §9.5 had to be overridden for two months.
    function (`_wordsHtml`), and must keep doing so: the instant they build it separately
    they can disagree about where a page ends, and pages overflow or come up short.
 
+5. **Chapter headings are styled from the detector's ranges, through that same
+   `_wordsHtml`** (added 2026-11-16). `AppState.chapters` gives a word index per heading
+   and `_paraStarts` gives where that paragraph ends, so a heading is a word *range*
+   wrapped in a block — sized in `em` so the font-scale setting carries it, never
+   indented, and never given its own palette (§16; only depth 1, a Book or Part, takes
+   `--accent`). Because the wrapper goes through the shared builder, the space a heading
+   occupies is space the pagination has already counted. Two rules on it:
+   - **A heading may not be stranded at the foot of a page.** A page that would end inside
+     a heading, or on its last word with no body text after it, pulls the whole heading to
+     the next page instead (`_pullBackOrphanHeading`). A heading alone at the bottom with
+     its text overleaf is worse than no styling at all. The pullback only ever moves
+     *backwards* and never past the start of the page being closed, which is what stops it
+     looping.
+   - **A heading range can open or close mid-slab**, because a slab boundary has nothing to
+     do with where a chapter starts, so `_wordsHtml` reopens the wrapper on the far side.
+
 The result is cached in `localStorage` under `fr_page_layout_*` (boundaries only — integers,
 never content, §1.4), keyed by file + font + scale + viewport, LRU-evicted at ten entries, so a
-later open measures nothing at all. **Page mode deliberately exposes no `hasCache()`**: reader.js
+later open measures nothing at all. **The stored grid is versioned, and that version
+must be bumped whenever anything changes what occupies vertical space** — v2 added paragraph
+breaks, v3 added headings, and either would otherwise restore a grid describing a layout that
+no longer exists. **Page mode deliberately exposes no `hasCache()`**: reader.js
 reads that absence as "opens fast enough that a loading card would only flash".
 
 ---
@@ -326,6 +345,11 @@ Four rules bind future work on it:
    numbers its chapters does not need guesses, and they only add things that look like
    headings. A book of tales or poems has nothing stronger, so there they are the whole
    index and must be kept. Do not make either half unconditional.
+
+**The detector now has a second consumer.** Page mode styles headings from these ranges
+(§5.1 rule 5), so a false positive is no longer only a bad index entry — it puts a heading in
+the middle of a paragraph. That is why the styling was deliberately held behind this rewrite,
+and why the precision bar here is a rendering concern as well as a navigation one.
 
 **`\b` is ASCII-only in JavaScript** and never matches against a Devanagari letter, so
 `/^(अध्याय|भाग)\b/` is dead code — use a lookahead. This holds for any Devanagari regex in
@@ -685,6 +709,7 @@ consistent, and do not grow status narrative here: that is `Tasks.md`'s job.
 | **16.12** | Page-mode pagination rewrite; restores §9.5's nudge entry | 5.1 | ✅ code complete; device run outstanding |
 | **16.13** | Paragraph structure end to end; Page mode becomes the default engine | 6.1 | ✅ code complete; device run outstanding |
 | **16.14** | Chapter detection is wrong on every file | 6.2 | ✅ code complete; device run owed |
+| **16.15** | Chapter headings styled as headings in Page mode | 5.1 | ✅ code complete; device run owed |
 | **16.10** | Store listing rewrite onto the habit framing | 0.1 | ⬜ **next product task**; now the main listing, not just the India CSL |
 | **H3** | Notifications failed silently without exact-alarm permission | 1.5 | ✅ 1.4.7 |
 | **H4** | Pro purchase failed with a generic error | 1.5 | ✅ verified on a Play build; revenue blocker closed |

@@ -834,8 +834,61 @@ codebase** (§17).
 **Device run owed:** a PDF, a DOCX and a Devanagari book — the three the TXT corpus cannot
 reach — plus a tap through the index to confirm each entry lands on its heading.
 
-**Still deferred behind this:** headings styled as headings inside Page mode (§16). Now
-unblocked — the detector is quiet enough to style from.
+**No longer deferred behind this:** headings styled as headings inside Page mode shipped the
+same day, once the detector was quiet enough to style from — Task 16.15 below.
+
+---
+
+## Task 16.15 — Chapter headings styled as headings in Page mode  ✅ code complete, device run owed
+
+**Asked for** after 16.14 landed, having been deliberately held behind it: styling off a
+detector that returned 207 chapters for a 65-chapter book would have put headings in the
+middle of paragraphs.
+
+Page mode had no notion of a heading — a chapter title was body text with spaces around it,
+which is what made *Wealth of Nations* read as an unbroken slab even after paragraphs came
+back.
+
+**How it works.** `AppState.chapters` gives a word index per heading and `_paraStarts` gives
+where that paragraph ends, so a heading is a word **range**. `_wordsHtml` wraps that range in
+a block — and it is the *same* `_wordsHtml` the measurement pass uses (§5.1 rule 4), so the
+vertical space a heading takes is space the pagination has already counted. There is no second
+markup path, which is the one thing that would let pages overflow.
+
+Sizes are in `em` so the font-scale setting carries them. Depth 1 (a Book or Part) takes
+`--accent`; everything below stays body colour, because four tinted sizes would be louder than
+the §16 calm this screen holds. A heading takes neither the paragraph break nor the 1.5em
+indent — it is already a block, and a printed book does not indent its headings.
+
+**Two things that needed deciding rather than coding:**
+
+- **A heading may not be stranded at the foot of a page.** A heading alone at the bottom with
+  the text it introduces overleaf is worse than no styling at all, so a page that would end
+  inside a heading — or on its last word with nothing after it — pulls the whole heading to
+  the next page. The pullback only ever moves *backwards*, and never past the start of the
+  page being closed: that is what keeps a page from coming out empty and what stops the
+  measuring loop from re-pulling the same heading forever.
+- **The stored page grid is now v3.** Headings move every page boundary in the book exactly as
+  paragraphs did, so a v2 grid describes a layout that no longer exists. Bumping the version
+  is not optional housekeeping here — without it the first open after this change restores a
+  grid measured for unstyled text.
+
+**Verification.** An 11-assertion headless suite over a 44-chapter, 13,764-word synthetic book
+whose body lengths creep by chapter, so headings land at essentially every vertical offset a
+page has. It checks that headings render as blocks, are never indented, never produce an empty
+wrapper, carry the right depth class, that **no page overflows and no heading is orphaned** —
+and that **the pullback actually engaged**, since "no orphans" is otherwise true of a rule that
+never fires. The 16.12 and 16.13 suites still pass unchanged (40/40, 13/13), and the real
+*Wealth of Nations* paginates to 2,498 pages with 67 chapters.
+
+**Cost of the new work, measured:** one `_headingAt` binary search per word is **6.2ms across
+all 384,153 words** of *Wealth of Nations*, and `detectChapters` on that book is **91ms**, once
+per file open in `renderReader` rather than per page. Both are well inside §21's 200ms
+loading-state threshold and neither is in the swipe path.
+
+**Device run owed:** a long book with real chapters, confirming headings look right at both
+font scales, that none sits alone at the foot of a page, and that a Devanagari book's headings
+render in Noto Sans Devanagari without clipping the taller glyphs at the larger sizes.
 
 ---
 

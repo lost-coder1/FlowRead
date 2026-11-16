@@ -32,6 +32,12 @@ const PageEngine = (function() {
      init resolves it for the current file. */
   let _paraStarts = null;
 
+  /* Chapter headings as word ranges — [{ start, end, depth }], end exclusive,
+     disjoint and sorted by start, so _headingAt can binary-search them. Built
+     from AppState.chapters, which features/chapter-detection.js derives from the
+     same paragraph boundaries _paraStarts holds (§6.2). */
+  let _headings = [];
+
   /* False while a background pass is still measuring. The grid on screen is then
      real but incomplete, so the page numbers next to it are estimates. */
   let _pagesExact = true;
@@ -85,6 +91,7 @@ const PageEngine = (function() {
     _paraStarts = (typeof ParagraphStructure !== 'undefined')
       ? ParagraphStructure.startsFor(AppState.currentFile)
       : null;
+    _headings = _buildHeadings();
 
     _pages = [];
     _leafLru = [];
@@ -320,22 +327,96 @@ const PageEngine = (function() {
      match spans to words by position. */
   function _wordsHtml(from, to) {
     const html = [];
+    let openHeading = null;
+
     for (let i = from; i < to; i++) {
       const w = _words[i];
-      if (_paraStarts && _paraStarts.has(i)) {
+      const heading = _headingAt(i);
+
+      /* A range can open or close mid-slab, because a slab boundary has nothing
+         to do with where a chapter starts. Reopening the wrapper is what keeps a
+         heading that straddles the boundary looking like one heading. */
+      if (heading !== openHeading) {
+        if (openHeading) html.push('</b>');
+        if (heading) html.push('<b class="page-heading page-h' + heading.depth + '">');
+        openHeading = heading;
+      }
+
+      /* A heading is already a block and sets its own spacing, so it takes
+         neither the paragraph break nor the first-line indent — indenting a
+         heading is exactly what a printed book does not do. */
+      if (!heading && _paraStarts && _paraStarts.has(i)) {
         /* A zero-height block splits the inline flow onto a new line without
            adding vertical space; the indent on the first word is what marks the
            paragraph, the way a printed book does. */
         html.push('<b class="page-pb"></b>');
       }
-      const indent = (_paraStarts && _paraStarts.has(i)) ? ' page-para-first' : '';
+      const indent = (!heading && _paraStarts && _paraStarts.has(i)) ? ' page-para-first' : '';
       if (w && typeof w === 'object' && w.type === 'placeholder') {
         html.push('<span class="page-word page-placeholder' + indent + '">' + escapeHtml(w.label || '[Content]') + ' </span>');
       } else {
         html.push('<span class="page-word' + indent + '">' + escapeHtml(typeof w === 'string' ? w : '') + ' </span>');
       }
     }
+    if (openHeading) html.push('</b>');
     return html.join('');
+  }
+
+  /* A heading occupies a whole paragraph, so its word range runs from the
+     chapter's wordIndex to the next paragraph start. The detector's title is the
+     joined paragraph text, so its word count is the same span — it is the
+     fallback for a file with no paragraph information at all. */
+  function _buildHeadings() {
+    const chapters = (AppState && AppState.chapters) || [];
+    if (!chapters.length) return [];
+
+    const paraStarts = _paraStarts ? Array.from(_paraStarts).sort(function(a, b) { return a - b; }) : [];
+    const ranges = [];
+
+    for (let i = 0; i < chapters.length; i++) {
+      const start = chapters[i].wordIndex;
+      if (typeof start !== 'number' || start < 0 || start >= _words.length) continue;
+
+      const titleWords = String(chapters[i].title || '').split(/\s+/).filter(Boolean).length;
+      let end = _nextAbove(paraStarts, start);
+      if (end === -1) end = titleWords ? start + titleWords : start + 1;
+
+      end = Math.min(end, _words.length);
+      if (end <= start) continue;
+
+      /* Disjoint by construction, but a malformed chapter list must not produce
+         overlapping ranges — _wordsHtml would emit unbalanced markup. */
+      const prev = ranges[ranges.length - 1];
+      if (prev && start < prev.end) continue;
+
+      ranges.push({ start: start, end: end, depth: chapters[i].depth || 2 });
+    }
+    return ranges;
+  }
+
+  function _nextAbove(sorted, value) {
+    let lo = 0;
+    let hi = sorted.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (sorted[mid] <= value) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo < sorted.length ? sorted[lo] : -1;
+  }
+
+  /* The heading range containing this word index, or null. */
+  function _headingAt(index) {
+    let lo = 0;
+    let hi = _headings.length - 1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const h = _headings[mid];
+      if (index < h.start) hi = mid - 1;
+      else if (index >= h.end) lo = mid + 1;
+      else return h;
+    }
+    return null;
   }
 
   /* Lay out one slab and return the word indices a page must break at. */
@@ -361,14 +442,32 @@ const PageEngine = (function() {
          be taller than a line, and then its own height is what matters. */
       const h = Math.max(lineH, spans[i].offsetHeight);
       if (top - baseTop + h > usableH && i > pageStart) {
-        breaks.push(from + i);
-        pageStart = i;
-        baseTop = top;
+        let breakWord = _pullBackOrphanHeading(from + i, from + pageStart, from);
+        breaks.push(breakWord);
+        pageStart = breakWord - from;
+        baseTop = spans[pageStart].offsetTop;
       }
     }
 
     tempPage.innerHTML = '';
     return breaks;
+  }
+
+  /* A heading stranded at the foot of a page, with the text it introduces
+     overleaf, is the one thing worse than no heading styling at all — so when a
+     page would end inside a heading, or on its last word with no body text
+     after it, the whole heading moves to the next page instead.
+
+     Only ever backwards, never past the start of the page being closed, so the
+     page cannot come out empty and the caller's loop still terminates: the next
+     break can no longer be pulled to the same heading. */
+  function _pullBackOrphanHeading(breakWord, pageFirstWord, slabFirstWord) {
+    const heading = _headingAt(breakWord - 1);
+    if (!heading) return breakWord;
+    /* Fully on the page with body text after it — nothing to fix. */
+    if (heading.end < breakWord) return breakWord;
+    if (heading.start <= pageFirstWord || heading.start <= slabFirstWord) return breakWord;
+    return heading.start;
   }
 
   function _paginateByWordCount() {

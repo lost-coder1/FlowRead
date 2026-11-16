@@ -919,6 +919,40 @@ body.engine-page .reader-normal-toggle { display: none !important; }
   margin-left: 1.5em;
 }
 
+/* Chapter headings (§6.2 supplies the ranges, page.js wraps the words). Sizes
+   are in em so the font-scale setting carries them, and the palette is §16's
+   with no additions. Measurement runs through the same markup, so the space a
+   heading takes is space the pagination already counted. */
+.page-heading {
+  display: block;
+  margin: 1.6em 0 0.7em;
+  color: var(--text);
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+  text-align: left;
+  /* A heading is its own block, so it never takes the paragraph indent. */
+  text-indent: 0;
+}
+
+/* Pulled to the top of a page by the orphan rule, a heading must not also push
+   the page down by its top margin — the leaf's own padding is the top margin
+   there. */
+.page-heading:first-child {
+  margin-top: 0;
+}
+
+.page-h1 { font-size: 1.45em; }
+.page-h2 { font-size: 1.26em; }
+.page-h3 { font-size: 1.12em; }
+.page-h4 { font-size: 1.05em; }
+
+/* The accent carries the top-level divisions — a book or part — so the eye can
+   tell a Book from a Chapter without reading either. Deeper levels stay in body
+   colour; four tinted sizes would be louder than the §16 calm this screen is
+   meant to hold. */
+.page-h1 { color: var(--accent); }
+
 .page-placeholder {
   display: inline-block;
   padding: 2px 8px;
