@@ -80,6 +80,57 @@ Device run still owed.
 published to its hosted URL**. **Next engineering task: 16.4 Phase C** — the remote catalogue.
 Earlier status entries are in the archive.
 
+**2026-11-16 — 1.5.5 / versionCode 43 built, signed, R8 active.** The eight commits that landed
+after the 1.5.4 release are now in a build: 16.12 (Page-mode pagination), 16.13 (paragraphs, and
+**Page mode becomes the default engine**), 16.14 (chapter detection), 16.15 (styled headings),
+16.16 (catalogue covers on the share card), 16.17 (last-page completion), plus 16.4 Phase B's
+growth to 150 books and the Gutenberg mirror retry. `release-notes-1.5.5.txt` written, six
+locales, all within Play's 500-char limit. **Not uploaded, not promoted — the device checklist
+below comes first.** `Claude.md` §22 was corrected in the same sitting: it still claimed
+production was 1.4.5 / 32 and the pivot unreleased.
+
+### 1.5.5 device checklist — run before uploading
+
+**Why this build needs one more than most.** 16.13 made Page mode the **default engine**, so
+every reader now lands in the surface six of these commits rewrote; §9.5 already sent every
+nudged read there. And two changes touch state that outlives a session — see items 1 and 7,
+which are the two to run first if time is short.
+
+- [ ] **1. Upgrade path, not a fresh install.** Install over an existing 1.5.4 with books already
+      in the library. The persisted layout grid went **v2 → v3**, so every book re-measures once:
+      confirm the first open of an existing book is still fast and lands on the saved position,
+      not page one.
+- [ ] **2. A long book** (Wealth of Nations, 384k words): opens without a wait, paragraphs are
+      indented, chapter titles render as headings, no heading sits alone at the foot of a page.
+- [ ] **3. The chapter index** finds real chapters, and tapping an entry lands on that heading.
+      Check a **PDF**, a **DOCX** and a **Devanagari** book — the three the TXT test corpus
+      cannot reach.
+- [ ] **4. Devanagari headings** at the largest font scale: Noto Sans Devanagari's taller glyphs
+      must not clip at the larger heading sizes.
+- [ ] **5. Both font scales and a rotation**: pagination re-derives, position holds, headings
+      still sized sensibly.
+- [ ] **6. §7 bridge both ways from Page mode**, including from the last page — `_index` stays the
+      honest word there, and this is what proves it.
+- [ ] **7. Completion.** Read to the last page: the toast appears, and the home screen moves the
+      book to **Read** without leaving the reader. Then page back and confirm it returns to
+      in-progress. **This is the one that can misfire on existing data** — `_savePos` is what
+      decides whether a book counts as read, so watch that no *other* book changes section, and
+      that §15's "You finished X — share it?" prompt does not fire for something unread.
+- [ ] **8. Share cards.** Download a Free Books **TXT** and a **PDF**, share each, confirm the
+      real catalogue cover appears. On a device whose WebView cannot decode AVIF it must fall back
+      to the typographic cover rather than showing a gap.
+- [ ] **9. The 150-book library opens at all** — never yet exercised in the app, on device or in a
+      browser (16.4 Phase B). Check the category chips all carry labels rather than raw slugs, and
+      that a book from the new batch downloads and reads.
+- [ ] **10. A nudged read** lands in Page mode with no visible wait, and the unlock counter still
+      advances (`NudgeFeature.onPageTurn`).
+- [ ] **11. Hindi throughout**, including the new `reader.page.finished` toast.
+
+**Then:** upload the AAB, publish `release-notes-1.5.5.txt`, and decide whether to advance
+1.5.4's 20% staged rollout or supersede it with 43 at a fresh percentage.
+
+---
+
 **Status legend:** `Not started` · `In progress` · `Blocked` · `Done`
 **Checkbox markers:** `[x]` done · `[~]` partly done · `[→]` **not done, deliberately deferred to release and owned by the product owner** — these are release gates, not finished work.
 

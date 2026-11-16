@@ -1,0 +1,48 @@
+<en-US>
+• "Page" mode is now the default, and it opens instantly even on very long books.
+• Books now show real paragraphs instead of one block of text, with chapter titles as headings.
+• The chapter index finds chapters properly now.
+• Reaching the last page marks a book as read.
+• The free library has grown to 150 books.
+• Books from the library now share with their real cover.
+</en-US>
+<de-DE>
+• Der Modus "Page" ist jetzt Standard und öffnet auch sehr lange Bücher sofort.
+• Bücher zeigen echte Absätze statt eines Textblocks, Kapiteltitel erscheinen als Überschriften.
+• Das Kapitelverzeichnis findet Kapitel jetzt zuverlässig.
+• Die letzte Seite markiert ein Buch als gelesen.
+• Die kostenlose Bibliothek hat jetzt 150 Bücher.
+• Bücher aus der Bibliothek werden mit echtem Cover geteilt.
+</de-DE>
+<es-419>
+• El modo "Page" ahora es el predeterminado y abre al instante incluso libros muy largos.
+• Los libros muestran párrafos reales en vez de un bloque de texto, con los títulos de capítulo como encabezados.
+• El índice de capítulos ahora los detecta bien.
+• Llegar a la última página marca el libro como leído.
+• La biblioteca gratuita ya tiene 150 libros.
+• Los libros de la biblioteca se comparten con su portada real.
+</es-419>
+<es-ES>
+• El modo "Page" ya es el predeterminado y abre al instante incluso libros muy largos.
+• Los libros muestran párrafos reales en lugar de un bloque de texto, con los títulos de capítulo como encabezados.
+• El índice de capítulos ya los detecta bien.
+• Llegar a la última página marca el libro como leído.
+• La biblioteca gratuita ya tiene 150 libros.
+• Los libros de la biblioteca se comparten con su portada real.
+</es-ES>
+<ja-JP>
+• 「Page」モードが標準になり、とても長い本でもすぐに開きます。
+• 本が一つの塊ではなく、きちんと段落で表示されます。章タイトルは見出しになります。
+• 目次が章を正しく見つけられるようになりました。
+• 最後のページまで読むと、読了として記録されます。
+• 無料ライブラリの蔵書が150冊になりました。
+• ライブラリの本は実際の表紙付きで共有できます。
+</ja-JP>
+<pt-BR>
+• O modo "Page" agora é o padrão e abre na hora, mesmo em livros muito longos.
+• Os livros mostram parágrafos de verdade em vez de um bloco de texto, com títulos de capítulo como cabeçalhos.
+• O índice de capítulos agora encontra os capítulos corretamente.
+• Chegar à última página marca o livro como lido.
+• A biblioteca gratuita agora tem 150 livros.
+• Os livros da biblioteca são compartilhados com a capa real.
+</pt-BR>

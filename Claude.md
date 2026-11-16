@@ -810,25 +810,38 @@ Before any new dependency. Before changing palette or typography. Before adding 
 
 - **Current phase:** Phase 16 — Reading Habit Pivot (§19). Day-to-day tracking in `Tasks.md`;
   completed detail in `Tasks-archive.md`.
-- **Latest build:** **1.5.2 / versionCode 40** (2026-11-02), carrying 16.1 (subscription IAP) and
-  16.3 (onboarding redesign). A subscription purchase has completed on a clean license-tester
-  account. **Verify against actual Play Console state before assuming current.**
-- **Production is still 1.4.5 / 32.** Builds 33, 34, 36, 37, 38, 39 and 40 have never left
-  Internal testing — which means the entire pivot is unreleased.
-- **Between here and production, neither thing engineering:** privacy policy and store listing
-  describing a subscription and the habit framing (Task 16.10), and the promotion itself. The
-  16.2 device checklist (items 1–16) is **done — run and passed 2026-11-02 on 1.5.3 / 41**, the
-  first build with **R8 active on a device**, after four deferrals; item 9 (battery) showed no
-  measurable idle drain.
-- **Immediate priority:** **16.10 (store listing + privacy policy)**, which is now the only thing
-  standing between the finished pivot and production. **16.8 (home screen widget)** is the next
-  engineering task, deliberately queued behind the release.
+- **The pivot is released.** **1.5.4 / versionCode 42 went to production on 2026-11-02** at a
+  **20% staged rollout**, clearing the backlog of builds 33–42 that had sat in Internal testing
+  since September. The privacy policy is rewritten, version-controlled as `privacy_policy.html`
+  and published; the listing text describes the subscription and the habit framing.
+  **Verify against actual Play Console state before assuming current** — including whether the
+  staged rollout has since been advanced past 20%.
+- **Latest build:** **1.5.5 / versionCode 43** (2026-11-16), carrying the eight commits that
+  landed after the release: the Page-mode pagination rewrite (16.12), paragraph structure end to
+  end with **Page mode as the default engine** (16.13), chapter detection (16.14), styled
+  headings (16.15), catalogue covers on the share card (16.16), last-page completion (16.17), and
+  the catalogue's growth to 150 books (16.4 Phase B).
+- **This is the build to watch, because Page mode stopped being optional.** 16.13 made it the
+  default engine, so every reader now lands in the surface those six commits rewrote, and §9.5
+  already sent every nudged read there. Two of the changes also touch state that outlives a
+  session: the persisted layout grid went **v2 → v3**, so every existing book re-measures once on
+  upgrade, and the position-save path (`_savePos`) is what decides whether a book counts as
+  **read** — a defect there moves books into the library's Read section and fires §15's
+  completion milestone. **Device-verify both before advancing the rollout.**
+- **Still owed on the listing:** 8 screenshots and the 1024×500 feature graphic (Task 16.10).
+  Never a release gate — stale screenshots cost installs, they do not make the listing false —
+  and they can only honestly be captured from the build being shipped, which is why they follow
+  a build rather than precede one.
+- **Immediate priority:** device-verify 1.5.5 / 43, then **16.4 Phase C → D** (remote catalogue,
+  then the monthly drops). The drops are what close §4's stated gap: until they ship a subscriber
+  pays monthly for what the lifetime tier buys outright. **16.8 (home screen widget) is deferred
+  by the owner** until the app has traction; **16.5 (leaderboard)** still needs Q5 and a backend.
 - **Toolchain:** targetSdk 36, minSdk 24 (7.0, raised from 5.1 in 1.4.5 — dropped ~1,641 device
   models), Capacitor 8.5.2, Billing 9.1.0, `@capacitor/network` 8.0.1, `@capacitor/share` 8.0.2.
   **JDK 21 and Node ≥22 required** — read §3.3 before building on a new machine.
 - **Target platforms:** Android first. iOS store setup not started, and no iOS path is planned for
   the nudge system or the widget.
-- **Target launch of pivot:** TBD — quality over speed.
+- **Target launch of pivot:** done — 2026-11-02, 1.5.4 / 42, staged at 20%.
 - **Distribution context (for product decisions, not implementation):** the product is in a
   **distribution** bottleneck, not a retention or monetization one. That is why the share card
   (§15) is prioritized partly for reach, and why Phase 16 favours mechanics with plausible
