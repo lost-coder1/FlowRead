@@ -876,7 +876,14 @@ Before any new dependency. Before changing palette or typography. Before adding 
   and published; the listing text describes the subscription and the habit framing.
   **Verify against actual Play Console state before assuming current** — including whether the
   staged rollout has since been advanced past 20%.
-- **Latest build:** **1.5.5 / versionCode 43** (2026-11-16), carrying the eight commits that
+- **Latest build:** **1.5.6 / versionCode 44** (2026-11-17) — 1.5.5's six reading changes plus
+  the analytics receiver. **This is the first build in which §9.6's pings actually send**:
+  `ENDPOINT` is filled, so installing it starts collecting. **Two things are owed before it is
+  promoted, and both are compliance rather than engineering:** re-file Play Data safety as
+  *Optional* (the standing filing says collection is required, which stopped being true when the
+  opt-out shipped), and re-publish the amended `privacy_policy.html` to its hosted URL — the live
+  policy's event list is now incomplete, and committing the file does not publish it.
+- **Previous build:** **1.5.5 / versionCode 43** (2026-11-16), carrying the eight commits that
   landed after the release: the Page-mode pagination rewrite (16.12), paragraph structure end to
   end with **Page mode as the default engine** (16.13), chapter detection (16.14), styled
   headings (16.15), catalogue covers on the share card (16.16), last-page completion (16.17), and
