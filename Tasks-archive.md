@@ -1068,6 +1068,136 @@ sibling string. Hindi likewise wants owner sign-off.
 
 ---
 
+## Task 16.21 — The nudge opened the wrong book, and three ways the gate miscounted a page
+
+**Status:** ✅ Code complete 2026-11-18, `41749cc` on `nudge-book-selection-fix` · **Ref:** §9.2, §9.5 · **Size:** S
+
+**Why:** All three found from real use, reported in one sitting. None was visible without a device.
+
+**What was wrong**
+- **The wrong book.** `_inProgressBook()` picked the highest-percentage book in a 5–95% band — a
+  rule borrowed from `notifications.js`, where it is correct, because a *reminder* asks which book
+  is closest to done. A nudge intercepts a moment. So starting a new book kept reopening the old
+  one, and would have until the new one overtook it on percentage; the 5% floor also meant a
+  freshly-started book could not win at all, and so never reached the fallback loop below it.
+- **Going back a page unlocked the app.** `onPageTurn` anchored one page behind the first turn it
+  saw, to credit that turn, which assumed the turn was forward. Open on page 10, swipe back to 9,
+  and the anchor landed on 8 — one page credited, gate cleared at the default threshold of 1,
+  nothing read.
+- **A forward jump cleared any threshold in one tap.** Page mode's `_savePos()` also reaches
+  `onReadProgress`, which measured raw distance from an anchor, so the nav bar's "last page" button
+  unlocked instantly — `onPageTurn` refusing the jump and the word counter crediting it a line
+  later. Also reachable via the chapter index and the seek slider.
+
+**Fixes**
+- [x] Most recently opened unfinished book. `loadLibrary()` is already sorted by `lastOpened` and
+      `resumeFromLibrary()` rewrites it on every open, so the data was there; "unfinished" is
+      `position < wordCount`, the same test §5.2 derives completion from.
+- [x] `onPageTurn` takes the page turned *from* as well as to, and credits only a single forward
+      turn. Backward earns nothing and is not a penalty; a multi-page jump earns nothing.
+- [x] Page mode excluded from `onReadProgress` entirely. Other engines accumulate capped forward
+      steps — over ~100 words is a seek, a chapter tap or a §7 bridge jump, not reading.
+- [x] `ctx.startPage` and `ctx.startWord` both gone; `state.js`'s comment updated.
+- [x] `notifications.js` left as it was, with a comment saying it is deliberately not the nudge's
+      rule, since the old nudge comment claimed the two were the same.
+
+**Verified:** gate simulated against every scenario — one forward turn unlocks, back-3-then-forward-1
+unlocks (correct: a page was read, and it is strictly more taps than reading forward), back-only
+stays gated, "last page" stays gated, chapter tap stays gated, seek-slider drag stays gated, ±50
+skips still count.
+
+**Device run owed:** "last page" during a nudged read must not unlock; an ordinary forward turn must.
+
+**Files:** `www/js/features/nudge.js` · `www/js/engines/page.js` · `www/js/features/notifications.js` · `www/js/state.js`
+
+**Note worth keeping:** counting *movement* rather than *distance from an anchor* was the single fix
+for two of the three, and it also removed a latent problem — §5.1 rule 3 renumbers pages under a
+live read when the background measure pass finishes, so any anchor taken early stops meaning the
+same thing later. Do not reintroduce an anchor here.
+
+---
+
+## Task 16.22 — Reading stats: furthest point, measured WPM, active duration
+
+**Status:** ✅ Code complete 2026-11-18, in `41749cc` · **Ref:** §20 · **Size:** S
+
+**Why:** Found while answering "does going back a page count in our stats?" — it did, by subtracting.
+The recorder was built around RSVP's play/pause and every number was wrong once Page mode became the
+default engine (16.13), because Page mode has no pause.
+
+**What was wrong, and what it now does** — see `Claude.md` §20, written from this task. In short:
+words read was end-minus-start, so a backward jump past the opening position clamped to zero and
+**discarded the whole session, including its streak day**; duration was wall clock from open to
+close, so a phone put down with Page mode open banked the absence as reading time; and WPM was
+`AppState.wpm`, the slider setting, making the dashboard's "avg WPM" an average of a slider
+position.
+
+**Steps**
+- [x] Track the furthest point from `_syncReaderPosition` — the seam every engine already calls, so
+      no per-engine work.
+- [x] Duration as time between position changes, capped at 3 min per gap.
+- [x] Measured WPM, with an implausible rate stored as `0` (`last7DaysAvgWpm` already filters it).
+
+**Verified:** session recorder simulated — back-a-page no longer subtracts, the jump-to-start case
+records 5 pages where it previously recorded nothing, a 2-hour idle counts 7 minutes rather than
+126, and a 10-minute RSVP read at 300 wpm measures exactly 300.
+
+**Known and left alone:** a forward seek still credits the distance jumped as words read
+(pre-existing; the rate is dropped, the word count is not). Page mode's `_index` is the current
+page's *start* word, so words and duration both undercount the final page — consistently, which is
+why it is acceptable.
+
+**Carried risk:** sessions recorded before this hold slider-setting WPM, so the 7-day average is a
+blend until they age out. Nothing migrates them; the old values are not recoverable as rates.
+
+**Files:** `www/js/views/reader.js`
+
+---
+
+## Task 16.23 — Reader profile and trigger choice in onboarding; daily-cap disclosure on the nudge
+
+**Status:** ✅ Code complete 2026-11-19, `d023db3` on `reader-type-preset` · **Ref:** §10.3 · **Size:** M
+
+**Why:** Owner's observation — every nudge setting was a preset the user never saw. The settled
+design and the reasoning are in `Claude.md` §10.3; this is the record of building it.
+
+**Steps**
+- [x] `fr_reader_profile` in `storage.js` (`loadReaderProfile` / `saveReaderProfile`), with the
+      light/medium/heavy taxonomy 16.18 will reuse. `storage.js` owns the fact; `nudge.js` owns what
+      it means for nudging.
+- [x] `PROFILES` + `applyReaderProfile()` in `nudge.js` — 20/2, 15/4, 10/7, one `_pushSettings()`
+      for both values so the native gate never sees a half-applied profile.
+- [x] `_profileBlock()` on the intro screen, below the language row.
+- [x] `_triggerBlock()` on the nudge screen: both triggers as peers, shown only once an app is named.
+- [x] `_paintNudgeCount()` — today's count on the nudge screen, async, blank on any failure.
+- [x] Eight new i18n keys for the profile (en + hi); the trigger block adds **none**, reusing the
+      `settings.nudge.mode_*` strings Settings already owns.
+- [x] CSS for all three, reusing `.onboarding-lang-on`'s accent-border pattern (§16).
+
+**Decisions taken during the build**
+- Pages **2 / 4 / 7** and minutes **20 / 15 / 10** (owner). The original sketch was 2/5/10 for pages
+  with minutes fixed; the concern raised against a 10-page gate was that it is ~12–15 min before the
+  app opens, and a gate most people escape teaches the escape hatch. 7 was the compromise.
+- **Peer checkboxes, not a secondary opt-in** (owner), after the alternatives were put side by side.
+- **Settings' "with both on" note is not shown in onboarding** (owner). Worth knowing: that copy is
+  now arguably *wrong in Settings too* — it says the threshold is already covered by every-open,
+  which was true under §9.3's original framing but not after §9.3a made the two orthogonal. **Left
+  unchanged in Settings; still open.**
+- The count line says both that the cap is a setting and that today's tally has a Reset (owner).
+
+**Verified:** both screens and the counter rendered against the real modules — all four trigger
+combinations with the right note, the profile applied for each tier with guardrails untouched,
+skipping leaving §9.2's defaults, and the counter across a day at cap 3, a cap of 1 (first is also
+last), a raised cap, missing plugin fields, and a user who left the screen mid-call.
+
+**Owed:** device run; Hindi sign-off on the eight profile strings and the three count strings;
+specifically check the three profile options and the centred mono count lines on a narrow phone in
+Hindi, which runs longer than English here.
+
+**Files:** `www/js/storage.js` · `www/js/features/nudge.js` · `www/js/views/onboarding.js` · `www/css/components.css` · `www/i18n/en.json` · `www/i18n/hi.json`
+
+---
+
 ## Task R8 — DEX optimization / obfuscation (Play Console notice)
 
 **Status:** ✅ Code complete and device-verified 2026-10-20, in **1.4.9 / versionCode 37** ·

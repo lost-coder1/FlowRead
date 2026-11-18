@@ -418,6 +418,8 @@ Explicitly not a hard app-blocker. A soft interception with an always-visible, o
 2. `FlowReadNudgePlugin` monitors for target app(s) being opened **and for time accumulating while the user is inside one** — see 9.3a.
 3. Nudge does not fire on every open — see 9.3.
 4. On trigger, show a calm nudge screen ("Read a bit before [App]?") with a "Start reading" action into Page mode (resuming current book, or the Free Books library if none in progress) and the always-visible escape hatch.
+   - **"Current book" means the most recently opened unfinished one**, never the furthest along (fixed 2026-11-18). Picking by highest percentage — the rule `notifications.js` still uses correctly, because a *reminder* asks which book is closest to done — meant starting a new book kept reopening the old one until the new one overtook it. A nudge intercepts a moment, and the moment belongs to whatever the reader actually has open.
+   - **The screen states which of the day's nudges this is**, and that the cap is a setting with a Reset (added 2026-11-19). The daily cap is §9.3's main guard against this becoming nagging and it was invisible: no way to tell a first interruption from a last, nor that the number was the user's. Two quiet lines, below the actions, never competing with the escape hatch. Blank rather than wrong if the figure cannot be read.
 5. If reading: track against a user-configurable threshold. **Q2 defaults, signed off 2026-09-20: nudge after 15 minutes in that app (3rd open when usage access is denied); unlock after 2 Page-mode pages; cap 3 nudges per app per day; back off for the rest of the day after 3 consecutive dismissals.** All are settings, none hardcoded. An "on every open" trigger mode (`fr_nudge_trigger_mode`) was added 2026-09-21 — it skips the minutes/opens threshold but **still honours the daily cap and the dismissal back-off**, without which it would be the wall 9.1 forbids; the daily cap is exposed as a visible setting so the mode's name matches its behaviour (1.5).
 6. Once met, **only the originally-requested target app opens**, not the user's whole nudge list (scoped unlock, 9.7).
 7. Skipping at any point does not fail or penalize the user — no guilt copy, no broken-streak framing.
@@ -520,6 +522,12 @@ book size. `forceEngine: 'page'` applies to that read only and never writes `fr_
 
 **Unlock progress is engine-agnostic.** The threshold is expressed in pages, but it is counted through `savePosition()` — the seam every engine already goes through — so a nudged read counts in RSVP, Chunk, Scroll and Focus Bold too, converting pages to words (~220 words/page). Page mode keeps its exact page count. Counting only Page-mode turns meant a user reading in any other engine waited for an unlock that could never arrive (Section 1.5).
 
+**Progress is counted as movement, never as distance from an anchor** (rewritten 2026-11-18, after three ways of miscounting a page were found in use). Both counters measured "where are you now, minus where you started", and a position is all a jump looks like from there:
+
+- **One page forward is one page.** `onPageTurn` takes the page turned *from* as well as to, because only `_gotoPage` knows the direction. A backward turn earns nothing — it is not a penalty either, and the ground can be earned again by reading forward over it — and a multi-page jump earns nothing, because it is navigation. The old anchor sat one page behind the first turn seen, which assumed that turn was forward: swiping *back* on arrival credited a page and unlocked the app at the default threshold without a word read.
+- **A jump is refused by both counters, not just one.** Page mode's own position saves still reached `onReadProgress`, so "last page" in the nav bar cleared a gate of any size in one tap — `onPageTurn` declining the jump and the word counter crediting it a line later. **Page mode is therefore excluded from `onReadProgress` entirely**, which is what makes "Page mode keeps its exact page count" true rather than merely intended. Elsewhere a step over ~100 words is a seek, a chapter tap or a §7 bridge jump and earns nothing; the widest legitimate step is the ±50 skip buttons. The position always stands — only the credit is refused.
+- **Counting turns also needs no anchor**, which matters because §5.1 rule 3 renumbers pages under a live read when the background measure pass finishes. An anchor taken early in a read stops meaning the same thing later; a delta read inside one turn cannot drift.
+
 ### 9.6 Anonymous Event Pings
 `analytics-ping.js` — `logEvent(eventName, meta)`, fire-and-forget `fetch()` to a Cloudflare
 Worker (`worker/`, D1-backed, built 2026-11-16). Never includes a user/device identifier, file name, or reading content. Minimum event set: `app_opened`, `nudge_shown`, `nudge_read_started`, `nudge_read_completed`, `nudge_skipped`, `free_book_downloaded`, `pro_purchased`, `subscription_started`, `subscription_cancelled`, and `stats_shared` (added 2026-09-25 with product-owner approval; carries the share entry point only — `home` / `dashboard` / `milestone` — never the book, the stat, or the destination app). Privacy policy must disclose this.
@@ -607,6 +615,53 @@ whole point of N29. The onboarding screen motivates and defers to it.
 so it now reaches only someone who skipped the onboarding step — the inline ask buys grant rate
 at the cost of a harder refusal, and without the card a user who declined would never be offered
 the pivot feature again.
+
+### 10.3 What Onboarding Decides — the reader profile and the trigger choice (added 2026-11-19)
+
+Two settings surfaces were added to the existing screens. Neither is a new screen.
+
+**The intro screen asks what kind of reader you are**, below the language choice, and `nudge.js`'s
+`PROFILES` turns the answer into the §9.2 thresholds:
+
+| Profile | Nudge after | Unlock after |
+|---|---|---|
+| Here and there (`light`) | 20 min | 2 pages |
+| Most days (`medium`) | 15 min | 4 pages |
+| Every day (`heavy`) | 10 min | 7 pages |
+
+The thresholds were presets no user ever saw, and asking about them directly asks someone to decide
+what they have no basis for yet — nobody knows how many pages should buy them Instagram before
+trying it once. A self-description they can answer honestly is the substitute. Four rules on it:
+
+- **The options are frequencies, not commitments**, and none implies a correct top rung. A nudge
+  built on a goal the user did not mean is a nudge they turn off.
+- **Below the language row, never above.** The language buttons label themselves (`English` /
+  `हिंदी`) and so can be read before a language is chosen; this question cannot, and its wording is
+  the whole point of it.
+- **`dailyCap` and `backoffDismissals` do not vary, and the trigger mode is not set from it.** Those
+  are §1.6's anti-nagging guardrails rather than taste, and "nudge me every time" is a behavioural
+  choice, not a consequence of reading a lot.
+- **It writes the same keys the Settings sliders read**, all inside their existing ranges, so it is
+  a starting point and not a mode. Skipping it leaves §9.2's signed-off 15 min / 2 pages, which
+  therefore has to keep standing on its own.
+
+Stored as **`fr_reader_profile`** in `storage.js`, deliberately not a nudge-scoped key: Task 16.18's
+reading plans use the same light/medium/hard taxonomy and should seed from one answer rather than
+asking twice in different words. It is a *self-description* — hand-tuning a slider afterwards does
+not make it wrong.
+
+**The nudge screen offers both triggers as peers**, either or both, once an app is named. They were
+unreachable from onboarding, so every new user left on threshold-only — which misses the reflexive
+opener entirely: someone who opens an app twenty times a day for half a minute never accumulates
+the threshold in one sitting (§9.3 counts the sitting), so they would never be nudged at all and
+would conclude the feature does not work. `every_open` is the only trigger that reaches them.
+Added *alongside* the threshold, not replacing it, because §9.3a makes the two orthogonal — so the
+profile's minutes still govern long sittings. Settings' "with both on" note is **not** repeated
+here: on a first run it reads as a correction to a choice just made, and the two are not in fact
+redundant. Turning the threshold off correctly drops the optional usage-access row from the
+permission screen (§10.2), a branch that existed but was unreachable before this.
+
+---
 
 ---
 
@@ -812,6 +867,9 @@ consistent, and do not grow status narrative here: that is `Tasks.md`'s job.
 | **16.18** | Reading plans — light / medium / hard, as a daily page target | 4 | ⬜ added 2026-11-17 |
 | **16.19** | Streak freeze | — | ⬜ added 2026-11-17; *when it is granted* is the open design |
 | **16.20** | Reclaim a lost streak by reading more | — | ⬜ added 2026-11-17 |
+| **16.21** | Nudge opened the wrong book; three ways the gate miscounted a page | 9.2, 9.5 | ✅ code complete; device run owed |
+| **16.22** | Reading stats — furthest point, measured WPM, active duration | 20 | ✅ code complete; device run owed |
+| **16.23** | Reader profile + peer trigger choice in onboarding; daily-cap disclosure on the nudge | 10.3 | ✅ code complete; device run and Hindi owed |
 | **16.10** | Store listing rewrite onto the habit framing | 0.1 | ⬜ **next product task**; now the main listing, not just the India CSL |
 | **H3** | Notifications failed silently without exact-alarm permission | 1.5 | ✅ 1.4.7 |
 | **H4** | Pro purchase failed with a generic error | 1.5 | ✅ verified on a Play build; revenue blocker closed |
@@ -843,6 +901,37 @@ consistent, and do not grow status narrative here: that is `Tasks.md`'s job.
 - **Hindi copy sign-off for the Task 16.1 and 16.3 strings** (subscription paywall, onboarding) — drafted 2026-11-01 rather than left as key names, since `i18n.js` has no English fallback and a missing key renders the raw key to a Hindi user. Owner-written replacements welcome, same standing as Q10.
 - Widget implementation approach — classic AppWidgetProvider vs. Jetpack Glance (Section 12)
 
+
+## 20. Reading Stats — What a Session Records (added 2026-11-18)
+
+One recorder, `_flushSessionIfActive()` in `views/reader.js`, writing `{ date, wordsRead,
+durationMs, wpm, fileId }`. It was built around RSVP's play/pause, and all three numbers were wrong
+once Page mode became the default engine (§19 task 16.13) — because Page mode has no pause: it
+starts the session on init (`page.js`) and nothing stops it until the view is left.
+
+1. **Words read is the furthest point reached, not the point the reader stopped on.** It was
+   end-minus-start, so paging back subtracted what had been read, and a backward jump past the
+   opening position (the "first page" button, a §7 bridge round-trip, the seek box) clamped to zero
+   and fell under the 10-word floor — discarding the session outright. Five pages read, then a look
+   at something earlier, and nothing was recorded: no words, no time, **no streak day**. The
+   furthest point is tracked from `_syncReaderPosition`, the seam every engine already calls.
+2. **Duration is time spent moving through the book**, counted per gap between position changes up
+   to a 3-minute cap, not wall clock from open to close. A phone put down with Page mode open
+   otherwise banked the whole absence as reading time.
+3. **WPM is measured** (`wordsRead / durationMs`), not stamped from the slider. It was
+   `AppState.wpm`, so the dashboard's "avg WPM" was an average of a *slider position* — and in Page
+   mode, where the WPM bar is hidden, it recorded whatever the slider was last left at. An
+   impossible implied rate stores `0`, which `last7DaysAvgWpm` already filters, so a forward jump
+   cannot own the average.
+
+**Duration and WPM must keep using the same figure**, or `wpm × time ≠ words`. **Sessions recorded
+before this hold slider-setting WPM values**, so the 7-day average is a blend until they age out.
+
+**A forward seek still credits the distance jumped as words read** — pre-existing, and "furthest
+reached" preserves it. The *rate* is dropped but the word count is not. Separating traversal from
+jumps properly means doing it at the engine level.
+
+---
 
 ## 21. Code Rules
 
@@ -899,6 +988,11 @@ Before any new dependency. Before changing palette or typography. Before adding 
   Never a release gate — stale screenshots cost installs, they do not make the listing false —
   and they can only honestly be captured from the build being shipped, which is why they follow
   a build rather than precede one.
+- **Unreleased work on top of 1.5.6 / 44** (branches `nudge-book-selection-fix` and
+  `reader-type-preset`, 2026-11-18/19): tasks 16.21–16.23. Two of these touch things a device run
+  should look at directly — the nudge gate's page counting, where a backward swipe used to unlock
+  the app outright, and the reading-session recorder, where a backward jump used to discard a
+  session's streak day. The onboarding additions also need the Hindi checked on a narrow screen.
 - **Immediate priority:** device-verify 1.5.5 / 43, then **16.4 Phase C → D** (remote catalogue,
   then the monthly drops). The drops are what close §4's stated gap: until they ship a subscriber
   pays monthly for what the lifetime tier buys outright. **16.8 (home screen widget) is deferred
