@@ -27,5 +27,5 @@ const AppState = {
   activeModal: null,
   onboardingCalibrationWpm: 200,
   readerSource: 'upload',   /* 'upload' | 'dashboard' | 'free-books' | 'nudge' — where the file was opened from */
-  nudgeContext: null,       /* { packageName, label, startPage } while reading from a nudge */
+  nudgeContext: null,       /* { packageName, label, startedAt, pagesRead } while reading from a nudge */
 };

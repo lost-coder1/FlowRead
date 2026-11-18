@@ -521,18 +521,38 @@ const NudgeFeature = (function() {
   }
 
   /* Called from page.js on every page turn while a nudged read is in progress.
-     Page mode knows where its real page boundaries are, so when it is the engine
-     in use this is the exact count; every other engine goes through
-     onReadProgress below. */
-  function onPageTurn(pageIndex) {
+     Page mode knows where its real page boundaries are, so this is the exact
+     count and the only count while it is the engine in use — onReadProgress
+     below returns early for it. Every other engine goes through that instead.
+
+     One page forward is one page read. Nothing else counts.
+
+     This used to anchor one page behind the first turn it saw and then measure
+     the distance from that anchor, which assumed the first turn was forward. It
+     is not always: a reader who opens on page 10 and swipes *back* to 9 was
+     anchored at 8 and immediately credited a page — so at the default threshold
+     of one page, going backwards unlocked the app without a word being read.
+     Reported from use. Measuring a distance was also what let the "last page"
+     nav button credit the whole book in one tap.
+
+     Counting turns instead of distance fixes both, and needs no anchor at all,
+     which is just as well: page numbers are renumbered under us when the
+     background measure pass finishes (§5.1 rule 3), so an anchor taken early in
+     a read does not mean the same thing later. A delta read inside a single turn
+     is immune to that.
+
+     A backward turn is not a penalty either — it simply earns nothing, and the
+     page it undoes can be earned again by turning forward over it. Re-reading is
+     reading (the same generosity onReadProgress shows when it re-anchors on a
+     backward jump). A multi-page jump earns nothing because it is navigation,
+     not reading. */
+  function onPageTurn(pageIndex, fromPage) {
     const ctx = AppState.nudgeContext;
     if (!ctx || ctx.done) return;
-    /* Anchor one page behind the first turn we see: that turn is itself a page
-       read, so counting from pageIndex here would demand unlockPages + 1. */
-    if (typeof ctx.startPage !== 'number') ctx.startPage = pageIndex - 1;
-    const turned = pageIndex - ctx.startPage;
-    ctx.pagesRead = turned;
-    if (turned < settings().unlockPages) return;
+    if (typeof pageIndex !== 'number' || typeof fromPage !== 'number') return;
+    if (pageIndex - fromPage !== 1) return;
+    ctx.pagesRead = (ctx.pagesRead || 0) + 1;
+    if (ctx.pagesRead < settings().unlockPages) return;
     ctx.done = true;
     _showUnlockPrompt(ctx).catch(function() {});
   }
@@ -549,17 +569,43 @@ const NudgeFeature = (function() {
      paths agree to the word. */
   const WORDS_PER_PAGE = 220;
 
+  /* The largest position change that can be reading rather than navigation. A
+     single save step is one word in RSVP and Focus Bold, a few in Chunk, a dozen
+     or so per frame in Scroll; the widest deliberate step is the −50/+50 skip
+     buttons. Anything past this is a seek, a chapter tap or a §7 bridge jump. */
+  const MAX_READ_STEP_WORDS = 100;
+
   function onReadProgress(wordIndex) {
     const ctx = AppState.nudgeContext;
     if (!ctx || ctx.done) return;
     if (typeof wordIndex !== 'number' || !isFinite(wordIndex)) return;
-    if (typeof ctx.startWord !== 'number') { ctx.startWord = wordIndex; return; }
-    /* Jumping backwards (a re-read, or the bridge) re-anchors rather than going
-       negative and quietly stalling the counter. */
-    if (wordIndex < ctx.startWord) { ctx.startWord = wordIndex; return; }
-    const read = wordIndex - ctx.startWord;
-    ctx.pagesRead = Math.max(ctx.pagesRead || 0, Math.floor(read / WORDS_PER_PAGE));
-    if (read < settings().unlockPages * WORDS_PER_PAGE) return;
+    /* Page mode counts its own turns exactly, through onPageTurn. Letting this
+       approximation run there as well re-credited the same pages — and, worse,
+       credited the forward jumps onPageTurn deliberately refuses, because a jump
+       arrives here as nothing but a larger position. The "last page" button in
+       the Page-mode nav bar therefore cleared a gate of any size in one tap,
+       with onPageTurn declining the jump and this crediting it a line later.
+       §9.5 says Page mode keeps its exact page count; this is what makes that
+       true rather than merely intended. */
+    if (AppState.currentEngine === 'page') return;
+    if (typeof ctx.lastWord !== 'number') { ctx.lastWord = wordIndex; return; }
+    const step = wordIndex - ctx.lastWord;
+    ctx.lastWord = wordIndex;
+    /* Backwards is a re-read: it earns nothing, and the ground can be earned
+       again by reading forward over it. Re-anchoring (rather than letting the
+       distance go negative) is what the anchor-based version got right and is
+       kept. */
+    if (step <= 0) return;
+    /* Forward, but too far to have been read: navigation. Credited nothing, for
+       the same reason a multi-page turn is — otherwise the gate is one seek
+       wide. The position still stands; only the credit is refused. */
+    if (step > MAX_READ_STEP_WORDS) return;
+    /* Distance travelled, accumulated. The old measure — current position minus
+       an anchor — could not tell reading from a jump, because both only ever
+       showed up as a bigger number. */
+    ctx.words = (ctx.words || 0) + step;
+    ctx.pagesRead = Math.max(ctx.pagesRead || 0, Math.floor(ctx.words / WORDS_PER_PAGE));
+    if (ctx.words < settings().unlockPages * WORDS_PER_PAGE) return;
     ctx.done = true;
     _showUnlockPrompt(ctx).catch(function() {});
   }
@@ -643,31 +689,34 @@ const NudgeFeature = (function() {
 
   /* ─── Start reading ────────────────────────────────────────────────── */
 
-  /* Highest-percentage in-progress book, same rule notifications.js already
-     uses to decide what to nudge about. */
+  /* The book the user was last reading — which is the only book a nudge can
+     honestly call "continue". `loadLibrary()` is already sorted by lastOpened
+     descending, and `resumeFromLibrary()` rewrites lastOpened on every open, so
+     the first unfinished entry is it.
+
+     This was previously "highest percentage, 5–95%", borrowed from
+     notifications.js, where the question is genuinely different: a reminder
+     asks which book is most likely to be finished next. A nudge is an
+     interception of the moment, and the moment belongs to whatever the user
+     actually has open. Field report: starting a new book and then being nudged
+     reopened the old one, because the old one was further along — and it would
+     have kept doing so until the new book overtook it, which is to say for the
+     whole time the user was reading it. The percentage band made it worse at
+     both ends: a book just started sat under the 5% floor and could not win at
+     all. */
   function _inProgressBook() {
     if (typeof loadLibrary !== 'function') return null;
     const lib = loadLibrary();
-    let best = null;
     for (var i = 0; i < lib.length; i++) {
       const item = lib[i];
       if (!item || !item.wordCount) continue;
-      const pos = loadPosition(item.id) || 0;
-      const pct = Math.round((pos / item.wordCount) * 100);
-      if (pct >= 5 && pct < 95) {
-        if (!best || pct > best.pct) best = { item: item, pct: pct };
-      }
+      /* Finished books are skipped rather than reopened from the top: §5.2
+         makes completion a position, so "unfinished" is the same test the
+         library's Read section uses. */
+      if ((loadPosition(item.id) || 0) >= item.wordCount) continue;
+      return item;
     }
-    /* Nothing part-read: fall back to anything unfinished at all rather than
-       sending someone who has a library straight to Free Books. */
-    if (!best) {
-      for (var j = 0; j < lib.length; j++) {
-        const it = lib[j];
-        if (!it || !it.wordCount) continue;
-        if ((loadPosition(it.id) || 0) < it.wordCount) return { item: it, pct: 0 };
-      }
-    }
-    return best;
+    return null;
   }
 
   async function startReading() {
@@ -677,7 +726,6 @@ const NudgeFeature = (function() {
       AppState.nudgeContext = {
         packageName: ctx.packageName,
         label: ctx.label,
-        startPage: null,
         /* For the credit copy: what they actually did, not what was asked. */
         startedAt: Date.now(),
         pagesRead: 0,
@@ -692,7 +740,7 @@ const NudgeFeature = (function() {
          user's own engine instead is gone — it existed only because Page mode's
          first paint was slow, and that is what this measures in one slab now.
          forceEngine is for this read alone and does not touch fr_last_engine. */
-      await resumeFromLibrary(book.item, 'nudge', { forceEngine: 'page' });
+      await resumeFromLibrary(book, 'nudge', { forceEngine: 'page' });
       return;
     }
 
