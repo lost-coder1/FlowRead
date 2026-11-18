@@ -514,7 +514,7 @@
   "settings.nudge.mode_threshold": "After a while in the app",
   "settings.nudge.mode_every_open": "Every time I open it",
   "settings.nudge.mode_none": "No trigger is on, so nothing will nudge you. Pick at least one.",
-  "settings.nudge.mode_both": "With both on, every open nudges — that already covers the time threshold.",
+  "settings.nudge.mode_both": "With both on, you get both moments: when you open the app, and again if you stay a while.",
   "settings.nudge.threshold_label": "Nudge after",
   "settings.nudge.threshold_value": "{n} min in the app",
   "settings.nudge.pages_label": "Pages to read",

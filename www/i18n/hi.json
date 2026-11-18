@@ -493,7 +493,7 @@
   "settings.nudge.mode_threshold": "App में कुछ समय बीतने पर",
   "settings.nudge.mode_every_open": "हर बार खोलने पर",
   "settings.nudge.mode_none": "कोई trigger चालू नहीं है, इसलिए कोई nudge नहीं आएगा। कम से कम एक चुनिए।",
-  "settings.nudge.mode_both": "दोनों चालू होने पर हर बार खोलने पर nudge आएगा — उसमें समय वाली शर्त पहले से शामिल है।",
+  "settings.nudge.mode_both": "दोनों चालू होने पर दोनों मौके मिलेंगे: ऐप खोलते समय, और देर तक रुकने पर फिर से।",
   "settings.nudge.threshold_label": "Nudge कब",
   "settings.nudge.threshold_value": "App में {n} मिनट बाद",
   "settings.nudge.pages_label": "कितने pages",

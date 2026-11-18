@@ -1179,16 +1179,28 @@ design and the reasoning are in `Claude.md` §10.3; this is the record of buildi
   with minutes fixed; the concern raised against a 10-page gate was that it is ~12–15 min before the
   app opens, and a gate most people escape teaches the escape hatch. 7 was the compromise.
 - **Peer checkboxes, not a secondary opt-in** (owner), after the alternatives were put side by side.
-- **Settings' "with both on" note is not shown in onboarding** (owner). Worth knowing: that copy is
-  now arguably *wrong in Settings too* — it says the threshold is already covered by every-open,
-  which was true under §9.3's original framing but not after §9.3a made the two orthogonal. **Left
-  unchanged in Settings; still open.**
+- **Settings' "with both on" note is not shown in onboarding** (owner) — and the copy turned out to
+  be *wrong in Settings too*: it said the threshold was already covered by every-open, true under
+  §9.3's original framing and not after §9.3a made the two orthogonal. **Rewritten 2026-11-19** to
+  say the user gets both moments, along with the same stale claim in two code comments. Fixed in the
+  same pass as the stale status line below.
 - The count line says both that the cap is a setting and that today's tally has a Reset (owner).
 
 **Verified:** both screens and the counter rendered against the real modules — all four trigger
 combinations with the right note, the profile applied for each tier with guardrails untouched,
 skipping leaving §9.2's defaults, and the counter across a day at cap 3, a cap of 1 (first is also
 last), a raised cap, missing plugin fields, and a user who left the screen mid-call.
+
+**Follow-ups fixed 2026-11-19, in the same task:**
+- `mode_both` copy rewritten in `en.json`/`hi.json`, plus the matching stale comments in `nudge.js`
+  and `settings.js`.
+- **The Settings status line was stale after moving a slider** — reported from use. It quotes the
+  cap and the minutes target, both served from the native prefs `_pushSettings()` writes, and the
+  handlers neither awaited the write nor re-read the status; the cap handler did not refresh at all.
+  `_pushSettings()` now returns a promise and the three handlers await it before refreshing.
+  **The naive fix — refresh without awaiting — reproduces the same bug intermittently**, which is
+  worse: simulated against a deferred `Preferences.set`, an unawaited write re-read the *previous*
+  cap every time.
 
 **Owed:** device run; Hindi sign-off on the eight profile strings and the three count strings;
 specifically check the three profile options and the centred mono count lines on a narrow phone in

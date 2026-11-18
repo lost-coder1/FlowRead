@@ -826,9 +826,11 @@ function _bindNudgeSettings() {
   }
 
   /* Two independent triggers, not a choice between them — either, both or
-     neither. Both on behaves as "every open", since every open already includes
-     the opens that happen past the threshold; the note below says so rather
-     than leaving the user to work it out. */
+     neither. Both on gives both moments: §9.3a makes them orthogonal, so the
+     open is nudged and a long sitting is nudged again. The note below used to
+     tell the user the threshold was redundant here, which was true of the
+     original design and wrong after the threshold learned to fire mid-session —
+     it told them one of their own choices did nothing when it did (§1.5). */
   const everyOpenToggle = qs('#settings-nudge-mode-every-open');
   const thresholdToggle = qs('#settings-nudge-mode-threshold');
   const thresholdRow = qs('#settings-nudge-threshold-row');
@@ -850,8 +852,10 @@ function _bindNudgeSettings() {
     const el = pair[0];
     if (!el) return;
     el.checked = NudgeFeature.hasTrigger(pair[1]);
-    el.addEventListener('change', function() {
-      NudgeFeature.setTrigger(pair[1], this.checked);
+    el.addEventListener('change', async function() {
+      /* Awaited for the same reason the sliders are: syncNudgeStatus() reads the
+         trigger list back out of the native prefs. */
+      await NudgeFeature.setTrigger(pair[1], this.checked);
       syncModeVisibility();
       syncNudgeStatus();
       /* Ask at the moment the choice makes the permission mean something. The
@@ -887,8 +891,14 @@ function _bindNudgeSettings() {
     };
     paintCap();
     cap.addEventListener('input', paintCap);
-    cap.addEventListener('change', function() {
-      NudgeFeature.setSetting(NudgeFeature.KEY_DAILY_CAP, parseInt(this.value, 10));
+    /* The status line right below quotes the cap ("Instagram · 1/3 nudges"), and
+       it is served from the native prefs this write populates — so the refresh
+       has to wait for the write, not merely follow it. Without the await it
+       re-read the old value and the line stayed stale until the screen was left
+       and re-entered, which is exactly how this was reported. */
+    cap.addEventListener('change', async function() {
+      await NudgeFeature.setSetting(NudgeFeature.KEY_DAILY_CAP, parseInt(this.value, 10));
+      syncNudgeStatus();
     });
   }
 
@@ -901,8 +911,11 @@ function _bindNudgeSettings() {
     };
     paint();
     minutes.addEventListener('input', paint);
-    minutes.addEventListener('change', function() {
-      NudgeFeature.setSetting(NudgeFeature.KEY_MIN_MINUTES, parseInt(this.value, 10));
+    /* Same reason as the cap below: the status line quotes this as the target
+       in "6/15 min". */
+    minutes.addEventListener('change', async function() {
+      await NudgeFeature.setSetting(NudgeFeature.KEY_MIN_MINUTES, parseInt(this.value, 10));
+      syncNudgeStatus();
     });
   }
 

@@ -26,8 +26,12 @@ const NudgeFeature = (function() {
   /* The two triggers are independent, not a choice between them: a user can
      have either, both, or neither. Stored as a comma-separated list, which
      NudgeGate reads from the shared prefs store and is the side that enforces.
-     Note that with both on, "every open" subsumes the threshold — every open
-     already includes the opens that happen past it. */
+     With both on the user gets both moments, not one: §9.3a made these
+     orthogonal — `every_open` fires at the open and never mid-session, the
+     threshold fires from inside a sitting and never at the open — so neither
+     subsumes the other. This comment used to say that it did, which was true of
+     the original design and stopped being true when the threshold learned to
+     fire during a session. */
   const MODE_THRESHOLD = 'threshold';
   const MODE_EVERY_OPEN = 'every_open';
 
@@ -114,7 +118,7 @@ const NudgeFeature = (function() {
 
   function setEnabled(on) {
     localStorage.setItem(KEY_ENABLED, on ? 'true' : 'false');
-    _pushSettings();
+    return _pushSettings();
   }
 
   function hasSeenDisclosure() { return localStorage.getItem(KEY_DISCLOSED) === 'true'; }
@@ -150,20 +154,28 @@ const NudgeFeature = (function() {
     const list = triggers().filter(function(x) { return x !== mode; });
     if (on) list.push(mode);
     localStorage.setItem(KEY_TRIGGER_MODE, list.join(','));
-    _pushSettings();
+    return _pushSettings();
   }
 
   function setSetting(key, value) {
     localStorage.setItem(key, String(value));
-    _pushSettings();
+    return _pushSettings();
   }
 
   /* The Java gate reads these from the same prefs store, so writing them here is
-     enough — there is no separate native setter to keep in step. */
+     enough — there is no separate native setter to keep in step.
+
+     **Returns a promise, and callers that then read the state back must await
+     it.** `getNudgeStatus` is served from these same prefs, so a caller that
+     writes a setting and immediately re-reads the status is racing its own
+     write — which is how the Settings status line came to show the previous
+     daily cap until the screen was left and re-entered. Each individual write
+     still swallows its own failure: one key failing should not reject the whole
+     push and leave the caller thinking nothing was written. */
   function _pushSettings() {
     const prefs = (window.Capacitor && window.Capacitor.Plugins &&
                    window.Capacitor.Plugins.Preferences) || null;
-    if (!prefs) return;
+    if (!prefs) return Promise.resolve();
     const s = settings();
     const write = {};
     write[KEY_ENABLED] = isEnabled() ? 'true' : 'false';
@@ -172,9 +184,9 @@ const NudgeFeature = (function() {
     write[KEY_DAILY_CAP] = String(s.dailyCap);
     write[KEY_BACKOFF] = String(s.backoffDismissals);
     write[KEY_TRIGGER_MODE] = triggers().join(',');
-    Object.keys(write).forEach(function(k) {
-      prefs.set({ key: k, value: write[k] }).catch(function() {});
-    });
+    return Promise.all(Object.keys(write).map(function(k) {
+      return prefs.set({ key: k, value: write[k] }).catch(function() {});
+    }));
   }
 
   /* ─── Permissions ──────────────────────────────────────────────────── */
