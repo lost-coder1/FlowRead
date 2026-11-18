@@ -41,6 +41,48 @@ const NudgeFeature = (function() {
     unlockPages: 2,
   };
 
+  /* What each reader profile means for the nudge (§10, onboarding intro screen).
+     The question asked is "what kind of reader are you", not "how many pages
+     should unlock Instagram" — nobody can answer the second one before they
+     have used the app, which is why these were four preset numbers no user ever
+     saw. A self-description they can answer honestly is turned into settings
+     here.
+
+     Two of the five settings vary, and three deliberately do not:
+     `dailyCap` and `backoffDismissals` are the anti-nagging guardrails (§1.6),
+     not taste — a keen reader does not want to be nudged ten times a day — and
+     the trigger mode stays threshold-only, because "nudge me every time I open
+     it" is a strong behavioural choice rather than a consequence of reading a
+     lot.
+
+     These write into the same keys the Settings sliders read and write, so the
+     profile is a starting point rather than a mode: every value it sets is
+     visible on the Settings screen afterwards and can be moved from there
+     (§1.5, nothing set behind the user's back). Both land inside the existing
+     slider ranges — minutes 5–60 step 5, pages 1–10 — so nothing the profile
+     chooses is a value the user cannot get back to by hand. */
+  const PROFILES = {
+    light:  { minMinutes: 20, unlockPages: 2 },
+    medium: { minMinutes: 15, unlockPages: 4 },
+    heavy:  { minMinutes: 10, unlockPages: 7 },
+  };
+
+  /* Skipping the question leaves DEFAULTS in place, which is §9.2's signed-off
+     15 min / 2 pages and not any of the three profiles. That is intentional:
+     the default has to stand on its own for a user who declines to answer. */
+  function applyReaderProfile(name) {
+    const p = PROFILES[name];
+    if (!p) return false;
+    saveReaderProfile(name);
+    localStorage.setItem(KEY_MIN_MINUTES, String(p.minMinutes));
+    localStorage.setItem(KEY_UNLOCK_PAGES, String(p.unlockPages));
+    /* One push for both, rather than setSetting() twice: the native gate reads
+       the whole set, and two writes would have it briefly see a half-applied
+       profile. */
+    _pushSettings();
+    return true;
+  }
+
   /* How long a given app stays un-nudged after each outcome. Dismissing buys a
      short breather; reading to the threshold buys a proper session (§9.7). */
   const DISMISS_SUPPRESS_MINUTES = 10;
@@ -833,6 +875,50 @@ const NudgeFeature = (function() {
     return t(keys[Math.floor(Math.random() * keys.length)]);
   }
 
+  /* How many of today's nudges this one is (owner, 2026-11-19). The daily cap is
+     §9.3's main guard against the mechanic becoming nagging, and it was entirely
+     invisible: a user had no way to know whether this was the first interruption
+     of the day or the last, nor that the number was theirs to change. Saying so
+     on the nudge itself is the §1.5 reading of a limit the user is subject to.
+
+     The gate increments `nudges` when it decides to nudge, which happens before
+     the handoff reaches us, so the figure already counts this one — n of cap,
+     with no adjustment.
+
+     Deliberately async and deliberately silent on failure. renderNudge must stay
+     synchronous: the screen is raised over another app and waiting on a native
+     round-trip before painting would leave the user looking at Instagram. So the
+     line starts empty and fills a moment later, and if the call fails or the
+     plugin is too old to answer, it simply stays empty — a nudge with no counter
+     is fine, a nudge with a wrong counter is not.
+
+     Small and muted by §16 and by the owner's instruction: readable, never
+     competing with the headline or the escape hatch. */
+  async function _paintNudgeCount(packageName) {
+    if (!packageName) return;
+    const status = await statusFor(packageName);
+    if (!status) return;
+    const n = status.nudges;
+    const cap = status.dailyCap;
+    if (typeof n !== 'number' || typeof cap !== 'number' || n < 1 || cap < 1) return;
+    /* The screen may have been answered or replaced while the call was in
+       flight, and a count painted onto a later nudge for a different app would
+       be worse than none. */
+    const el = qs('#nudge-count');
+    if (!el || AppState.currentView !== 'view-nudge') return;
+    /* Two lines, not one sentence: the count is the fact, and what the user can
+       do about it is a separate, dimmer thought. Both affordances are named —
+       the cap is a setting and today's tally has a Reset — because a limit the
+       user cannot see how to change reads as the app's rule rather than theirs.
+       `n` and `cap` are numbers checked above; the rest is i18n copy. */
+    el.innerHTML =
+      '<span class="nudge-count-line">' +
+        ((n >= cap) ? t('nudge.screen.count_last')
+                    : t('nudge.screen.count', { n: n, cap: cap })) +
+      '</span>' +
+      '<span class="nudge-count-hint">' + t('nudge.screen.count_hint') + '</span>';
+  }
+
   function renderNudge(packageName, label, meta) {
     const view = qs('#view-nudge');
     if (!view) return;
@@ -864,10 +950,14 @@ const NudgeFeature = (function() {
           '<button class="btn btn-ghost nudge-escape" id="btn-nudge-continue">' +
             t('nudge.screen.btn_continue', { app: safeLabel }) + '</button>' +
         '</div>' +
+        /* Filled in asynchronously below — empty, not a guess, until the real
+           figure is in hand. */
+        '<p class="nudge-count" id="nudge-count"></p>' +
       '</div>';
 
     qs('#btn-nudge-read').addEventListener('click', startReading);
     qs('#btn-nudge-continue').addEventListener('click', continueToApp);
+    _paintNudgeCount(packageName);
 
     switchView('view-nudge');
     /* Only now. Clearing any earlier means a path that fails part-way through
@@ -979,6 +1069,7 @@ const NudgeFeature = (function() {
     renderNudge: renderNudge,
     startReading: startReading,
     continueToApp: continueToApp,
+    applyReaderProfile: applyReaderProfile,
     onPageTurn: onPageTurn,
     onReadProgress: onReadProgress,
     leaveNudgedRead: leaveNudgedRead,

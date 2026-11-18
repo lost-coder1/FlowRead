@@ -120,6 +120,28 @@ function _evictPageLayouts() {
   } catch (e) { /* if we cannot enumerate storage there is nothing to evict */ }
 }
 
+/* ── Reader profile ─────────────────────────────────────────── */
+/* How the reader described themselves at onboarding: 'light', 'medium' or
+   'heavy'. A self-description, not a derived value — it records what they said,
+   so hand-tuning the nudge sliders afterwards does not make it wrong. The
+   settings it seeds are theirs to move from then on.
+
+   Deliberately not a nudge-specific key. Task 16.18's reading plans use this
+   same light/medium/hard taxonomy for a daily page target, so one answer can
+   seed both rather than asking the same question twice in different words.
+   nudge.js owns what a profile means for nudging; this owns only the fact. */
+const READER_PROFILES = ['light', 'medium', 'heavy'];
+
+function loadReaderProfile() {
+  const v = localStorage.getItem('fr_reader_profile');
+  return READER_PROFILES.indexOf(v) !== -1 ? v : null;
+}
+
+function saveReaderProfile(name) {
+  if (READER_PROFILES.indexOf(name) === -1) return;
+  localStorage.setItem('fr_reader_profile', name);
+}
+
 function saveWPM(wpm) {
   localStorage.setItem('fr_wpm', wpm);
 }
