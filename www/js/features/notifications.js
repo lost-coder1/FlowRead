@@ -105,7 +105,9 @@ const NotificationsFeature = (function() {
     try { return computeStreak(loadReadingSessions()); } catch (_) { return 0; }
   }
 
-  /* Pick the in-progress file most likely to be finished next (highest %, 5–95%) */
+  /* Pick the in-progress file most likely to be finished next (highest %, 5–95%).
+     Deliberately NOT the rule the nudge uses: a reminder asks which book is
+     closest to done, a nudge asks which book the user actually has open. */
   function _activeProgressFile() {
     if (typeof loadLibrary !== 'function' || typeof loadPosition !== 'function') return null;
     const lib = loadLibrary();

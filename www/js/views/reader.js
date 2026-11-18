@@ -1,7 +1,7 @@
 /* Speed reading container view — hosts all reading engines */
 
 let _activeEngine = null;
-let _sessionState = null; /* { startIndex, startTimeMs } */
+let _sessionState = null; /* { startIndex, maxIndex, lastMoveMs, activeMs } */
 let _readerLifecycleBound = false;
 let _swipeState = null;
 let _swipeBackHandler = null;
@@ -549,6 +549,7 @@ function _updateSeekText(index) {
 
 function _syncReaderPosition(index, total) {
   AppState.currentIndex = index;
+  _noteSessionProgress(index);
   const position = qs('#position-display');
   if (position) position.textContent = formatPct(index, total);
   const slider = qs('#reader-seek-slider');
@@ -578,12 +579,49 @@ function _applyCalmMode() {
   if (calmBtn) calmBtn.classList.toggle('active', calmEnabled);
 }
 
+/* A session's duration is the time the reader spent moving through the book, not
+   the wall clock from open to close. Page mode is why this has to be said: it has
+   no pause button, so page.js starts the session on init and nothing stops it
+   until the view is left. A reader who put the phone down with Page mode open
+   would otherwise bank the whole absence as reading time — and since wpm is now
+   derived from this figure, that absence would drag the measured rate toward
+   zero as well. So each gap between position changes is counted up to this cap
+   and no further: longer than any real page read, short enough that a walk-away
+   cannot poison the figure. */
+const IDLE_GAP_CAP_MS = 3 * 60 * 1000;
+
+/* No human reads this fast, so a session claiming to is not a reading rate — it
+   is a forward *jump* (the seek box, the §7 bridge, a chapter tap) being counted
+   as words read. The words still count, because the reader did move through the
+   book; the rate is dropped, because `last7DaysAvgWpm` filters on wpm > 0 and a
+   single six-figure outlier would otherwise own the dashboard average. The WPM
+   slider itself tops out at 800. */
+const MAX_PLAUSIBLE_WPM = 2000;
+
 function _onEnginePlay() {
   if (_sessionState) return; /* already tracking */
+  const at = _activeEngine ? _activeEngine.getIndex() : AppState.currentIndex;
+  const now = Date.now();
   _sessionState = {
-    startIndex: _activeEngine ? _activeEngine.getIndex() : AppState.currentIndex,
-    startTimeMs: Date.now(),
+    startIndex: at,
+    /* The furthest word reached, not the last one — see _flushSessionIfActive. */
+    maxIndex: at,
+    lastMoveMs: now,
+    activeMs: 0,
   };
+}
+
+/* Called from _syncReaderPosition, which every engine already goes through on
+   every position change — the same reasoning that put the nudge's progress
+   counter on savePosition(). Cheap enough to sit on RSVP's per-word path: two
+   number comparisons and an add, no parse and no DOM. */
+function _noteSessionProgress(index) {
+  const s = _sessionState;
+  if (!s) return;
+  if (typeof index === 'number' && isFinite(index) && index > s.maxIndex) s.maxIndex = index;
+  const now = Date.now();
+  s.activeMs += Math.min(now - s.lastMoveMs, IDLE_GAP_CAP_MS);
+  s.lastMoveMs = now;
 }
 
 function _onEnginePause() {
@@ -597,9 +635,19 @@ function _flushSessionIfActive() {
     return;
   }
 
+  /* The furthest point reached, not the point they happened to stop on.
+     Measuring end-minus-start made the whole session a net figure, so paging
+     back subtracted what had been read — and a backward jump past the opening
+     position (the "first page" button, a §7 bridge round-trip, the seek box)
+     clamped to zero, which falls under the floor just below and discarded the
+     session outright. Reading five pages and then turning back to check something
+     earlier recorded nothing at all: no words, no time, and no streak day.
+     Re-reading a passage still counts once, which is the honest answer to "how
+     far through the book did this session get". */
   const endIndex = _activeEngine ? _activeEngine.getIndex() : AppState.currentIndex;
-  const wordsRead = Math.max(0, endIndex - _sessionState.startIndex);
-  const durationMs = Date.now() - _sessionState.startTimeMs;
+  const furthest = Math.max(_sessionState.maxIndex, endIndex);
+  const wordsRead = Math.max(0, furthest - _sessionState.startIndex);
+  const durationMs = _sessionState.activeMs;
 
   /* Only record sessions with meaningful content — skip accidental taps */
   if (wordsRead >= 10 && durationMs >= 3000) {
@@ -618,11 +666,18 @@ function _flushSessionIfActive() {
         source: AppState.readerSource || 'upload',
       });
     }
+    /* Measured, not the WPM slider's setting. Stamping AppState.wpm made the
+       dashboard's "avg WPM" an average of a slider position rather than a
+       reading rate — and in Page mode, where the WPM bar is hidden and the
+       number means nothing, it stamped whatever the slider was last left at.
+       Zero when the implied rate is impossible, which the dashboard reads as
+       "no rate for this session" rather than as a slow one. */
+    const measuredWpm = Math.round(wordsRead / (durationMs / 60000));
     saveReadingSession({
       date: todayDateString(),
       wordsRead: wordsRead,
       durationMs: durationMs,
-      wpm: AppState.wpm,
+      wpm: measuredWpm <= MAX_PLAUSIBLE_WPM ? measuredWpm : 0,
       fileId: AppState.currentFile.id,
     });
     /* Reschedule reminders — may cancel today's primary/nudge if user crossed

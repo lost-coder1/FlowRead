@@ -692,6 +692,7 @@ const PageEngine = (function() {
       _animateLayout(animate !== false);
       return;
     }
+    const fromIdx = _pageIndex;
     _pageIndex = newIdx;
     _index = _pages[_pageIndex].startIndex;
     _animateLayout(animate !== false);
@@ -702,8 +703,13 @@ const PageEngine = (function() {
     _savePos();
     _syncReaderPosition(_index, _words.length);
     /* Page mode is where a nudged read happens (§9.5), and it has no completion
-       event, so the scoped-unlock counter rides on the page turn itself. */
-    if (typeof NudgeFeature !== 'undefined') NudgeFeature.onPageTurn(_pageIndex);
+       event, so the scoped-unlock counter rides on the page turn itself. Both
+       pages travel, because only this function knows which way the reader went
+       — and the nudge counter must not credit a backward turn or a jump. The
+       page numbers themselves are not durable (the background measure pass
+       renumbers them, §5.1 rule 3), so the pair is read as a delta here and
+       never stored. */
+    if (typeof NudgeFeature !== 'undefined') NudgeFeature.onPageTurn(_pageIndex, fromIdx);
   }
 
   function _animateLayout(animate) {

@@ -26,8 +26,12 @@ const NudgeFeature = (function() {
   /* The two triggers are independent, not a choice between them: a user can
      have either, both, or neither. Stored as a comma-separated list, which
      NudgeGate reads from the shared prefs store and is the side that enforces.
-     Note that with both on, "every open" subsumes the threshold — every open
-     already includes the opens that happen past it. */
+     With both on the user gets both moments, not one: §9.3a made these
+     orthogonal — `every_open` fires at the open and never mid-session, the
+     threshold fires from inside a sitting and never at the open — so neither
+     subsumes the other. This comment used to say that it did, which was true of
+     the original design and stopped being true when the threshold learned to
+     fire during a session. */
   const MODE_THRESHOLD = 'threshold';
   const MODE_EVERY_OPEN = 'every_open';
 
@@ -40,6 +44,48 @@ const NudgeFeature = (function() {
     backoffDismissals: 3,
     unlockPages: 2,
   };
+
+  /* What each reader profile means for the nudge (§10, onboarding intro screen).
+     The question asked is "what kind of reader are you", not "how many pages
+     should unlock Instagram" — nobody can answer the second one before they
+     have used the app, which is why these were four preset numbers no user ever
+     saw. A self-description they can answer honestly is turned into settings
+     here.
+
+     Two of the five settings vary, and three deliberately do not:
+     `dailyCap` and `backoffDismissals` are the anti-nagging guardrails (§1.6),
+     not taste — a keen reader does not want to be nudged ten times a day — and
+     the trigger mode stays threshold-only, because "nudge me every time I open
+     it" is a strong behavioural choice rather than a consequence of reading a
+     lot.
+
+     These write into the same keys the Settings sliders read and write, so the
+     profile is a starting point rather than a mode: every value it sets is
+     visible on the Settings screen afterwards and can be moved from there
+     (§1.5, nothing set behind the user's back). Both land inside the existing
+     slider ranges — minutes 5–60 step 5, pages 1–10 — so nothing the profile
+     chooses is a value the user cannot get back to by hand. */
+  const PROFILES = {
+    light:  { minMinutes: 20, unlockPages: 2 },
+    medium: { minMinutes: 15, unlockPages: 4 },
+    heavy:  { minMinutes: 10, unlockPages: 7 },
+  };
+
+  /* Skipping the question leaves DEFAULTS in place, which is §9.2's signed-off
+     15 min / 2 pages and not any of the three profiles. That is intentional:
+     the default has to stand on its own for a user who declines to answer. */
+  function applyReaderProfile(name) {
+    const p = PROFILES[name];
+    if (!p) return false;
+    saveReaderProfile(name);
+    localStorage.setItem(KEY_MIN_MINUTES, String(p.minMinutes));
+    localStorage.setItem(KEY_UNLOCK_PAGES, String(p.unlockPages));
+    /* One push for both, rather than setSetting() twice: the native gate reads
+       the whole set, and two writes would have it briefly see a half-applied
+       profile. */
+    _pushSettings();
+    return true;
+  }
 
   /* How long a given app stays un-nudged after each outcome. Dismissing buys a
      short breather; reading to the threshold buys a proper session (§9.7). */
@@ -72,7 +118,7 @@ const NudgeFeature = (function() {
 
   function setEnabled(on) {
     localStorage.setItem(KEY_ENABLED, on ? 'true' : 'false');
-    _pushSettings();
+    return _pushSettings();
   }
 
   function hasSeenDisclosure() { return localStorage.getItem(KEY_DISCLOSED) === 'true'; }
@@ -108,20 +154,28 @@ const NudgeFeature = (function() {
     const list = triggers().filter(function(x) { return x !== mode; });
     if (on) list.push(mode);
     localStorage.setItem(KEY_TRIGGER_MODE, list.join(','));
-    _pushSettings();
+    return _pushSettings();
   }
 
   function setSetting(key, value) {
     localStorage.setItem(key, String(value));
-    _pushSettings();
+    return _pushSettings();
   }
 
   /* The Java gate reads these from the same prefs store, so writing them here is
-     enough — there is no separate native setter to keep in step. */
+     enough — there is no separate native setter to keep in step.
+
+     **Returns a promise, and callers that then read the state back must await
+     it.** `getNudgeStatus` is served from these same prefs, so a caller that
+     writes a setting and immediately re-reads the status is racing its own
+     write — which is how the Settings status line came to show the previous
+     daily cap until the screen was left and re-entered. Each individual write
+     still swallows its own failure: one key failing should not reject the whole
+     push and leave the caller thinking nothing was written. */
   function _pushSettings() {
     const prefs = (window.Capacitor && window.Capacitor.Plugins &&
                    window.Capacitor.Plugins.Preferences) || null;
-    if (!prefs) return;
+    if (!prefs) return Promise.resolve();
     const s = settings();
     const write = {};
     write[KEY_ENABLED] = isEnabled() ? 'true' : 'false';
@@ -130,9 +184,9 @@ const NudgeFeature = (function() {
     write[KEY_DAILY_CAP] = String(s.dailyCap);
     write[KEY_BACKOFF] = String(s.backoffDismissals);
     write[KEY_TRIGGER_MODE] = triggers().join(',');
-    Object.keys(write).forEach(function(k) {
-      prefs.set({ key: k, value: write[k] }).catch(function() {});
-    });
+    return Promise.all(Object.keys(write).map(function(k) {
+      return prefs.set({ key: k, value: write[k] }).catch(function() {});
+    }));
   }
 
   /* ─── Permissions ──────────────────────────────────────────────────── */
@@ -521,18 +575,38 @@ const NudgeFeature = (function() {
   }
 
   /* Called from page.js on every page turn while a nudged read is in progress.
-     Page mode knows where its real page boundaries are, so when it is the engine
-     in use this is the exact count; every other engine goes through
-     onReadProgress below. */
-  function onPageTurn(pageIndex) {
+     Page mode knows where its real page boundaries are, so this is the exact
+     count and the only count while it is the engine in use — onReadProgress
+     below returns early for it. Every other engine goes through that instead.
+
+     One page forward is one page read. Nothing else counts.
+
+     This used to anchor one page behind the first turn it saw and then measure
+     the distance from that anchor, which assumed the first turn was forward. It
+     is not always: a reader who opens on page 10 and swipes *back* to 9 was
+     anchored at 8 and immediately credited a page — so at the default threshold
+     of one page, going backwards unlocked the app without a word being read.
+     Reported from use. Measuring a distance was also what let the "last page"
+     nav button credit the whole book in one tap.
+
+     Counting turns instead of distance fixes both, and needs no anchor at all,
+     which is just as well: page numbers are renumbered under us when the
+     background measure pass finishes (§5.1 rule 3), so an anchor taken early in
+     a read does not mean the same thing later. A delta read inside a single turn
+     is immune to that.
+
+     A backward turn is not a penalty either — it simply earns nothing, and the
+     page it undoes can be earned again by turning forward over it. Re-reading is
+     reading (the same generosity onReadProgress shows when it re-anchors on a
+     backward jump). A multi-page jump earns nothing because it is navigation,
+     not reading. */
+  function onPageTurn(pageIndex, fromPage) {
     const ctx = AppState.nudgeContext;
     if (!ctx || ctx.done) return;
-    /* Anchor one page behind the first turn we see: that turn is itself a page
-       read, so counting from pageIndex here would demand unlockPages + 1. */
-    if (typeof ctx.startPage !== 'number') ctx.startPage = pageIndex - 1;
-    const turned = pageIndex - ctx.startPage;
-    ctx.pagesRead = turned;
-    if (turned < settings().unlockPages) return;
+    if (typeof pageIndex !== 'number' || typeof fromPage !== 'number') return;
+    if (pageIndex - fromPage !== 1) return;
+    ctx.pagesRead = (ctx.pagesRead || 0) + 1;
+    if (ctx.pagesRead < settings().unlockPages) return;
     ctx.done = true;
     _showUnlockPrompt(ctx).catch(function() {});
   }
@@ -549,17 +623,43 @@ const NudgeFeature = (function() {
      paths agree to the word. */
   const WORDS_PER_PAGE = 220;
 
+  /* The largest position change that can be reading rather than navigation. A
+     single save step is one word in RSVP and Focus Bold, a few in Chunk, a dozen
+     or so per frame in Scroll; the widest deliberate step is the −50/+50 skip
+     buttons. Anything past this is a seek, a chapter tap or a §7 bridge jump. */
+  const MAX_READ_STEP_WORDS = 100;
+
   function onReadProgress(wordIndex) {
     const ctx = AppState.nudgeContext;
     if (!ctx || ctx.done) return;
     if (typeof wordIndex !== 'number' || !isFinite(wordIndex)) return;
-    if (typeof ctx.startWord !== 'number') { ctx.startWord = wordIndex; return; }
-    /* Jumping backwards (a re-read, or the bridge) re-anchors rather than going
-       negative and quietly stalling the counter. */
-    if (wordIndex < ctx.startWord) { ctx.startWord = wordIndex; return; }
-    const read = wordIndex - ctx.startWord;
-    ctx.pagesRead = Math.max(ctx.pagesRead || 0, Math.floor(read / WORDS_PER_PAGE));
-    if (read < settings().unlockPages * WORDS_PER_PAGE) return;
+    /* Page mode counts its own turns exactly, through onPageTurn. Letting this
+       approximation run there as well re-credited the same pages — and, worse,
+       credited the forward jumps onPageTurn deliberately refuses, because a jump
+       arrives here as nothing but a larger position. The "last page" button in
+       the Page-mode nav bar therefore cleared a gate of any size in one tap,
+       with onPageTurn declining the jump and this crediting it a line later.
+       §9.5 says Page mode keeps its exact page count; this is what makes that
+       true rather than merely intended. */
+    if (AppState.currentEngine === 'page') return;
+    if (typeof ctx.lastWord !== 'number') { ctx.lastWord = wordIndex; return; }
+    const step = wordIndex - ctx.lastWord;
+    ctx.lastWord = wordIndex;
+    /* Backwards is a re-read: it earns nothing, and the ground can be earned
+       again by reading forward over it. Re-anchoring (rather than letting the
+       distance go negative) is what the anchor-based version got right and is
+       kept. */
+    if (step <= 0) return;
+    /* Forward, but too far to have been read: navigation. Credited nothing, for
+       the same reason a multi-page turn is — otherwise the gate is one seek
+       wide. The position still stands; only the credit is refused. */
+    if (step > MAX_READ_STEP_WORDS) return;
+    /* Distance travelled, accumulated. The old measure — current position minus
+       an anchor — could not tell reading from a jump, because both only ever
+       showed up as a bigger number. */
+    ctx.words = (ctx.words || 0) + step;
+    ctx.pagesRead = Math.max(ctx.pagesRead || 0, Math.floor(ctx.words / WORDS_PER_PAGE));
+    if (ctx.words < settings().unlockPages * WORDS_PER_PAGE) return;
     ctx.done = true;
     _showUnlockPrompt(ctx).catch(function() {});
   }
@@ -643,31 +743,34 @@ const NudgeFeature = (function() {
 
   /* ─── Start reading ────────────────────────────────────────────────── */
 
-  /* Highest-percentage in-progress book, same rule notifications.js already
-     uses to decide what to nudge about. */
+  /* The book the user was last reading — which is the only book a nudge can
+     honestly call "continue". `loadLibrary()` is already sorted by lastOpened
+     descending, and `resumeFromLibrary()` rewrites lastOpened on every open, so
+     the first unfinished entry is it.
+
+     This was previously "highest percentage, 5–95%", borrowed from
+     notifications.js, where the question is genuinely different: a reminder
+     asks which book is most likely to be finished next. A nudge is an
+     interception of the moment, and the moment belongs to whatever the user
+     actually has open. Field report: starting a new book and then being nudged
+     reopened the old one, because the old one was further along — and it would
+     have kept doing so until the new book overtook it, which is to say for the
+     whole time the user was reading it. The percentage band made it worse at
+     both ends: a book just started sat under the 5% floor and could not win at
+     all. */
   function _inProgressBook() {
     if (typeof loadLibrary !== 'function') return null;
     const lib = loadLibrary();
-    let best = null;
     for (var i = 0; i < lib.length; i++) {
       const item = lib[i];
       if (!item || !item.wordCount) continue;
-      const pos = loadPosition(item.id) || 0;
-      const pct = Math.round((pos / item.wordCount) * 100);
-      if (pct >= 5 && pct < 95) {
-        if (!best || pct > best.pct) best = { item: item, pct: pct };
-      }
+      /* Finished books are skipped rather than reopened from the top: §5.2
+         makes completion a position, so "unfinished" is the same test the
+         library's Read section uses. */
+      if ((loadPosition(item.id) || 0) >= item.wordCount) continue;
+      return item;
     }
-    /* Nothing part-read: fall back to anything unfinished at all rather than
-       sending someone who has a library straight to Free Books. */
-    if (!best) {
-      for (var j = 0; j < lib.length; j++) {
-        const it = lib[j];
-        if (!it || !it.wordCount) continue;
-        if ((loadPosition(it.id) || 0) < it.wordCount) return { item: it, pct: 0 };
-      }
-    }
-    return best;
+    return null;
   }
 
   async function startReading() {
@@ -677,7 +780,6 @@ const NudgeFeature = (function() {
       AppState.nudgeContext = {
         packageName: ctx.packageName,
         label: ctx.label,
-        startPage: null,
         /* For the credit copy: what they actually did, not what was asked. */
         startedAt: Date.now(),
         pagesRead: 0,
@@ -692,7 +794,7 @@ const NudgeFeature = (function() {
          user's own engine instead is gone — it existed only because Page mode's
          first paint was slow, and that is what this measures in one slab now.
          forceEngine is for this read alone and does not touch fr_last_engine. */
-      await resumeFromLibrary(book.item, 'nudge', { forceEngine: 'page' });
+      await resumeFromLibrary(book, 'nudge', { forceEngine: 'page' });
       return;
     }
 
@@ -785,6 +887,50 @@ const NudgeFeature = (function() {
     return t(keys[Math.floor(Math.random() * keys.length)]);
   }
 
+  /* How many of today's nudges this one is (owner, 2026-11-19). The daily cap is
+     §9.3's main guard against the mechanic becoming nagging, and it was entirely
+     invisible: a user had no way to know whether this was the first interruption
+     of the day or the last, nor that the number was theirs to change. Saying so
+     on the nudge itself is the §1.5 reading of a limit the user is subject to.
+
+     The gate increments `nudges` when it decides to nudge, which happens before
+     the handoff reaches us, so the figure already counts this one — n of cap,
+     with no adjustment.
+
+     Deliberately async and deliberately silent on failure. renderNudge must stay
+     synchronous: the screen is raised over another app and waiting on a native
+     round-trip before painting would leave the user looking at Instagram. So the
+     line starts empty and fills a moment later, and if the call fails or the
+     plugin is too old to answer, it simply stays empty — a nudge with no counter
+     is fine, a nudge with a wrong counter is not.
+
+     Small and muted by §16 and by the owner's instruction: readable, never
+     competing with the headline or the escape hatch. */
+  async function _paintNudgeCount(packageName) {
+    if (!packageName) return;
+    const status = await statusFor(packageName);
+    if (!status) return;
+    const n = status.nudges;
+    const cap = status.dailyCap;
+    if (typeof n !== 'number' || typeof cap !== 'number' || n < 1 || cap < 1) return;
+    /* The screen may have been answered or replaced while the call was in
+       flight, and a count painted onto a later nudge for a different app would
+       be worse than none. */
+    const el = qs('#nudge-count');
+    if (!el || AppState.currentView !== 'view-nudge') return;
+    /* Two lines, not one sentence: the count is the fact, and what the user can
+       do about it is a separate, dimmer thought. Both affordances are named —
+       the cap is a setting and today's tally has a Reset — because a limit the
+       user cannot see how to change reads as the app's rule rather than theirs.
+       `n` and `cap` are numbers checked above; the rest is i18n copy. */
+    el.innerHTML =
+      '<span class="nudge-count-line">' +
+        ((n >= cap) ? t('nudge.screen.count_last')
+                    : t('nudge.screen.count', { n: n, cap: cap })) +
+      '</span>' +
+      '<span class="nudge-count-hint">' + t('nudge.screen.count_hint') + '</span>';
+  }
+
   function renderNudge(packageName, label, meta) {
     const view = qs('#view-nudge');
     if (!view) return;
@@ -816,10 +962,14 @@ const NudgeFeature = (function() {
           '<button class="btn btn-ghost nudge-escape" id="btn-nudge-continue">' +
             t('nudge.screen.btn_continue', { app: safeLabel }) + '</button>' +
         '</div>' +
+        /* Filled in asynchronously below — empty, not a guess, until the real
+           figure is in hand. */
+        '<p class="nudge-count" id="nudge-count"></p>' +
       '</div>';
 
     qs('#btn-nudge-read').addEventListener('click', startReading);
     qs('#btn-nudge-continue').addEventListener('click', continueToApp);
+    _paintNudgeCount(packageName);
 
     switchView('view-nudge');
     /* Only now. Clearing any earlier means a path that fails part-way through
@@ -931,6 +1081,7 @@ const NudgeFeature = (function() {
     renderNudge: renderNudge,
     startReading: startReading,
     continueToApp: continueToApp,
+    applyReaderProfile: applyReaderProfile,
     onPageTurn: onPageTurn,
     onReadProgress: onReadProgress,
     leaveNudgedRead: leaveNudgedRead,

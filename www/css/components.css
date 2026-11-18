@@ -627,6 +627,63 @@
   background: var(--rsvp-stage-bg);
 }
 
+/* Reader profile, same screen as the language choice. Stacked rather than side
+   by side: each option carries a second line, which three columns on a phone
+   would break mid-word. Selected state is the accent border already used by
+   .onboarding-lang-on, so the two choices on this screen read as one pattern
+   and no new palette enters (§16). */
+.onboarding-profile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.onboarding-profile-btn {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+
+.onboarding-profile-btn:hover { border-color: var(--text-muted); }
+
+.onboarding-profile-on {
+  border-color: var(--accent);
+  background: var(--rsvp-stage-bg);
+}
+
+.onboarding-profile-name {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.onboarding-profile-hint {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.onboarding-profile-on .onboarding-profile-name { color: var(--text); }
+.onboarding-profile-on .onboarding-profile-hint { color: var(--text-muted); }
+
+/* The minutes the reader profile chose, under the time-trigger toggle, so the
+   effect of the previous screen's answer is visible where it applies (§1.5).
+   A block inside .settings-toggle's label span, which is a flex row — the span
+   is the row's text column, so a second line stacks inside it without the
+   checkbox moving. */
+.onboarding-trigger-hint {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
 .onboarding-pick-label {
   font-size: 14px;
   color: var(--text);
@@ -2521,6 +2578,35 @@
 .nudge-actions .btn {
   width: 100%;
   min-height: 48px;
+}
+
+/* Today's nudge count, under the actions. Small and quiet by instruction, but
+   --text-muted throughout, never --text-dim: it is there to be read, and §1.5 is
+   not served by text nobody can make out. Below the buttons so it cannot compete
+   with the headline or crowd the escape hatch, which §9.1 keeps as a peer of the
+   primary action. */
+.nudge-count {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-width: 460px;
+  width: 100%;
+  margin: var(--space-md) auto 0;
+  text-align: center;
+  font-family: var(--font-mono);
+}
+
+.nudge-count-line {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* One step smaller, same colour — not --text-dim. The hierarchy here is size,
+   because dim on near-black is below what can be read at 10px, and a line the
+   user cannot make out is not a disclosure. */
+.nudge-count-hint {
+  font-size: 10px;
+  color: var(--text-muted);
 }
 
 /* Muted, but never faint: the way out must read as a real option, not a

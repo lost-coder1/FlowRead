@@ -88,11 +88,51 @@ const OnboardingFlow = (function() {
             <button class="onboarding-lang-btn${lang === 'hi' ? ' onboarding-lang-on' : ''}"
                     data-lang="hi" role="radio" aria-checked="${lang === 'hi'}">हिंदी</button>
           </div>
+          ${_profileBlock()}
           <div class="onboarding-actions">
             <button class="btn btn-primary" id="btn-onb-next">${escapeHtml(t('btn.continue'))}</button>
           </div>
         </div>
       </div>`;
+  }
+
+  /* One self-description in place of four numeric settings nobody ever saw.
+     The nudge's thresholds — how long in an app before it speaks up, how much
+     reading opens it — shipped as presets because asking about them directly
+     asks the user to decide something they have no basis for yet: nobody knows
+     how many pages should buy them Instagram before they have tried it once.
+     What they can answer, honestly and immediately, is what sort of reader they
+     already are. nudge.js turns that into the numbers (§10, PROFILES).
+
+     Three framings deliberately avoided. The options are frequencies rather
+     than commitments, so none of them is a promise to be broken; none implies a
+     ladder with a correct top rung, because a nudge built on a goal the user
+     did not mean is a nudge they will turn off; and the question is skippable,
+     like every other route through this flow (§10.2) — Continue works untouched
+     and leaves §9.2's signed-off defaults in place.
+
+     Below the language choice, not above, and that order matters: the language
+     buttons label themselves ("English" / "हिंदी") and so can be read before a
+     language is chosen, which this question cannot. Above the row, every Hindi
+     reader would meet it in English first, and its wording is the entire point
+     of it. Picking a language re-renders the screen, so this redraws with it. */
+  function _profileBlock() {
+    const current = (typeof loadReaderProfile === 'function') ? loadReaderProfile() : null;
+    const opts = ['light', 'medium', 'heavy'].map(function(name) {
+      const on = current === name;
+      return `
+            <button class="onboarding-profile-btn${on ? ' onboarding-profile-on' : ''}"
+                    data-profile="${name}" role="radio" aria-checked="${on}">
+              <span class="onboarding-profile-name">${escapeHtml(t('onboarding.profile.' + name))}</span>
+              <span class="onboarding-profile-hint">${escapeHtml(t('onboarding.profile.' + name + '_hint'))}</span>
+            </button>`;
+    }).join('');
+    return `
+          <p class="onboarding-pick-label">${escapeHtml(t('onboarding.profile.label'))}</p>
+          <div class="onboarding-profile" role="radiogroup"
+               aria-label="${escapeHtml(t('onboarding.profile.label'))}">${opts}
+          </div>
+          <p class="onboarding-note">${escapeHtml(t('onboarding.profile.note'))}</p>`;
   }
 
   function _nudge() {
@@ -121,6 +161,7 @@ const OnboardingFlow = (function() {
           <p class="onboarding-note">${escapeHtml(t('onboarding.nudge.body2'))}</p>
           <p class="onboarding-pick-label">${escapeHtml(t('onboarding.nudge.pick_label'))}</p>
           ${chosen}
+          ${_triggerBlock(pkg)}
           <div class="onboarding-actions">
             <button class="btn btn-ghost" id="btn-onb-back">${escapeHtml(t('btn.back'))}</button>
             <button class="btn ${pkg ? 'btn-primary' : 'btn-ghost'}" id="btn-onb-next">${
@@ -128,6 +169,66 @@ const OnboardingFlow = (function() {
           </div>
         </div>
       </div>`;
+  }
+
+  /* Both triggers, as peers, with either or both selectable (owner, 2026-11-19).
+     They were previously unreachable from onboarding, so every new user left
+     with `triggers()`' default of threshold-only — and that default misses the
+     reflexive opener completely. Someone who opens Instagram twenty times a day
+     for half a minute each never accumulates the threshold in one sitting
+     (§9.3 counts the sitting, not the day), so they would never be nudged at
+     all and would conclude the feature does not work. `every_open` is the only
+     trigger that reaches them, and it was buried in Settings.
+
+     Added to the threshold rather than replacing it, which is why these are two
+     checkboxes and not a radio group: §9.3a treats them as orthogonal — one is
+     about the moment of opening, the other about a long stretch — so leaving
+     both on keeps the minutes value the reader profile just set meaningful for
+     long sittings instead of being quietly overridden one screen later.
+
+     Shown only once an app is named. Before that there is nothing to nudge, the
+     forward button still reads "Skip", and this screen's job is to explain the
+     mechanic rather than to configure it.
+
+     Deliberately NOT prompting for permissions on change, unlike the identical
+     toggles in Settings: the next screen is the permission ask, and it already
+     reads hasTrigger(MODE_THRESHOLD) to decide whether to offer usage access
+     (§10.2). Turning the threshold off here therefore drops that row there,
+     which is correct and was unreachable until now.
+
+     Every string is one Settings already owns, so the two surfaces cannot drift
+     apart in wording and there is no new Hindi to sign off. */
+  function _triggerBlock(pkg) {
+    if (!pkg || typeof NudgeFeature === 'undefined') return '';
+    const everyOpen = NudgeFeature.hasTrigger(NudgeFeature.MODE_EVERY_OPEN);
+    const threshold = NudgeFeature.hasTrigger(NudgeFeature.MODE_THRESHOLD);
+    const mins = NudgeFeature.settings().minMinutes;
+    /* Neither on is a real state and the user is told so rather than left to
+       discover a silent no-op (§1.5). It is not blocked: Continue still works,
+       like every other route through this flow (§10.2).
+
+       Both on gets no note (owner, 2026-11-19). Settings shows one there, but on
+       a first run it reads as a correction to a choice the user just made, and
+       the two triggers are not in fact redundant: §9.3a makes them orthogonal —
+       one is about the moment of opening, the other about a long stretch — so
+       there is nothing here the user needs warning about. */
+    const note = (!threshold && !everyOpen) ? t('settings.nudge.mode_none') : '';
+    /* Same order as Settings, so the pair reads as one control in both places. */
+    const row = function(mode, labelKey, hint) {
+      const on = mode === NudgeFeature.MODE_EVERY_OPEN ? everyOpen : threshold;
+      return `
+            <label class="settings-toggle">
+              <span>${escapeHtml(t(labelKey))}${
+                hint ? `<span class="onboarding-trigger-hint">${escapeHtml(hint)}</span>` : ''}</span>
+              <input type="checkbox" data-onb-trigger="${mode}"${on ? ' checked' : ''} />
+            </label>`;
+    };
+    return `
+          <p class="onboarding-pick-label">${escapeHtml(t('settings.nudge.mode_label'))}</p>
+          ${row(NudgeFeature.MODE_EVERY_OPEN, 'settings.nudge.mode_every_open', '')}
+          ${row(NudgeFeature.MODE_THRESHOLD, 'settings.nudge.mode_threshold',
+                t('settings.nudge.threshold_value', { n: mins }))}
+          ${note ? `<p class="settings-copy text-muted">${escapeHtml(note)}</p>` : ''}`;
   }
 
   /* Rendered from live permission state, so returning from the system settings
@@ -279,6 +380,16 @@ const OnboardingFlow = (function() {
           render(_step);
         });
       });
+
+      qsa('.onboarding-profile-btn', _view()).forEach(function(btn) {
+        btn.addEventListener('click', function() {
+          const name = btn.getAttribute('data-profile');
+          /* Re-rendered rather than class-toggled, so the selected state comes
+             from the stored profile and cannot drift from what was saved. */
+          if (name && typeof NudgeFeature !== 'undefined' &&
+              NudgeFeature.applyReaderProfile(name)) render(_step);
+        });
+      });
     }
 
     if (name === 'nudge') {
@@ -294,6 +405,15 @@ const OnboardingFlow = (function() {
           });
         });
       }
+
+      qsa('[data-onb-trigger]', _view()).forEach(function(box) {
+        box.addEventListener('change', function() {
+          NudgeFeature.setTrigger(box.getAttribute('data-onb-trigger'), box.checked);
+          /* Re-rendered so the note and the checked states come from stored
+             state rather than from this handler's view of it. */
+          render(_step);
+        });
+      });
     }
 
     if (name === 'permissions') {
