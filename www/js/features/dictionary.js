@@ -28,6 +28,12 @@ const DictionaryFeature = (function() {
     /* Pause playback while looking up a word */
     document.dispatchEvent(new CustomEvent('fr-reading-pause'));
 
+    /* §23: the tip that teaches this has done its whole job the first time
+       someone looks a word up, so retire it here rather than counting shows.
+       Before the Pro gate deliberately — reaching the gate still means they
+       found the feature, and offering to teach it afterwards would be absurd. */
+    if (typeof TipsFeature !== 'undefined') TipsFeature.markDone('dictionary');
+
     if (!AppState.isPro) {
       _showProGate(cleanWord);
       return;

@@ -870,6 +870,7 @@ consistent, and do not grow status narrative here: that is `Tasks.md`'s job.
 | **16.21** | Nudge opened the wrong book; three ways the gate miscounted a page | 9.2, 9.5 | ✅ code complete; device run owed |
 | **16.22** | Reading stats — furthest point, measured WPM, active duration | 20 | ✅ code complete; device run owed |
 | **16.23** | Reader profile + peer trigger choice in onboarding; daily-cap disclosure on the nudge | 10.3 | ✅ code complete; device run and Hindi owed |
+| **16.24** | Rotating feature-discovery tips on home and the nudge unlock | 23 | ✅ code complete; device run and Hindi owed |
 | **16.10** | Store listing rewrite onto the habit framing | 0.1 | ⬜ **next product task**; now the main listing, not just the India CSL |
 | **H3** | Notifications failed silently without exact-alarm permission | 1.5 | ✅ 1.4.7 |
 | **H4** | Pro purchase failed with a generic error | 1.5 | ✅ verified on a Play build; revenue blocker closed |
@@ -988,8 +989,8 @@ Before any new dependency. Before changing palette or typography. Before adding 
   Never a release gate — stale screenshots cost installs, they do not make the listing false —
   and they can only honestly be captured from the build being shipped, which is why they follow
   a build rather than precede one.
-- **Unreleased work on top of 1.5.6 / 44** (branches `nudge-book-selection-fix` and
-  `reader-type-preset`, 2026-11-18/19): tasks 16.21–16.23. Two of these touch things a device run
+- **Unreleased work on top of 1.5.6 / 44** (branches `nudge-book-selection-fix`,
+  `reader-type-preset` and `feature-discovery-tips`, 2026-11-18/20): tasks 16.21–16.24. Two of these touch things a device run
   should look at directly — the nudge gate's page counting, where a backward swipe used to unlock
   the app outright, and the reading-session recorder, where a backward jump used to discard a
   session's streak day. The onboarding additions also need the Hindi checked on a narrow screen.
@@ -1007,5 +1008,65 @@ Before any new dependency. Before changing palette or typography. Before adding 
   **distribution** bottleneck, not a retention or monetization one. That is why the share card
   (§15) is prioritized partly for reach, and why Phase 16 favours mechanics with plausible
   organic spread alongside pure retention plays.
+
+---
+
+## 23. Feature Discovery — Rotating Tips (added 2026-11-20)
+
+Most of what this app does has no surface that teaches it. Onboarding leads with the habit pitch
+and ends in the Free Books library (§10.1), which is right, and the consequence is that a user can
+read for weeks without learning that their own PDFs work, that long-pressing a word looks it up, or
+that a PDF can be read against its original pages (§7). None of those justifies a permanent place
+in the UI, and the reason to fix it here rather than with a help screen is that nobody opens a help
+screen.
+
+`features/tips.js` owns a pool, which tip comes next, and the bookkeeping that stops one outliving
+its usefulness. The surfaces draw it: the home strip in `views/upload.js`, the unlock line in
+`features/nudge.js`.
+
+**Three rules, and they are the whole design:**
+
+1. **Nothing goes on the nudge screen itself.** That screen has two actions and they are
+   deliberate peers — Start reading, and the escape hatch §9.1 and §21 make a product rule rather
+   than a style preference. A third thing to read, and worse a third thing to tap, makes the
+   escape hatch one of three, which is how a nudge starts reading as a wall. **The unlock modal is
+   the nudge path's slot**: the threshold is already met, so nothing is withheld and nothing is
+   interrupted. The user has just succeeded, which is when a "you can also…" is welcome rather
+   than noise. This was weighed and rejected rather than overlooked; re-adding it needs a logged
+   decision.
+2. **Relevance is a gate, and it is not the same thing as a cap.** A tip's `when()` asks whether
+   *this user* has any use for it — the import tip disappears the moment a non-catalogue book is
+   in the library, the bridge tip only appears when the last book opened was a PDF, the OCR tip
+   only reaches someone who has OCR at all. Separately, **every tip is spent after three shows**,
+   acted on or not, because a tip that keeps arriving after being understood and declined is the
+   nagging §1.6 rules out. Capability tips also retire the first time the user does the thing,
+   which is what `TipsFeature.markDone()` is for — called from the feature itself
+   (`dictionary.js`, `bridge.js`), not from the strip.
+3. **Tappable only where nothing else is pending.** On the home strip a tap does the thing the
+   sentence describes, which is what closes the loop — "open your own PDF" sits one row above the
+   PDF card. In the unlock modal it is inert text: that modal exists for the choice between the
+   book and the app the user just earned, and navigating off it would discard what they read for.
+
+**Two further constraints that are easy to lose:**
+
+- **A tip must never teach a locked feature.** DOCX/TXT import and Scan are Pro (§4), so the
+  import tip names PDF, which is free, and the scan tip is gated on Pro. A tip for something the
+  user cannot do is an advert, and this slot is not an advert — §4 rules out in-app advertising
+  outright.
+- **Rotation is round-robin from a stored cursor, not random.** Random is correct for the nudge's
+  six interchangeable subtitles and wrong for a dozen distinct tips: it repeats one three times
+  before another is seen, and a tip nobody sees is a feature nobody learns. One tip per calendar
+  day on home, the same one all day — picking per render reshuffles it every time the user backs
+  out of a reader, which reads as a glitch and spends the show cap in an afternoon.
+
+**No analytics event.** `tip_shown` is not in §9.6's allowlist and was deliberately not added: the
+list is closed so that a caller cannot quietly widen what is collected, and retirement-on-action
+already shows up in the existing events (`import_completed`, `book_opened`). Adding one is a
+product decision, not an implementation detail.
+
+**A discrepancy this surfaced, not fixed:** §4 lists the dictionary under the free tier, but
+`DictionaryFeature.showDictionaryModal()` gates it on `AppState.isPro` and shows a Pro gate
+instead. The dictionary tip is gated to match the *code*, with a note to drop that gate if §4 is
+the truth. Decide which is right.
 
 *This document is the contract. Update it before changing direction, not after.*

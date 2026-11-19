@@ -31,6 +31,11 @@ function wordIndexToPage(wordIndex) {
 
 function openNormalAtPage(pageNumber) {
   const page = Math.max(1, pageNumber || 1);
+  /* §23: a user who has crossed the bridge once knows it is there. Marked on
+     the Speed→Normal direction only, which is the one that has to be
+     discovered — the return trip is a button on the screen they just
+     arrived at. */
+  if (typeof TipsFeature !== 'undefined') TipsFeature.markDone('bridge');
   if (typeof _activeEngine !== 'undefined' && _activeEngine && typeof _activeEngine.pause === 'function') {
     _activeEngine.pause();
   }

@@ -623,5 +623,18 @@
   "onboarding.ready.body": "A small free library, ready to read offline. Pick anything — you can import your own PDFs any time.",
   "onboarding.ready.limitations": "What FlowRead can't do yet",
   "onboarding.btn.browse": "Browse books",
-  "settings.info.more": "More"
+  "settings.info.more": "More",
+  "tip.dismiss": "Hide this tip",
+  "tip.import": "Got a PDF of your own? Open it right here.",
+  "tip.freebooks": "There are 150 free books in here already — English and Hindi.",
+  "tip.dictionary": "Long-press any word while you read to look it up. Works offline.",
+  "tip.bridge": "Reading a PDF? You can jump to the real page any time, then come straight back.",
+  "tip.engines": "Five ways to read the same book. Chunk shows a few words at a time.",
+  "tip.chapters": "Long book? Open the chapter list while reading and skip straight to one.",
+  "tip.calm": "Calm mode hides everything but the words.",
+  "tip.offline": "All of this works with no internet, and your books never leave this phone.",
+  "tip.paste": "Copied something long? Paste Text reads it like a book.",
+  "tip.share": "You can share a card of what you've read — it's made on your phone.",
+  "tip.nudge_settings": "The apps, the timing, the daily limit — all yours to change.",
+  "tip.scan": "A scanned PDF or a photo of a page? Scan reads the text off it, on the device."
 }

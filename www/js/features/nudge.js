@@ -708,11 +708,23 @@ const NudgeFeature = (function() {
         })
       : t('nudge.unlock.body', { app: escapeHtml(ctx.label) });
 
+    /* §23's one slot on the nudge path, and deliberately not on the nudge screen
+       itself: there the two actions are peers and a third thing to read works
+       against the escape hatch (§9.1). Here the threshold is already met, so
+       nothing is being withheld and nothing is being interrupted — the user has
+       just succeeded, which is when a "you can also…" is welcome rather than
+       noise. Inert text, never a link: the one thing this modal is for is the
+       choice between the book and the app they just earned, and navigating off
+       it would throw away what they read for. */
+    const tip = (typeof TipsFeature !== 'undefined') ? TipsFeature.pickForUnlock() : null;
+    const tipHtml = tip ? '<p class="nudge-unlock-tip">' + escapeHtml(t(tip.key)) + '</p>' : '';
+
     root.innerHTML =
       '<div class="modal-backdrop" id="modal-backdrop">' +
         '<div class="modal-card nudge-unlock-card" role="dialog" aria-modal="true">' +
           '<h2 class="modal-title">' + t('nudge.unlock.title') + '</h2>' +
           '<p class="modal-body">' + body + '</p>' +
+          tipHtml +
           '<div class="modal-actions">' +
             '<button class="btn btn-ghost" id="btn-nudge-keep-reading">' + t('nudge.unlock.keep_reading') + '</button>' +
             '<button class="btn btn-primary" id="btn-nudge-go">' +
