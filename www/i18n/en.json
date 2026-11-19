@@ -636,5 +636,16 @@
   "tip.paste": "Copied something long? Paste Text reads it like a book.",
   "tip.share": "You can share a card of what you've read — it's made on your phone.",
   "tip.nudge_settings": "The apps, the timing, the daily limit — all yours to change.",
-  "tip.scan": "A scanned PDF or a photo of a page? Scan reads the text off it, on the device."
+  "tip.scan": "A scanned PDF or a photo of a page? Scan reads the text off it, on the device.",
+  "settings.section.unlock": "Unlock FlowRead",
+  "settings.unlock.body": "DOCX and TXT import, the URL reader, on-device OCR for scanned pages, the reading dashboard, extra fonts and themes, and as many apps as you like in the nudge.",
+  "settings.unlock.btn": "See the options",
+  "settings.unlock.note": "One payment, yours for good — or monthly, if you'd rather. Reading, your own PDFs and the whole free library stay free either way.",
+  "library.sync_note.cta": "See what Pro adds →",
+  "dashboard.locked.title": "The rest of the dashboard",
+  "dashboard.locked.item1": "How your reading speed has moved, week by week",
+  "dashboard.locked.item2": "Ninety days of reading, one square a day",
+  "dashboard.locked.item3": "What you've finished, by file type",
+  "dashboard.locked.item4": "Time left in every book you're part-way through",
+  "dashboard.locked.btn": "See the options"
 }

@@ -223,7 +223,10 @@ function _bindReaderControls() {
       renderUpload();
       switchView('view-upload');
     } else if (src === 'dashboard') {
-      renderDashboard();
+      /* Reachable by a lapsed subscriber who opened a book from the dashboard
+         while it was still unlocked, so the gate is re-read rather than
+         assumed. */
+      renderDashboard({ locked: !AppState.isPro });
       switchView('view-dashboard');
     } else if (src === 'free-books') {
       renderFreeBooks();

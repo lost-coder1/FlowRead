@@ -871,6 +871,7 @@ consistent, and do not grow status narrative here: that is `Tasks.md`'s job.
 | **16.22** | Reading stats — furthest point, measured WPM, active duration | 20 | ✅ code complete; device run owed |
 | **16.23** | Reader profile + peer trigger choice in onboarding; daily-cap disclosure on the nudge | 10.3 | ✅ code complete; device run and Hindi owed |
 | **16.24** | Rotating feature-discovery tips on home and the nudge unlock | 23 | ✅ code complete; device run and Hindi owed |
+| **16.25** | Paywall placement — a deliberate purchase path, and three gates that said nothing | 24 | ✅ code complete; device run and Hindi owed |
 | **16.10** | Store listing rewrite onto the habit framing | 0.1 | ⬜ **next product task**; now the main listing, not just the India CSL |
 | **H3** | Notifications failed silently without exact-alarm permission | 1.5 | ✅ 1.4.7 |
 | **H4** | Pro purchase failed with a generic error | 1.5 | ✅ verified on a Play build; revenue blocker closed |
@@ -990,7 +991,8 @@ Before any new dependency. Before changing palette or typography. Before adding 
   and they can only honestly be captured from the build being shipped, which is why they follow
   a build rather than precede one.
 - **Unreleased work on top of 1.5.6 / 44** (branches `nudge-book-selection-fix`,
-  `reader-type-preset` and `feature-discovery-tips`, 2026-11-18/20): tasks 16.21–16.24. Two of these touch things a device run
+  `reader-type-preset`, `feature-discovery-tips` and `paywall-placements`, 2026-11-18/20): tasks
+  16.21–16.25. Two of these touch things a device run
   should look at directly — the nudge gate's page counting, where a backward swipe used to unlock
   the app outright, and the reading-session recorder, where a backward jump used to discard a
   session's streak day. The onboarding additions also need the Hindi checked on a narrow screen.
@@ -1082,5 +1084,84 @@ the feature to the users it was being withheld from. **The gate was the bug, not
 removed, `_showProGate` is gone, and the limitations copy no longer says "Pro tier dictionary" in
 either language (§1.5). The online-lookup fallback that gate offered is still reachable from the
 dictionary modal's own button and from the word-tap setting.
+
+---
+
+## 24. Paywall Placement (added 2026-11-20)
+
+One modal — `showPaywall()` in `features/purchase.js` — lifetime row first and preselected (§1.3).
+`showOcrPaywall()` is an alias for it, since §4 folded OCR into the lifetime product. Every call
+site passes a `source`, which `paywall_shown` carries (§9.6), so placements are rankable against
+`pro_purchased` rather than argued about.
+
+**The stance (owner, 2026-11-20): show what Pro adds without apology, but never unnecessarily and
+never repeatedly.** The test for a placement is whether the user is, at that moment, looking at the
+thing they would be buying. If they are, naming the price is service. If they are not, it is an
+advert, and §4 rules those out.
+
+### Where it fires
+
+| Trigger | `source` |
+|---|---|
+| URL reader card · DOCX import · TXT import | `url-reader` · `docx-import` · `txt-import` |
+| Scan/camera import · scanned-PDF modal · legacy-encoding banner | `image-scan` · `scanned-pdf` |
+| A URL shared in from another app | `share` |
+| 2nd nudge app on the free plan | `nudge-apps` |
+| A locked font or theme chip in Settings | `font` · `theme` |
+| The device-sync sheet's non-PDF note | `device-sync` |
+| The dashboard preview's lock card | `dashboard` |
+| **Settings → Unlock FlowRead** | `settings` |
+
+`source` is a free-text dimension in both `analytics-ping.js` and the Worker, so a new placement
+needs no allowlist change — but it must stay a *feature* name. §9.6's third receiver rule holds:
+no dimension may ever carry a package name.
+
+**The last row is the only non-reactive placement, and it is the one that was missing.** Every
+other one fires because the user hit a wall; until 2026-11-20 there was no way to *decide* to pay —
+Settings offered Restore purchases and nothing else, which to a non-purchaser reads as a dead end.
+§1.3 requires the lifetime option stay "prominently offered and genuinely purchasable", and it can
+be neither if the only route to it is by accident. Shown once, only to a user who has not paid, on
+a screen they navigated to themselves. **Not on home, not a banner, nothing that follows them.**
+
+### Two rules that produced the rest of this work
+
+1. **A locked control must do something when tapped.** A `disabled` lock icon is a silent failure
+   (§1.5) *and* the best-timed paywall in the app discarded — the user has just pointed at exactly
+   what they would be buying. Settings' font and theme chips were `disabled`; they are now
+   tappable, still refuse to apply, and open the paywall. The device-sync sheet's "DOCX and TXT
+   require Pro" was inert text under a list of the user's own unopenable files; it is a button.
+   **Any future Pro gate inherits this**: mark it, let it be tapped, say what it costs. The §23
+   dictionary gate is the counter-example worth remembering — a gate nothing advertised, which is
+   how it survived three months of contradicting §4.
+2. **A gated screen should show itself before it asks.** The dashboard answered a tap with a modal,
+   so nobody ever saw what they would be buying. It now opens for real with the user's **own**
+   top-line figures and one card in place of the charts naming what Pro adds — "show value first",
+   the same reasoning §10.1 applies to onboarding. **Nothing may be fabricated**: a preview with
+   invented numbers would be the silent lie §1.5 forbids, which is why the KPI tiles are the real
+   ones and the withheld parts are *named* rather than blurred. `paywall_shown` therefore fires
+   when the user taps the card's button, not on arriving, so the event keeps meaning "was offered a
+   price" rather than "opened a screen". The share button stays on the preview: §15 made it free
+   for everyone deliberately, and the dashboard being Pro is exactly why it also lives on home.
+
+### Where a paywall must not go
+
+- **The nudge screen and the unlock modal** (§9.1, §23). A sales pitch at an interception is the
+  dark pattern §1.3 forbids, and the escape hatch may never share a screen with a price. The §23
+  tip slot is not a loophole in this: a tip names a feature, never a price.
+- **Book completion and streak milestones.** The emotional peak, and §15 already owns it with the
+  share prompt — which is the distribution play in a product §22 describes as distribution-bound.
+  Do not trade a share for a paywall impression.
+- **The Free Books library.** §4 gives the whole catalogue away. The monthly drops are the
+  subscription's content and they are unbuilt.
+- **Reading itself** — the engines, Page mode, the bridge, the dictionary (free in code since
+  2026-11-20, §23), own-PDF import. Free by §4, and not to be gated later.
+
+### Sequencing
+
+New placements come from `paywall_shown` data, not from guesses. The eight pre-existing sources
+plus the four added here are enough to rank; anything further waits for the numbers. One caution
+that is not optional: §4 records that the **subscription currently carries no recurring value**
+until the drops ship, so every new surface sells that harder. New copy leads with the one-time
+purchase, as the modal already does.
 
 *This document is the contract. Update it before changing direction, not after.*

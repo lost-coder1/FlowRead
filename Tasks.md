@@ -8,7 +8,13 @@ decision taken. Completed work and resolved device findings live in
 **[Tasks-archive.md](Tasks-archive.md)**. The split rule: anything that would change a future
 decision stays here or in `Claude.md`; a record of an action already taken goes to the archive.
 
-**Last updated:** 2026-11-20 — **16.24 adds rotating feature-discovery tips** (branch
+**Last updated:** 2026-11-20 — **16.25 reworks paywall placement** (branch
+`paywall-placements`, stacked on `feature-discovery-tips`): Settings gains the only deliberate
+purchase path in the app, the locked font/theme chips and the device-sync note stop being dead
+ends, and the dashboard shows a real preview instead of a modal. The audit's other half — the four
+places a paywall must *not* go — is recorded in `Claude.md` §24.
+
+Also 2026-11-20 — **16.24 adds rotating feature-discovery tips** (branch
 `feature-discovery-tips`): twelve tips in `features/tips.js`, drawn by two surfaces — a one-line
 strip on home and a line in the nudge unlock modal. Deliberately *not* on the nudge screen itself
 — see the decisions log. **It also fixed a live §4-vs-code contradiction: the offline dictionary
@@ -196,6 +202,10 @@ which are the two to run first if time is short.
 | 2026-11-19 | **Settings' "with both on" note is rewritten, and dropped from onboarding entirely.** | The claim was stale: it said every-open already covers the threshold, which held under §9.3's original framing and stopped being true when §9.3a let the threshold fire mid-session. So it told the user one of their own choices did nothing when it did (§1.5). It now says they get both moments — the open, and again on a long sitting. Dropped from onboarding regardless, where on a first run any note there reads as a correction to a choice just made. The same stale claim was carried in two code comments (`nudge.js`, `settings.js`) and both are corrected. |
 | 2026-11-19 | **`_pushSettings()` returns a promise, and anything that reads the nudge state back must await it.** | `getNudgeStatus` is served from the same native prefs `_pushSettings` writes, so Settings was racing its own write: moving the daily-cap slider left the status line below quoting the previous cap until the screen was left and re-entered. Reported from use. Individual key writes still swallow their own failures, so one failing key cannot reject the whole push and strand the caller. |
 | 2026-11-20 | **Feature-discovery tips go on the nudge *unlock modal*, never the nudge screen.** | The nudge screen's two actions are deliberate peers and the escape hatch is a product rule (§9.1, §21). A third thing to read makes it one of three. The unlock modal is after the threshold is met: nothing withheld, nothing interrupted, and the user has just succeeded. |
+| 2026-11-20 | **Settings gets the one deliberate purchase path**, shown only to a user who has not paid. | Every other paywall is reactive, so someone who simply wanted to pay had nowhere to go — and §1.3's "prominently offered and genuinely purchasable" cannot hold when the only route to the lifetime option is bumping into a locked feature. One section, one screen the user navigated to themselves; explicitly not home and not a banner. |
+| 2026-11-20 | **A locked control must do something when tapped** — it opens the paywall rather than being `disabled`. | A dead lock icon is a silent failure (§1.5) and discards the best-timed paywall in the app: the user has just pointed at what they would buy. Applied to the font/theme chips and the device-sync note, and inherited by any future Pro gate. |
+| 2026-11-20 | **The dashboard shows itself before it asks**, with the user's real KPIs and the charts behind one named lock card. | A modal in front of a closed door never showed anyone what they would be buying. Nothing is fabricated — invented preview numbers would be §1.5's silent lie — so `paywall_shown` moves to the card's button and keeps meaning "was offered a price". |
+| 2026-11-20 | **No paywall at a nudge, a finished book or a streak milestone.** | §9.1: the escape hatch may never share a screen with a price. §15 already owns the completion moment with the share prompt, which is the distribution play §22 prioritises — trading a share for a paywall impression is the wrong trade in a distribution-bound product. |
 | 2026-11-20 | **Both surfaces ship: the home strip *and* the unlock-modal line.** | Owner's call, reversing a brief decision to keep only the modal. The modal reaches a user who completed a nudge-read; the strip reaches everyone else, which is most people, and is the only one of the two that can close the loop with a tap. |
 | 2026-11-20 | **A tip is never truncated, on either surface.** | A Hindi tip is routinely longer than its English twin, and a slot whose whole job is to explain something cannot clip the explanation. Both wrap; the strip grows to two or three lines. |
 | 2026-11-20 | **The offline dictionary is free in code, matching §4** — the Pro gate in `DictionaryFeature.showDictionaryModal()` is removed. | §4 has listed the dictionary under the free tier since the pivot's pricing was settled, while the code sent every free user to a paywall. It had been shipping unnoticed because nothing advertised the feature to the users it was withheld from — writing a tip for it is what exposed it. The gate was the bug, not the table. |
@@ -1221,6 +1231,68 @@ out its own tip rather than the pool; and the unlock pick never repeats the day'
   that a long Hindi tip wrapping does not push them off a short screen.
 - **A free account looking a word up** — the Pro gate is gone, so confirm the definition modal
   opens and the 82k dictionary loads without a purchase.
+
+---
+
+---
+
+## Task 16.25 — Paywall placement  ✅ code complete, device run + Hindi owed
+
+**Asked for (owner, 2026-11-20):** "We want to place it the time it need… We do not shy away from
+showing off pro benefits, but not do it unnecessarily and certainly not nagging."
+
+**The audit.** Eight placements existed, all routing to the one `showPaywall()` modal with a
+`source`: `url-reader`, `docx-import`, `txt-import`, `dashboard`, `image-scan`, `scanned-pdf`,
+`share`, `nudge-apps`. **Every one of them was reactive** — fired by bumping into a wall. Four
+things came out of that, all shipped on this branch.
+
+**1. There was no way to decide to pay.** Nothing in Settings, home or the dashboard offered an
+upgrade; Settings had Restore purchases, which to someone who has never bought reads as a dead
+end. So a user who had read four books and wanted to pay could not find the paywall without
+triggering a feature they did not want — and §1.3's "prominently offered and genuinely
+purchasable" cannot hold when the only route is an accident. Added as the **first Settings
+section, only for a user who has not paid**: heading, one line of what it unlocks, one button,
+one muted line that leads with the one-time purchase (§4's note that the subscription has no
+recurring value yet). `source: 'settings'`. Not on home, not a banner.
+
+**2. Locked font and theme chips did nothing when tapped.** They were rendered `disabled` with a
+🔒, so a tap on the exact thing the user wanted was a silent failure (§1.5) *and* the
+best-timed paywall in the app thrown away. Now tappable, still refuse to apply the setting, and
+open the paywall — `source: 'font'` / `'theme'`. The `:disabled` CSS went with it, or a tappable
+chip would still show a not-allowed cursor.
+
+**3. The device-sync sheet's "DOCX and TXT require Pro" was inert text** under a list of the
+user's own files that would not open. Now a button with a quiet CTA — `source: 'device-sync'` —
+and it closes the sheet first, since §21 allows one modal at a time.
+
+**4. The dashboard answered a tap with a modal**, so nobody ever saw what they would be buying.
+`renderDashboard({ locked })` now opens the real screen with the user's **own** KPI figures and
+one card where the charts would be, naming the four things Pro adds. Nothing is fabricated — a
+preview with invented numbers is the silent lie §1.5 forbids, so the tiles are real and the
+withheld parts are *named* rather than blurred. `paywall_shown` fires on the card's button, not
+on arrival, so the event keeps meaning "was offered a price". `reader.js`'s back-path call passes
+`{ locked: !AppState.isPro }` too — reachable by a lapsed subscriber who opened a book from the
+dashboard while it was still unlocked.
+
+**Where a paywall deliberately does not go**, and this is the half of the audit worth keeping:
+the nudge screen and its unlock modal (§9.1 — the escape hatch may never share a screen with a
+price), book completion and streak milestones (§15's share prompt owns that moment, and §22 says
+distribution beats monetisation here), the Free Books catalogue (§4 gives it away), and reading
+itself. `Claude.md` §24 records all of it.
+
+**Verification.** A 16-assertion headless render of both dashboard states: a free user gets the
+KPI grid with real figures, the lock card and the share button, and **no** WPM chart, heatmap,
+completion-by-type or library grid; a Pro user gets all four and no lock card; a free user with no
+sessions at all still renders rather than throwing. Both locales symmetric at 649 keys.
+
+**Device run owed:**
+- Settings as a free user: the Unlock section is there, and **absent** once anything is bought.
+- Tap a locked theme and a locked font chip — paywall opens, and the theme does *not* change
+  underneath it.
+- The dashboard preview on a real account with real history: that the KPI numbers are right and
+  the lock card reads as part of the screen rather than an ad.
+- The sync sheet note, which needs a device with a non-PDF in a scanned folder.
+- Hindi on all four — the Settings body line and `dashboard.locked.*` are the long ones.
 
 ---
 

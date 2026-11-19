@@ -140,9 +140,14 @@ function syncThemeChips() {
 
     button.classList.toggle('active', isActive);
     button.classList.toggle('locked', locked);
-    button.disabled = locked;
+    /* Deliberately NOT disabled. A locked chip used to be `disabled`, so
+       tapping the thing you want did nothing at all — a silent failure (§1.5),
+       and the best-timed paywall in the app thrown away: the user has just
+       pointed at exactly what they would be buying. It stays marked with the
+       lock and still refuses to apply; the tap opens the paywall instead. */
+    button.disabled = false;
     button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-    button.setAttribute('aria-disabled', locked ? 'true' : 'false');
+    button.removeAttribute('aria-disabled');
     const themeItem = FlowReadThemes.find(function(item) { return item.key === themeKey; });
     button.textContent = t(themeItem.labelKey) + (locked ? ' 🔒' : '');
   });
@@ -157,9 +162,10 @@ function syncTypographyChips() {
 
     button.classList.toggle('active', isActive);
     button.classList.toggle('locked', locked);
-    button.disabled = locked;
+    /* See syncThemeChips: locked is not disabled. */
+    button.disabled = false;
     button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-    button.setAttribute('aria-disabled', locked ? 'true' : 'false');
+    button.removeAttribute('aria-disabled');
     const fontItem = FlowReadTypographyPresets.find(function(item) { return item.key === fontKey; });
     button.textContent = t(fontItem.labelKey) + (locked ? ' 🔒' : '');
   });
@@ -270,6 +276,26 @@ function renderSettings() {
         </div>
       </div>
 
+      <!-- UNLOCK — the only deliberate purchase path in the app.
+           Every other paywall is reactive: it fires when the user bumps into a
+           locked feature. So someone who has read four books and simply wants
+           to pay had nowhere to go — Settings offered Restore purchases, which
+           to a non-purchaser reads like a dead end. That also sat badly with
+           §1.3, which requires the lifetime option stay "prominently offered
+           and genuinely purchasable": it cannot be, if the only way to see it
+           is by accident.
+           Shown only to a user who has not paid, once, on a screen they
+           navigated to themselves — not a banner, not on home, nothing that
+           follows them around (§1.3, §1.6). -->
+      ${!AppState.isPro ? `
+      <section class="settings-section settings-unlock">
+        <h2>${t('settings.section.unlock')}</h2>
+        <p class="settings-copy">${t('settings.unlock.body')}</p>
+        <button class="btn btn-primary settings-unlock-btn" id="btn-settings-unlock" type="button">${t('settings.unlock.btn')}</button>
+        <p class="settings-copy text-muted">${t('settings.unlock.note')}</p>
+      </section>
+      ` : ''}
+
       <!-- APPEARANCE -->
       <section class="settings-section">
         <h2>${t('settings.section.appearance')}</h2>
@@ -293,7 +319,7 @@ function renderSettings() {
           ${FlowReadTypographyPresets.map(function(font) {
             const locked = !isTypographyPresetUnlocked(font.key, AppState.isPro);
             const active = font.key === activeFont;
-            return `<button class="settings-font-chip${active ? ' active' : ''}${locked ? ' locked' : ''}" type="button" data-font-value="${font.key}" aria-pressed="${active ? 'true' : 'false'}" ${locked ? 'disabled aria-disabled="true"' : ''}>${t(font.labelKey)}${locked ? ' 🔒' : ''}</button>`;
+            return `<button class="settings-font-chip${active ? ' active' : ''}${locked ? ' locked' : ''}" type="button" data-font-value="${font.key}" aria-pressed="${active ? 'true' : 'false'}">${t(font.labelKey)}${locked ? ' 🔒' : ''}</button>`;
           }).join('')}
         </div>
 
@@ -302,7 +328,7 @@ function renderSettings() {
           ${FlowReadThemes.map(function(theme) {
             const locked = !isThemeUnlocked(theme.key, AppState.isPro);
             const active = theme.key === activeTheme;
-            return `<button class="settings-theme-chip${active ? ' active' : ''}${locked ? ' locked' : ''}" type="button" data-theme-value="${theme.key}" aria-pressed="${active ? 'true' : 'false'}" ${locked ? 'disabled aria-disabled="true"' : ''}>${t(theme.labelKey)}${locked ? ' 🔒' : ''}</button>`;
+            return `<button class="settings-theme-chip${active ? ' active' : ''}${locked ? ' locked' : ''}" type="button" data-theme-value="${theme.key}" aria-pressed="${active ? 'true' : 'false'}">${t(theme.labelKey)}${locked ? ' 🔒' : ''}</button>`;
           }).join('')}
         </div>
       </section>
@@ -529,8 +555,13 @@ function bindSettings() {
 
   qsa('[data-font-value]').forEach(function(button) {
     button.addEventListener('click', function() {
-      if (this.disabled) return;
       const fontPreset = this.dataset.fontValue;
+      /* The setting is not written — the chip shows what it would take to have
+         it, and the user is left on the font they actually have. */
+      if (!isTypographyPresetUnlocked(fontPreset, AppState.isPro)) {
+        if (typeof showProPaywall === 'function') showProPaywall('font');
+        return;
+      }
       updateSetting('fontPreset', fontPreset);
       applyTypography(fontPreset);
       syncTypographyChips();
@@ -559,13 +590,24 @@ function bindSettings() {
 
   qsa('[data-theme-value]').forEach(function(button) {
     button.addEventListener('click', function() {
-      if (this.disabled) return;
       const theme = this.dataset.themeValue;
+      /* See the font chips above. */
+      if (!isThemeUnlocked(theme, AppState.isPro)) {
+        if (typeof showProPaywall === 'function') showProPaywall('theme');
+        return;
+      }
       updateSetting('theme', theme);
       applyTheme(theme);
       syncThemeChips();
     });
   });
+
+  const unlockBtn = qs('#btn-settings-unlock');
+  if (unlockBtn) {
+    unlockBtn.addEventListener('click', function() {
+      if (typeof showProPaywall === 'function') showProPaywall('settings');
+    });
+  }
 
   const restoreBtn = qs('#btn-settings-restore');
   if (restoreBtn) {

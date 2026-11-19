@@ -978,14 +978,21 @@
   border-color: var(--accent);
 }
 
+/* The one deliberate purchase path (Settings → Unlock). Sized like any other
+   settings action, not like a promotion: no accent-filled card, no badge, no
+   full-bleed strip. §1.3 — offered, not pushed. */
+.settings-unlock-btn {
+  align-self: flex-start;
+  margin-top: var(--space-sm);
+}
+
+/* A locked chip is tappable — it opens the paywall rather than doing nothing
+   (§1.5) — so it must not look or feel unavailable. Dimmed and marked with the
+   lock glyph, but an ordinary pointer: no `:disabled`, no not-allowed cursor. */
 .settings-font-chip.locked,
 .settings-theme-chip.locked {
   color: var(--text-muted);
-}
-
-.settings-font-chip:disabled,
-.settings-theme-chip:disabled {
-  cursor: not-allowed;
+  cursor: pointer;
   opacity: 0.72;
 }
 
@@ -2998,4 +3005,43 @@
   font-size: 12px;
   line-height: 1.4;
   color: var(--text-muted);
+/* ── Dashboard preview lock card ────────────────────────────────────────
+   Stands where the charts would be, for a user who has not paid. Built from
+   the same .dashboard-section as everything around it — the point of the
+   preview is that the screen looks like itself, so a card with its own
+   palette or a full-bleed promo strip would undo it (§16). */
+.dashboard-locked-list {
+  margin: var(--space-sm) 0 var(--space-md);
+  padding-left: 18px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.dashboard-locked-list li {
+  margin: 2px 0;
+}
+
+.dashboard-locked .btn-primary {
+  align-self: flex-start;
+}
+
+/* The device-sync sheet's Pro note is a button now, not a paragraph, so it has
+   to stop inheriting the paragraph look. Still a note in weight and colour:
+   the sheet is a file list, and this is a line under it, not a call to
+   action competing with the files. */
+.sync-sheet-note-action {
+  display: block;
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: var(--space-sm) var(--space-md);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.sync-sheet-note-cta {
+  color: var(--accent);
+  white-space: nowrap;
 }

@@ -1168,11 +1168,16 @@ async function openTxtReader() {
 
 async function openDashboard() {
   const pro = await hasProAccess();
-  if (!pro) {
-    showProPaywall('dashboard');
-    return;
-  }
-  renderDashboard();
+  /* This used to answer a tap on the Dashboard card with a paywall modal and
+     nothing else, so nobody ever saw what they would be buying. It opens the
+     real screen now, with the user's own top-line numbers and a locked panel
+     in place of the charts — "show value first", the same reasoning §10.1
+     applies to onboarding. Nothing is fabricated: the KPIs are the real
+     figures, and what is withheld is named rather than faked (§1.5).
+     `paywall_shown` consequently fires when the user taps the panel's button,
+     not on arriving here, which keeps that event meaning "was offered a
+     price" rather than "opened a screen". */
+  renderDashboard({ locked: !pro });
   switchView('view-dashboard');
 }
 
@@ -2189,8 +2194,16 @@ function _showSyncSheet(files, isPro) {
   }).join('');
 
   const hasNonPdf = files.some(function(f) { return !f.name.toLowerCase().endsWith('.pdf'); });
+  /* The note used to be plain text, while the user was looking at a list of
+     their own DOCX and TXT files that would not open. Same defect as the locked
+     appearance chips: the moment someone is staring at the thing they cannot
+     have is the moment to say what it costs, and saying it without a way to act
+     is a dead end (§1.5). A button, not a banner — it is only here when there
+     is actually a non-PDF in the list. */
   const noteHtml = (!isPro && hasNonPdf)
-    ? '<p class="sync-sheet-note">' + t('library.sync_note.non_pdf') + '</p>'
+    ? '<button class="sync-sheet-note sync-sheet-note-action" id="btn-sync-unlock" type="button">' +
+        escapeHtml(t('library.sync_note.non_pdf')) + ' <span class="sync-sheet-note-cta">' +
+        escapeHtml(t('library.sync_note.cta')) + '</span></button>'
     : '';
 
   sheet.innerHTML = [
@@ -2208,6 +2221,16 @@ function _showSyncSheet(files, isPro) {
   document.body.appendChild(sheet);
 
   qs('#btn-sync-close', sheet).addEventListener('click', function() { sheet.remove(); });
+
+  const syncUnlock = qs('#btn-sync-unlock', sheet);
+  if (syncUnlock) {
+    syncUnlock.addEventListener('click', function() {
+      /* The sheet goes first: §21 allows one modal at a time, and the paywall
+         is the one the user just asked for. */
+      sheet.remove();
+      if (typeof showProPaywall === 'function') showProPaywall('device-sync');
+    });
+  }
   qs('.sync-sheet-backdrop', sheet).addEventListener('click', function() { sheet.remove(); });
 
   qsa('.sync-sheet-item', sheet).forEach(function(item) {

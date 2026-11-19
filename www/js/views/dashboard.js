@@ -170,8 +170,17 @@ function renderHeatmapHtml(heatmapData) {
   `;
 }
 
-function renderDashboard() {
+/* `opts.locked` renders the preview a free user sees: the real KPI tiles, and
+   one card in place of everything below them naming what Pro adds. The tiles
+   are the user's own figures — a preview that invented numbers would be the
+   silent lie §1.5 forbids, and a blurred screenshot teaches nothing about
+   whether the feature is worth paying for.
+   What stays behind the lock is everything that took work to build: the WPM
+   trend, the 90-day heatmap, completion by file type, and the per-book
+   time-remaining estimates. */
+function renderDashboard(opts) {
   closeActiveModal();
+  const locked = !!(opts && opts.locked);
   const view = qs('#view-dashboard');
   if (!view) return;
 
@@ -236,14 +245,27 @@ function renderDashboard() {
         </div>
       </div>
 
-      ${sessions.length > 0 ? `
+      ${locked ? `
+        <section class="dashboard-section dashboard-locked">
+          <h2 class="section-heading">${t('dashboard.locked.title')}</h2>
+          <ul class="dashboard-locked-list">
+            <li>${t('dashboard.locked.item1')}</li>
+            <li>${t('dashboard.locked.item2')}</li>
+            <li>${t('dashboard.locked.item3')}</li>
+            <li>${t('dashboard.locked.item4')}</li>
+          </ul>
+          <button class="btn btn-primary" id="btn-dashboard-unlock" type="button">${t('dashboard.locked.btn')}</button>
+        </section>
+      ` : ''}
+
+      ${!locked && sessions.length > 0 ? `
         <section class="dashboard-section">
           <h2 class="section-heading">${t('dashboard.section.wpm_progress')}</h2>
           ${wpmChartHtml}
         </section>
       ` : ''}
 
-      ${lib.length > 0 ? `
+      ${!locked && lib.length > 0 ? `
         <section class="dashboard-section">
           <h2 class="section-heading">${t('dashboard.section.files_completed')}</h2>
           ${totalCompletedFiles > 0 ? `
@@ -270,14 +292,14 @@ function renderDashboard() {
         </section>
       ` : ''}
 
-      ${sessions.length > 0 ? `
+      ${!locked && sessions.length > 0 ? `
         <section class="dashboard-section">
           <h2 class="section-heading">${t('dashboard.section.heatmap')}</h2>
           ${heatmapHtml}
         </section>
       ` : ''}
 
-      ${activeLib.length > 0 ? `
+      ${!locked && activeLib.length > 0 ? `
         <section class="dashboard-section">
           <h2 class="library-heading">${t('dashboard.section.library')}</h2>
           <div class="library-grid">
@@ -298,7 +320,7 @@ function renderDashboard() {
         </section>
       ` : ''}
 
-      ${readLib.length > 0 ? `
+      ${!locked && readLib.length > 0 ? `
         <section class="dashboard-section">
           <button class="library-collapse-toggle" id="btn-dash-read-toggle" type="button">
             <span class="library-heading">${t('dashboard.section.read')}</span>
@@ -323,7 +345,7 @@ function renderDashboard() {
         </section>
       ` : ''}
 
-      ${sessions.length === 0 ? `
+      ${!locked && sessions.length === 0 ? `
         <p class="dashboard-empty">${t('dashboard.empty')}</p>
       ` : ''}
     </div>
@@ -332,6 +354,13 @@ function renderDashboard() {
   const dashShare = qs('#btn-dashboard-share', view);
   if (dashShare && typeof ShareStats !== 'undefined') {
     dashShare.addEventListener('click', function() { ShareStats.openSheet({ source: 'dashboard' }); });
+  }
+
+  const dashUnlock = qs('#btn-dashboard-unlock', view);
+  if (dashUnlock) {
+    dashUnlock.addEventListener('click', function() {
+      if (typeof showProPaywall === 'function') showProPaywall('dashboard');
+    });
   }
 
   qs('#btn-dashboard-back').addEventListener('click', function() {
