@@ -2894,16 +2894,103 @@
   white-space: nowrap;
 }
 
-/* ── Feature-discovery tip in the nudge unlock modal (§23) ─────────────
-   The only surface a tip appears on. A home strip was built and dropped
-   (owner, 2026-11-20); its styles went with it.
+/* ── Feature-discovery tips (§23) ───────────────────────────────────────
+   One line, aligned to the same 680px column as everything else on home. Not a
+   card: the setup prompt above it is a card because it is waiting for an
+   answer, and a tip that looks the same would read as a second unanswered
+   to-do. --surface-2 rather than --surface so it sits *under* that prompt in
+   the visual hierarchy instead of beside it. No new palette entries, radius
+   within §16's 2–4px. */
+.home-tip {
+  display: flex;
+  align-items: stretch;   /* the dismiss rule divider spans whatever height the text needs */
+  width: 100%;
+  max-width: 680px;
+  margin: 0 var(--space-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+}
 
-   Separated from the body above it, and a step down in size and colour: the
-   modal's own sentence is about what the user just earned, and this must not
-   compete with it. **It wraps** — no truncation, no single-line clamp (owner,
-   2026-11-20). A Hindi tip is routinely longer than its English twin, and half
-   a sentence with an ellipsis teaches nothing; another line costs nothing in a
-   modal that is already sized by its body text. */
+.home-tip-main {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  min-width: 0;
+  padding: 10px var(--space-md);
+  background: none;
+  border: 0;
+  font-family: var(--font-display);
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--text-muted);
+  text-align: left;
+  cursor: pointer;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.home-tip-main:hover,
+.home-tip-main:active {
+  color: var(--text);
+  background: var(--surface);
+}
+
+/* A tip with nowhere to go is a span, not a button, so it must not look or
+   behave like one. */
+.home-tip-inert,
+.home-tip-inert:hover {
+  cursor: default;
+  background: none;
+  color: var(--text-muted);
+}
+
+/* It wraps — no ellipsis, no single-line clamp (owner, 2026-11-20). A Hindi tip
+   is routinely longer than its English twin, and half a sentence with an
+   ellipsis teaches nothing, which is the whole point of the slot. The strip
+   grows to two or three lines instead; it is still a strip, because nothing
+   else about it changes. */
+.home-tip-text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Aligned to the first line, not centred on a block that may now be three
+   lines tall. */
+.home-tip-arrow {
+  flex: none;
+  align-self: flex-start;
+  padding-top: 1px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--accent);
+  opacity: 0.7;
+}
+
+.home-tip-dismiss {
+  flex: none;
+  align-self: stretch;
+  padding: 0 12px;
+  background: none;
+  border: 0;
+  border-left: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 15px;
+  line-height: 1;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 0.12s ease;
+}
+
+.home-tip-dismiss:hover,
+.home-tip-dismiss:active {
+  color: var(--text-muted);
+}
+
+/* The same pool's line in the nudge unlock modal (§23). Separated from the body
+   above it, and a step down in size and colour: the modal's own sentence is
+   about what the user just earned, and this must not compete with it. */
 .nudge-unlock-tip {
   margin: var(--space-md) 0 0;
   padding-top: var(--space-md);

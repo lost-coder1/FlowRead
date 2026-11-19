@@ -1,4 +1,4 @@
-/* Dictionary Feature — local offline word lookup (Pro) */
+/* Dictionary Feature — local offline word lookup, free for everyone (§4) */
 
 const DictionaryFeature = (function() {
   let _dict = null;
@@ -29,15 +29,8 @@ const DictionaryFeature = (function() {
     document.dispatchEvent(new CustomEvent('fr-reading-pause'));
 
     /* §23: the tip that teaches this has done its whole job the first time
-       someone looks a word up, so retire it here rather than counting shows.
-       Before the Pro gate deliberately — reaching the gate still means they
-       found the feature, and offering to teach it afterwards would be absurd. */
+       someone looks a word up, so retire it here rather than counting shows. */
     if (typeof TipsFeature !== 'undefined') TipsFeature.markDone('dictionary');
-
-    if (!AppState.isPro) {
-      _showProGate(cleanWord);
-      return;
-    }
 
     if (!_dict) {
       loadDictionary().then(function() { _renderModal(cleanWord); });
@@ -46,32 +39,13 @@ const DictionaryFeature = (function() {
     }
   }
 
-  function _showProGate(word) {
-    const root = qs('#modal-root');
-    if (!root) return;
-    closeActiveModal();
-    AppState.activeModal = 'dictionary';
-    root.innerHTML = '<div class="modal-backdrop" id="modal-backdrop">' +
-      '<div class="modal-card dict-modal-card" role="dialog" aria-modal="true">' +
-        '<p class="modal-kicker">Pro feature</p>' +
-        '<h2 class="modal-title">Local Dictionary</h2>' +
-        '<p class="modal-body">Look up any word while reading — 82,000+ English words, fully offline.</p>' +
-        '<div class="modal-actions">' +
-          '<button class="btn btn-ghost" id="btn-dict-device">Look up online</button>' +
-          '<button class="btn btn-primary" id="btn-dict-unlock">Unlock Pro</button>' +
-        '</div>' +
-      '</div>' +
-    '</div>';
-    qs('#btn-dict-device').addEventListener('click', function() {
-      closeActiveModal(); openDeviceDictionary(word);
-    });
-    qs('#btn-dict-unlock').addEventListener('click', function() {
-      closeActiveModal(); showProPaywall('dictionary');
-    });
-    qs('#modal-backdrop').addEventListener('click', function(e) {
-      if (e.target.id === 'modal-backdrop') closeActiveModal();
-    });
-  }
+  /* There was a Pro gate here, and it contradicted the contract: §4 has listed
+     the dictionary under the free tier since the pivot's pricing was settled,
+     while this function sent every free user to a paywall instead. Removed
+     2026-11-20 on the owner's call — the gate was the bug, not the table. The
+     online lookup it offered as a consolation is still reachable from the
+     modal's own button and from the word-tap setting, so nothing was lost with
+     it. */
 
   function _renderModal(cleanWord) {
     const entries = lookupWord(cleanWord);

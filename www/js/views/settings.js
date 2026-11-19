@@ -38,7 +38,7 @@ const FlowReadContent = {
     },
     {
       title: 'Offline dictionary coverage',
-      body: 'Pro tier dictionary contains ~150k common words. Specialised medical, legal, or technical terms may not be found. System dictionary fallback is available on iOS and Android.',
+      body: 'The offline dictionary contains ~150k common words. Specialised medical, legal, or technical terms may not be found. System dictionary fallback is available on iOS and Android.',
     },
     {
       title: 'URL reader (Pro)',

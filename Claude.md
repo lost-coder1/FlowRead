@@ -1021,10 +1021,12 @@ in the UI, and the reason to fix it here rather than with a help screen is that 
 screen.
 
 `features/tips.js` owns a pool, which tip comes next, and the bookkeeping that stops one outliving
-its usefulness. **The nudge unlock modal is the only surface** (owner, 2026-11-20) — one line under
-the credit sentence, drawn by `features/nudge.js`. A one-line home strip with tappable tips was
-built alongside it and then dropped: the unlock modal is the slot that rations itself, and a second
-always-present surface was more than the idea needed.
+its usefulness. Two surfaces draw from it, and the split between them is the design:
+
+| Surface | Shows | Tappable |
+|---|---|---|
+| Nudge unlock modal (`features/nudge.js`) | after every completed nudge-read | no — inert text |
+| Home strip (`views/upload.js`) | one a day, the same one all day | yes, when the tip has a destination |
 
 **Three rules, and they are the whole design:**
 
@@ -1032,46 +1034,53 @@ always-present surface was more than the idea needed.
    deliberate peers — Start reading, and the escape hatch §9.1 and §21 make a product rule rather
    than a style preference. A third thing to read, and worse a third thing to tap, makes the
    escape hatch one of three, which is how a nudge starts reading as a wall. **The unlock modal is
-   the slot**: the threshold is already met, so nothing is withheld and nothing is interrupted, and
-   the user has just succeeded — which is when a "you can also…" is welcome rather than noise. It
-   also needs no throttle of its own, because a completed nudge-read is rare and earned. This was
-   weighed and rejected rather than overlooked; re-adding it needs a logged decision.
+   the nudge path's slot**: the threshold is already met, so nothing is withheld and nothing is
+   interrupted, and the user has just succeeded — which is when a "you can also…" is welcome
+   rather than noise. It also needs no throttle of its own, because a completed nudge-read is rare
+   and earned. This was weighed and rejected rather than overlooked; re-adding it needs a logged
+   decision.
 2. **Relevance is a gate, and it is not the same thing as a cap.** A tip's `when()` asks whether
    *this user* has any use for it — the import tip disappears the moment a non-catalogue book is
-   in the library, the bridge tip only appears when the last book opened was a PDF, the OCR tip
+   in the library, the bridge tip only appears when the last book opened was a PDF, the scan tip
    only reaches someone who has OCR at all. Separately, **every tip is spent after three shows**,
    acted on or not, because a tip that keeps arriving after being understood and declined is the
    nagging §1.6 rules out. Capability tips also retire the first time the user does the thing,
    which is what `TipsFeature.markDone()` is for — called from the feature itself
    (`dictionary.js`, `bridge.js`), not from the strip.
-3. **The line is inert text, and it wraps.** The unlock modal exists for the choice between the
-   book and the app the user just earned; navigating off it would discard what they read for. If a
-   surface where nothing is pending is ever added back, a tap there may do the thing the sentence
-   describes — not here. And **no truncation** (owner, 2026-11-20): a Hindi tip is routinely longer
-   than its English twin, half a sentence with an ellipsis teaches nothing, and a second line costs
-   nothing in a modal already sized by its body text.
+3. **Tappable only where nothing else is pending.** On the home strip a tap does the thing the
+   sentence describes, which is what closes the loop — "open your own PDF" sits one row above the
+   PDF card. In the unlock modal it is inert text: that modal exists for the choice between the
+   book and the app the user just earned, and navigating off it would discard what they read for.
 
-**Two further constraints that are easy to lose:**
+**Three further constraints that are easy to lose:**
 
+- **A tip is never truncated** (owner, 2026-11-20). Not on the strip, not in the modal. A Hindi tip
+  is routinely longer than its English twin, half a sentence with an ellipsis teaches nothing, and
+  a slot whose whole job is to explain something cannot clip the explanation. Both surfaces wrap to
+  as many lines as the sentence needs.
 - **A tip must never teach a locked feature.** DOCX/TXT import and Scan are Pro (§4), so the
   import tip names PDF, which is free, and the scan tip is gated on Pro. A tip for something the
   user cannot do is an advert, and this slot is not an advert — §4 rules out in-app advertising
-  outright.
+  outright. **This is the rule that found the dictionary bug** below: a tip that cannot be acted on
+  is the symptom, and the gate behind it is usually the defect.
 - **Rotation is round-robin from a stored cursor, not random.** Random is correct for the nudge's
   six interchangeable subtitles and wrong for a dozen distinct tips: it repeats one three times
-  before another is seen, and a tip nobody sees is a feature nobody learns.
+  before another is seen, and a tip nobody sees is a feature nobody learns. One tip per calendar
+  day on the strip, the same one all day — picking per render reshuffles it every time the user
+  backs out of a reader, which reads as a glitch and spends the show cap in an afternoon.
 
 **No analytics event.** `tip_shown` is not in §9.6's allowlist and was deliberately not added: the
 list is closed so that a caller cannot quietly widen what is collected, and retirement-on-action
 already shows up in the existing events (`import_completed`, `book_opened`). Adding one is a
 product decision, not an implementation detail.
 
-**One tip can reach a user who cannot yet act on it, knowingly.** §4 lists the dictionary under
-the free tier, but `DictionaryFeature.showDictionaryModal()` gates the lookup on `AppState.isPro`
-and shows a Pro gate. The owner's call (2026-11-20) is that the tip is right for both tiers, so it
-carries no gate — which makes the lookup's own gate the thing to change if a free user following
-the tip meets a paywall. **That gate is still there and is still a live §4-vs-code disagreement.**
-It is also the one place in this section where a tip can read as an advert, which is why it is a
-decision and not an oversight.
+**The dictionary is now free in code, as §4 has always said** (owner, 2026-11-20). Writing the
+dictionary tip surfaced that `DictionaryFeature.showDictionaryModal()` gated the lookup on
+`AppState.isPro` and sent every free user to a paywall, while §4 lists the dictionary under the
+free tier — a contradiction that had been shipping unnoticed because nothing in the UI advertised
+the feature to the users it was being withheld from. **The gate was the bug, not the table**: it is
+removed, `_showProGate` is gone, and the limitations copy no longer says "Pro tier dictionary" in
+either language (§1.5). The online-lookup fallback that gate offered is still reachable from the
+dictionary modal's own button and from the word-tap setting.
 
 *This document is the contract. Update it before changing direction, not after.*
