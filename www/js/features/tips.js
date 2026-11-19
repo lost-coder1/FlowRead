@@ -9,24 +9,24 @@
 
    What this module owns: the pool, which tip comes next, and the bookkeeping
    that stops a tip outliving its usefulness. Where a tip is *shown* belongs to
-   the surface showing it — the home strip is in views/upload.js, the unlock line
-   in features/nudge.js — because those two have nothing in common beyond asking
-   this module a question.
+   the surface showing it — features/nudge.js draws the one surface there is.
 
-   Two rules from the design discussion are load-bearing and easy to erode:
+   **The nudge unlock modal is the only place a tip appears** (owner,
+   2026-11-20). Two rules behind that, and they are easy to erode:
 
    1. **Nothing goes on the nudge screen itself.** That screen has exactly two
       actions and they are deliberate peers: Start reading, and the escape hatch
       (§9.1, and the §21 UX rule that makes it a product rule rather than a style
       one). A third thing to look at — worse, a third thing to tap — makes the
       escape hatch one of three, which is how a nudge starts reading as a wall.
-      The unlock modal is the nudge-path home for a tip: the user has already met
-      the threshold, so nothing is being held back and nothing is interrupted.
-   2. **A tip is tappable only where nothing else is pending.** On the home
-      strip, a tap does the thing it describes. In the unlock modal it is inert
-      text, because the one thing that modal is for is the choice between the
-      book and the app the user just earned — navigating off it would throw away
-      what they read for. */
+      The unlock modal is after the threshold is met: nothing is being held back
+      and nothing is interrupted, and the user has just succeeded.
+   2. **A tip is inert text.** The one thing the unlock modal is for is the
+      choice between the book and the app the user just earned, and navigating
+      off it would throw away what they read for. A home strip with tappable
+      tips was built and then dropped; if a surface where nothing is pending is
+      ever added back, a tap there may do the thing the sentence describes, but
+      not here. */
 
 const TipsFeature = (function() {
 
@@ -37,7 +37,6 @@ const TipsFeature = (function() {
   const MAX_SHOWS = 3;
 
   const CURSOR_KEY = 'fr_tips_cursor';
-  const HOME_KEY = 'fr_tips_home';
   const SHOWN_PREFIX = 'fr_tips_shown_';
   const DONE_PREFIX = 'fr_tips_done_';
 
@@ -127,10 +126,6 @@ const TipsFeature = (function() {
      which is a different thing from having outgrown it. A tip with no `when`
      applies to everyone and is retired by the show cap alone.
 
-     `go` is what a tap does on the home strip. Omit it for anything that can
-     only happen inside a reader — sending someone into a book to demonstrate a
-     long-press would be a navigation they did not ask for.
-
      Nothing here may teach a locked feature to a user who does not have it: the
      DOCX/TXT cards and Scan are Pro (§4), so `import` names PDF, which is free
      for everyone, and `scan` is gated on Pro. */
@@ -139,24 +134,22 @@ const TipsFeature = (function() {
       id: 'import',
       key: 'tip.import',
       when: function() { return !_hasOwnImport(); },
-      go: function() { const el = qs('#file-input'); if (el) el.click(); },
     },
     {
       id: 'freebooks',
       key: 'tip.freebooks',
       when: function() { return !_hasCatalogueBook(); },
-      go: function() { renderFreeBooks(); switchView('view-free-books'); },
     },
     {
       id: 'dictionary',
       key: 'tip.dictionary',
-      /* §4 lists the dictionary under the free tier, but
-         DictionaryFeature.showDictionaryModal() gates it on AppState.isPro and
-         shows a Pro gate instead — so as the code stands this is a Pro feature
-         and teaching it to a free user would be an advert for a paywall. Gated
-         to match the code, not the table. If that gate is the bug (§4 reads
-         like it is), drop this `when` with it. */
-      when: function() { return AppState.isPro === true; },
+      /* Ungated on purpose (owner, 2026-11-20), and the one tip in the pool
+         that can reach a user who cannot yet act on it:
+         DictionaryFeature.showDictionaryModal() gates the lookup itself on
+         AppState.isPro and shows a Pro gate, while §4 lists the dictionary
+         under the free tier. The owner's call is that the tip is right for both
+         tiers — so if the free user following it still meets a paywall, the
+         thing to change is that gate, not this line. */
     },
     {
       id: 'bridge',
@@ -184,26 +177,23 @@ const TipsFeature = (function() {
     {
       id: 'paste',
       key: 'tip.paste',
-      go: function() { openPasteText(); },
     },
     {
       id: 'share',
       key: 'tip.share',
       when: _hasSomethingToShare,
-      go: function() { ShareStats.openSheet({ source: 'home' }); },
     },
     {
       id: 'nudge_settings',
       key: 'tip.nudge_settings',
       when: _nudgeConfigured,
-      go: function() { renderSettings(); },
     },
     {
       id: 'scan',
       key: 'tip.scan',
-      /* AppState.isPro is written by hasProAccess(), which the home screen
-         awaits before this is consulted. Read rather than re-queried because
-         the gate must stay synchronous. */
+      /* AppState.isPro is written by hasProAccess(), which app.js awaits on
+         boot, so it is settled long before any nudge. Read rather than
+         re-queried because the gate must stay synchronous. */
       when: function() { return AppState.isPro === true; },
     },
   ];
@@ -219,8 +209,7 @@ const TipsFeature = (function() {
   }
 
   /* Called from the feature itself the first time the user does the thing — the
-     dictionary modal opening, a bridge jump — and by the strip's dismiss. Both
-     mean the same thing to this module: stop offering it. Cheap enough to call
+     dictionary modal opening, a bridge jump. Cheap enough to call
      unconditionally from a hot path; it is a single localStorage read once the
      flag is set. */
   function markDone(id) {
@@ -241,21 +230,15 @@ const TipsFeature = (function() {
     return true;
   }
 
-  function _byId(id) {
-    for (var i = 0; i < TIPS.length; i++) if (TIPS[i].id === id) return TIPS[i];
-    return null;
-  }
-
   /* Round-robin from a stored cursor, not random. Random is right for the
      nudge's six interchangeable subtitles and wrong here: with a dozen distinct
      tips it repeats one three times before another is ever seen, and a tip
      nobody sees is a feature nobody learns. */
-  function _next(skipId) {
+  function _next() {
     const start = _num(CURSOR_KEY);
     for (var i = 0; i < TIPS.length; i++) {
       const idx = (start + i) % TIPS.length;
       const tip = TIPS[idx];
-      if (tip.id === skipId) continue;
       if (!_eligible(tip)) continue;
       try { localStorage.setItem(CURSOR_KEY, String((idx + 1) % TIPS.length)); } catch (_) {}
       return tip;
@@ -267,63 +250,14 @@ const TipsFeature = (function() {
     try { localStorage.setItem(SHOWN_PREFIX + id, String(_num(SHOWN_PREFIX + id) + 1)); } catch (_) {}
   }
 
-  function _homeState() {
-    try { return JSON.parse(localStorage.getItem(HOME_KEY) || '{}') || {}; } catch (_) { return {}; }
-  }
-
-  function _saveHomeState(state) {
-    try { localStorage.setItem(HOME_KEY, JSON.stringify(state)); } catch (_) {}
-  }
-
   /* ── Selection ───────────────────────────────────────────────────────── */
 
-  /* One tip per calendar day, and the same one all day. Picking per render would
-     reshuffle it every time the user backs out of a reader, which reads as a
-     glitch rather than a rotation — and would spend the show cap in an
-     afternoon. The day's choice is re-validated rather than trusted: a tip the
-     user acted on at lunchtime is gone by the evening. */
-  function pickForHome() {
-    const today = (typeof todayDateString === 'function') ? todayDateString() : '';
-    const state = _homeState();
-
-    if (state.day === today) {
-      /* Dismissed today means nothing more today. Offering a replacement the
-         moment one is waved away is whack-a-mole, not a rotation. */
-      if (state.dismissed) return null;
-      const held = _byId(state.id);
-      if (held && _eligible(held)) return held;
-      /* The held tip has since been acted on or outgrown. Let the day stand as
-         spent rather than reaching for another — same reason as above. */
-      return null;
-    }
-
-    const tip = _next();
-    if (!tip) {
-      _saveHomeState({ day: today, id: '', dismissed: true });
-      return null;
-    }
-    _markShown(tip.id);
-    _saveHomeState({ day: today, id: tip.id, dismissed: false });
-    return tip;
-  }
-
-  function dismissHome() {
-    const state = _homeState();
-    /* Retires the tip, not the strip: the user has told us about this one tip,
-       and tomorrow's is a different proposition. */
-    if (state.id) markDone(state.id);
-    state.dismissed = true;
-    _saveHomeState(state);
-  }
-
-  /* The unlock modal needs no throttle of its own. It only exists after someone
-     met a read threshold (§9.2 step 8), which is rare and earned, so the surface
-     rations itself. The day's home tip is skipped so the two surfaces do not say
-     the same thing within a few minutes of each other. */
+  /* The unlock modal needs no throttle of its own, which is most of why it is
+     the only surface: it exists only after someone met a read threshold (§9.2
+     step 8), so it is rare and earned and rations itself. One tip per unlock,
+     and the show cap is what eventually retires each one. */
   function pickForUnlock() {
-    const state = _homeState();
-    const today = (typeof todayDateString === 'function') ? todayDateString() : '';
-    const tip = _next(state.day === today ? state.id : null);
+    const tip = _next();
     if (!tip) return null;
     _markShown(tip.id);
     return tip;
@@ -338,9 +272,7 @@ const TipsFeature = (function() {
   }
 
   return {
-    pickForHome: function() { return _withFreshState(pickForHome); },
     pickForUnlock: function() { return _withFreshState(pickForUnlock); },
-    dismissHome: dismissHome,
     markDone: markDone,
     isDone: isDone,
   };

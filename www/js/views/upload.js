@@ -45,14 +45,6 @@ function renderUpload() {
         </div>
       </div>
 
-      <!-- Rotating feature-discovery tip (§23). One line, never a card: the
-           setup prompt above has a title, a body and two buttons because it is
-           a pending decision, and a tip built that way would sit here
-           permanently looking like an unanswered to-do. Filled by
-           renderHomeTip() once Pro is known, and deliberately placed directly
-           above the import grid, which is what most of the tips point at. -->
-      <div class="home-tip" id="home-tip" hidden></div>
-
       <div class="import-grid" id="import-grid">
         <!-- Free Books — full-width, always visible, no gate -->
         <button class="import-card import-card-featured" id="btn-free-books" type="button">
@@ -241,75 +233,8 @@ function renderUpload() {
   if (typeof ShareStats !== 'undefined') ShareStats.checkMilestones();
 }
 
-/* The home strip for §23's rotating tips. TipsFeature decides *which* tip; this
-   decides whether the slot is the right thing to put on the screen at all, and
-   draws it.
-
-   Tappable only when the tip has somewhere to go, and then the tap does the
-   thing the sentence describes — the point of the strip is to close the loop, so
-   "tap PDF below" sitting one row above the PDF card should itself open the
-   picker. A tip that can only happen inside a reader (a long-press, the chapter
-   index) carries no destination and is drawn as plain text, because sending
-   someone into a book to demonstrate it is a navigation they did not ask for. */
-function renderHomeTip() {
-  const el = qs('#home-tip');
-  if (!el) return;
-  el.hidden = true;
-  el.innerHTML = '';
-  if (typeof TipsFeature === 'undefined') return;
-
-  /* The setup prompt is an actual pending decision and wins the slot outright.
-     Two offers stacked read as a to-do list rather than a suggestion. */
-  const prompt = qs('#nudge-setup-prompt');
-  if (prompt && !prompt.hidden) return;
-
-  /* Nothing to discover before there is anything to read. A fresh install has
-     just been through onboarding and may be looking at the setup card; a tip on
-     top of that is noise, and most of the gates would answer honestly but
-     uselessly ("your own PDFs work too" to someone with no books at all). */
-  if (!loadLibrary().length) return;
-
-  const tip = TipsFeature.pickForHome();
-  if (!tip) return;
-
-  const tappable = typeof tip.go === 'function';
-  const text = '<span class="home-tip-text">' + escapeHtml(t(tip.key)) + '</span>';
-
-  if (tappable) {
-    el.innerHTML =
-      '<button class="home-tip-main" id="home-tip-main" type="button">' +
-        text + '<span class="home-tip-arrow" aria-hidden="true">\u2192</span>' +
-      '</button>' +
-      '<button class="home-tip-dismiss" id="home-tip-dismiss" type="button" ' +
-        'aria-label="' + escapeHtml(t('tip.dismiss')) + '">\u00d7</button>';
-    qs('#home-tip-main').addEventListener('click', function() {
-      /* Acting on it is the strongest possible signal that it has done its job,
-         so it never comes back — the same thing the feature's own hook does. */
-      TipsFeature.markDone(tip.id);
-      try { tip.go(); } catch (_) {}
-    });
-  } else {
-    el.innerHTML =
-      '<span class="home-tip-main home-tip-inert">' + text + '</span>' +
-      '<button class="home-tip-dismiss" id="home-tip-dismiss" type="button" ' +
-        'aria-label="' + escapeHtml(t('tip.dismiss')) + '">\u00d7</button>';
-  }
-
-  qs('#home-tip-dismiss').addEventListener('click', function() {
-    TipsFeature.dismissHome();
-    el.hidden = true;
-    el.innerHTML = '';
-  });
-
-  el.hidden = false;
-}
-
 async function hydrateUploadSurface() {
   const pro = await hasProAccess();
-  /* Before the early return below: AppState.isPro is now written, which is what
-     the scan tip's gate reads, and the tip strip has nothing to do with whether
-     the URL panel's elements happen to be present. */
-  renderHomeTip();
   const badge = qs('#url-reader-badge');
   const panel = qs('#url-panel');
   const button = qs('#btn-url-reader');

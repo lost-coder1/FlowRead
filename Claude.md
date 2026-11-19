@@ -1021,8 +1021,10 @@ in the UI, and the reason to fix it here rather than with a help screen is that 
 screen.
 
 `features/tips.js` owns a pool, which tip comes next, and the bookkeeping that stops one outliving
-its usefulness. The surfaces draw it: the home strip in `views/upload.js`, the unlock line in
-`features/nudge.js`.
+its usefulness. **The nudge unlock modal is the only surface** (owner, 2026-11-20) — one line under
+the credit sentence, drawn by `features/nudge.js`. A one-line home strip with tappable tips was
+built alongside it and then dropped: the unlock modal is the slot that rations itself, and a second
+always-present surface was more than the idea needed.
 
 **Three rules, and they are the whole design:**
 
@@ -1030,10 +1032,10 @@ its usefulness. The surfaces draw it: the home strip in `views/upload.js`, the u
    deliberate peers — Start reading, and the escape hatch §9.1 and §21 make a product rule rather
    than a style preference. A third thing to read, and worse a third thing to tap, makes the
    escape hatch one of three, which is how a nudge starts reading as a wall. **The unlock modal is
-   the nudge path's slot**: the threshold is already met, so nothing is withheld and nothing is
-   interrupted. The user has just succeeded, which is when a "you can also…" is welcome rather
-   than noise. This was weighed and rejected rather than overlooked; re-adding it needs a logged
-   decision.
+   the slot**: the threshold is already met, so nothing is withheld and nothing is interrupted, and
+   the user has just succeeded — which is when a "you can also…" is welcome rather than noise. It
+   also needs no throttle of its own, because a completed nudge-read is rare and earned. This was
+   weighed and rejected rather than overlooked; re-adding it needs a logged decision.
 2. **Relevance is a gate, and it is not the same thing as a cap.** A tip's `when()` asks whether
    *this user* has any use for it — the import tip disappears the moment a non-catalogue book is
    in the library, the bridge tip only appears when the last book opened was a PDF, the OCR tip
@@ -1042,10 +1044,12 @@ its usefulness. The surfaces draw it: the home strip in `views/upload.js`, the u
    nagging §1.6 rules out. Capability tips also retire the first time the user does the thing,
    which is what `TipsFeature.markDone()` is for — called from the feature itself
    (`dictionary.js`, `bridge.js`), not from the strip.
-3. **Tappable only where nothing else is pending.** On the home strip a tap does the thing the
-   sentence describes, which is what closes the loop — "open your own PDF" sits one row above the
-   PDF card. In the unlock modal it is inert text: that modal exists for the choice between the
-   book and the app the user just earned, and navigating off it would discard what they read for.
+3. **The line is inert text, and it wraps.** The unlock modal exists for the choice between the
+   book and the app the user just earned; navigating off it would discard what they read for. If a
+   surface where nothing is pending is ever added back, a tap there may do the thing the sentence
+   describes — not here. And **no truncation** (owner, 2026-11-20): a Hindi tip is routinely longer
+   than its English twin, half a sentence with an ellipsis teaches nothing, and a second line costs
+   nothing in a modal already sized by its body text.
 
 **Two further constraints that are easy to lose:**
 
@@ -1055,18 +1059,19 @@ its usefulness. The surfaces draw it: the home strip in `views/upload.js`, the u
   outright.
 - **Rotation is round-robin from a stored cursor, not random.** Random is correct for the nudge's
   six interchangeable subtitles and wrong for a dozen distinct tips: it repeats one three times
-  before another is seen, and a tip nobody sees is a feature nobody learns. One tip per calendar
-  day on home, the same one all day — picking per render reshuffles it every time the user backs
-  out of a reader, which reads as a glitch and spends the show cap in an afternoon.
+  before another is seen, and a tip nobody sees is a feature nobody learns.
 
 **No analytics event.** `tip_shown` is not in §9.6's allowlist and was deliberately not added: the
 list is closed so that a caller cannot quietly widen what is collected, and retirement-on-action
 already shows up in the existing events (`import_completed`, `book_opened`). Adding one is a
 product decision, not an implementation detail.
 
-**A discrepancy this surfaced, not fixed:** §4 lists the dictionary under the free tier, but
-`DictionaryFeature.showDictionaryModal()` gates it on `AppState.isPro` and shows a Pro gate
-instead. The dictionary tip is gated to match the *code*, with a note to drop that gate if §4 is
-the truth. Decide which is right.
+**One tip can reach a user who cannot yet act on it, knowingly.** §4 lists the dictionary under
+the free tier, but `DictionaryFeature.showDictionaryModal()` gates the lookup on `AppState.isPro`
+and shows a Pro gate. The owner's call (2026-11-20) is that the tip is right for both tiers, so it
+carries no gate — which makes the lookup's own gate the thing to change if a free user following
+the tip meets a paywall. **That gate is still there and is still a live §4-vs-code disagreement.**
+It is also the one place in this section where a tip can read as an advert, which is why it is a
+decision and not an oversight.
 
 *This document is the contract. Update it before changing direction, not after.*

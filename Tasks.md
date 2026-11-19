@@ -9,10 +9,10 @@ decision taken. Completed work and resolved device findings live in
 decision stays here or in `Claude.md`; a record of an action already taken goes to the archive.
 
 **Last updated:** 2026-11-20 — **16.24 adds rotating feature-discovery tips** (branch
-`feature-discovery-tips`): a one-line strip on home and a line in the nudge unlock modal, from one
-pool in `features/tips.js`. Deliberately *not* on the nudge screen itself — see the decisions log.
-Device run and Hindi sign-off owed, and it surfaced an unresolved §4-vs-code disagreement about
-whether the dictionary is a free feature.
+`feature-discovery-tips`): twelve tips in `features/tips.js`, shown one at a time in the **nudge
+unlock modal**, which is the only surface. Deliberately *not* on the nudge screen itself — see the
+decisions log. Device run and Hindi sign-off owed, and it surfaced an unresolved §4-vs-code
+disagreement about whether the dictionary is a free feature.
 
 Previously, 2026-11-19 — **three unreleased task groups sit on top of 1.5.6 / 44**, on
 branches `nudge-book-selection-fix` (16.21, 16.22) and `reader-type-preset` (16.23). All found or
@@ -195,6 +195,8 @@ which are the two to run first if time is short.
 | 2026-11-19 | **Settings' "with both on" note is rewritten, and dropped from onboarding entirely.** | The claim was stale: it said every-open already covers the threshold, which held under §9.3's original framing and stopped being true when §9.3a let the threshold fire mid-session. So it told the user one of their own choices did nothing when it did (§1.5). It now says they get both moments — the open, and again on a long sitting. Dropped from onboarding regardless, where on a first run any note there reads as a correction to a choice just made. The same stale claim was carried in two code comments (`nudge.js`, `settings.js`) and both are corrected. |
 | 2026-11-19 | **`_pushSettings()` returns a promise, and anything that reads the nudge state back must await it.** | `getNudgeStatus` is served from the same native prefs `_pushSettings` writes, so Settings was racing its own write: moving the daily-cap slider left the status line below quoting the previous cap until the screen was left and re-entered. Reported from use. Individual key writes still swallow their own failures, so one failing key cannot reject the whole push and strand the caller. |
 | 2026-11-20 | **Feature-discovery tips go on the nudge *unlock modal*, never the nudge screen.** | The nudge screen's two actions are deliberate peers and the escape hatch is a product rule (§9.1, §21). A third thing to read makes it one of three. The unlock modal is after the threshold is met: nothing withheld, nothing interrupted, and the user has just succeeded. |
+| 2026-11-20 | **The unlock modal is the only tip surface; the home strip was dropped before shipping.** | The modal rations itself — a completed nudge-read is rare and earned — so it needs no throttle, and a second always-present surface was more than the idea needed. The strip's code and its tappable-tip rules are in this branch's first commit if it is ever wanted back. |
+| 2026-11-20 | **The dictionary tip is shown to free users too**, although the lookup itself is Pro-gated in code. | Owner's call. §4 lists the dictionary under the free tier, so the tip describes what the contract promises; if a free user following it meets a paywall, the gate in `dictionary.js` is the thing to change. The §4-vs-code disagreement stays open. |
 | 2026-11-20 | **No `tip_shown` analytics event.** | §9.6's allowlist is closed on purpose so a caller cannot widen collection quietly, and this is not a core action. Retirement-on-action already shows up in `import_completed` / `book_opened`. Revisit if the pool needs tuning. |
 | 2026-11-20 | **Every tip is capped at 3 shows, including ones never acted on.** | Relevance gating answers "is this useful to you"; it cannot answer "you have understood and declined this". Without a cap a tip the user keeps ignoring keeps arriving, which is §1.6's nagging. |
 | 2026-09-16 | **Strict `Claude.md` order** — compliance block fully verified on a real device before any feature work starts. No parallel nudge development. | §3.3 sequencing. Avoids re-testing feature work against a shifting toolchain. |
@@ -1160,14 +1162,15 @@ repeatedly.
 
 **Where it landed, and the one place it deliberately did not.** Not on the nudge screen itself:
 that screen has two actions that are deliberate peers, and a third thing to read — worse, to tap
-— makes the escape hatch one of three, which is §9.1's failure mode. The **unlock modal** is the
-nudge-path slot instead, where the threshold is already met, nothing is withheld and the user has
-just succeeded. Plus a **one-line strip on home**, directly above the import grid, which is what
-most of the tips point at.
+— makes the escape hatch one of three, which is §9.1's failure mode. **The nudge unlock modal is
+the only surface** (owner, 2026-11-20): the threshold is already met, nothing is withheld, the
+user has just succeeded, and a completed nudge-read is rare enough that the surface rations
+itself.
 
-The strip is not a card. `#nudge-setup-prompt` is a card because it is a pending decision; a tip
-built the same way sits there looking like an unanswered to-do, which is the §1.6 nagging. One
-line, `--surface-2`, truncating, with a `×` that retires that tip.
+A one-line home strip, directly above the import grid, was built alongside it and **dropped on
+the owner's call before shipping**. It is in the first commit on this branch if it is ever wanted
+back, along with the tappable-tip rules it needed. Nothing else changed with it — the pool and
+the gating are the same code.
 
 **What governs which tip:**
 
@@ -1175,34 +1178,38 @@ line, `--surface-2`, truncating, with a `×` that retires that tip.
 |---|---|
 | Relevance | `when()` per tip — import disappears once a non-catalogue book is in the library, bridge needs the last book to be a PDF, scan needs Pro |
 | Cap | 3 shows, acted on or not |
-| Retire on action | `TipsFeature.markDone()`, called from `dictionary.js` and `bridge.js` — not from the strip |
-| Rotation | round-robin from a stored cursor, one tip per calendar day on home, the same one all day |
-| Tappable | home only, and the tap does the thing; inert text in the unlock modal |
+| Retire on action | `TipsFeature.markDone()`, called from `dictionary.js` and `bridge.js` |
+| Rotation | round-robin from a stored cursor, one tip per unlock |
+| Tappable | no — inert text, and it wraps rather than truncating |
 
-13 tips in `en.json` and `hi.json` (§17). **The import tip names PDF, not DOCX/TXT**, and the
+12 tips in `en.json` and `hi.json` (§17). **The import tip names PDF, not DOCX/TXT**, and the
 scan tip is gated on Pro: DOCX, TXT and Scan are Pro (§4), and a tip for something the user
-cannot do is an advert, which §4 rules out.
+cannot do is an advert, which §4 rules out. **The dictionary tip is the exception, knowingly** —
+see below.
 
 **No analytics event.** `tip_shown` was considered and deliberately not added to §9.6's
 allowlist — it is closed so a caller cannot quietly widen collection, and retirement-on-action
 already shows in `import_completed` / `book_opened`. Owner's call to revisit.
 
-**Verification.** A 16-assertion headless suite over the selection logic: the day's pick is
-sticky and counted once rather than per render; a dismissed tip is retired and no replacement
-arrives the same day; no tip exceeds three shows across 60 simulated days while the rotation
-still reaches most of the pool; the import tip appears when every book came from the catalogue
-and vanishes when one did not; scan and dictionary are withheld from a free user and offered to
-Pro; bridge is withheld when the last book is a TXT; the unlock pick never repeats the day's home
-tip; and a tip missing from the active locale is skipped rather than rendered as its key name.
+**Verification.** A 17-assertion headless suite over the selection logic: the module exposes
+nothing but `pickForUnlock`/`markDone`/`isDone`; no tip exceeds three shows across 80 picks while
+the rotation still reaches most of the pool and never repeats back to back; the pool exhausts
+rather than looping; the import tip appears when every book came from the catalogue and vanishes
+when one did not; bridge is withheld when the last book is a TXT; scan is withheld from a free
+user and offered to Pro; the dictionary tip reaches both tiers; `markDone` retires a tip for
+good; a tip missing from the active locale is skipped rather than rendered as its key name; and a
+gate that throws takes out its own tip rather than the pool.
 
-**Found, not fixed:** §4 lists the dictionary under the free tier, but
-`DictionaryFeature.showDictionaryModal()` gates it on `AppState.isPro` and shows a Pro gate. The
-dictionary tip is gated to match the code, with a note to drop that gate if §4 is right.
-**Needs an owner decision** — it is a pricing question, not a bug to quietly pick a side on.
+**The dictionary tip is deliberately ungated** (owner, 2026-11-20: "show the dictionary tip, it's
+okay for both free and pro"). The §4-vs-code disagreement it exposed is **still open**:
+`DictionaryFeature.showDictionaryModal()` gates the lookup on `AppState.isPro` and shows a Pro
+gate, while §4 lists the dictionary under the free tier. So a free user who follows this tip
+currently meets a paywall. If §4 is right, the one-line fix is in `dictionary.js`; it is a
+pricing question, so it is not being made here.
 
-**Device run owed:** the strip at Hindi line lengths on a narrow screen (every tip truncates to
-one line — check none truncates to nonsense), the `×`, a tap that actually opens the file picker,
-and the unlock-modal line appearing under a real credit sentence without crowding the two buttons.
+**Device run owed:** the unlock-modal line under a real credit sentence — that it does not crowd
+the two buttons, and that a long Hindi tip wraps to a second line cleanly instead of pushing the
+buttons off a short screen.
 
 ---
 
