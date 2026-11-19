@@ -2998,6 +2998,112 @@
   color: var(--text-muted);
 }
 
+/* ── The nudge-unlock celebration (§9.2 step 8, §16) ─────────────────────
+   Most unlocks get the count line and nothing else; the animation below exists
+   only for a milestone, which is what makes the milestone legible as a bigger
+   reward rather than a differently-decorated one. Everything here is §16
+   palette, under a second, ease-out, no bounce — this screen sits two taps from
+   the nudge, where the brief is explicitly "calm, not alarming". */
+
+/* The most motivating true sentence available here, so it is warmer and a step
+   larger than the tip under it, and still clearly below the modal's own body. */
+.nudge-unlock-count {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--accent-2);
+}
+
+.nudge-unlock-milestone {
+  position: relative;
+  overflow: hidden;
+  border-color: var(--accent);
+}
+
+.nudge-unlock-milestone .modal-title {
+  color: var(--accent);
+}
+
+/* One pseudo-element, three animations, no extra DOM and nothing to clean up:
+   the card carries a variant class and the element goes away on its own. */
+.nudge-celebrate-bloom::before,
+.nudge-celebrate-sweep::before,
+.nudge-celebrate-ring::before {
+  content: '';
+  position: absolute;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.nudge-unlock-milestone > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Bloom — warmth spreading from behind the headline. */
+.nudge-celebrate-bloom::before {
+  inset: -40% -10% auto -10%;
+  height: 160%;
+  background: radial-gradient(ellipse at 30% 30%,
+    rgba(232, 197, 71, 0.16) 0%, rgba(232, 197, 71, 0) 62%);
+  animation: celebrate-bloom 0.9s ease-out forwards;
+}
+
+@keyframes celebrate-bloom {
+  from { opacity: 0; transform: scale(0.94); }
+  40%  { opacity: 1; }
+  to   { opacity: 0; transform: scale(1.04); }
+}
+
+/* Sweep — a single accent line crossing the top edge once. */
+.nudge-celebrate-sweep::before {
+  top: 0;
+  left: 0;
+  height: 2px;
+  width: 100%;
+  background: linear-gradient(90deg,
+    rgba(232, 197, 71, 0) 0%, var(--accent) 45%, var(--accent-2) 60%,
+    rgba(196, 122, 58, 0) 100%);
+  transform: translateX(-100%);
+  animation: celebrate-sweep 0.8s ease-out forwards;
+}
+
+@keyframes celebrate-sweep {
+  from { transform: translateX(-100%); opacity: 0; }
+  25%  { opacity: 1; }
+  to   { transform: translateX(100%); opacity: 0; }
+}
+
+/* Ring — one expanding outline, the quietest of the three. */
+.nudge-celebrate-ring::before {
+  top: var(--space-lg);
+  left: 50%;
+  width: 72px;
+  height: 72px;
+  margin: -36px 0 0 -36px;
+  border: 1px solid var(--accent);
+  border-radius: 50%;
+  animation: celebrate-ring 0.85s ease-out forwards;
+}
+
+@keyframes celebrate-ring {
+  from { opacity: 0.9; transform: scale(0.3); }
+  to   { opacity: 0; transform: scale(3.4); }
+}
+
+/* A celebration is exactly the kind of motion this setting is about, and it is
+   the first thing in this stylesheet to honour it. The JS also withholds the
+   variant class when the preference is set, so this is the belt to that braces:
+   a milestone still reads as a milestone through its headline and colour, which
+   is where the meaning actually lives. */
+@media (prefers-reduced-motion: reduce) {
+  .nudge-celebrate-bloom::before,
+  .nudge-celebrate-sweep::before,
+  .nudge-celebrate-ring::before {
+    display: none;
+  }
+}
+
 /* The same pool's line in the nudge unlock modal (§23). Separated from the body
    above it, and a step down in size and colour: the modal's own sentence is
    about what the user just earned, and this must not compete with it. */
@@ -3008,6 +3114,8 @@
   font-size: 12px;
   line-height: 1.4;
   color: var(--text-muted);
+}
+
 /* ── Dashboard preview lock card ────────────────────────────────────────
    Stands where the charts would be, for a user who has not paid. Built from
    the same .dashboard-section as everything around it — the point of the

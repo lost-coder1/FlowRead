@@ -694,19 +694,38 @@ const NudgeFeature = (function() {
     closeActiveModal();
     AppState.activeModal = 'nudge-unlock';
 
+    /* The variable reward (§9.2 step 8). Claimed only after activeModal is set,
+       because the await above is a window in which a further page turn could
+       arrive and ask for a second prompt — and this call is what writes the
+       read into the counters, so running it twice would inflate them. */
+    const cel = (typeof CelebrationFeature !== 'undefined')
+      ? CelebrationFeature.forUnlock()
+      : { tier: 'quiet', titleKey: 'nudge.unlock.title', bodyKey: 'nudge.unlock.body_credit',
+          weekCount: 0, total: 0, variant: null };
+
     /* Name what they did, then what it bought. The point of the reset is that
        the user can see it happen — a silent one is indistinguishable from
        nothing having changed (§1.5). */
     const minsRead = Math.max(1, Math.round((Date.now() - (ctx.startedAt || Date.now())) / 60000));
     const pagesRead = Math.max(settings().unlockPages, ctx.pagesRead || 0);
     const body = credit
-      ? tn('nudge.unlock.body_credit', pagesRead, {
+      ? tn(cel.bodyKey, pagesRead, {
           app: escapeHtml(ctx.label),
           pages: pagesRead,
           mins: minsRead,
           fresh: credit.freshMinutes,
         })
       : t('nudge.unlock.body', { app: escapeHtml(ctx.label) });
+
+    /* The count is the most motivating true sentence available here, and the
+       only one of its kind: how often this user picked the book, measured.
+       Withheld at one, where it reads as a system message rather than
+       encouragement, and withheld on a milestone, whose headline is already
+       making a larger version of the same point. */
+    const countHtml = (cel.weekCount >= 2 && cel.tier !== 'milestone')
+      ? '<p class="nudge-unlock-count">' +
+          tn('nudge.celebrate.count', cel.weekCount, { n: cel.weekCount }) + '</p>'
+      : '';
 
     /* §23's one slot on the nudge path, and deliberately not on the nudge screen
        itself: there the two actions are peers and a third thing to read works
@@ -719,11 +738,20 @@ const NudgeFeature = (function() {
     const tip = (typeof TipsFeature !== 'undefined') ? TipsFeature.pickForUnlock() : null;
     const tipHtml = tip ? '<p class="nudge-unlock-tip">' + escapeHtml(t(tip.key)) + '</p>' : '';
 
+    /* The animation is a class on the card and nothing else — no extra element,
+       no library, nothing to clean up. `cel.variant` is null for every quiet
+       unlock and for anyone who has asked for reduced motion, which is what
+       keeps the majority of unlocks still. */
+    const cardClass = 'modal-card nudge-unlock-card' +
+      (cel.tier === 'milestone' ? ' nudge-unlock-milestone' : '') +
+      (cel.variant ? ' nudge-celebrate-' + cel.variant : '');
+
     root.innerHTML =
       '<div class="modal-backdrop" id="modal-backdrop">' +
-        '<div class="modal-card nudge-unlock-card" role="dialog" aria-modal="true">' +
-          '<h2 class="modal-title">' + t('nudge.unlock.title') + '</h2>' +
+        '<div class="' + cardClass + '" role="dialog" aria-modal="true">' +
+          '<h2 class="modal-title">' + t(cel.titleKey, { n: cel.total }) + '</h2>' +
           '<p class="modal-body">' + body + '</p>' +
+          countHtml +
           tipHtml +
           '<div class="modal-actions">' +
             '<button class="btn btn-ghost" id="btn-nudge-keep-reading">' + t('nudge.unlock.keep_reading') + '</button>' +

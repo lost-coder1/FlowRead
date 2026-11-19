@@ -8,7 +8,14 @@ decision taken. Completed work and resolved device findings live in
 **[Tasks-archive.md](Tasks-archive.md)**. The split rule: anything that would change a future
 decision stays here or in `Claude.md`; a record of an action already taken goes to the archive.
 
-**Last updated:** 2026-11-20 — **16.25 reworks paywall placement, and 16.26 adds the debug flag
+**Last updated:** 2026-11-20 — **16.27 gives the unlock modal a variable reward** (branch
+`nudge-celebration`): `features/celebration.js` holds the copy pools, an append-only count of
+nudge-reads, and the tier decision. Most unlocks stay quiet with a rotating line and a measured
+count ("that's 4 times this week you've picked the book first"); milestones — 1/5/10/25/50/100/250
+reads, day runs of 3/7/14/30 — fire once ever and carry the only animation. Confetti was rejected
+and haptics deliberately stubbed. `Claude.md` §26 has the reasoning.
+
+Also 2026-11-20 — **16.25 reworks paywall placement, and 16.26 adds the debug flag
 that makes it testable** (branch
 `paywall-placements`, stacked on `feature-discovery-tips`): Settings gains the only deliberate
 purchase path in the app, the locked font/theme chips and the device-sync note stop being dead
@@ -175,6 +182,10 @@ which are the two to run first if time is short.
 | 2026-11-01 | **`AppState.isPro` now means "has paid", not "owns lifetime"**; the lifetime purchase gets its own flag, `ownsLifetime`. | 16.1 kept the two *stored* entitlements independent as §4 requires, but every one of the 24 Pro gates in the app reads `AppState.isPro` — so leaving that as the lifetime flag would have locked a subscriber out of the very features they had just paid for. Making the *gate* a derived third thing keeps the Preferences keys separate (what the rule actually protects — the drops can gate on `isSubscriber` alone) without needing all 24 call sites to be found and changed correctly. |
 | 2026-11-01 | **A subscription is revoked only from a query Play answered**, never from a failed one. | The first entitlement in this app that can stop being true. `queryPurchases` reports `checkedTypes` so "Play says no subscription" is distinguishable from "we could not ask" — revoking on the second would cut a paying subscriber off for having poor signal, the §1.5 failure mode at its most expensive. One-time purchases are still never revoked. |
 | 2026-11-01 | **Subscription base plans are matched by billing period, not by base plan ID.** | A hardcoded plan ID is a silent breakage waiting for whoever renames it in Play Console. `P1M`/`P1Y` is what the user is actually choosing between. Offer tokens are never persisted (valid only for the query that produced them) and the native side re-resolves them against current details rather than trusting JS — charging the annual price to someone who tapped monthly is not a recoverable mistake. |
+| 2026-11-20 | **The unlock reward varies by *magnitude*, not by decoration** (16.27). | Rotating copy and a choice of animations are skins: if every unlock celebrates equally hard the user calibrates to it inside a week however many skins it has. So most unlocks are quiet and a rare minority carry a real milestone — which is Hooked's variable-ratio mechanic rather than a cosmetic reading of it. Honest because the milestones are measured thresholds granted once ever, not a dice roll: unpredictable to the user, deterministic in the code. |
+| 2026-11-20 | **No confetti; three restrained variants instead** (16.27). | The unlock sits two taps from the nudge screen, where §16's brief is explicitly "calm, not alarming", and §16 caps animation character at no-bounce and sub-second. A party-coloured burst is a different product's voice. Bloom/sweep/ring at §700–900ms in accent palette only carry the variability without the register change. |
+| 2026-11-20 | **"Invested", never "saved" — and the motivating line is a count, not minutes** (16.27). | "You saved 15 minutes of scrolling" is unmeasurable: nothing knows what the user would have scrolled, so it is the fabricated figure §24 forbids, however well it reads. Minutes *with the book* are measured, and so is how many times the user picked the book — which is the strongest true sentence available here. |
+| 2026-11-20 | **Haptics left as an empty function with the call site in place** (16.27). | A haptic is confirmation, not reinforcement — vibration has no perceptible dynamic range, so it cannot carry the variable-magnitude job, and it costs `android.permission.VIBRATE` in the merged manifest permanently. Where it would earn that is punctuation on the milestone alone. Deferred to a device judgement once the milestone visual is real; switching it on is one function body plus the manifest line. |
 | 2026-11-01 | **The subscription's paywall copy does not mention monthly book drops.** | They are unbuilt — the §4 gap the owner accepted on 2026-10-30. The anchor strategy is ordinary pricing, but §1.3 only holds if the copy describes what a subscriber actually receives; promising unshipped content is where it would become a dark pattern. The line says what is true today (same tools, paid over time) and is flagged for rewrite when the drops ship. |
 | 2026-09-25 | **Q11: sharing emits `stats_shared`**, carrying the entry point and nothing else. | §22 puts the product in a distribution bottleneck, and how often a card is actually shared is the direct measure of whether 16.6 addresses it. Widening the §9.6 allowlist was a privacy decision, so it was asked rather than assumed. No book, stat, or destination app is sent (§1.4). |
 | 2026-09-25 | **Onboarding (16.3) becomes its own design task**; Q3 is answered inside it rather than ahead of it. | Q3 (inline vs deferred permission ask) is a design question, not an implementation flag, and answering it in the abstract before the onboarding narrative exists would have decided it backwards. N14's per-choice ask is the interim behaviour and is working. |
@@ -1340,6 +1351,66 @@ owns nothing stays free either way, so the flag can never grant.
 **Device run owed:** install the debug variant (Android Studio ▶ installs `debug` by default —
 check the Build Variants panel), confirm the Debug section is present, toggle it and walk the four
 §24 surfaces, then toggle back and confirm Pro returns without a restart.
+
+---
+
+## Task 16.27 — Variable reward on the unlock  ✅ code complete, device run + Hindi owed
+
+**Why.** The unlock modal is the one moment the whole pivot aims at — the user was on their way
+into Instagram and read instead — and it said the same two sentences every time. The nudge *screen*
+already rotates six subtitles; the reward surface, which is where reinforcement actually has to
+land, was a fixed string.
+
+**`features/celebration.js`** (new) owns the pools, the counters and the tier decision; `nudge.js`
+still draws the modal, as it does the §23 tip line. Wired into `index.html` after `tips.js`.
+
+**Three things the modal gained:**
+- **Rotating copy** — 8 titles, 5 credit-body variants, all carrying the same `{pages}/{mins}/{fresh}`
+  so the facts never change, only the framing. The shipped strings are variant 1 of each pool, so
+  the existing keys are untouched.
+- **A measured count line** — *"that's 4 times this week you've picked the book first."* Withheld at
+  one, where it reads as a system message, and on a milestone, whose headline makes a larger version
+  of the same point.
+- **A milestone tier** — 1/5/10/25/50/100/250 reads and day runs of 3/7/14/30, each granted once
+  ever, carrying the only animation this feature draws.
+
+**The design is variable *magnitude*** and `Claude.md` §26 is the authority on why. The short
+version: rotating copy alone is a skin, and a user calibrates to a uniformly-sized reward inside a
+week however many skins it has.
+
+**Counters are derived, never stored beside the data.** `fr_nudge_reads` is an append-only list of
+dates (capped at 400); total, week and day run are computed from it — the `computeStreak()`
+discipline, and for the same reason. The week is **Monday-to-today**, because the copy says "this
+week" and a rolling seven days makes that false six days out of seven. `NudgeGate`'s own counters
+could not be reused: they are per-day and wipe at local midnight by design (§9.3).
+
+**A bug found on the way in, fixed:** `.nudge-unlock-tip` in `components.css` was missing its
+closing brace (from `cce6525`, 16.24), so CSS error recovery swallowed the whole
+`.dashboard-locked-list` rule — 16.25's dashboard preview list has been shipping unstyled on this
+branch. Braces now balance across the file.
+
+**Verification.** A headless harness over `forUnlock()` against both locales: 12 consecutive
+unlocks show the tier sequence (milestone at 1, 5, 10, quiet between), the variant cursor rotating
+bloom → sweep → ring, and the count line incrementing; a backfilled two-day history confirms the
+day-run milestone fires at 3 and that the count milestone it outranks is left unspent rather than
+lost. **This caught a real defect:** the body pool collapsed to a single variant, because its keys
+are pluralised (`.2.one`/`.2.other`) and the existence probe tested the bare stem — silently, and
+in both locales. `_pool()` now takes the probe suffix. en/hi key sets verified identical (679 each).
+
+**Device run owed:**
+1. Complete a nudge-read on a fresh install — first unlock must be the `total.1` milestone, with
+   the bloom variant and the accent headline.
+2. Complete three more in a day — quiet tier, a different title each time, count line reading 2, 3, 4.
+3. Reach 5 — milestone with the **sweep** variant (the cursor advances only on milestones).
+4. Check the animation reads as calm at §16's intent, on a real panel rather than a desktop monitor.
+5. Switch to Hindi and repeat 1–2 on a narrow screen — the Devanagari lines are longer and the
+   count line sits between the body and the tip, so it is the row most likely to crowd.
+6. Turn on system "Remove animations" and confirm a milestone still reads as one (headline + colour,
+   no motion).
+
+**Hindi owed:** 28 new strings drafted rather than left as key names, same standing as 16.1/16.3 —
+`i18n.js` has no English fallback, so a missing key renders the raw key to a Hindi user. Owner
+replacements welcome.
 
 ---
 
