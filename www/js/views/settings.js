@@ -284,16 +284,16 @@ function renderSettings() {
            §1.3, which requires the lifetime option stay "prominently offered
            and genuinely purchasable": it cannot be, if the only way to see it
            is by accident.
-           Shown only to a user who has not paid, once, on a screen they
-           navigated to themselves — not a banner, not on home, nothing that
-           follows them around (§1.3, §1.6). -->
+           One button and nothing else (owner, 2026-11-20). It had a heading, a
+           line of benefits and a price note, all of which the paywall modal
+           itself already says one tap later — so they were length on a screen
+           that is already long, and §1.6's case against repetition applies to
+           saying a thing twice as much as to saying it often.
+           Shown only to a user who has not paid, on a screen they navigated to
+           themselves — not a banner, not on home, nothing that follows them
+           around (§1.3, §1.6). -->
       ${!AppState.isPro ? `
-      <section class="settings-section settings-unlock">
-        <h2>${t('settings.section.unlock')}</h2>
-        <p class="settings-copy">${t('settings.unlock.body')}</p>
-        <button class="btn btn-primary settings-unlock-btn" id="btn-settings-unlock" type="button">${t('settings.unlock.btn')}</button>
-        <p class="settings-copy text-muted">${t('settings.unlock.note')}</p>
-      </section>
+      <button class="btn btn-primary settings-unlock-btn" id="btn-settings-unlock" type="button">${t('settings.unlock.btn')}</button>
       ` : ''}
 
       <!-- APPEARANCE -->

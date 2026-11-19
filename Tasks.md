@@ -1252,10 +1252,14 @@ things came out of that, all shipped on this branch.
 upgrade; Settings had Restore purchases, which to someone who has never bought reads as a dead
 end. So a user who had read four books and wanted to pay could not find the paywall without
 triggering a feature they did not want — and §1.3's "prominently offered and genuinely
-purchasable" cannot hold when the only route is an accident. Added as the **first Settings
-section, only for a user who has not paid**: heading, one line of what it unlocks, one button,
-one muted line that leads with the one-time purchase (§4's note that the subscription has no
-recurring value yet). `source: 'settings'`. Not on home, not a banner.
+purchasable" cannot hold when the only route is an accident. Added as **one button at the top of
+Settings, only for a user who has not paid** — *Unlock the full power of FlowRead* —
+`source: 'settings'`. Not on home, not a banner.
+
+It first shipped with a heading, a benefits line and a price note. **Cut to the button alone on
+the owner's call the same day:** all three repeat what the paywall modal says one tap later, on a
+screen that is already too long. The keeper is in §24 — a purchase entry point names itself and
+gets out of the way; the pitch belongs in the paywall, once.
 
 **2. Locked font and theme chips did nothing when tapped.** They were rendered `disabled` with a
 🔒, so a tap on the exact thing the user wanted was a silent failure (§1.5) *and* the

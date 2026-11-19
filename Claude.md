@@ -1121,8 +1121,15 @@ no dimension may ever carry a package name.
 other one fires because the user hit a wall; until 2026-11-20 there was no way to *decide* to pay —
 Settings offered Restore purchases and nothing else, which to a non-purchaser reads as a dead end.
 §1.3 requires the lifetime option stay "prominently offered and genuinely purchasable", and it can
-be neither if the only route to it is by accident. Shown once, only to a user who has not paid, on
-a screen they navigated to themselves. **Not on home, not a banner, nothing that follows them.**
+be neither if the only route to it is by accident. Shown only to a user who has not paid, on a
+screen they navigated to themselves. **Not on home, not a banner, nothing that follows them.**
+
+**It is one button — "Unlock the full power of FlowRead" — and nothing else** (owner,
+2026-11-20). It first shipped with a heading, a line of benefits and a price note; all three say
+what the paywall modal says one tap later, so they were length on a screen that is already long.
+The rule to keep: **a purchase entry point names itself and gets out of the way. The pitch belongs
+in the paywall, once.** Repeating it on the way in is the nagging §1.6 rules out as much as
+repetition over time is.
 
 ### Two rules that produced the rest of this work
 
