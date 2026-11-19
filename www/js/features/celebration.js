@@ -35,6 +35,7 @@ const CelebrationFeature = (function() {
   const READS_KEY = 'fr_nudge_reads';
   const MILESTONES_KEY = 'fr_nudge_milestones';
   const VARIANT_CURSOR_KEY = 'fr_nudge_celebrate_variant';
+  const LAST_PREFIX = 'fr_nudge_celebrate_last_';
   const MAX_READS = 400;
 
   /* Sizes of the two copy pools. t() returns the key itself when a string is
@@ -44,7 +45,8 @@ const CelebrationFeature = (function() {
      feature existed, deliberately: it is good copy and it keeps the diff on the
      existing keys at nil. */
   const TITLE_COUNT = 8;
-  const BODY_COUNT = 5;
+  const EARNED_COUNT = 8;
+  const COUNT_COUNT = 3;
 
   /* ── The counters ────────────────────────────────────────────────────── */
 
@@ -154,7 +156,7 @@ const CelebrationFeature = (function() {
   /* ── Copy rotation ───────────────────────────────────────────────────── */
 
   /* `probe` is the suffix that makes the key a real one. The body pool's
-     entries are pluralised — the caller hands tn() `…body_credit.3` and tn()
+     entries are pluralised — the caller hands tn() `…celebrate.count.2` and tn()
      appends `.one`/`.other` — so testing the bare stem finds nothing and the
      whole pool collapses to its first entry, silently and in both locales. */
   function _pool(prefix, count, base, probe) {
@@ -170,10 +172,23 @@ const CelebrationFeature = (function() {
   /* Random, not round-robin. §23 reserves round-robin for the tip pool, where
      each entry teaches something different and one nobody sees is a feature
      nobody learns. These lines are interchangeable — they all say "well done" —
-     so the only requirement is that consecutive unlocks differ often enough not
-     to read as a fixed string, and random does that without state. */
-  function _pick(keys) {
-    return keys[Math.floor(Math.random() * keys.length)];
+     so the only requirement is that consecutive unlocks differ.
+
+     Which is the one thing unseeded random will not promise: with eight entries
+     it hands out the same line twice running about one time in eight, and this
+     whole module exists because the modal read as a fixed string. So the
+     previous pick is excluded rather than merely unlikely. Remembered in
+     storage, not in memory — consecutive unlocks are usually separate app
+     sessions, which is precisely when a repeat would be most visible. */
+  function _pick(keys, memo) {
+    let last = null;
+    try { last = localStorage.getItem(LAST_PREFIX + memo); } catch (_) {}
+    const pool = (keys.length > 1 && last)
+      ? keys.filter(function(k) { return k !== last; })
+      : keys;
+    const key = pool[Math.floor(Math.random() * pool.length)];
+    try { localStorage.setItem(LAST_PREFIX + memo, key); } catch (_) {}
+    return key;
   }
 
   /* ── The visual ──────────────────────────────────────────────────────── */
@@ -227,8 +242,14 @@ const CelebrationFeature = (function() {
       tier: tier,
       /* A milestone states itself in the headline — that is what makes the
          bigger tier legible rather than merely decorated. */
-      titleKey: milestone ? milestone.key : _pick(_pool('nudge.unlock.title', TITLE_COUNT, 'nudge.unlock.title')),
-      bodyKey: _pick(_pool('nudge.unlock.body_credit', BODY_COUNT, 'nudge.unlock.body_credit', '.other')),
+      titleKey: milestone ? milestone.key : _pick(_pool('nudge.unlock.title', TITLE_COUNT, 'nudge.unlock.title'), 'title'),
+      /* The benefit in words. The figures are not in here at all: they go in
+         one small mono receipt beside it, because a sentence built out of four
+         numbers is the same sentence every time however it is worded, which is
+         exactly how this reward went stale. §9.2 asks for the reset to be
+         *visible*, never for it to be the headline. */
+      earnedKey: _pick(_pool('nudge.unlock.earned', EARNED_COUNT, 'nudge.unlock.earned.1'), 'earned'),
+      countKey: _pick(_pool('nudge.celebrate.count', COUNT_COUNT, 'nudge.celebrate.count', '.other'), 'count'),
       /* Nothing to count on the very first one, and "1 time this week" reads
          like a system message rather than encouragement. */
       weekCount: _thisWeek(reads),

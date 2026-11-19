@@ -1365,12 +1365,20 @@ land, was a fixed string.
 still draws the modal, as it does the §23 tip line. Wired into `index.html` after `tips.js`.
 
 **Three things the modal gained:**
-- **Rotating copy** — 8 titles, 5 credit-body variants, all carrying the same `{pages}/{mins}/{fresh}`
-  so the facts never change, only the framing. The shipped strings are variant 1 of each pool, so
-  the existing keys are untouched.
-- **A measured count line** — *"that's 4 times this week you've picked the book first."* Withheld at
-  one, where it reads as a system message, and on a milestone, whose headline makes a larger version
-  of the same point.
+- **Rotating copy** — 8 titles and 8 plain-language benefit lines, plus a small DM Mono **receipt**
+  carrying every figure (`4 pages · 6 min read · 15 min before I say anything`). The first cut put
+  the figures in the sentence across five variants, and the owner read it straight away as "the
+  same thing every time" — correctly: the numbers *are* the shape of that sentence, so rotating the
+  words around them changes nothing perceptible. §9.2 wants the reset visible, not headlined. The
+  `nudge.unlock.body_credit.*` keys are gone; `nudge.unlock.earned.1–8` and
+  `nudge.unlock.receipt.one/.other` replace them, and §9.2's quoted example in `Claude.md` was
+  amended to match before the code changed.
+- **No pool repeats its previous pick** — random with the last choice excluded, remembered in
+  storage. One time in eight is often enough to be noticed when a repeat is the exact complaint,
+  and consecutive unlocks are usually separate sessions, so an in-memory guard would miss.
+- **A measured count line, rotating across three phrasings** — *"that's 4 times this week you've
+  picked the book first."* Withheld at one, where it reads as a system message, and on a milestone,
+  whose headline makes a larger version of the same point.
 - **A milestone tier** — 1/5/10/25/50/100/250 reads and day runs of 3/7/14/30, each granted once
   ever, carrying the only animation this feature draws.
 
@@ -1403,9 +1411,11 @@ in both locales. `_pool()` now takes the probe suffix. en/hi key sets verified i
 2. Complete three more in a day — quiet tier, a different title each time, count line reading 2, 3, 4.
 3. Reach 5 — milestone with the **sweep** variant (the cursor advances only on milestones).
 4. Check the animation reads as calm at §16's intent, on a real panel rather than a desktop monitor.
-5. Switch to Hindi and repeat 1–2 on a narrow screen — the Devanagari lines are longer and the
+5. Read four quiet unlocks in a row and confirm the modal does not read as repetitive — that is
+   the whole point of the task, and the only judge is a person seeing it at the real cadence.
+6. Switch to Hindi and repeat 1–2 on a narrow screen — the Devanagari lines are longer and the
    count line sits between the body and the tip, so it is the row most likely to crowd.
-6. Turn on system "Remove animations" and confirm a milestone still reads as one (headline + colour,
+7. Turn on system "Remove animations" and confirm a milestone still reads as one (headline + colour,
    no motion).
 
 **Hindi owed:** 28 new strings drafted rather than left as key names, same standing as 16.1/16.3 —

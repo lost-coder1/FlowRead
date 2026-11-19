@@ -423,7 +423,7 @@ Explicitly not a hard app-blocker. A soft interception with an always-visible, o
 5. If reading: track against a user-configurable threshold. **Q2 defaults, signed off 2026-09-20: nudge after 15 minutes in that app (3rd open when usage access is denied); unlock after 2 Page-mode pages; cap 3 nudges per app per day; back off for the rest of the day after 3 consecutive dismissals.** All are settings, none hardcoded. An "on every open" trigger mode (`fr_nudge_trigger_mode`) was added 2026-09-21 — it skips the minutes/opens threshold but **still honours the daily cap and the dismissal back-off**, without which it would be the wall 9.1 forbids; the daily cap is exposed as a visible setting so the mode's name matches its behaviour (1.5).
 6. Once met, **only the originally-requested target app opens**, not the user's whole nudge list (scoped unlock, 9.7).
 7. Skipping at any point does not fail or penalize the user — no guilt copy, no broken-streak framing.
-8. **Reading pays the clock back (added 2026-10-06).** Meeting the read threshold restarts that app's sitting from zero, zeroes its open count, clears the dismissal streak, and **refunds one nudge against the daily cap**. The unlock modal names what it cost and what it bought ("3 pages in 6 min — your Instagram clock is back to zero, so that's 15 fresh minutes"). Without the refund the reset is hollow: a user who read three times would have reset a clock the gate had no nudges left to act on. The cap still holds between reads, so the only way past it is to have read. Leaving a nudged read early credits nothing.
+8. **Reading pays the clock back (added 2026-10-06).** Meeting the read threshold restarts that app's sitting from zero, zeroes its open count, clears the dismissal streak, and **refunds one nudge against the daily cap**. The unlock modal names what it cost and what it bought. **It does so in two parts, as of 2026-11-20 (§26):** a plain-language line carrying the benefit ("Instagram's clear now — I'll keep out of your way for a while"), and one small DM Mono receipt carrying the figures ("4 pages · 6 min read · 15 min before I say anything"). The requirement is that the reset be *visible*, never that it be the headline — and a sentence built out of four numbers is the same sentence every time however it is worded, which is what made the reward go stale. Without the refund the reset is hollow: a user who read three times would have reset a clock the gate had no nudges left to act on. The cap still holds between reads, so the only way past it is to have read. Leaving a nudged read early credits nothing.
 
 ### 9.3 Dynamic Triggering — Not Every Open
 Trigger only after a threshold, with a daily nudge cap per app and a back-off for the rest of the day after 3 consecutive dismissals.
@@ -1253,7 +1253,16 @@ not how many times a counter passed through it. A day run beats a count when bot
 same read, because a run cannot be caught up on; the count milestone is left unspent for the next
 one rather than stacked, since two celebrations in one modal is one too many.
 
-**Four rules on it:**
+**The modal is four lines, and the split between them is the design.** A rotating title, a
+rotating plain-language sentence carrying the benefit, one small DM Mono **receipt** carrying every
+figure, and the rotating count line. The first version put the figures *in* the sentence — pages,
+minutes, clock, fresh minutes — and the owner's reading of it was immediate and correct: five
+variants of a number-dump is still a number-dump, because the numbers are the shape of the
+sentence and the wording around them is noise. So the figures moved to a receipt, which §2 already
+has a face for. **§9.2 asks for the reset to be visible, never for it to be the headline**, and
+pulling the numbers out is what lets the sentence rotate *perceptibly*. Do not put them back.
+
+**Five rules on it:**
 
 1. **Nothing may be invented.** §24's bar on fabricated figures applies to a celebration as much
    as to the dashboard preview. *"You saved 15 minutes of scrolling"* is unmeasurable — nothing
@@ -1273,7 +1282,12 @@ one rather than stacked, since two celebrations in one modal is one too many.
    (interchangeable lines, as §9.3's subtitles are); the **visual** is round-robin, which is not an
    inconsistency: a milestone is rare enough that a user may see six in their life, so a random
    pick would plausibly repeat and at that frequency the repeat is the thing they notice.
-4. **Reduced motion is honoured in both layers** — the JS withholds the variant class and the CSS
+4. **A pool never repeats its previous pick.** Unseeded random hands out the same line twice
+   running about one time in eight, and this module exists because the modal read as a fixed
+   string — so the last pick is *excluded*, not merely made unlikely. Remembered in storage rather
+   than in memory, because consecutive unlocks are usually separate app sessions, which is exactly
+   where an in-memory guard would fail and a repeat would be most visible.
+5. **Reduced motion is honoured in both layers** — the JS withholds the variant class and the CSS
    hides the pseudo-element. This is the first rule in the stylesheet to respect the preference;
    anything animated added later should. A milestone still reads as one through its headline and
    colour, which is where the meaning lives.

@@ -700,8 +700,8 @@ const NudgeFeature = (function() {
        read into the counters, so running it twice would inflate them. */
     const cel = (typeof CelebrationFeature !== 'undefined')
       ? CelebrationFeature.forUnlock()
-      : { tier: 'quiet', titleKey: 'nudge.unlock.title', bodyKey: 'nudge.unlock.body_credit',
-          weekCount: 0, total: 0, variant: null };
+      : { tier: 'quiet', titleKey: 'nudge.unlock.title', earnedKey: 'nudge.unlock.earned.1',
+          countKey: 'nudge.celebrate.count', weekCount: 0, total: 0, variant: null };
 
     /* Name what they did, then what it bought. The point of the reset is that
        the user can see it happen — a silent one is indistinguishable from
@@ -709,13 +709,21 @@ const NudgeFeature = (function() {
     const minsRead = Math.max(1, Math.round((Date.now() - (ctx.startedAt || Date.now())) / 60000));
     const pagesRead = Math.max(settings().unlockPages, ctx.pagesRead || 0);
     const body = credit
-      ? tn(cel.bodyKey, pagesRead, {
-          app: escapeHtml(ctx.label),
+      ? t(cel.earnedKey, { app: escapeHtml(ctx.label) })
+      : t('nudge.unlock.body', { app: escapeHtml(ctx.label) });
+
+    /* Everything verifiable, once, small and in mono (§2 — DM Mono is the labels
+       and numbers face, which is what this is). Separating it from the sentence
+       above is what lets that sentence actually rotate: the figures are still
+       there for anyone who wants to check the reset happened (§1.5), and they
+       are no longer the thing the user reads four times a week. */
+    const receiptHtml = credit
+      ? '<p class="nudge-unlock-receipt">' + tn('nudge.unlock.receipt', pagesRead, {
           pages: pagesRead,
           mins: minsRead,
           fresh: credit.freshMinutes,
-        })
-      : t('nudge.unlock.body', { app: escapeHtml(ctx.label) });
+        }) + '</p>'
+      : '';
 
     /* The count is the most motivating true sentence available here, and the
        only one of its kind: how often this user picked the book, measured.
@@ -724,7 +732,7 @@ const NudgeFeature = (function() {
        making a larger version of the same point. */
     const countHtml = (cel.weekCount >= 2 && cel.tier !== 'milestone')
       ? '<p class="nudge-unlock-count">' +
-          tn('nudge.celebrate.count', cel.weekCount, { n: cel.weekCount }) + '</p>'
+          tn(cel.countKey, cel.weekCount, { n: cel.weekCount }) + '</p>'
       : '';
 
     /* §23's one slot on the nudge path, and deliberately not on the nudge screen
@@ -751,6 +759,7 @@ const NudgeFeature = (function() {
         '<div class="' + cardClass + '" role="dialog" aria-modal="true">' +
           '<h2 class="modal-title">' + t(cel.titleKey, { n: cel.total }) + '</h2>' +
           '<p class="modal-body">' + body + '</p>' +
+          receiptHtml +
           countHtml +
           tipHtml +
           '<div class="modal-actions">' +
