@@ -471,6 +471,24 @@ function renderSettings() {
         ${infoHint('offline-notif', t('settings.offline_notif.note_short'), t('settings.offline_notif.note'))}
       </section>
 
+      <!-- DEBUG — debug builds only, and structurally impossible elsewhere.
+           window.Capacitor.DEBUG comes from the app's FLAG_DEBUGGABLE and is
+           injected before this page loads, so this section does not exist in a
+           release build and Play would refuse a debuggable upload anyway
+           (§25). It only ever *withholds* entitlements: see
+           purchase.js's debugForcedFree(). -->
+      ${(typeof isDebugBuild === 'function' && isDebugBuild()) ? `
+      <section class="settings-section settings-debug">
+        <h2>${t('settings.section.debug')}</h2>
+        <label class="settings-toggle">
+          <span>${t('settings.debug.force_free')}</span>
+          <input type="checkbox" id="settings-debug-force-free" ${
+            (typeof debugForcedFree === 'function' && debugForcedFree()) ? 'checked' : ''} />
+        </label>
+        <p class="settings-copy text-muted">${t('settings.debug.force_free.note')}</p>
+      </section>
+      ` : ''}
+
       <!-- LIBRARY -->
       <section class="settings-section">
         <h2>${t('settings.section.library')}</h2>
@@ -601,6 +619,23 @@ function bindSettings() {
       syncThemeChips();
     });
   });
+
+  const debugFree = qs('#settings-debug-force-free');
+  if (debugFree) {
+    debugFree.addEventListener('change', async function() {
+      setDebugForcedFree(this.checked);
+      /* Re-derive the gate and redraw this screen: the Unlock section (§24)
+         appears or disappears with it, the appearance chips re-lock, and the
+         home surface behind this one has to agree. renderSettings() reads
+         AppState.isPro synchronously, so the refresh has to finish first. */
+      await hasProAccess();
+      if (typeof hasOcrAccess === 'function') await hasOcrAccess();
+      renderSettings();
+      if (typeof showToast === 'function') {
+        showToast(t(this.checked ? 'settings.debug.toast_on' : 'settings.debug.toast_off'));
+      }
+    });
+  }
 
   const unlockBtn = qs('#btn-settings-unlock');
   if (unlockBtn) {

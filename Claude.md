@@ -872,6 +872,7 @@ consistent, and do not grow status narrative here: that is `Tasks.md`'s job.
 | **16.23** | Reader profile + peer trigger choice in onboarding; daily-cap disclosure on the nudge | 10.3 | ✅ code complete; device run and Hindi owed |
 | **16.24** | Rotating feature-discovery tips on home and the nudge unlock | 23 | ✅ code complete; device run and Hindi owed |
 | **16.25** | Paywall placement — a deliberate purchase path, and three gates that said nothing | 24 | ✅ code complete; device run and Hindi owed |
+| **16.26** | Debug-only "simulate the free tier" flag, so 16.25 can be tested on device | 25 | ✅ code complete; device run owed |
 | **16.10** | Store listing rewrite onto the habit framing | 0.1 | ⬜ **next product task**; now the main listing, not just the India CSL |
 | **H3** | Notifications failed silently without exact-alarm permission | 1.5 | ✅ 1.4.7 |
 | **H4** | Pro purchase failed with a generic error | 1.5 | ✅ verified on a Play build; revenue blocker closed |
@@ -953,7 +954,7 @@ Reading position is sacred — every navigation calls `savePosition()`. Never mo
 Functions: verbs. State: nouns. Files single-purpose. Comments explain *why* not *what*.
 
 ### When to stop and ask
-Before any new dependency. Before changing palette or typography. Before adding any new file format. Before changing pricing (including the undetermined subscription price). Before adding features not listed here. Before escalating nudge detection to `AccessibilityService`. Before sourcing any Free Books/book-drop content from anything other than the verified-legal sources in Section 13.2. Before finalizing the onboarding permission-flow design (Section 10.2) without product-owner review.
+Before uploading any release build, run §25's check. Before any new dependency. Before changing palette or typography. Before adding any new file format. Before changing pricing (including the undetermined subscription price). Before adding features not listed here. Before escalating nudge detection to `AccessibilityService`. Before sourcing any Free Books/book-drop content from anything other than the verified-legal sources in Section 13.2. Before finalizing the onboarding permission-flow design (Section 10.2) without product-owner review.
 
 ---
 
@@ -992,7 +993,7 @@ Before any new dependency. Before changing palette or typography. Before adding 
   a build rather than precede one.
 - **Unreleased work on top of 1.5.6 / 44** (branches `nudge-book-selection-fix`,
   `reader-type-preset`, `feature-discovery-tips` and `paywall-placements`, 2026-11-18/20): tasks
-  16.21–16.25. Two of these touch things a device run
+  16.21–16.26. Two of these touch things a device run
   should look at directly — the nudge gate's page counting, where a backward swipe used to unlock
   the app outright, and the reading-session recorder, where a backward jump used to discard a
   session's streak day. The onboarding additions also need the Hindi checked on a narrow screen.
@@ -1163,5 +1164,63 @@ plus the four added here are enough to rank; anything further waits for the numb
 that is not optional: §4 records that the **subscription currently carries no recurring value**
 until the drops ship, so every new surface sells that harder. New copy leads with the one-time
 purchase, as the modal already does.
+
+---
+
+## 25. The Debug Flag — and the Release Check It Needs (added 2026-11-20)
+
+**Settings → Debug → "Simulate the free tier"** makes every entitlement gate answer *free*, so
+§24's free-tier surfaces — the Unlock section, the locked appearance chips, the device-sync note,
+the dashboard preview — can be checked on a device whose Google account owns `pro_lifetime`.
+Without it they cannot be: `refreshEntitlements()` queries Play on every launch and a one-time
+purchase is owned by that account forever, so clearing app storage re-grants Pro a second after
+boot. Testing on a desktop browser, a second account, or a refunded order were all considered and
+ruled out by the owner.
+
+### The release check
+
+**Before building any release: confirm the Debug section is absent from Settings.** If it is
+visible, that build is debuggable and must not be uploaded — for reasons that have nothing to do
+with this flag.
+
+**That check is the backstop, not the mechanism.** A release checklist is the weakest guarantee
+available, and this project has already been burned by one: §3 records a dated compliance item
+sitting in this document until after its deadline, which blocked every release for six weeks. So
+the flag is made *structurally* unshippable instead, two ways over:
+
+1. **The row cannot render in a release build.** `window.Capacitor.DEBUG` is injected by Capacitor
+   from the app's `FLAG_DEBUGGABLE` before `index.html` loads (`JSExport.getGlobalJS`), and
+   `minifyEnabled true` means a release build is not debuggable. `isDebugBuild()` reads it, the
+   Settings section is gated on it, and `setDebugForcedFree()` refuses to write without it.
+   Nothing native was added for this — the value is already there.
+2. **The flag is inert in release even if the key is set.** `debugForcedFree()` checks the build
+   before the key, so a `fr_debug_force_free` that survives into production does nothing.
+3. And Play refuses an upload marked `android:debuggable="true"` regardless.
+
+### Two properties that must not be weakened
+
+- **It can only withhold, never grant.** Every gate returns `false` under the flag; nothing reads
+  it to turn anything *on*. The worst case if it ever escaped is a paying user whose features are
+  hidden — visible and instantly reversible — rather than a free unlock. **A "simulate Pro" toggle
+  would be an unlock vector and must not be added**; a developer's own purchase supplies that half
+  of the matrix, which is the whole reason this direction was chosen.
+- **The key lives in `localStorage`, not Capacitor Preferences.** §21 forbids localStorage for
+  *purchase state*; this is not purchase state but a dev-only lens that cannot carry an
+  entitlement. In Preferences it would survive an app-data clear and be harder to be rid of. Do not
+  "correct" it.
+
+**`hasOcrAccess()` checks the flag before the `ocr_vision` purchase**, or a legacy add-on owner
+would keep OCR while simulating free — and OCR is one of the gates §24 asks to be testable.
+`refreshEntitlements()` still writes the real stored entitlements while the flag is on, because
+they are true: the flag is a lens, not a revocation. It resets the in-memory flags afterwards,
+since `hasProAccess()` short-circuits before reaching `hasSubscription()` and cannot correct them
+itself.
+
+**A debug build is not a release rehearsal.** R8 is off (`minifyEnabled` applies to `release`
+only), so anything verified this way still needs a pass on a release build — which is why 16.2's
+checklist was deliberately run against 1.5.3 / 41 with R8 active. Debug and release also share
+`applicationId com.flowread.app` with different signing keys, so swapping between them requires an
+uninstall, which wipes the library, reading positions and streak. The purchase comes back by
+itself; the reading history does not.
 
 *This document is the contract. Update it before changing direction, not after.*

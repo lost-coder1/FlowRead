@@ -647,5 +647,10 @@
   "dashboard.locked.item2": "Ninety days of reading, one square a day",
   "dashboard.locked.item3": "What you've finished, by file type",
   "dashboard.locked.item4": "Time left in every book you're part-way through",
-  "dashboard.locked.btn": "See the options"
+  "dashboard.locked.btn": "See the options",
+  "settings.section.debug": "Debug (debug builds only)",
+  "settings.debug.force_free": "Simulate the free tier",
+  "settings.debug.force_free.note": "Pretends nothing has been purchased, so free-tier screens can be checked on this device. It can only hide features, never unlock them, and this section does not exist in a release build.",
+  "settings.debug.toast_on": "Simulating the free tier.",
+  "settings.debug.toast_off": "Your real purchases are back."
 }

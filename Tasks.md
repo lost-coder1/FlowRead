@@ -8,7 +8,8 @@ decision taken. Completed work and resolved device findings live in
 **[Tasks-archive.md](Tasks-archive.md)**. The split rule: anything that would change a future
 decision stays here or in `Claude.md`; a record of an action already taken goes to the archive.
 
-**Last updated:** 2026-11-20 — **16.25 reworks paywall placement** (branch
+**Last updated:** 2026-11-20 — **16.25 reworks paywall placement, and 16.26 adds the debug flag
+that makes it testable** (branch
 `paywall-placements`, stacked on `feature-discovery-tips`): Settings gains the only deliberate
 purchase path in the app, the locked font/theme chips and the device-sync note stop being dead
 ends, and the dashboard shows a real preview instead of a modal. The audit's other half — the four
@@ -202,6 +203,7 @@ which are the two to run first if time is short.
 | 2026-11-19 | **Settings' "with both on" note is rewritten, and dropped from onboarding entirely.** | The claim was stale: it said every-open already covers the threshold, which held under §9.3's original framing and stopped being true when §9.3a let the threshold fire mid-session. So it told the user one of their own choices did nothing when it did (§1.5). It now says they get both moments — the open, and again on a long sitting. Dropped from onboarding regardless, where on a first run any note there reads as a correction to a choice just made. The same stale claim was carried in two code comments (`nudge.js`, `settings.js`) and both are corrected. |
 | 2026-11-19 | **`_pushSettings()` returns a promise, and anything that reads the nudge state back must await it.** | `getNudgeStatus` is served from the same native prefs `_pushSettings` writes, so Settings was racing its own write: moving the daily-cap slider left the status line below quoting the previous cap until the screen was left and re-entered. Reported from use. Individual key writes still swallow their own failures, so one failing key cannot reject the whole push and strand the caller. |
 | 2026-11-20 | **Feature-discovery tips go on the nudge *unlock modal*, never the nudge screen.** | The nudge screen's two actions are deliberate peers and the escape hatch is a product rule (§9.1, §21). A third thing to read makes it one of three. The unlock modal is after the threshold is met: nothing withheld, nothing interrupted, and the user has just succeeded. |
+| 2026-11-20 | **A debug-only "simulate the free tier" toggle, gated on `window.Capacitor.DEBUG` rather than on remembering to remove it.** | §24's free-tier surfaces were untestable on a device whose account owns the lifetime purchase, and Play re-grants it every launch. The toggle only ever *withholds* — a "simulate pro" switch would be an unlock vector — and `FLAG_DEBUGGABLE` makes the row impossible to render in a release build, so the release check in `Claude.md` §25 is a backstop rather than the guarantee. §3's missed deadline is why a checklist alone was not considered enough. |
 | 2026-11-20 | **Settings gets the one deliberate purchase path**, shown only to a user who has not paid. | Every other paywall is reactive, so someone who simply wanted to pay had nowhere to go — and §1.3's "prominently offered and genuinely purchasable" cannot hold when the only route to the lifetime option is bumping into a locked feature. One section, one screen the user navigated to themselves; explicitly not home and not a banner. |
 | 2026-11-20 | **A locked control must do something when tapped** — it opens the paywall rather than being `disabled`. | A dead lock icon is a silent failure (§1.5) and discards the best-timed paywall in the app: the user has just pointed at what they would buy. Applied to the font/theme chips and the device-sync note, and inherited by any future Pro gate. |
 | 2026-11-20 | **The dashboard shows itself before it asks**, with the user's real KPIs and the charts behind one named lock card. | A modal in front of a closed door never showed anyone what they would be buying. Nothing is fabricated — invented preview numbers would be §1.5's silent lie — so `paywall_shown` moves to the card's button and keeps meaning "was offered a price". |
@@ -1293,6 +1295,47 @@ sessions at all still renders rather than throwing. Both locales symmetric at 64
   the lock card reads as part of the screen rather than an ad.
 - The sync sheet note, which needs a device with a non-PDF in a scanned folder.
 - Hindi on all four — the Settings body line and `dashboard.locked.*` are the long ones.
+
+---
+
+---
+
+## Task 16.26 — Debug flag: simulate the free tier  ✅ code complete, device run owed
+
+**Why.** §24's free-tier surfaces were untestable on the owner's device: the account owns
+`pro_lifetime`, `refreshEntitlements()` asks Play every launch, and a one-time purchase is owned
+forever — so clearing app storage re-granted Pro within a second of boot. Desktop browser, a
+second Google account, and refunding the order were all ruled out by the owner.
+
+**Settings → Debug → Simulate the free tier.** Every gate (`hasProAccess`, `hasLifetime`,
+`hasSubscription`, `hasOcrAccess`) answers free while it is on; toggling re-derives the gate and
+redraws Settings, so the §24 Unlock section appears and the appearance chips re-lock in place.
+
+**It cannot ship, and that is structural rather than procedural.** `window.Capacitor.DEBUG` is
+injected by Capacitor from `FLAG_DEBUGGABLE` before the page loads, so the section cannot render
+in a release build; `debugForcedFree()` checks the build before the key, so a stray
+`fr_debug_force_free` is inert in production; and Play refuses a debuggable upload anyway.
+**No native change was needed** — the value was already there, which also avoided the
+`git add -f` trap on `android/`.
+
+**It can only withhold, never grant** — which is why it is "simulate free" and not "simulate
+pro". A granting toggle would be an unlock vector; the developer's real purchase supplies the
+other half of the matrix. The worst case if it ever escaped is a paying user whose features are
+hidden, which is visible and reversible.
+
+`Claude.md` §25 carries the release check the owner asked for, plus the reasoning for why the
+check is the backstop and not the mechanism — §3's missed deadline is the precedent for not
+trusting a checklist alone. §21's stop-and-ask list now points at it.
+
+**Verification.** A 16-assertion headless suite over the accessors: with the flag on, all four
+gates read free (including OCR for an `ocr_vision` owner) and the `AppState` flags mirror it; with
+it off, real entitlements are untouched; in a simulated release build the flag is inert, the
+setter writes nothing, and `isDebugBuild()`/`debugForcedFree()` are both false; and a user who
+owns nothing stays free either way, so the flag can never grant.
+
+**Device run owed:** install the debug variant (Android Studio ▶ installs `debug` by default —
+check the Build Variants panel), confirm the Debug section is present, toggle it and walk the four
+§24 surfaces, then toggle back and confirm Pro returns without a restart.
 
 ---
 

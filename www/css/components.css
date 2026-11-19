@@ -3045,3 +3045,10 @@
   color: var(--accent);
   white-space: nowrap;
 }
+
+/* The debug-only section (§25). Marked, not styled to look official: a
+   developer should be able to tell at a glance that this is not product. No new
+   palette — §16's --error at low emphasis on the heading only. */
+.settings-debug > h2 {
+  color: var(--error);
+}

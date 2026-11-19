@@ -110,6 +110,54 @@ function _offerFor(kind) {
   return null;
 }
 
+/* ─── Debug: simulate the free tier ────────────────────────────────────── */
+/* A developer who owns `pro_lifetime` cannot see any free-tier surface on their
+   own device, and no amount of clearing storage helps: refreshEntitlements()
+   asks Play on every launch and a one-time purchase is owned by that Google
+   account forever, so the entitlement is re-granted a second after boot. That
+   made §24's work — the Unlock section, the locked chips, the dashboard preview
+   — untestable on the device it ships to.
+
+   Two properties make this safe to have in the source at all:
+
+   1. **It can only ever withhold, never grant.** Every gate below returns false
+      when it is on; nothing anywhere reads it to turn something *on*. So the
+      worst case if it ever escaped is a paying user whose features are hidden
+      — bad, visible, and instantly reversible — rather than an unlock vector.
+      A toggle that granted Pro would be one, which is why this is "simulate
+      free" and not "simulate pro". The developer's real entitlement supplies
+      the other half of the matrix.
+   2. **It cannot exist in a release build.** `window.Capacitor.DEBUG` is
+      injected by Capacitor from the app's FLAG_DEBUGGABLE before the page
+      loads (JSExport.getGlobalJS), so it is false in anything built as
+      release — and Play refuses an upload marked debuggable regardless. The
+      flag is therefore inert in production even if the localStorage key is
+      somehow set, and the Settings row that writes it is never rendered.
+      This is the guarantee; §25's release check is the backstop, not the
+      mechanism.
+
+   The key lives in localStorage, not Capacitor Preferences. §21 forbids
+   localStorage for *purchase state*, and this is not purchase state — it is a
+   dev-only simulation switch that cannot carry an entitlement. Do not "fix" it
+   into Preferences, where it would outlive an app-data clear and be harder to
+   get rid of. */
+function isDebugBuild() {
+  return !!(typeof window !== 'undefined' && window.Capacitor && window.Capacitor.DEBUG === true);
+}
+
+function debugForcedFree() {
+  if (!isDebugBuild()) return false;
+  try { return localStorage.getItem('fr_debug_force_free') === '1'; } catch (_) { return false; }
+}
+
+function setDebugForcedFree(on) {
+  if (!isDebugBuild()) return;
+  try {
+    if (on) localStorage.setItem('fr_debug_force_free', '1');
+    else localStorage.removeItem('fr_debug_force_free');
+  } catch (_) {}
+}
+
 /* ─── State accessors ──────────────────────────────────────────────────── */
 /* Two stored entitlements, read and written independently (§4): a user may hold
    the lifetime purchase, a subscription, both, or neither. They stay separate
@@ -123,6 +171,7 @@ function _offerFor(kind) {
    a Pro feature on the lifetime purchase alone would lock out a subscriber who
    had just paid for exactly that feature. */
 async function hasLifetime() {
+  if (debugForcedFree()) { AppState.ownsLifetime = false; return false; }
   const owns = (await loadPurchaseState('pro')) === 'true';
   AppState.ownsLifetime = owns;
   return owns;
@@ -131,6 +180,7 @@ async function hasLifetime() {
 /* The single Pro gate. `AppState.isPro` therefore means "paid", not "bought the
    lifetime product" — ownsLifetime is the flag for that. */
 async function hasProAccess() {
+  if (debugForcedFree()) { AppState.isPro = false; return false; }
   const lifetime = await hasLifetime();
   const sub = await hasSubscription();
   const access = lifetime || sub;
@@ -148,11 +198,16 @@ async function hasProAccess() {
       charge — deliberate goodwill, not an oversight);
    3. an active subscription. */
 async function hasOcrAccess() {
+  /* Before the ocr_vision check, not after: a legacy add-on owner would
+     otherwise keep OCR while simulating the free tier, and OCR is one of the
+     gates §24 asks to be testable. */
+  if (debugForcedFree()) return false;
   if ((await loadPurchaseState('ocr')) === 'true') return true;
   return await hasProAccess();
 }
 
 async function hasSubscription() {
+  if (debugForcedFree()) { AppState.isSubscriber = false; return false; }
   const active = (await loadPurchaseState('subscription')) === 'true';
   AppState.isSubscriber = active;
   return active;
@@ -228,6 +283,16 @@ async function refreshEntitlements() {
      raising it. A lapsed subscription with no lifetime purchase has to close the
      Pro gate again, and the surfaces rendered from it have to be re-rendered —
      a lock the user can still click past is not a gate (§1.5). */
+  /* The stored entitlements above are still written while simulating the free
+     tier — they are true, and the flag is a lens rather than a revocation — but
+     the in-memory flags set directly in those branches have to be put back,
+     since hasProAccess() short-circuits before it would reach hasSubscription()
+     and so cannot correct them itself. */
+  if (debugForcedFree()) {
+    AppState.ownsLifetime = false;
+    AppState.isSubscriber = false;
+  }
+
   const hadAccess = AppState.isPro;
   await hasProAccess();
 
