@@ -423,7 +423,7 @@ Explicitly not a hard app-blocker. A soft interception with an always-visible, o
 5. If reading: track against a user-configurable threshold. **Q2 defaults, signed off 2026-09-20: nudge after 15 minutes in that app (3rd open when usage access is denied); unlock after 2 Page-mode pages; cap 3 nudges per app per day; back off for the rest of the day after 3 consecutive dismissals.** All are settings, none hardcoded. An "on every open" trigger mode (`fr_nudge_trigger_mode`) was added 2026-09-21 — it skips the minutes/opens threshold but **still honours the daily cap and the dismissal back-off**, without which it would be the wall 9.1 forbids; the daily cap is exposed as a visible setting so the mode's name matches its behaviour (1.5).
 6. Once met, **only the originally-requested target app opens**, not the user's whole nudge list (scoped unlock, 9.7).
 7. Skipping at any point does not fail or penalize the user — no guilt copy, no broken-streak framing.
-8. **Reading pays the clock back (added 2026-10-06).** Meeting the read threshold restarts that app's sitting from zero, zeroes its open count, clears the dismissal streak, and **refunds one nudge against the daily cap**. The unlock modal names what it cost and what it bought ("3 pages in 6 min — your Instagram clock is back to zero, so that's 15 fresh minutes"). Without the refund the reset is hollow: a user who read three times would have reset a clock the gate had no nudges left to act on. The cap still holds between reads, so the only way past it is to have read. Leaving a nudged read early credits nothing.
+8. **Reading pays the clock back (added 2026-10-06).** Meeting the read threshold restarts that app's sitting from zero, zeroes its open count, clears the dismissal streak, and **refunds one nudge against the daily cap**. The unlock modal names what it cost and what it bought. **It does so in two parts, as of 2026-11-20 (§26):** a plain-language line carrying the benefit ("Instagram's clear now — I'll keep out of your way for a while"), and one small DM Mono receipt carrying the figures ("4 pages · 6 min read · 15 min before I say anything"). The requirement is that the reset be *visible*, never that it be the headline — and a sentence built out of four numbers is the same sentence every time however it is worded, which is what made the reward go stale. Without the refund the reset is hollow: a user who read three times would have reset a clock the gate had no nudges left to act on. The cap still holds between reads, so the only way past it is to have read. Leaving a nudged read early credits nothing.
 
 ### 9.3 Dynamic Triggering — Not Every Open
 Trigger only after a threshold, with a daily nudge cap per app and a back-off for the rest of the day after 3 consecutive dismissals.
@@ -873,6 +873,7 @@ consistent, and do not grow status narrative here: that is `Tasks.md`'s job.
 | **16.24** | Rotating feature-discovery tips on home and the nudge unlock | 23 | ✅ code complete; device run and Hindi owed |
 | **16.25** | Paywall placement — a deliberate purchase path, and three gates that said nothing | 24 | ✅ code complete; device run and Hindi owed |
 | **16.26** | Debug-only "simulate the free tier" flag, so 16.25 can be tested on device | 25 | ✅ code complete; device run owed |
+| **16.27** | Variable reward on the unlock — rotating copy, a measured count line, milestone tier | 26 | ✅ code complete; device run and Hindi owed |
 | **16.10** | Store listing rewrite onto the habit framing | 0.1 | ⬜ **next product task**; now the main listing, not just the India CSL |
 | **H3** | Notifications failed silently without exact-alarm permission | 1.5 | ✅ 1.4.7 |
 | **H4** | Pro purchase failed with a generic error | 1.5 | ✅ verified on a Play build; revenue blocker closed |
@@ -1229,5 +1230,79 @@ checklist was deliberately run against 1.5.3 / 41 with R8 active. Debug and rele
 `applicationId com.flowread.app` with different signing keys, so swapping between them requires an
 uninstall, which wipes the library, reading positions and streak. The purchase comes back by
 itself; the reading history does not.
+
+## 26. The Unlock Celebration — Variable Reward (added 2026-11-20)
+
+The unlock modal is the only moment in this product where the user has unambiguously done the
+thing it exists for: they were on their way into Instagram and they read instead. It said the same
+two sentences every time, which is how a reward becomes wallpaper. `features/celebration.js` owns
+the pools, the counters and the tier decision; `features/nudge.js` still draws the modal, as it
+does the §23 tip line.
+
+**The mechanic is variable *magnitude*, not variable decoration** — this is the whole design, and
+rotating copy alone would not have been it. If every unlock celebrates equally hard the user
+calibrates to it inside a week however many skins it has. So the great majority of unlocks are
+quiet (a rotating line, the credit, the count) and a small minority are genuinely bigger, carrying
+a real milestone and the only animation this feature ever draws.
+
+**What makes that honest rather than a dice roll:** milestones fire on measured thresholds the
+user actually crossed — 1, 5, 10, 25, 50, 100, 250 nudge-reads, and day runs of 3, 7, 14, 30 —
+each **once ever**. Unpredictable to the user, deterministic in the code. The sticky grant is the
+same reasoning §9.6 gives for `book_finished`: the question is whether this user ever reached ten,
+not how many times a counter passed through it. A day run beats a count when both cross on the
+same read, because a run cannot be caught up on; the count milestone is left unspent for the next
+one rather than stacked, since two celebrations in one modal is one too many.
+
+**The modal is four lines, and the split between them is the design.** A rotating title, a
+rotating plain-language sentence carrying the benefit, one small DM Mono **receipt** carrying every
+figure, and the rotating count line. The first version put the figures *in* the sentence — pages,
+minutes, clock, fresh minutes — and the owner's reading of it was immediate and correct: five
+variants of a number-dump is still a number-dump, because the numbers are the shape of the
+sentence and the wording around them is noise. So the figures moved to a receipt, which §2 already
+has a face for. **§9.2 asks for the reset to be visible, never for it to be the headline**, and
+pulling the numbers out is what lets the sentence rotate *perceptibly*. Do not put them back.
+
+**Five rules on it:**
+
+1. **Nothing may be invented.** §24's bar on fabricated figures applies to a celebration as much
+   as to the dashboard preview. *"You saved 15 minutes of scrolling"* is unmeasurable — nothing
+   knows what the user would have scrolled — and therefore unsayable, however motivating it reads.
+   What **is** measured is how many times they chose the book, so that is the line: *"that's 4
+   times this week you've picked the book first."* **"Invested", never "saved".**
+2. **Counters are derived from an append-only list, never stored beside it.** `fr_nudge_reads` is
+   dates; total, week and day run are computed. Same discipline as `computeStreak()` and for the
+   same reason — a stored total and a stored list drift, and then the modal is congratulating the
+   user on a number nothing can substantiate. The week is **Monday-to-today, not a rolling seven
+   days**, because the copy says "this week" and a rolling window makes that quietly false six days
+   out of seven.
+3. **The visual stays inside §16**: three variants (bloom, sweep, ring), under a second, ease-out,
+   accent palette only, no bounce, one pseudo-element and no extra DOM. Confetti was considered and
+   **rejected** — this screen is two taps from the nudge, where the brief is explicitly "calm, not
+   alarming", and a party-coloured burst is a different product's voice. Copy rotation is random
+   (interchangeable lines, as §9.3's subtitles are); the **visual** is round-robin, which is not an
+   inconsistency: a milestone is rare enough that a user may see six in their life, so a random
+   pick would plausibly repeat and at that frequency the repeat is the thing they notice.
+4. **A pool never repeats its previous pick.** Unseeded random hands out the same line twice
+   running about one time in eight, and this module exists because the modal read as a fixed
+   string — so the last pick is *excluded*, not merely made unlikely. Remembered in storage rather
+   than in memory, because consecutive unlocks are usually separate app sessions, which is exactly
+   where an in-memory guard would fail and a repeat would be most visible.
+5. **Reduced motion is honoured in both layers** — the JS withholds the variant class and the CSS
+   hides the pseudo-element. This is the first rule in the stylesheet to respect the preference;
+   anything animated added later should. A milestone still reads as one through its headline and
+   colour, which is where the meaning lives.
+
+**Haptics were considered and deliberately left as an empty function with the call site in place**
+(owner, 2026-11-20). A haptic is confirmation, not reinforcement: vibration has no perceptible
+dynamic range, so it cannot carry the variable-magnitude job this module exists to do, and turning
+it on costs `android.permission.VIBRATE` in the merged manifest permanently. Where it would earn
+that is as punctuation on the milestone alone. Switching it on is `_haptic()`'s body plus the
+manifest line and nothing else moves — **judge it on a device once the milestone visual is real.**
+
+**No analytics event.** `nudge_read_completed` already fires at exactly this moment, and §9.6's
+allowlist stays closed. `CelebrationFeature.stats()` is exposed for the dashboard and for §15's
+future "time reclaimed" line, which these are the only honest figures for.
+
+---
 
 *This document is the contract. Update it before changing direction, not after.*
