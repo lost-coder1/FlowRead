@@ -922,6 +922,7 @@ const NudgeFeature = (function() {
      failed" framing, nothing that implies skipping costs the user something.
      Warm and a little wry is the register; scolding is not. */
   const SUBTITLE_COUNT = 6;
+  const SUB_LAST_KEY = 'fr_nudge_sub_last';
 
   function _subtitle() {
     const keys = [];
@@ -933,7 +934,22 @@ const NudgeFeature = (function() {
       if (t(k) !== k) keys.push(k);
     }
     if (!keys.length) return t('nudge.screen.subtitle');
-    return t(keys[Math.floor(Math.random() * keys.length)]);
+
+    /* §26.4's discipline, which this pool was missing: the previous line is
+       excluded rather than merely made unlikely. Six entries and a cap of three
+       nudges a day means unseeded random repeats the line the user just read
+       often enough to read as a fixed string — which is the one thing a rotating
+       line must not do. Remembered in storage, not memory: consecutive nudges
+       are nearly always separate app sessions, which is exactly when a repeat is
+       most visible. */
+    let last = null;
+    try { last = localStorage.getItem(SUB_LAST_KEY); } catch (_) {}
+    const pool = (keys.length > 1 && last)
+      ? keys.filter(function(k) { return k !== last; })
+      : keys;
+    const key = pool[Math.floor(Math.random() * pool.length)];
+    try { localStorage.setItem(SUB_LAST_KEY, key); } catch (_) {}
+    return t(key);
   }
 
   /* How many of today's nudges this one is (owner, 2026-11-19). The daily cap is
