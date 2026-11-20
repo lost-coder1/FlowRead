@@ -145,6 +145,12 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (handled) return;
       }
 
+      /* The picker's app list is only trustworthy until the user leaves, since
+         installing an app happens outside FlowRead. Dropped here rather than
+         refetched, so nothing is paid for until the picker is actually opened.
+         Synchronous and after the nudge above, which is time-critical. */
+      if (typeof NudgeAppsFeature !== 'undefined') NudgeAppsFeature.invalidate();
+
       /* Android resumes the task on whatever view it was last on. After a real
          gap that is nearly always stale — the user is opening FlowRead to read,
          not to finish reading a settings screen from this morning. */

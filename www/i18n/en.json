@@ -531,7 +531,7 @@
   "nudge.picker.subtitle": "Pick the app you'd rather scroll less. FlowRead will offer you a page first.",
   "nudge.picker.search": "Search apps",
   "nudge.picker.loading": "Loading your apps…",
-  "nudge.picker.none": "No apps found to choose from.",
+  "nudge.picker.none": "No apps found to choose from. Close this and open it again to look afresh.",
   "nudge.picker.no_match": "No app matches that.",
   "nudge.disclosure.kicker": "Before you turn this on",
   "nudge.disclosure.title": "What FlowRead can and can't see",

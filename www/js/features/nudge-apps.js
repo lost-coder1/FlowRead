@@ -19,9 +19,19 @@ const NudgeAppsFeature = (function() {
      something to buy, so §4's rule applies again. */
   const FREE_APP_LIMIT = 1;
 
-  /* Icons are the expensive part of the native call, so the list is fetched
-     once per app run and reused for every re-open of the picker. */
+  /* Icons are the expensive part of the native call (every launcher icon is
+     base64'd), so the list is reused for every re-open of the picker. But it is
+     only valid for as long as the set of installed apps cannot have changed:
+     installing an app means leaving FlowRead, so invalidate() is called from the
+     resume handler in app.js. Without that the picker froze the list for the
+     whole WebView lifetime, and an app installed *for* the nudge — the common
+     case, since that is what the picker asks the user to think about — could
+     not be chosen until Android killed the process. */
   let _cache = null;
+
+  function invalidate() {
+    _cache = null;
+  }
 
   function _plugin() {
     return (typeof Capacitor !== 'undefined' &&
@@ -80,13 +90,18 @@ const NudgeAppsFeature = (function() {
   }
 
   async function listApps(force) {
-    if (_cache && !force) return _cache;
+    /* An empty result is never cached: [] is truthy, so a single call that came
+       back with nothing — the plugin not ready yet on a cold boot, a rejected
+       call — would otherwise pin "no apps found" for the rest of the session
+       with no way for the user to get past it (§1.5). */
+    if (_cache && _cache.length && !force) return _cache;
     const p = _plugin();
     if (!p || typeof p.listLaunchableApps !== 'function') return [];
     try {
       const res = await p.listLaunchableApps();
-      _cache = (res && res.apps) ? res.apps : [];
-      return _cache;
+      const apps = (res && res.apps) ? res.apps : [];
+      _cache = apps.length ? apps : null;
+      return apps;
     } catch (_) {
       return [];
     }
@@ -281,6 +296,7 @@ const NudgeAppsFeature = (function() {
     setTargets: setTargets,
     labelFor: labelFor,
     listApps: listApps,
+    invalidate: invalidate,
     openPicker: openPicker,
     syncToNative: syncToNative,
     appLimit: appLimit,

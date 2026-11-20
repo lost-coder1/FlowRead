@@ -510,7 +510,7 @@
   "nudge.picker.subtitle": "वो app चुनिए जिस पर कम scroll करना चाहते हैं। FlowRead पहले एक page का सुझाव देगा।",
   "nudge.picker.search": "Apps खोजें",
   "nudge.picker.loading": "आपके apps आ रहे हैं…",
-  "nudge.picker.none": "चुनने के लिए कोई app नहीं मिला।",
+  "nudge.picker.none": "चुनने के लिए कोई app नहीं मिला। इसे बंद करके दोबारा खोलिए।",
   "nudge.picker.no_match": "इससे मिलता कोई app नहीं है।",
   "nudge.disclosure.kicker": "चालू करने से पहले",
   "nudge.disclosure.title": "FlowRead क्या देख सकता है, क्या नहीं",
