@@ -17,11 +17,6 @@ function renderUpload() {
                (product decision 2026-09-25). Hidden until there is something
                worth sharing, so a fresh install is not offered an empty card. -->
           <button class="btn btn-ghost" id="btn-share-stats" type="button" hidden>${t('btn.share')}</button>
-          <!-- Saved words (§27). Carries its count, because the count is the
-               point: an investment nobody can watch accumulating is not felt.
-               Hidden until the first word is kept, like Share above it — an
-               empty list is not an invitation. -->
-          <button class="btn btn-ghost" id="btn-open-words" type="button" hidden>${t('btn.words')}</button>
           <button class="btn btn-ghost" id="btn-open-settings-top" type="button">${t('btn.settings')}</button>
         </div>
       </header>
@@ -32,6 +27,20 @@ function renderUpload() {
       <div id="library-section" class="library-section" hidden>
         <!-- Populated by renderLibrary() -->
       </div>
+
+      <!-- Saved words (§26.1). Not in the header: that row is navigation and
+           was built for three buttons, where a fourth wrapped and split its own
+           label. A word collection is content, like the books above it, so it
+           sits with them. Full width, so the count is more visible here than a
+           badge in a crowded row ever was — and it does not depend on the
+           library being non-empty, which a chip inside that section would.
+           A row, never a card: a card here would read as an unanswered to-do,
+           the same reason §23's tip is one line. -->
+      <button id="home-words-row" class="home-words-row" type="button" hidden>
+        <span class="home-words-label">${t('words.title')}</span>
+        <span class="home-words-count" id="home-words-count"></span>
+        <span class="home-words-chevron" aria-hidden="true">›</span>
+      </button>
 
       <!-- One-time nudge setup offer, and since Task 16.3 (2026-11-01) it is the
            second chance rather than the first ask: onboarding now asks inline
@@ -210,12 +219,13 @@ function renderUpload() {
     if (lib) lib.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 
-  const wordsBtn = qs('#btn-open-words');
-  if (wordsBtn && typeof SavedWordsFeature !== 'undefined') {
+  const wordsRow = qs('#home-words-row');
+  if (wordsRow && typeof SavedWordsFeature !== 'undefined') {
     const savedCount = SavedWordsFeature.count();
-    wordsBtn.hidden = savedCount === 0;
-    wordsBtn.textContent = t('btn.words') + ' · ' + savedCount;
-    wordsBtn.addEventListener('click', function() { SavedWordsFeature.open(); });
+    wordsRow.hidden = savedCount === 0;
+    const countEl = qs('#home-words-count');
+    if (countEl) countEl.textContent = tn('words.count', savedCount);
+    wordsRow.addEventListener('click', function() { SavedWordsFeature.open(); });
   }
 
   const shareBtn = qs('#btn-share-stats');

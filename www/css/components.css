@@ -119,8 +119,10 @@
 .upload-header-actions {
   display: flex;
   gap: var(--space-sm);
-  /* Three buttons now (Library / Share / Settings). Hindi labels are longer
-     than the English, so let them wrap rather than squeeze. */
+  /* Three buttons (Library / Share / Settings), each flex: 1. Hindi labels are
+     longer than the English, so let them wrap rather than squeeze. This row is
+     navigation and it is full: a fourth button wrapped and split its own label,
+     which is why saved words got their own row (§26.1) instead. */
   flex-wrap: wrap;
   justify-content: flex-end;
 }
@@ -3177,6 +3179,60 @@
    to-do. --surface-2 rather than --surface so it sits *under* that prompt in
    the visual hierarchy instead of beside it. No new palette entries, radius
    within §16's 2–4px. */
+/* ── Saved-words row on home (Claude.md §26.1) ──────────────
+   Deliberately shaped like .home-tip rather than like an import card: both are
+   one quiet line that must not read as a pending decision. It was first put in
+   the header, which is built for three buttons — a fourth wrapped and broke its
+   own label mid-text. */
+.home-words-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  max-width: 680px;
+  margin: 0 var(--space-md) var(--space-md);
+  padding: 12px var(--space-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.14s, border-color 0.14s;
+}
+
+.home-words-row:hover,
+.home-words-row:active {
+  background: var(--surface);
+  border-color: var(--accent-2);
+}
+
+.home-words-label {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+/* The count is the mechanic, not a detail — it is why this row exists (§26.1).
+   Pushed to the right by the label, kept on one line. */
+.home-words-count {
+  flex: 1 1 auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.home-words-chevron {
+  flex: 0 0 auto;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--text-dim);
+}
+
 .home-tip {
   display: flex;
   align-items: stretch;   /* the dismiss rule divider spans whatever height the text needs */

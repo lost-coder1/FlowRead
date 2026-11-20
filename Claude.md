@@ -1026,8 +1026,14 @@ there is nothing on screen to select.
 - **Identity is the resolved base form** (§26.2), so `books`, `book` and `book's` are one entry, not
   three. **First save wins:** a word met again in a second book stays attributed to where it was
   first met, which is the read the reader will remember.
-- **The count is on the button, not just inside the screen.** An investment nobody can watch
-  accumulating is not felt — that is the whole mechanic, not decoration.
+- **The count is on the home screen, not just inside the words screen.** An investment nobody can
+  watch accumulating is not felt — that is the whole mechanic, not decoration. It is **its own row
+  below the library, not a header button**: that row is navigation, is built for three buttons each
+  at `flex: 1`, and a fourth wrapped and split its own label on a phone. A word collection is
+  *content*, so it sits with the books. Full width also shows the count better than a badge in a
+  crowded row, and unlike a chip inside the library section it does not vanish when the library is
+  empty. **A row, never a card** — a card here reads as an unanswered to-do, which is why §22's tip
+  is one line too.
 - **`localStorage` under `fr_saved_words`**, consistent with `fr_library` and for the same reason:
   small records, not file data, and §20 reserves Preferences for purchase state alone. Capped at
   1,000 (~100 KB) dropping the oldest, as a quota guard rather than a product limit.
