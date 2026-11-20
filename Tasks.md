@@ -8,7 +8,14 @@ decision taken. Completed work and resolved device findings live in
 **[Tasks-archive.md](Tasks-archive.md)**. The split rule: anything that would change a future
 decision stays here or in `Claude.md`; a record of an action already taken goes to the archive.
 
-**Last updated:** 2026-11-20 — **16.27 gives the unlock modal a variable reward** (branch
+**Last updated:** 2026-11-20 — **16.28 reworks the share moments** (branch `share-moments`): the
+sheet opens as a composed card with the options behind one tap, a finished book is offered for
+sharing *when it is finished* rather than on the next app launch, and three recap windows (last 7
+days, last 30 days, this year) give the card something to say on an ordinary week. `Claude.md`
+§15 carries the new rule — a completion prompt may interrupt only where the engine can prove the
+reading is done.
+
+Also 2026-11-20 — **16.27 gives the unlock modal a variable reward** (branch
 `nudge-celebration`): `features/celebration.js` holds the copy pools, an append-only count of
 nudge-reads, and the tier decision. Most unlocks stay quiet with a rotating line and a measured
 count ("that's 4 times this week you've picked the book first"); milestones — 1/5/10/25/50/100/250
@@ -182,6 +189,9 @@ which are the two to run first if time is short.
 | 2026-11-01 | **`AppState.isPro` now means "has paid", not "owns lifetime"**; the lifetime purchase gets its own flag, `ownsLifetime`. | 16.1 kept the two *stored* entitlements independent as §4 requires, but every one of the 24 Pro gates in the app reads `AppState.isPro` — so leaving that as the lifetime flag would have locked a subscriber out of the very features they had just paid for. Making the *gate* a derived third thing keeps the Preferences keys separate (what the rule actually protects — the drops can gate on `isSubscriber` alone) without needing all 24 call sites to be found and changed correctly. |
 | 2026-11-01 | **A subscription is revoked only from a query Play answered**, never from a failed one. | The first entitlement in this app that can stop being true. `queryPurchases` reports `checkedTypes` so "Play says no subscription" is distinguishable from "we could not ask" — revoking on the second would cut a paying subscriber off for having poor signal, the §1.5 failure mode at its most expensive. One-time purchases are still never revoked. |
 | 2026-11-01 | **Subscription base plans are matched by billing period, not by base plan ID.** | A hardcoded plan ID is a silent breakage waiting for whoever renames it in Play Console. `P1M`/`P1Y` is what the user is actually choosing between. Offer tokens are never persisted (valid only for the query that produced them) and the native side re-resolves them against current details rather than trusting JS — charging the annual price to someone who tapped monthly is not a recoverable mistake. |
+| 2026-11-20 | **A completion prompt may interrupt only where the engine can prove the reading is done** (16.28), superseding §15's "home screen only". | The old rule produced a share offer on the *next app launch* — moment gone, and reading as a bug. RSVP/Chunk/Scroll/Focus Bold can prove it: `_handleEnd()` means playback ran past the last word, the engine is idle, nothing is left to interrupt. Page mode cannot — arriving on the last page is not reading it, and how long it takes is unknowable — so it offers a tappable line instead of asking. Streak milestones stay on home, which is what the original rule was actually protecting. |
+| 2026-11-20 | **Recap windows are offered, never prompted** (16.28). | A recap renews weekly, which no other share occasion here does, and §22 puts the product in a distribution bottleneck. But the owner declined a prompt, and that is the right call: a recap arriving unbidden in a week the user read nothing has no honest phrasing that is not the guilt framing §9.1 rules out. "This year" rather than "last year" for the same reason — last year is empty for every current user and would ship broken until December. |
+| 2026-11-20 | **The share sheet opens composed; editing goes behind one tap** (16.28). | It opened as up to seven hero radios and four checkboxes — reported as "too many choices" — which asked the user to decide something §15 already ranks (a named book, then the streak, then the numbers). §15's editability requirement is met by one tap, not by putting the form in front of the card. |
 | 2026-11-20 | **The unlock reward varies by *magnitude*, not by decoration** (16.27). | Rotating copy and a choice of animations are skins: if every unlock celebrates equally hard the user calibrates to it inside a week however many skins it has. So most unlocks are quiet and a rare minority carry a real milestone — which is Hooked's variable-ratio mechanic rather than a cosmetic reading of it. Honest because the milestones are measured thresholds granted once ever, not a dice roll: unpredictable to the user, deterministic in the code. |
 | 2026-11-20 | **No confetti; three restrained variants instead** (16.27). | The unlock sits two taps from the nudge screen, where §16's brief is explicitly "calm, not alarming", and §16 caps animation character at no-bounce and sub-second. A party-coloured burst is a different product's voice. Bloom/sweep/ring at §700–900ms in accent palette only carry the variability without the register change. |
 | 2026-11-20 | **"Invested", never "saved" — and the motivating line is a count, not minutes** (16.27). | "You saved 15 minutes of scrolling" is unmeasurable: nothing knows what the user would have scrolled, so it is the fabricated figure §24 forbids, however well it reads. Minutes *with the book* are measured, and so is how many times the user picked the book — which is the strongest true sentence available here. |
@@ -1351,6 +1361,119 @@ owns nothing stays free either way, so the flag can never grant.
 **Device run owed:** install the debug variant (Android Studio ▶ installs `debug` by default —
 check the Build Variants panel), confirm the Debug section is present, toggle it and walk the four
 §24 surfaces, then toggle back and confirm Pro returns without a restart.
+
+---
+
+## Task 16.28 — Share moments  ✅ code complete, device run + Hindi owed
+
+**Three reports, three separate causes.**
+
+**1. "Too many choices."** The sheet rendered up to **7 hero radios** (`finished.slice(0, 5)` plus
+streak plus words) **and 4 checkboxes** — eleven controls to post one image, asking the user to
+re-decide what §15 already ranks. It now opens on the composed card with the best hero chosen and
+two supporting lines ticked, behind a single **"Change what's on it"** that removes itself once
+used. Book heroes capped 5 → 2. A new user sees 3 rows when expanded, someone with real history 6.
+
+**2. "I get the share prompt the next time I open the app."** Two causes.
+- `checkMilestones()` is called from `renderUpload()` alone, and a book opened from the **Free
+  Books library** returns to *that* screen — so the celebration queued until the user next landed
+  on home, i.e. their next launch. **It reproduced on catalogue books and worked correctly on
+  imported ones**, which is why it looked arbitrary. Both off-home return paths now check.
+- More fundamentally the prompt was in the wrong place. All five engines already mark completion
+  (`_handleEnd()` saves `_words.length`; Page mode's `_noteEndReached()` sets the floor), so the
+  four playback engines ask *there* now — the end is proven. Page mode gets a tappable offer at the
+  foot of the last page instead, per the owner: arriving is not reading, and the time that page
+  takes is unknowable. `Claude.md` §15 carries the rule.
+
+**3. Recaps.** Three windows — last 7 days, last 30 days, **this year**. Gated on substance (a
+finished book, 3+ days, or an hour), which drops all three for a two-day-old install and keeps them
+for anyone with a history. At most two offered, and
+**deduped on the figures, not the rendered text**: early on every window holds the same reading, so
+a thin-data user was shown "1,200 words in the last 7 days" and "1,200 words this year", one card
+with two captions. Books-finished-in-window is inferred from the last session on a finished book,
+since §5.2 makes completion a position and there is no finish event to stamp — a re-read moves it,
+which is noted in the code rather than papered over.
+
+**4-0. The collage was unreachable, and the editor could not be closed.** Both reported from use
+after the first cut.
+- Multi-cover only existed on a *recap* hero, and the all-time "4 books finished" figure was a
+  supporting line with no hero — so a reader who finished four books saw the sentence in small grey
+  type and could only make the card about one of them. There is now an all-time `finished` hero
+  with the collage, available the moment two books are done. **One hero per book count, narrowest
+  window winning**: my first dedupe kept display order and so dropped "Finished 4 books in the last
+  7 days" in favour of "Finished 4 books with FlowRead", which is the weaker sentence — the window
+  is the better claim when the counts tie.
+- `hero.bookList` is normalised to the top level, because `_coversFor`/`_coverPool` were reaching
+  into `hero.recap` and would have broken on the new hero.
+- The "Change what's on it" toggle hid itself on open, leaving no way back to the card — and on a
+  phone the open editor pushes the preview off screen, which is precisely when collapsing is
+  wanted. Two states now, never removed.
+
+**4a. Coverless books, and who actually has them.** The owner's correction: every catalogue entry
+has a `coverImage` — **150 of 150, including all 127 TXT titles** — cached at download, so only a
+self-imported DOCX or TXT lacks artwork. The comments justifying the collage fallback with "two
+thirds of the catalogue is TXT" were repeating §15's pre-catalogue-cover framing and are corrected.
+A multi-book card now **prefers books with artwork and drops the rest**, which was asked for as a
+toggle and built as a rule: nobody would switch such a toggle *on*, so it was a defect with a
+workaround attached. None with artwork → a clean text card. Single-book heroes keep their initials.
+
+**4b. The cover picker, and the bug that paid for it.** `drawCard` drops the supporting lines in
+collage mode while `_renderExtras` went on offering them — a §1.5 silent failure introduced two
+commits earlier on this branch. That slot was dead in exactly the mode where a picker is wanted, so
+the picker replaces it and costs no new group of controls; as a third group it would have been the
+"too many choices" problem again. A fifth tick drops the longest-standing choice, visibly, rather
+than being ignored or greyed.
+
+**4. Covers for a multi-book card.** One book keeps the existing panel; two or three get a fan in
+the same column; four or more get a collage — headline above a row of four tiles, supporting lines
+dropped. Capped at four because the 616px band cannot hold two rows at a size where the covers are
+recognisable, and gated on at least two real cover images because a grid of typographic initials is
+not a collage. All of a card's covers now resolve in parallel against one absolute deadline;
+sequentially, four 4-second races would hang the share button for sixteen seconds.
+
+**5. The share text had no link.** `share.sheet.text` named the app and never said where to get it,
+so every card reaching a non-user left them nowhere to go — in a feature §15 prioritised for reach,
+in a product §22 calls distribution-bound. The Play URL is appended in code, not in the string, so
+no translation can drop it. Tagline and share text reworded to first person, which invites a
+question where a slogan does not. **The Hindi was drafted with a masculine verb** ("कर रहा हूँ") and
+rewritten verbless — it is a sentence a stranger reads *about its author*, so it must not assume one.
+
+**A §17 bug fixed on the way in:** all five engines called `showToast('Finished!')` with a
+hardcoded English string, so a Hindi reader got English at the most significant moment the app has.
+Now `t('reader.finished')`, and it only fires when the share offer does not.
+
+**Verification.** Two headless harnesses. A recording canvas stub draws all seven cover layouts
+and asserts every tile lands inside the panel and clear of the footer rule — **this is what caught
+both geometry bugs**: the collage overflowing its band by 384px, and contained artwork shrinking its
+own tile so a mixed collage came out with three tile widths and ragged gaps. And one over
+`collectStats`/`_heroOptions`/`_extraOptions` across two
+profiles (four finished books with sessions spread over 800 days; a two-day-old install) in both
+locales. It caught the figure-dedupe problem above, and confirms window arithmetic (a session 800
+days old is outside "this year", one 200 days old is inside), recap extras drawing from the same
+window rather than lifetime totals, and the hero counts collapsing correctly on thin data.
+
+**Device run owed:**
+1. Finish a book in **RSVP** — the prompt must appear at the end of playback, not on the next launch.
+2. Finish a book in **Page mode** — no modal; a "Finished it? Share it" line at the foot of the last
+   page. Turn back a page and it goes; turn forward again and it returns.
+3. Finish a **Free Books** book and back out to the library — the prompt must arrive there, which is
+   the exact case that was broken.
+4. Open the share sheet — one card, one "Change what's on it", two buttons. Expand it, then
+   **collapse it again** and confirm the card is fully visible.
+5. Finish four short books and share from home — the sheet must offer a single multi-book hero with
+   four covers, phrased as the tightest window that holds them.
+6. Pick a recap hero and confirm the supporting lines are window figures, not lifetime ones.
+7. Hindi, narrow screen: the recap hero sentences are the longest strings on the card, and
+   `.page-finish-share` is a single line with `text-overflow: ellipsis` — check it is not clipped.
+8. **Import a DOCX or TXT of your own, finish it, and check the recap card** — that is the only
+   way to get a coverless book now, and the drop-the-coverless rule is what needs seeing.
+9. Finish 2, then 4 books and share each recap — the fan and then the collage. **Look at a collage
+   on a device with a mix of PDF and TXT books**, which is where the tile frames and the
+   two-real-images fallback actually get judged.
+10. Share to one real app and confirm the Play link arrives with the image, and that the recipient's
+   app shows both rather than silently dropping the text.
+
+**Hindi owed:** 44 new strings drafted, same standing as 16.1/16.3/16.27.
 
 ---
 

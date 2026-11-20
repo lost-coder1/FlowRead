@@ -54,6 +54,7 @@ const PageEngine = (function() {
      Turning away from the last page clears it, so the position is the position
      again — the same way seeking backwards after finishing in RSVP does. */
   let _endFloor = 0;
+  let _finishOffer = null;
 
   /* A fresh open must not mark a book read merely because it resumed on the last
      page. Only a deliberate turn to the end counts. */
@@ -664,11 +665,57 @@ const PageEngine = (function() {
   }
 
   function _noteEndReached() {
-    if (!_atLastPage()) { _endFloor = 0; return; }
+    if (!_atLastPage()) { _endFloor = 0; _removeFinishOffer(); return; }
     if (_endFloor) return;                /* already marked, don't re-toast */
     _endFloor = _words.length;
     _savePos();
     showToast(t('reader.page.finished'));
+    _showFinishOffer();
+  }
+
+  /* The share offer for a finished book, as a tappable line rather than a modal
+     (owner, 2026-11-20). Every other engine asks outright at `_handleEnd()`,
+     because playback running past the last word proves every word was on
+     screen. Page mode has no such proof: the reader has *arrived* at the last
+     page and how long it takes them to read it is unknowable, so a modal here
+     would land on top of the page they are still reading. An offer they reach
+     when they are actually done costs nothing if ignored.
+
+     Positioned absolutely over the stage, never added to the flow — anything
+     occupying vertical space changes what fits on a page, which would mean a
+     layout-version bump (§5.1) and, worse, a book whose last page reflows the
+     moment it is reached. */
+  function _showFinishOffer() {
+    if (_finishOffer) return;
+    const file = AppState.currentFile;
+    if (!file || typeof ShareStats === 'undefined') return;
+    if (!ShareStats.shouldOfferBookFinished(file.id)) return;
+
+    const shell = qs('#page-shell');
+    if (!shell || !shell.parentNode) return;
+
+    const bar = document.createElement('div');
+    bar.className = 'page-finish-offer';
+    bar.innerHTML =
+      '<button class="page-finish-share" type="button">' + t('reader.page.share_finish') + '</button>' +
+      '<button class="page-finish-dismiss" type="button" aria-label="' + escapeHtml(t('btn.not_now')) + '">×</button>';
+
+    bar.querySelector('.page-finish-share').addEventListener('click', function() {
+      _removeFinishOffer();
+      ShareStats.openSheetForBook(file.id);
+    });
+    /* Dismissing retires the offer for this read only. It is not marked
+       celebrated: home's own check is the backstop, and silently spending the
+       one offer because the user tidied the screen would be the §1.5 failure. */
+    bar.querySelector('.page-finish-dismiss').addEventListener('click', _removeFinishOffer);
+
+    shell.parentNode.appendChild(bar);
+    _finishOffer = bar;
+  }
+
+  function _removeFinishOffer() {
+    if (_finishOffer && _finishOffer.parentNode) _finishOffer.parentNode.removeChild(_finishOffer);
+    _finishOffer = null;
   }
 
   function _pageForIndex(idx) {
@@ -972,6 +1019,7 @@ const PageEngine = (function() {
   }
 
   function _removeChrome() {
+    _removeFinishOffer();
     document.body.classList.remove('engine-page');
     const reader = qs('#view-reader');
     if (reader) reader.classList.remove('page-chrome-hidden');

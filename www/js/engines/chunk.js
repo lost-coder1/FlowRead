@@ -115,7 +115,18 @@ const ChunkEngine = (function() {
   function _handleEnd() {
     AppState.isPlaying = false;
     if (AppState.currentFile) savePosition(AppState.currentFile.id, _words.length);
-    showToast('Finished!');
+    /* §17 — this was a hardcoded English string in all five engines, which
+       meant a Hindi reader got English at the most significant moment the app
+       has. */
+    const finishedFile = AppState.currentFile;
+    /* The end is proven here: playback ran past the last word, so every word has
+       been on screen and there is nothing left to interrupt (§15). Page mode
+       deliberately does not do this — arriving on its last page is not reading
+       it. The toast is the fallback for a book already celebrated. */
+    const offered = (typeof ShareStats !== 'undefined' && finishedFile)
+      ? ShareStats.offerBookFinished(finishedFile.id)
+      : false;
+    if (!offered) showToast(t('reader.finished'));
     const btn = qs('#btn-play-pause'); if (btn) btn.textContent = '▶';
   }
 

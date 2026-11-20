@@ -760,7 +760,115 @@ Elevated in priority because it doubles as a distribution mechanic, not just ret
 ### Requirements
 - **Free for everyone — not Pro-gated** (decided 2026-09-25). The dashboard this feature nominally lives on is Pro-gated, which would have hidden the one feature prioritized *for distribution* from the users whose shares actually reach non-users. The free tier is also meant to be genuinely generous (§4).
 - **Two entry points, both required:** (1) a visible "Share" button, always available, not just milestone-triggered — in the **home header** (where every user has it) and on the dashboard; (2) a milestone-triggered prompt for natural completion moments, which convert better than a buried button alone: **book completion** ("You finished [Book] — share it?") and **7 / 30 / 100-day streaks**, kept sparse so the prompt never becomes nagging. A milestone is marked celebrated when the offer is *made*, not when it is accepted — re-offering because the user declined is the nagging §9.1 rules out.
-- **Milestone prompts fire from the home screen only**, never over a reader: position is sacred (§21) and a celebration mid-read is an interruption.
+- **A completion prompt may interrupt only where the engine can prove the reading is done**
+  (rewritten 2026-11-20; supersedes "milestone prompts fire from the home screen only"). The old
+  rule sent every prompt to home, and the field result was that finishing a book produced a share
+  offer on the *next app launch* — the moment gone, and reading as a bug. The direct cause was that
+  `checkMilestones()` is called from `renderUpload()` alone, while a book opened from the Free Books
+  library returns to **that** screen, so it reproduced on catalogue books and not on imported ones.
+  Both halves are fixed:
+  - **RSVP, Chunk, Scroll and Focus Bold ask at `_handleEnd()`.** Playback has run past the last
+    word, so every word has been on screen, the engine is idle, and there is nothing left to
+    interrupt — the same reasoning that puts §23's tip on the nudge *unlock* modal rather than the
+    nudge screen.
+  - **Page mode offers instead of asking**, with a tappable line at the foot of the final page
+    (owner, 2026-11-20). Arriving on the last page is not reading it, and how long that page takes
+    is unknowable, so a modal there lands on top of text the reader is still in. The automatic
+    marking stays exactly as §5.2 has it; only the share offer waits for a deliberate tap. The
+    offer is positioned absolutely over the stage and **never in the flow** — anything occupying
+    vertical space changes what fits on a page (§5.1), which would reflow the last page at the
+    moment it is reached.
+  - **Streak milestones stay on home.** A streak crosses at an arbitrary moment mid-chapter, which
+    is exactly what the original rule was protecting, and that protection still stands. Home also
+    remains the backstop for a book marked read from the library or finished in a session the
+    engine did not end.
+- **A multi-book card is reachable without waiting for a window** (added 2026-11-20). The all-time
+  count is a *hero*, not only a supporting line: a reader who had finished four books was told "4
+  books finished" in 34px grey with no way to make the card about it, and the collage was
+  unreachable unless a recap window happened to qualify. It sits after the named books (§15 ranks a
+  named book above any number) and before the counters.
+  **One hero per distinct book count, and the survivor is the narrowest window** — in a first year
+  "this year" holds everything, so the all-time hero and the year recap are two rows making one
+  claim. For an equal count the tighter window is strictly the better sentence: four books in the
+  last 7 days says more than four books ever. The all-time hero is the fallback for when no window
+  qualifies or the counts genuinely differ, never the preferred phrasing; a first attempt that kept
+  display order threw the good sentence away in favour of the weak one.
+- **Any multi-book hero carries its books as `hero.bookList`**, normalised rather than nested under
+  `hero.recap` — `_coversFor` and `_coverPool` must not have to know which kind of hero they were
+  handed, and they did until the all-time hero existed.
+- **The editor's toggle has two states and is never removed.** It first shipped deleting itself on
+  open, on the grounds that "change what's on it" above its own contents says nothing — which left
+  no way back to the card, and on a phone an open editor pushes the preview off screen, so
+  collapsing is exactly when it is wanted. Reported from use.
+- **Covers scale with the number of books** (added 2026-11-20). One book gets the cover panel §15
+  already describes. **Two or three get a fan** — overlapped inside that same column, drawn back to
+  front so the most recent is on top, leaving the side-by-side layout untouched. **Four or more get
+  a collage**: the headline moves above a single row of four tiles, and the supporting lines are
+  dropped, because six covers under three lines of statistics is the data dump §15 rules out.
+  Four rules on it:
+  - **One row of four, not two rows of three.** The hero band is 616px and a cover is 1.375× as
+    tall as it is wide, so two rows only fit by shrinking each tile to ~132px — at which point
+    nobody can see which books they are and the collage has defeated its purpose.
+    `_collageFootprint` therefore clamps to the height it is given as well as the width; sizing on
+    width alone put a 768px grid in that 616px band on the first attempt.
+  - **A fifth book is not drawn.** The headline states the real number, so the grid is a sampler,
+    and a "+2 more" line would restate the headline minus four.
+  - **A multi-book card prefers books that have real artwork and drops the rest** (owner,
+    2026-11-20). Asked for as a "hide books without covers" option and built as a rule instead:
+    nobody would ever switch that option *on*, since a grid of initial-boxes says nothing about
+    what was read — so it is a defect with a workaround attached, not a preference. Two or more
+    real covers give a fan or collage, exactly one gives the single-cover layout, none gives a
+    clean text card. Honest because the covers were always a sampler: the headline says "9 books
+    this year" and draws four, so drawing two of five is the same kind of claim. **A single-book
+    hero is untouched** — initials work when they are *that book's* identity, which is what §15
+    designed them for, and stop working as a grid.
+  - **Which books can be coverless is narrower than §15 once implied.** All 150 catalogue entries
+    carry a `coverImage`, TXT included (127 of them), and `BookCover.cacheRemote()` stores it at
+    download time — so every Free Books title has artwork and a self-imported PDF has its page one.
+    **Only a self-imported DOCX or TXT has no cover.** Earlier comments blamed "two thirds of the
+    catalogue is TXT with no page one", which was true before catalogue covers shipped and is false
+    now; do not reason from it again.
+  - **The collage's second editor section is the cover picker, not the stat toggles** — and that is
+    a bug fix as much as a feature. `drawCard` drops the supporting lines when it draws a collage,
+    so those toggles were being offered while the card ignored them: the silent failure §1.5
+    forbids. The slot was dead in exactly that mode, which is the only reason a picker is
+    affordable here — as a third group under the hero radios it would be the "too many choices"
+    problem over again. Below four books there is nothing to pick. At capacity a fifth tick drops
+    the longest-standing choice rather than being ignored or greyed out, so the trade is visible.
+  - **In a grid the frame is the tile and the artwork is centred inside it**, which is the opposite
+    of `_drawCover`'s contain-and-shrink — correct there, because a lone cover has nothing to line
+    up with. Mixing the two made every tile a different width and the gaps ragged.
+- **The covers of one card resolve in parallel against one deadline.** `_coverOf` takes an absolute
+  timestamp, not a duration: four four-second races run in sequence is a share button that hangs for
+  sixteen seconds. Whatever has arrived when the budget expires is what gets drawn.
+- **The accompanying share text carries the Play link** (added 2026-11-20). §15's "tasteful, not a
+  loud ad" governs the *image*; the message a recipient reads beside it is not the image, and it
+  named the app without saying where to get it — so a card reaching a non-user left them nowhere to
+  go, which is the whole mechanic stopping one step short of the thing §22 prioritised it for. The
+  URL is appended in code rather than embedded in the string, so no translation can drop or mistype
+  it.
+- **Recap windows — offered, never prompted** (owner, 2026-11-20). Finishing a book is rare and a
+  streak builds slowly, so for most weeks the card has nothing new to say; "what I read last week"
+  renews every week, and §22 puts this product in a distribution bottleneck. Three windows exist
+  (last 7 days, last 30 days, **this year** — not "last year", which is empty for every current
+  user and would stay broken until December). **At most two are offered at once, deduped on the
+  figures rather than the sentence**: early on every window holds the same reading, so "1,200 words
+  in the last 7 days" and "1,200 words this year" are one card with two captions. Nothing goes
+  looking for the user — a recap arriving unbidden in a week they read nothing has no honest
+  phrasing that is not the guilt framing §9.1 rules out. **A window is offered only when it holds
+  substance**: a finished book, 3+ days read, or an hour of reading. The owner's first proposal was
+  to require a 7-day streak or a finished book; the accepted counter is that a streak measures
+  *consecutive* days, so it gates on consistency where the card is about volume — someone who read
+  four days this week with two hours logged has a good recap and may never string seven days
+  together. Milestones were also the wrong mechanism to hang it on: they are celebrate-once and
+  carry spent-flag sets, where a recap is an always-available option. Those three numbers are the
+  lever if it needs tightening.
+- **The sheet opens composed, not as a form** (owner, 2026-11-20). §15 requires the card be editable
+  before sharing and it still is — behind one "Change what's on it" tap. It previously opened as up
+  to **seven hero radios and four checkboxes**, asking the user to decide something this section
+  already has a considered opinion about, and the owner's reading was "too many choices". Book
+  heroes are capped at 2 (the list is sorted by `lastOpened`; past the recent couple nobody is
+  scanning radios for a book). Default path: open → look → share.
 - Generate the card entirely on-device (Canvas API) — no server, no upload.
 - Must include app name/branding on the image itself, tasteful and small, not a loud ad.
 - User-editable before sharing: simple per-item toggle for which books/achievements to include.
@@ -874,6 +982,7 @@ consistent, and do not grow status narrative here: that is `Tasks.md`'s job.
 | **16.25** | Paywall placement — a deliberate purchase path, and three gates that said nothing | 24 | ✅ code complete; device run and Hindi owed |
 | **16.26** | Debug-only "simulate the free tier" flag, so 16.25 can be tested on device | 25 | ✅ code complete; device run owed |
 | **16.27** | Variable reward on the unlock — rotating copy, a measured count line, milestone tier | 26 | ✅ code complete; device run and Hindi owed |
+| **16.28** | Share moments — card-first sheet, completion prompt at the moment, recap windows | 15 | ✅ code complete; device run and Hindi owed |
 | **16.10** | Store listing rewrite onto the habit framing | 0.1 | ⬜ **next product task**; now the main listing, not just the India CSL |
 | **H3** | Notifications failed silently without exact-alarm permission | 1.5 | ✅ 1.4.7 |
 | **H4** | Pro purchase failed with a generic error | 1.5 | ✅ verified on a Play build; revenue blocker closed |
