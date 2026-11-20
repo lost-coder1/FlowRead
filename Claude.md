@@ -916,6 +916,19 @@ free-tier surfaces can be checked on a device whose account owns `pro_lifetime` 
 cannot be, since `refreshEntitlements()` queries Play every launch and a one-time purchase is owned
 forever.
 
+**Second action in the same section: "Reset share prompts"** (added 2026-11-20), which forgets
+which books and streaks have been celebrated. §14 makes a completion prompt one-shot — an offer is
+spent when it is *shown*, and first-run seeding marks every already-finished book as history rather
+than news — so finishing one book across five engines spends the offer on whichever engine reached
+the end first, and a book finished before the build was installed never offers at all. Both are
+correct in production and make the feature impossible to re-check on a device, which is this
+section's whole reason to exist. Two details that are not optional: **`fr_share_seeded` is left
+set**, because clearing it makes the next home render re-seed everything straight back in; and the
+reset arms a **one-render skip** of `checkMilestones()`, because home is §14's backstop and the walk
+from Settings to a book goes through it, which would otherwise spend the offer before the reader
+could raise it. It clears only this bookkeeping — no position, no library, no session — so the worst
+it can do is re-offer a share.
+
 **Before building any release: confirm the Debug section is absent from Settings.** If it is visible
 that build is debuggable and must not be uploaded — for reasons unrelated to this flag.
 

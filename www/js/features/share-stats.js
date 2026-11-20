@@ -22,6 +22,9 @@ const ShareStats = (function() {
   const KEY_CELEBRATED_BOOKS = 'fr_share_celebrated_books';
   const KEY_CELEBRATED_STREAKS = 'fr_share_celebrated_streaks';
   const KEY_SEEDED = 'fr_share_seeded';
+  /* Debug only (§25), written by resetCelebrations() and consumed by the next
+     checkMilestones() — see both for why one home render has to be skipped. */
+  const KEY_DEBUG_SKIP = 'fr_debug_milestone_skip';
 
   /* Product decision 2026-09-25: book completion AND streak milestones. Kept
      sparse on purpose — a prompt at every streak day would be nagging. */
@@ -1419,9 +1422,57 @@ const ShareStats = (function() {
      book marked read from the library, or finished in a session that ended
      without the engine reaching the end. Position is sacred (§21), so this
      still never runs over a reader. */
+  /* Debug only (§25) — forget which books and streaks have been celebrated, so
+     a completion prompt can be seen again.
+
+     Without this the feature is effectively untestable, which is the same hole
+     the forced-free flag was built to close. Two things make a book stop
+     offering, both deliberate and both permanent: first-run seeding marks every
+     *already* finished book as history rather than news, and an offer is spent
+     when it is shown (§15 — made, not accepted), so finishing one book across
+     five engines spends it on whichever engine got there first. Correct in
+     production, impossible to re-check on a device.
+
+     It only clears FlowRead's own bookkeeping — no position, no library, no
+     session — so the worst it can do is re-offer a share. The caller is gated
+     on isDebugBuild(); this is also, so it cannot be reached by a release build
+     even if something calls it. */
+  function resetCelebrations() {
+    if (typeof isDebugBuild !== 'function' || !isDebugBuild()) return false;
+    try {
+      localStorage.removeItem(KEY_CELEBRATED_BOOKS);
+      localStorage.removeItem(KEY_CELEBRATED_STREAKS);
+
+      /* KEY_SEEDED is deliberately left set. Clearing it looks right and is
+         worse: the next home render would re-seed every finished book straight
+         back into the celebrated set, undoing the reset before the tester could
+         reach a book.
+
+         The skip flag solves the other half of the same problem. Home is the
+         backstop for a finished book (§15), so the walk back from Settings to a
+         book goes Settings → home → reader, and home's own check would show the
+         milestone modal and spend the offer en route. One render is skipped so
+         the next prompt is the one the reader itself raises, which is the path
+         being tested. */
+      localStorage.setItem(KEY_DEBUG_SKIP, '1');
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   function checkMilestones() {
     try {
       if (AppState.activeModal) return;
+
+      /* Consumed once, and only in a debug build — a release build cannot write
+         this key, so a stray copy of it does nothing (the same belt-and-braces
+         as debugForcedFree(), §25). */
+      if (typeof isDebugBuild === 'function' && isDebugBuild()
+          && localStorage.getItem(KEY_DEBUG_SKIP)) {
+        localStorage.removeItem(KEY_DEBUG_SKIP);
+        return;
+      }
 
       const stats = collectStats();
       const books = _loadSet(KEY_CELEBRATED_BOOKS);
@@ -1476,6 +1527,7 @@ const ShareStats = (function() {
     openSheet: openSheet,
     checkMilestones: checkMilestones,
     shouldOfferBookFinished: shouldOfferBookFinished,
+    resetCelebrations: resetCelebrations,
     offerBookFinished: offerBookFinished,
     openSheetForBook: openSheetForBook,
     hasSomethingToShare: hasSomethingToShare,
