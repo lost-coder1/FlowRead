@@ -627,35 +627,6 @@
   cursor: pointer;
 }
 
-/* ── Guided Highlighting ────────────────────────────────────── */
-.gh-scroll-container {
-  height: 100%;
-  overflow-y: auto;
-  padding: var(--space-lg) var(--space-md);
-  font-family: var(--font-body);
-  font-size: 20px;
-  line-height: 1.9;
-  -webkit-overflow-scrolling: touch;
-}
-
-.gh-word {
-  display: inline;
-  color: var(--text-dim);
-  cursor: default;
-  border-radius: var(--radius-sm);
-  transition: background 0.08s;
-}
-
-.gh-word.gh-past { color: var(--text); }
-
-.gh-word.gh-current {
-  background: rgba(232, 197, 71, 0.28);
-  color: var(--text);
-  border-radius: 2px;
-  padding: 1px 2px;
-  box-shadow: 0 0 0 1px rgba(232, 197, 71, 0.5);
-}
-
 /* ── Simple Scroll ──────────────────────────────────────────── */
 .scroll-outer {
   height: 100%;

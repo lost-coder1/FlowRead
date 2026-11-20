@@ -206,6 +206,18 @@ const TipsFeature = (function() {
       },
     },
     {
+      /* Only reaches someone who has looked a word up but not yet opened the
+         list — the saving is automatic and silent, so the one thing a reader
+         would never discover is that it has been happening. Retires on the
+         first visit, which SavedWordsFeature.open() marks. */
+      id: 'words',
+      key: 'tip.words',
+      when: function() {
+        return typeof SavedWordsFeature !== 'undefined' && SavedWordsFeature.count() > 0;
+      },
+      go: function() { SavedWordsFeature.open(); },
+    },
+    {
       id: 'share',
       key: 'tip.share',
       when: _hasSomethingToShare,

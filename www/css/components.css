@@ -1898,6 +1898,178 @@
   margin: 0;
 }
 
+/* The word the reader tapped resolved to a different entry — `books` → `book`
+   (features/morphology.js). Small and quiet: it is a clarification, not a
+   result. */
+.dict-resolved {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  margin: 0 0 var(--space-sm);
+  letter-spacing: 0.02em;
+}
+
+/* Confirmation that the word was kept (§27), plus the way to the list. States
+   what happened; never asks for anything. */
+.dict-saved {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: var(--space-sm) 0 0;
+}
+
+.dict-saved-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.dict-google-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+/* Monochrome, inheriting the button's colour: Google's own mark is a trademark
+   and its four brand colours are outside §16's palette. */
+.dict-google-glyph {
+  flex: 0 0 auto;
+  color: var(--text-muted);
+}
+
+/* ── Saved words screen (Claude.md §27) ─────────────────────── */
+.words-screen {
+  padding: calc(var(--space-md) + var(--safe-top)) var(--space-md)
+           calc(var(--space-xl) + var(--safe-bottom));
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.words-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+
+.words-back-btn {
+  flex: 0 0 auto;
+  font-size: 18px;
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.words-heading {
+  font-family: var(--font-display);
+  font-size: 22px;
+  margin: 0;
+}
+
+.words-count {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0 0 var(--space-lg);
+}
+
+.words-group {
+  margin-bottom: var(--space-lg);
+}
+
+/* The book a word was met in. Grouping is what makes the list read as
+   something the reader built rather than a history file (§27). */
+.words-group-title {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin: 0 0 var(--space-sm);
+  padding-bottom: var(--space-xs);
+  border-bottom: 1px solid var(--border);
+}
+
+.words-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.words-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.words-item-main {
+  flex: 1 1 auto;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.words-term {
+  font-family: var(--font-body);
+  font-size: 16px;
+  color: var(--text);
+  margin: 0 0 2px;
+}
+
+.words-pos {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+  margin-left: var(--space-sm);
+  text-transform: uppercase;
+}
+
+.words-def {
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.words-def-none {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.words-remove {
+  flex: 0 0 auto;
+  color: var(--text-dim);
+  font-size: 13px;
+  padding: var(--space-xs);
+}
+
+.words-empty {
+  padding: var(--space-xl) 0;
+  text-align: center;
+}
+
+.words-empty-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--text);
+  margin: 0 0 var(--space-sm);
+}
+
+.words-empty-body {
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  margin: 0 auto;
+  max-width: 34ch;
+}
+
 /* Highlight tap feedback on word spans that have dictionary lookup */
 .scroll-word,
 .fb-word:not(.fb-placeholder),

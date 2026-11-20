@@ -17,6 +17,11 @@ function renderUpload() {
                (product decision 2026-09-25). Hidden until there is something
                worth sharing, so a fresh install is not offered an empty card. -->
           <button class="btn btn-ghost" id="btn-share-stats" type="button" hidden>${t('btn.share')}</button>
+          <!-- Saved words (§27). Carries its count, because the count is the
+               point: an investment nobody can watch accumulating is not felt.
+               Hidden until the first word is kept, like Share above it — an
+               empty list is not an invitation. -->
+          <button class="btn btn-ghost" id="btn-open-words" type="button" hidden>${t('btn.words')}</button>
           <button class="btn btn-ghost" id="btn-open-settings-top" type="button">${t('btn.settings')}</button>
         </div>
       </header>
@@ -204,6 +209,14 @@ function renderUpload() {
     const lib = qs('#library-section');
     if (lib) lib.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
+
+  const wordsBtn = qs('#btn-open-words');
+  if (wordsBtn && typeof SavedWordsFeature !== 'undefined') {
+    const savedCount = SavedWordsFeature.count();
+    wordsBtn.hidden = savedCount === 0;
+    wordsBtn.textContent = t('btn.words') + ' · ' + savedCount;
+    wordsBtn.addEventListener('click', function() { SavedWordsFeature.open(); });
+  }
 
   const shareBtn = qs('#btn-share-stats');
   if (shareBtn && typeof ShareStats !== 'undefined') {
