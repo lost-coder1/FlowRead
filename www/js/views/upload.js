@@ -1835,13 +1835,15 @@ async function renderLibrary() {
     recentLib.forEach(function(item) {
       const pct = getFileProgress(item);
       const kindLabel = item.kind === 'url' ? 'URL' : item.kind ? item.kind.toUpperCase() : 'PDF';
+      const hlCount = (typeof HighlightsFeature !== 'undefined') ? HighlightsFeature.count(item.id) : 0;
       const card = document.createElement('div');
       card.className = 'library-card';
       card.dataset.id = item.id;
       card.innerHTML = [
         '<span class="library-card-kind">' + escapeHtml(kindLabel) + '</span>',
         '<p class="library-card-name">' + escapeHtml(displayTitle(item.name)) + '</p>',
-        '<p class="library-card-meta">' + escapeHtml(formatDate(item.lastOpened)) + (pct > 0 ? ' · ' + pct + '%' : '') + '</p>',
+        '<p class="library-card-meta">' + escapeHtml(formatDate(item.lastOpened)) + (pct > 0 ? ' · ' + pct + '%' : '')
+          + (hlCount > 0 ? ' · ' + escapeHtml(tn('library.item.highlights', hlCount)) : '') + '</p>',
         '<div class="library-card-progress"><div class="library-card-progress-fill" style="width:' + pct + '%"></div></div>',
         '<div class="library-item-actions">',
         '<button class="btn btn-ghost btn-mark-read" type="button" data-mark-read-id="' + escapeHtml(item.id) + '" data-mark-read-wc="' + (item.wordCount || 0) + '">' + t('btn.mark_read') + '</button>',
@@ -1873,13 +1875,15 @@ async function renderLibrary() {
       readLib.forEach(function(item) {
         const pct = getFileProgress(item);
         const kindLabel = item.kind === 'url' ? 'URL' : item.kind ? item.kind.toUpperCase() : 'PDF';
+        const hlCount = (typeof HighlightsFeature !== 'undefined') ? HighlightsFeature.count(item.id) : 0;
         const card = document.createElement('div');
         card.className = 'library-card';
         card.dataset.id = item.id;
         card.innerHTML = [
           '<span class="library-card-kind">' + escapeHtml(kindLabel) + '</span>',
           '<p class="library-card-name">' + escapeHtml(displayTitle(item.name)) + '</p>',
-          '<p class="library-card-meta">' + escapeHtml(formatDate(item.lastOpened)) + (pct > 0 ? ' · ' + pct + '%' : '') + '</p>',
+          '<p class="library-card-meta">' + escapeHtml(formatDate(item.lastOpened)) + (pct > 0 ? ' · ' + pct + '%' : '')
+            + (hlCount > 0 ? ' · ' + escapeHtml(tn('library.item.highlights', hlCount)) : '') + '</p>',
           '<div class="library-card-progress"><div class="library-card-progress-fill" style="width:' + pct + '%"></div></div>',
           '<div class="library-item-actions"><button class="btn btn-ghost btn-mark-unread" type="button" data-mark-unread-id="' + escapeHtml(item.id) + '">' + t('btn.mark_unread') + '</button></div>',
         ].join('');
