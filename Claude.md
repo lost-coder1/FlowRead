@@ -1174,7 +1174,14 @@ its usefulness. Two surfaces draw from it, and the split between them is the des
   a slot whose whole job is to explain something cannot clip the explanation. Both surfaces wrap to
   as many lines as the sentence needs.
 - **A tip must never teach a locked feature.** DOCX/TXT import and Scan are Pro (§4), so the
-  import tip names PDF, which is free, and the scan tip is gated on Pro. A tip for something the
+  import tip names PDF, which is free, and the scan tip is gated on Pro. The **`url` tip**
+  (added 2026-11-20) is gated the same way: `_handleShareUrl()` and the home URL card both go
+  through `hasProAccess()`. It covers the least discoverable thing the app does — **that FlowRead
+  appears in the browser's own share sheet**. Nothing in FlowRead says so and nothing in the
+  browser explains what sharing to a reading app would do, so without a tip it is found by
+  accident or not at all. Its `go` focuses the URL card, since no tap inside the app can open
+  another app's share menu, and `share-handler.js` calls `markDone('url')` on a real shared link —
+  the feature retiring its own tip, as `dictionary.js` and `bridge.js` do. A tip for something the
   user cannot do is an advert, and this slot is not an advert — §4 rules out in-app advertising
   outright. **This is the rule that found the dictionary bug** below: a tip that cannot be acted on
   is the symptom, and the gate behind it is usually the defect.

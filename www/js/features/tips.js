@@ -184,6 +184,28 @@ const TipsFeature = (function() {
       go: function() { openPasteText(); },
     },
     {
+      /* The share-sheet route is the least discoverable thing the app does:
+         nothing in FlowRead tells you it appears in the browser's own share
+         menu, and nothing in the browser explains what sharing to a reading app
+         would do. The URL card on home is the half a user can stumble on; this
+         is the half nobody finds.
+
+         Pro, like `scan` — `_handleShareUrl()` and the URL card both gate on
+         `hasProAccess()`, and §23 does not allow a tip to teach a locked
+         feature. */
+      id: 'url',
+      key: 'tip.url',
+      when: function() { return AppState.isPro === true; },
+      /* Focuses the card that does the same job in-app, since no tap in here can
+         open another app's share sheet. */
+      go: function() {
+        const el = qs('#url-input');
+        if (!el) return;
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+        el.focus();
+      },
+    },
+    {
       id: 'share',
       key: 'tip.share',
       when: _hasSomethingToShare,

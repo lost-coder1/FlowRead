@@ -78,6 +78,11 @@ async function _handleShareUrl(rawText) {
     return;
   }
 
+  /* They have found the route, so stop teaching it (§23). Marked here rather
+     than in the tip's own `go`, which only focuses the in-app card — same rule
+     the dictionary and bridge tips follow: the feature retires its own tip. */
+  if (typeof TipsFeature !== 'undefined') TipsFeature.markDone('url');
+
   let parsedUrl;
   try {
     parsedUrl = validateArticleUrl(rawUrl);

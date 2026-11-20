@@ -8,7 +8,10 @@ decision taken. Completed work and resolved device findings live in
 **[Tasks-archive.md](Tasks-archive.md)**. The split rule: anything that would change a future
 decision stays here or in `Claude.md`; a record of an action already taken goes to the archive.
 
-**Last updated:** 2026-11-20 — **16.30 done**: Page leads the engine row, and the seven stale
+**Last updated:** 2026-11-20 — **a 13th discovery tip**: that FlowRead is in the browser's share
+sheet (§23). It was the one capability with no surface teaching it at all — the URL card on home
+is stumble-on-able, the share-intent route is not. Pro-gated like `scan`, and retired by
+`share-handler.js` on a real shared link. Also **16.30 done**: Page leads the engine row, and the seven stale
 `|| 'rsvp'` fallbacks that still contradicted the shipped `defaultMode: 'page'` are gone. Also
 **16.28 merged to master** (`bbb694e`). One task added and not started:
 **16.29**, highlights and notes as the Hooked *investment* phase — a design note only,
