@@ -1385,18 +1385,38 @@ used. Book heroes capped 5 → 2. A new user sees 3 rows when expanded, someone 
   foot of the last page instead, per the owner: arriving is not reading, and the time that page
   takes is unknowable. `Claude.md` §15 carries the rule.
 
-**3. Recaps.** Three windows — last 7 days, last 30 days, **this year**. At most two offered, and
+**3. Recaps.** Three windows — last 7 days, last 30 days, **this year**. Gated on substance (a
+finished book, 3+ days, or an hour), which drops all three for a two-day-old install and keeps them
+for anyone with a history. At most two offered, and
 **deduped on the figures, not the rendered text**: early on every window holds the same reading, so
 a thin-data user was shown "1,200 words in the last 7 days" and "1,200 words this year", one card
 with two captions. Books-finished-in-window is inferred from the last session on a finished book,
 since §5.2 makes completion a position and there is no finish event to stamp — a re-read moves it,
 which is noted in the code rather than papered over.
 
+**4. Covers for a multi-book card.** One book keeps the existing panel; two or three get a fan in
+the same column; four or more get a collage — headline above a row of four tiles, supporting lines
+dropped. Capped at four because the 616px band cannot hold two rows at a size where the covers are
+recognisable, and gated on at least two real cover images because a grid of typographic initials is
+not a collage. All of a card's covers now resolve in parallel against one absolute deadline;
+sequentially, four 4-second races would hang the share button for sixteen seconds.
+
+**5. The share text had no link.** `share.sheet.text` named the app and never said where to get it,
+so every card reaching a non-user left them nowhere to go — in a feature §15 prioritised for reach,
+in a product §22 calls distribution-bound. The Play URL is appended in code, not in the string, so
+no translation can drop it. Tagline and share text reworded to first person, which invites a
+question where a slogan does not. **The Hindi was drafted with a masculine verb** ("कर रहा हूँ") and
+rewritten verbless — it is a sentence a stranger reads *about its author*, so it must not assume one.
+
 **A §17 bug fixed on the way in:** all five engines called `showToast('Finished!')` with a
 hardcoded English string, so a Hindi reader got English at the most significant moment the app has.
 Now `t('reader.finished')`, and it only fires when the share offer does not.
 
-**Verification.** A headless harness over `collectStats`/`_heroOptions`/`_extraOptions` across two
+**Verification.** Two headless harnesses. A recording canvas stub draws all seven cover layouts
+and asserts every tile lands inside the panel and clear of the footer rule — **this is what caught
+both geometry bugs**: the collage overflowing its band by 384px, and contained artwork shrinking its
+own tile so a mixed collage came out with three tile widths and ragged gaps. And one over
+`collectStats`/`_heroOptions`/`_extraOptions` across two
 profiles (four finished books with sessions spread over 800 days; a two-day-old install) in both
 locales. It caught the figure-dedupe problem above, and confirms window arithmetic (a session 800
 days old is outside "this year", one 200 days old is inside), recap extras drawing from the same
@@ -1413,6 +1433,11 @@ window rather than lifetime totals, and the hero counts collapsing correctly on 
 5. Pick a recap hero and confirm the supporting lines are window figures, not lifetime ones.
 6. Hindi, narrow screen: the recap hero sentences are the longest strings on the card, and
    `.page-finish-share` is a single line with `text-overflow: ellipsis` — check it is not clipped.
+7. Finish 2, then 4 books and share each recap — the fan and then the collage. **Look at a collage
+   on a device with a mix of PDF and TXT books**, which is where the tile frames and the
+   two-real-images fallback actually get judged.
+8. Share to one real app and confirm the Play link arrives with the image, and that the recipient's
+   app shows both rather than silently dropping the text.
 
 **Hindi owed:** 44 new strings drafted, same standing as 16.1/16.3/16.27.
 

@@ -782,6 +782,35 @@ Elevated in priority because it doubles as a distribution mechanic, not just ret
     is exactly what the original rule was protecting, and that protection still stands. Home also
     remains the backstop for a book marked read from the library or finished in a session the
     engine did not end.
+- **Covers scale with the number of books** (added 2026-11-20). One book gets the cover panel §15
+  already describes. **Two or three get a fan** — overlapped inside that same column, drawn back to
+  front so the most recent is on top, leaving the side-by-side layout untouched. **Four or more get
+  a collage**: the headline moves above a single row of four tiles, and the supporting lines are
+  dropped, because six covers under three lines of statistics is the data dump §15 rules out.
+  Four rules on it:
+  - **One row of four, not two rows of three.** The hero band is 616px and a cover is 1.375× as
+    tall as it is wide, so two rows only fit by shrinking each tile to ~132px — at which point
+    nobody can see which books they are and the collage has defeated its purpose.
+    `_collageFootprint` therefore clamps to the height it is given as well as the width; sizing on
+    width alone put a 768px grid in that 616px band on the first attempt.
+  - **A fifth book is not drawn.** The headline states the real number, so the grid is a sampler,
+    and a "+2 more" line would restate the headline minus four.
+  - **A collage needs real artwork.** Two thirds of the catalogue is TXT with no page one, so a grid
+    of typographic covers is a grid of initials, not a collage. Below two real images the fan is
+    drawn instead. Covers are cached on disk, so a user gets the same layout each time rather than
+    one that flickers.
+  - **In a grid the frame is the tile and the artwork is centred inside it**, which is the opposite
+    of `_drawCover`'s contain-and-shrink — correct there, because a lone cover has nothing to line
+    up with. Mixing the two made every tile a different width and the gaps ragged.
+- **The covers of one card resolve in parallel against one deadline.** `_coverOf` takes an absolute
+  timestamp, not a duration: four four-second races run in sequence is a share button that hangs for
+  sixteen seconds. Whatever has arrived when the budget expires is what gets drawn.
+- **The accompanying share text carries the Play link** (added 2026-11-20). §15's "tasteful, not a
+  loud ad" governs the *image*; the message a recipient reads beside it is not the image, and it
+  named the app without saying where to get it — so a card reaching a non-user left them nowhere to
+  go, which is the whole mechanic stopping one step short of the thing §22 prioritised it for. The
+  URL is appended in code rather than embedded in the string, so no translation can drop or mistype
+  it.
 - **Recap windows — offered, never prompted** (owner, 2026-11-20). Finishing a book is rare and a
   streak builds slowly, so for most weeks the card has nothing new to say; "what I read last week"
   renews every week, and §22 puts this product in a distribution bottleneck. Three windows exist
@@ -790,7 +819,14 @@ Elevated in priority because it doubles as a distribution mechanic, not just ret
   figures rather than the sentence**: early on every window holds the same reading, so "1,200 words
   in the last 7 days" and "1,200 words this year" are one card with two captions. Nothing goes
   looking for the user — a recap arriving unbidden in a week they read nothing has no honest
-  phrasing that is not the guilt framing §9.1 rules out.
+  phrasing that is not the guilt framing §9.1 rules out. **A window is offered only when it holds
+  substance**: a finished book, 3+ days read, or an hour of reading. The owner's first proposal was
+  to require a 7-day streak or a finished book; the accepted counter is that a streak measures
+  *consecutive* days, so it gates on consistency where the card is about volume — someone who read
+  four days this week with two hours logged has a good recap and may never string seven days
+  together. Milestones were also the wrong mechanism to hang it on: they are celebrate-once and
+  carry spent-flag sets, where a recap is an always-available option. Those three numbers are the
+  lever if it needs tightening.
 - **The sheet opens composed, not as a form** (owner, 2026-11-20). §15 requires the card be editable
   before sharing and it still is — behind one "Change what's on it" tap. It previously opened as up
   to **seven hero radios and four checkboxes**, asking the user to decide something this section

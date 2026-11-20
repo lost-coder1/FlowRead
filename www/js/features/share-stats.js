@@ -30,6 +30,10 @@ const ShareStats = (function() {
   /* 1080² is the safe square for every major destination and stays legible
      when a chat app downscales it to a thumbnail. */
   const CARD_SIZE = 1080;
+  /* Kept beside purchase.js's subscription-management URL, which uses the same
+     applicationId. Not localised — Play serves the listing in the reader's own
+     language from this one link. */
+  const STORE_URL = 'https://play.google.com/store/apps/details?id=com.flowread.app';
   const PAD = 88;
 
   /* Palette is §16 verbatim. Do not introduce new colours here — the card is
@@ -137,20 +141,45 @@ const ShareStats = (function() {
     return latest;
   }
 
+  /* The substance gate (owner, 2026-11-20). A window is offered only when it
+     holds something a stranger would find worth reading: a finished book, three
+     days of reading, or an hour. The first gate was `days >= 2`, which let
+     through "1,200 words in the last 7 days" — true, and a card nobody shares.
+
+     The owner's first proposal was to require a 7-day streak or a finished
+     book, and this is the counter that was accepted: a streak is *consecutive*
+     days, so it measures consistency when the card is about volume — someone
+     who read four days this week with two hours logged has a good recap and may
+     never string seven days together. Milestones were also the wrong thing to
+     hang it on mechanically: they are celebrate-once and carry spent-flag sets,
+     where a recap is an always-available option.
+
+     If this needs tightening later, these three numbers are the lever. */
+  const RECAP_MIN_DAYS = 3;
+  const RECAP_MIN_MINUTES = 60;
+
+  function _worthRecapping(recap) {
+    return recap.books > 0
+      || recap.days >= RECAP_MIN_DAYS
+      || recap.minutes >= RECAP_MIN_MINUTES;
+  }
+
   function _recaps(sessions, finished) {
     return WINDOWS.map(function(win) {
       const floor = _windowFloor(win);
       const inWindow = sessions.filter(function(sess) { return sess.date && sess.date >= floor; });
-      return {
+      const recap = {
         id: win.id,
         words: inWindow.reduce(function(acc, sess) { return acc + (sess.wordsRead || 0); }, 0),
         minutes: Math.floor(inWindow.reduce(function(acc, sess) { return acc + (sess.durationMs || 0); }, 0) / 60000),
-        books: finished.filter(function(book) {
+        bookList: finished.filter(function(book) {
           const when = _lastSessionDate(sessions, book.id);
           return when && when >= floor;
-        }).length,
+        }),
         days: new Set(inWindow.map(function(sess) { return sess.date; })).size,
       };
+      recap.books = recap.bookList.length;
+      return recap;
     });
   }
 
@@ -216,7 +245,7 @@ const ShareStats = (function() {
        nobody wants on a card. */
     const recapRows = [];
     (stats.recaps || []).forEach(function(recap) {
-      if (recap.days < 2 && recap.books === 0) return;
+      if (!_worthRecapping(recap)) return;
       const hours = Math.floor(recap.minutes / 60);
       let text = null;
       if (recap.books > 0) {
@@ -402,6 +431,34 @@ const ShareStats = (function() {
   const COVER_W = 320;
   const COVER_MAX_H = 440;
   const COVER_GAP = 40;
+  /* A fan shows "a few books" at a glance; a collage shows *which* books, and
+     the owner wanted the second once there are enough to be worth seeing.
+
+     **One row of four, and the reason is vertical space.** The hero band is
+     616px tall and a book cover is 1.375× as tall as it is wide, so two rows of
+     three only fit by shrinking each tile to ~132px — at which point nobody can
+     see which books they are, and the collage has defeated its own purpose. Four
+     across at 199×274 is legible and leaves the headline its two lines. A fifth
+     book is not drawn: the headline states the real number ("Finished 6 books
+     this year"), so the grid is a sampler rather than an inventory, and a
+     "+2 more" line would only restate the headline minus four.
+
+     _collageFootprint clamps to the height it is given regardless, so a later
+     change to the band or the row count cannot silently overflow the card —
+     which is exactly what the first version of this did. */
+  const COLLAGE_MAX = 4;
+  const COLLAGE_COLS = 4;
+  const COLLAGE_GAP = 20;
+  const FAN_MAX = 3;
+  const FAN_SCALE = 0.72;
+  const FAN_STEP_X = 45;
+  const FAN_STEP_Y = 30;
+  /* A collage is a visual device, and two thirds of the catalogue is TXT with no
+     page one to render — so a grid of six typographic covers is not a collage,
+     it is a grid of initials. Below this many real images the fan is drawn
+     instead. Covers are cached on disk, so a given user gets the same layout
+     every time rather than one that flickers between the two. */
+  const COLLAGE_MIN_IMAGES = 2;
   const COVER_TIMEOUT_MS = 4000;
 
   /* Resolved covers, keyed by hero id, for the lifetime of one sheet — the
@@ -416,35 +473,52 @@ const ShareStats = (function() {
    * typographic one drawn from the title — never a fetched image: §1.1 keeps
    * this path offline, and the share card must work on a plane.
    */
-  async function _coverFor(hero) {
-    if (!hero || !hero.book) return null;
-    if (Object.prototype.hasOwnProperty.call(_covers, hero.id)) return _covers[hero.id];
+  /* One book's cover. `deadline` is an absolute timestamp, not a per-cover
+     duration, and that is the whole point of it: a recap collage asks for six
+     of these, and six four-second races run one after another is a share button
+     that hangs for twenty-four seconds. They are resolved in parallel against a
+     single budget, and whatever has arrived when it expires is what gets drawn
+     (§21 — the card is still a card with typographic covers). */
+  async function _coverOf(book, deadline) {
+    if (!book) return null;
+    if (Object.prototype.hasOwnProperty.call(_covers, book.id)) return _covers[book.id];
     let img = null;
     try {
       if (typeof BookCover !== 'undefined') {
-        /* Rendering a PDF page is normally a few hundred milliseconds, but it is
-           pdf.js on an unknown file on an unknown device. The card is still a
-           card without the artwork, so a slow cover degrades to the
-           typographic one rather than leaving the user on a spinner (§21). */
+        const left = Math.max(0, deadline - Date.now());
         img = await Promise.race([
-          BookCover.getImage(hero.book.id),
-          new Promise(function(resolve) { setTimeout(function() { resolve(null); }, COVER_TIMEOUT_MS); }),
+          BookCover.getImage(book.id),
+          new Promise(function(resolve) { setTimeout(function() { resolve(null); }, left); }),
         ]);
       }
     } catch (_) {}
-    let author = hero.book.author || '';
+    let author = book.author || '';
     /* Books downloaded before the author was stored on the library item: the
        catalogue still knows, and only the placeholder cover needs it. */
     if (!author && !img && typeof FreeBooksView !== 'undefined'
         && typeof FreeBooksView.authorForFileId === 'function') {
-      try { author = await FreeBooksView.authorForFileId(hero.book.id); } catch (_) {}
+      try { author = await FreeBooksView.authorForFileId(book.id); } catch (_) {}
     }
-    _covers[hero.id] = {
-      img: img,
-      title: hero.book.name || '',
-      author: author,
-    };
-    return _covers[hero.id];
+    _covers[book.id] = { img: img, title: book.name || '', author: author };
+    return _covers[book.id];
+  }
+
+  /* The covers a hero wants, in the order they should be drawn. A book hero
+     wants its own; a recap hero wants the books finished inside its window,
+     most recently read first (`_finishedBooks` is sorted by lastOpened), capped
+     at what a collage can show. Everything else wants none — a streak and a
+     word count are not about a book, and an empty panel beside them would be
+     worse than no panel. */
+  async function _coversFor(hero) {
+    if (!hero) return [];
+    const books = hero.book ? [hero.book]
+      : (hero.recap && hero.recap.bookList ? hero.recap.bookList.slice(0, COLLAGE_MAX) : []);
+    if (books.length === 0) return [];
+    const deadline = Date.now() + COVER_TIMEOUT_MS;
+    const resolved = await Promise.all(books.map(function(book) {
+      return _coverOf(book, deadline).catch(function() { return null; });
+    }));
+    return resolved.filter(Boolean);
   }
 
   /* Two initials, the same shape the Free Books catalogue placeholder uses. */
@@ -510,7 +584,133 @@ const ShareStats = (function() {
     return { width: w, height: h };
   }
 
-  async function drawCard(hero, extras, cover) {
+  /* Scaled copy of _drawCover for the fan and the collage, which both need an
+     explicit box rather than the fixed cover column. Kept separate from
+     _drawCover so the single-cover layout — the common case, and the one §15
+     describes — cannot be broken by a change made for a collage. */
+  function _drawCoverIn(ctx, cover, x, top, boxW, boxH) {
+    const w = boxW;
+    const h = boxH;
+    /* The frame is the box, always, and artwork is contained *inside* it rather
+       than shrinking it. _drawCover does the opposite — correctly, because a
+       lone cover has nothing to line up with. In a grid it matters: a contained
+       image makes its own tile narrower than a typographic one, so a collage
+       mixing real covers with initials came out with ragged gaps and tiles of
+       three different widths. Uniform frames also simply read better: a shelf,
+       not a pile. */
+    ctx.fillStyle = COLORS.panelRaised;
+    ctx.fillRect(x, top, w, h);
+    if (cover.img && cover.img.width > 0 && cover.img.height > 0) {
+      const ratio = Math.min(w / cover.img.width, h / cover.img.height);
+      const iw = Math.round(cover.img.width * ratio);
+      const ih = Math.round(cover.img.height * ratio);
+      ctx.drawImage(cover.img,
+        x + Math.round((w - iw) / 2), top + Math.round((h - ih) / 2), iw, ih);
+    } else {
+      /* Same typographic cover, sized off the box so initials in a collage tile
+         are not the 104px of a full-size panel. */
+      const scale = w / COVER_W;
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.fillStyle = COLORS.text;
+      ctx.font = '700 ' + Math.round(104 * scale) + 'px ' + FONT_DISPLAY;
+      ctx.fillText(_initials(cover.title) || '…', x + (w / 2), top + (h / 2) + Math.round(20 * scale));
+      ctx.strokeStyle = _accentFor(cover.title);
+      ctx.lineWidth = Math.max(2, Math.round(4 * scale));
+      ctx.beginPath();
+      ctx.moveTo(x + (w / 2) - (36 * scale), top + (h / 2) + (60 * scale));
+      ctx.lineTo(x + (w / 2) + (36 * scale), top + (h / 2) + (60 * scale));
+      ctx.stroke();
+      if (cover.author && scale > 0.6) {
+        ctx.fillStyle = COLORS.muted;
+        ctx.font = '400 ' + Math.round(24 * scale) + 'px ' + FONT_DISPLAY;
+        ctx.fillText(_wrap(ctx, cover.author, w - (48 * scale))[0] || '', x + (w / 2), top + h - (44 * scale));
+      }
+      ctx.restore();
+    }
+    ctx.strokeStyle = COLORS.border;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, top, w, h);
+    return { width: w, height: h };
+  }
+
+  /* Two or three books, overlapped inside the ordinary cover column so the
+     side-by-side layout §15 describes is untouched. Drawn back to front, so
+     the most recently finished book is the one on top. */
+  function _fanFootprint(count) {
+    const n = Math.min(count, FAN_MAX);
+    const w = Math.round(COVER_W * FAN_SCALE);
+    const h = Math.round(COVER_MAX_H * FAN_SCALE);
+    return {
+      width: w + ((n - 1) * FAN_STEP_X),
+      height: h + ((n - 1) * FAN_STEP_Y),
+      tileW: w,
+      tileH: h,
+      count: n,
+    };
+  }
+
+  function _drawFan(ctx, covers, x, top) {
+    const box = _fanFootprint(covers.length);
+    for (var i = box.count - 1; i >= 0; i--) {
+      _drawCoverIn(ctx, covers[i], x + (i * FAN_STEP_X), top + (i * FAN_STEP_Y), box.tileW, box.tileH);
+    }
+    return box;
+  }
+
+  function _collageFootprint(count, width, maxHeight) {
+    const n = Math.min(count, COLLAGE_MAX);
+    const cols = Math.min(COLLAGE_COLS, n);
+    const rows = Math.ceil(n / cols);
+    /* A book is taller than it is wide; 1.375 is the ratio the single cover box
+       already uses (440/320), so a tile is the same shape as a full panel. The
+       tile is sized by whichever of width and height binds — sizing on width
+       alone is what put a 768px grid in a 616px band. */
+    const byWidth = Math.floor((width - ((cols - 1) * COLLAGE_GAP)) / cols);
+    const ratio = COVER_MAX_H / COVER_W;
+    const byHeight = maxHeight
+      ? Math.floor(((maxHeight - ((rows - 1) * COLLAGE_GAP)) / rows) / ratio)
+      : byWidth;
+    const tileW = Math.max(1, Math.min(byWidth, byHeight));
+    const tileH = Math.round(tileW * ratio);
+    return {
+      width: (cols * tileW) + ((cols - 1) * COLLAGE_GAP),
+      height: (rows * tileH) + ((rows - 1) * COLLAGE_GAP),
+      tileW: tileW,
+      tileH: tileH,
+      cols: cols,
+      rows: rows,
+      count: n,
+    };
+  }
+
+  function _drawCollage(ctx, covers, x, top, box) {
+    for (var i = 0; i < box.count; i++) {
+      const col = i % box.cols;
+      const row = Math.floor(i / box.cols);
+      /* A last row with fewer tiles than the others is centred under them — two
+         tiles left-aligned beneath three reads as a layout that ran out. */
+      const inRow = Math.min(box.cols, box.count - (row * box.cols));
+      const rowWidth = (inRow * box.tileW) + ((inRow - 1) * COLLAGE_GAP);
+      const rowX = x + Math.round((box.width - rowWidth) / 2);
+      _drawCoverIn(ctx, covers[i],
+        rowX + (col * (box.tileW + COLLAGE_GAP)),
+        top + (row * (box.tileH + COLLAGE_GAP)),
+        box.tileW, box.tileH);
+    }
+    return box;
+  }
+
+  /* Which of the three layouts a set of covers gets. */
+  function _coverMode(covers) {
+    if (!covers || covers.length === 0) return 'none';
+    if (covers.length === 1) return 'single';
+    if (covers.length < 4) return 'fan';
+    const real = covers.filter(function(c) { return !!c.img; }).length;
+    return (real >= COLLAGE_MIN_IMAGES) ? 'collage' : 'fan';
+  }
+
+  async function drawCard(hero, extras, covers) {
     /* Webfonts are not guaranteed to be resident when the canvas draws, and a
        card that silently falls back to Arial is the one thing we cannot fix
        after it has been shared. */
@@ -550,40 +750,78 @@ const ShareStats = (function() {
        column on the left and the headline gets what is left. A narrower column
        costs font size rather than overflow, because _fitHero steps down until
        the text fits. One more line is allowed there for the same reason. */
-    const textLeft = cover ? left + COVER_W + COVER_GAP : left;
-    const textWidth = cover ? contentWidth - COVER_W - COVER_GAP : contentWidth;
-    const fit = _fitHero(ctx, hero, textWidth, cover ? 6 : 3, cover ? COVER_MAX_H : undefined);
+    /* One cover, a fan of two or three, or a collage of four or more — see
+       _coverMode. The first two share the side-by-side layout §15 describes; a
+       collage is wide by nature and takes the headline above it instead, with
+       no supporting rows, because a card carrying six covers and three lines of
+       statistics is the data dump §15 rules out. The headline already states
+       the count. */
+    const list = Array.isArray(covers) ? covers : (covers ? [covers] : []);
+    const mode = _coverMode(list);
+    /* The band the hero block is centred in: below the kicker, above the
+       footer rule. Declared here rather than further down because the collage
+       clamp below needs it — a `const` used before its declaration in the same
+       block is a ReferenceError, not a hoist. */
+    const BAND_TOP = 236;
+    const BAND_BOTTOM = 852;
+
+    /* The grid gets what the band has left after a two-line headline and the gap
+       below it — computed here rather than assumed, so the clamp has a real
+       number to work with. */
+    const COLLAGE_GAP_Y = 56;
+    const COLLAGE_HERO_RESERVE = 190;
+    const collage = (mode === 'collage')
+      ? _collageFootprint(list.length, contentWidth,
+          (BAND_BOTTOM - BAND_TOP) - COLLAGE_HERO_RESERVE - COLLAGE_GAP_Y)
+      : null;
+    const sideBox = (mode === 'fan') ? _fanFootprint(list.length) : null;
+    const sideWidth = collage ? 0 : (sideBox ? sideBox.width : (mode === 'single' ? COVER_W : 0));
+
+    const textLeft = sideWidth ? left + sideWidth + COVER_GAP : left;
+    const textWidth = sideWidth ? contentWidth - sideWidth - COVER_GAP : contentWidth;
+    const heroMaxLines = collage ? 2 : (sideWidth ? 6 : 3);
+    const fit = _fitHero(ctx, hero, textWidth, heroMaxLines,
+      sideWidth ? COVER_MAX_H : (collage ? 200 : undefined));
     const lineHeight = Math.round(fit.size * 1.22);
     const heroBlockHeight = fit.lines.length * lineHeight;
 
-    const rows = extras.slice(0, 3);
+    const rows = collage ? [] : extras.slice(0, 3);
     const EXTRA_GAP = 72;
     const EXTRA_ROW = 54;
     const extrasHeight = rows.length ? EXTRA_GAP + (rows.length * EXTRA_ROW) : 0;
 
-    const BAND_TOP = 236;
-    const BAND_BOTTOM = 852;
     /* Measured, not assumed: a contained cover is shorter than the box when the
        page is wide, and the block has to be centred on what was actually drawn.
        So the cover is drawn once off-screen-cheaply at a provisional top and the
        text is placed against the height it reports. */
-    const coverHeight = cover
-      ? (cover.img && cover.img.width > 0
-          ? Math.round(cover.img.height * Math.min(COVER_W / cover.img.width, COVER_MAX_H / cover.img.height))
+    const single = (mode === 'single') ? list[0] : null;
+    const coverHeight = single
+      ? (single.img && single.img.width > 0
+          ? Math.round(single.img.height * Math.min(COVER_W / single.img.width, COVER_MAX_H / single.img.height))
           : COVER_MAX_H)
-      : 0;
+      : (sideBox ? sideBox.height : 0);
     const topBlockHeight = Math.max(heroBlockHeight, coverHeight);
-    const blockTop = Math.round(
-      BAND_TOP + ((BAND_BOTTOM - BAND_TOP) - (topBlockHeight + extrasHeight)) / 2
-    );
 
-    if (cover) {
-      _drawCover(ctx, cover, left, blockTop + Math.round((topBlockHeight - coverHeight) / 2));
+    /* A collage stacks instead of sitting beside: headline, gap, grid. */
+    const blockHeight = collage
+      ? heroBlockHeight + COLLAGE_GAP_Y + collage.height
+      : topBlockHeight + extrasHeight;
+    const blockTop = Math.round(BAND_TOP + ((BAND_BOTTOM - BAND_TOP) - blockHeight) / 2);
+
+    if (single) {
+      _drawCover(ctx, single, left, blockTop + Math.round((topBlockHeight - coverHeight) / 2));
+    } else if (sideBox) {
+      _drawFan(ctx, list, left, blockTop + Math.round((topBlockHeight - sideBox.height) / 2));
+    } else if (collage) {
+      _drawCollage(ctx, list, left + Math.round((contentWidth - collage.width) / 2),
+        blockTop + heroBlockHeight + COLLAGE_GAP_Y, collage);
     }
 
     /* Centred against the cover rather than hung from its top edge: a one-line
        headline pinned to the top of a 440px cover reads as a mistake. */
-    const heroTop = blockTop + Math.round((topBlockHeight - heroBlockHeight) / 2);
+    const heroTop = collage
+      ? blockTop
+      : blockTop + Math.round((topBlockHeight - heroBlockHeight) / 2);
     ctx.fillStyle = COLORS.text;
     ctx.font = '700 ' + fit.size + 'px ' + FONT_DISPLAY;
     fit.lines.forEach(function(line, i) {
@@ -642,7 +880,17 @@ const ShareStats = (function() {
     const plugins = (window.Capacitor && window.Capacitor.Plugins) || {};
     const Share = plugins.Share;
     const Filesystem = plugins.Filesystem;
-    const text = t('share.sheet.text');
+    /* The message that travels with the image, and the one place a download
+       link belongs. §15 keeps the *card* tasteful and small — "not a loud ad" —
+       and this is not the card: it is the text a recipient reads beside it, and
+       until now it named the app without saying where to get it. §22 calls this
+       product distribution-bound and §15 prioritised this feature partly for
+       reach, so a card that reaches a non-user and leaves them nowhere to go was
+       the whole mechanic stopping one step short.
+
+       Appended rather than put in the string: a translator must not be able to
+       drop or mistype the URL, and it is the same URL in every language. */
+    const text = t('share.sheet.text') + '\n' + STORE_URL;
 
     if (Share && Filesystem && typeof Filesystem.writeFile === 'function') {
       const name = 'flowread-' + Date.now() + '.png';
@@ -682,8 +930,8 @@ const ShareStats = (function() {
     const extras = _model.extrasFor(_selection.heroId)
       .filter(function(e) { return _selection.extras.indexOf(e.id) !== -1; });
 
-    _coverFor(hero).then(function(cover) {
-      return drawCard(hero.text, extras.map(function(e) { return e.text; }), cover);
+    _coversFor(hero).then(function(covers) {
+      return drawCard(hero.text, extras.map(function(e) { return e.text; }), covers);
     }).then(function(canvas) {
       /* The sheet may have been closed while the fonts settled. */
       const target = qs('#share-preview');
@@ -746,7 +994,9 @@ const ShareStats = (function() {
       heroId = opts.preferHeroId;
     }
 
-    /* One sheet, one set of resolved covers. */
+    /* One sheet, one set of resolved covers — keyed by book id rather than by
+       hero, so switching between a book hero and a recap that contains the same
+       book does not render its page one twice. */
     _covers = {};
 
     _model = {
@@ -840,7 +1090,7 @@ const ShareStats = (function() {
 
       showLoading(t('share.loading'));
       try {
-        const canvas = await drawCard(hero.text, extras, await _coverFor(hero));
+        const canvas = await drawCard(hero.text, extras, await _coversFor(hero));
         await _shareCanvas(canvas);
         /* Q11, approved 2026-09-25. Entry point only — never which book, which
            stat, or which app it went to (§1.4). Fire-and-forget, after the
