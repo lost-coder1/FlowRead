@@ -445,7 +445,10 @@ const HighlightsFeature = (function() {
   }
 
   function open() {
-    if (typeof TipsFeature !== 'undefined') TipsFeature.markDone('highlights');
+    /* Arriving here is the whole job of the screen tip. The gesture tip is
+       retired separately, by the first commit in the reader — you cannot have
+       a highlight to come and look at without having made one. */
+    if (typeof TipsFeature !== 'undefined') TipsFeature.markDone('highlights_screen');
     render();
     switchView('view-highlights');
   }

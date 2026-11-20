@@ -3199,8 +3199,16 @@
 
 .reader-hl-toggle {
   min-width: 40px;
-  font-size: 15px;
   line-height: 1;
+  padding-left: 8px;
+  padding-right: 8px;
+}
+
+/* An inline SVG is replaced content, so it needs to be a block to lose the
+   descender space a text glyph left under it. */
+.reader-hl-glyph {
+  display: block;
+  margin: 0 auto;
 }
 
 .reader-hl-toggle.active {

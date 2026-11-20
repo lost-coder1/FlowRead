@@ -229,6 +229,21 @@ const TipsFeature = (function() {
       },
     },
     {
+      /* The gesture tip above teaches the gesture; this one reveals that the
+         marks are collected somewhere, which is the half a reader would never
+         find on their own. Separate rather than a `go` bolted onto that
+         sentence: tapping "tap the highlighter" and landing on a list is a
+         non-sequitur, and §22.3 says a tap does the thing the sentence
+         describes. Mirrors the `words` tip exactly, because it is the same
+         discovery about the same kind of collection. */
+      id: 'highlights_screen',
+      key: 'tip.highlights_screen',
+      when: function() {
+        return typeof HighlightsFeature !== 'undefined' && HighlightsFeature.totalCount() > 0;
+      },
+      go: function() { HighlightsFeature.open(); },
+    },
+    {
       /* Only reaches someone who has looked a word up but not yet opened the
          list — the saving is automatic and silent, so the one thing a reader
          would never discover is that it has been happening. Retires on the

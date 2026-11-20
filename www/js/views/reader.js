@@ -69,7 +69,15 @@ function renderReader(options) {
            not wrap: back + Calm + Index + a label would squeeze the filename to
            nothing, and unlike the home header it truncates instead of breaking,
            so the cost of one compact button is a shorter filename. -->
-      <button class="btn btn-ghost reader-hl-toggle" id="btn-reader-highlight" title="${t('reader.hl.title')}" aria-label="${t('reader.hl.title')}">▮</button>
+      <!-- Drawn, not a font glyph. Unicode has no highlighter: U+25AE was a
+           vertical bar that read as a cursor or a stop button, a pencil would
+           promise the notes §26.3 deliberately left out, and a marker emoji
+           breaks §15's monochrome palette and cannot be trusted to exist on a
+           minSdk 24 WebView. Inline SVG is the same answer dictionary.js's
+           _searchGlyph() reached for the same reasons, and currentColor means
+           the .active accent state costs no extra CSS. The band beneath the
+           nib is what separates "highlighter" from "pen" at this size. -->
+      <button class="btn btn-ghost reader-hl-toggle" id="btn-reader-highlight" title="${t('reader.hl.title')}" aria-label="${t('reader.hl.title')}"><svg class="reader-hl-glyph" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true" focusable="false"><line x1="3.2" y1="16" x2="14.8" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.55"/><polygon points="6.06,9.26 8.74,11.94 6.72,13.32 4.68,11.28" fill="currentColor"/><polygon points="13.66,1.66 16.34,4.34 8.74,11.94 6.06,9.26" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
       <button class="btn btn-ghost reader-index-toggle" id="btn-reader-index">${t('reader.btn.index')}</button>
     </div>
 

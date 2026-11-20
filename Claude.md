@@ -1187,7 +1187,18 @@ two investments of the same kind, so a second typography scale for the second on
 for nothing. Each row hides itself at zero. **Free, never Pro** — §23 puts reading itself on the never-gate list and
 a highlight is reading; gating it later would be the dictionary mistake again.
 
-**Discoverability is §22's job, not a help screen.** And a highlight is the one thing here that gives a
+**The button is drawn, not a font glyph.** Unicode has no highlighter: U+25AE read as a cursor or a
+stop button, a pencil would promise the notes this section leaves out, and a marker emoji breaks
+§15's monochrome palette and cannot be relied on to exist in a minSdk 24 WebView. Inline SVG is what
+`dictionary.js`'s `_searchGlyph()` already does for the same reasons — it inherits `currentColor`, so
+the `.active` accent state needs no extra rule. **The band beneath the nib is load-bearing**: it is
+what separates a highlighter from a pen at 18px, and §22's tip copy already says "tap the
+highlighter".
+
+**Discoverability is §22's job, not a help screen.** **Two tips, not one** — `highlights` teaches
+the gesture and retires on the first commit; `highlights_screen` reveals that the marks are
+collected somewhere and retires on the first visit. They are separate because §22.3 makes a strip
+tap do what its sentence describes, and sending "tap the highlighter" to a list is a non-sequitur. And a highlight is the one thing here that gives a
 notification something true and specific to say, which is exactly how it becomes nagging: §10's
 discipline applies, and "revisit your highlights" must never fire on a book touched an hour ago.
 

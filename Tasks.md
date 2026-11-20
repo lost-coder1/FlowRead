@@ -35,6 +35,12 @@ row beside saved words, and tapping a quote opens that book at that word through
 Confirmed working by the owner: the tint in Page/Scroll/Focus Bold, the share card's quote hero,
 and (after the fix) the scrollable index panel.
 
+**Device pass 2, 2026-11-20.** The header button was U+25AE, which the owner read as a pipe and not
+as anything to do with highlighting — correctly, and the tip copy already said "tap the
+highlighter". Replaced with an inline SVG marker over a band, the approach `_searchGlyph()` already
+uses. Also added `tip.highlights_screen`, since the `highlights` tip teaches the gesture and had no
+destination, so nothing revealed the new screen. **21 Hindi keys now awaiting sign-off.**
+
 Also 2026-11-20 — **16.31: saved words, and the dictionary's real defect**
 (branch `investment-highlights`). The Hooked *investment* phase, taken at its cheapest point first:
 every word looked up is now kept, grouped by book, on a Words screen reached from the home header

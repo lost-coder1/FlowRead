@@ -766,5 +766,6 @@
   "highlights.count.other": "{n} highlights kept",
   "highlights.empty.title": "No highlights yet",
   "highlights.empty.body": "While reading, tap the ▮ button in the header, then tap the first and last word of the line you want to keep.",
-  "highlights.no_text": "(marked passage)"
+  "highlights.no_text": "(marked passage)",
+  "tip.highlights_screen": "Your highlights are collected by book. Tap to see them."
 }
