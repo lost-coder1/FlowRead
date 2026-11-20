@@ -93,15 +93,78 @@ const ShareStats = (function() {
       .sort(function(a, b) { return b.lastOpened - a.lastOpened; });
   }
 
+  /* ── Recap windows ─────────────────────────────────────────────
+     Finishing a book is rare and a streak builds slowly, so for most of the
+     year the card has nothing new to say. "What I read last week" renews every
+     week, which is the only share occasion here that does — and §22 puts this
+     product in a distribution bottleneck, not a retention one.
+
+     Offered, never prompted (owner, 2026-11-20): these appear as choices in the
+     sheet and nothing goes looking for the user. A recap that arrives
+     unbidden in a week when they read nothing is the guilt framing §9.1 rules
+     out, and there is no honest version of it.
+
+     "This year" rather than "last year", also deliberate. Last year is empty
+     for every current user and would stay empty for eleven months — shipping a
+     surface that is broken until December is how it gets forgotten. Year to
+     date is true from the first day and becomes a year in review on its own. */
+  const WINDOWS = [
+    { id: 'week',  days: 7 },
+    { id: 'month', days: 30 },
+    { id: 'year',  ytd: true },
+  ];
+
+  function _windowFloor(win) {
+    const now = new Date();
+    if (win.ytd) return now.getFullYear() + '-01-01';
+    const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (win.days - 1));
+    return _dateStrOf(from.getTime());
+  }
+
+  /* A finished book has no recorded finish date — §5.2 makes completion a
+     *position*, so there is no event to stamp. The last session on the book is
+     the closest honest proxy, and the copy says "finished" rather than claiming
+     a date. A re-read moves it, which over-counts the recent window by a book
+     someone revisited; the alternative is storing a finish timestamp, which
+     would be a new piece of state that disagrees with the derived completion
+     the moment a reader pages backwards off the end. */
+  function _lastSessionDate(sessions, fileId) {
+    let latest = '';
+    for (var i = 0; i < sessions.length; i++) {
+      const sess = sessions[i];
+      if (sess.fileId === fileId && sess.date && sess.date > latest) latest = sess.date;
+    }
+    return latest;
+  }
+
+  function _recaps(sessions, finished) {
+    return WINDOWS.map(function(win) {
+      const floor = _windowFloor(win);
+      const inWindow = sessions.filter(function(sess) { return sess.date && sess.date >= floor; });
+      return {
+        id: win.id,
+        words: inWindow.reduce(function(acc, sess) { return acc + (sess.wordsRead || 0); }, 0),
+        minutes: Math.floor(inWindow.reduce(function(acc, sess) { return acc + (sess.durationMs || 0); }, 0) / 60000),
+        books: finished.filter(function(book) {
+          const when = _lastSessionDate(sessions, book.id);
+          return when && when >= floor;
+        }).length,
+        days: new Set(inWindow.map(function(sess) { return sess.date; })).size,
+      };
+    });
+  }
+
   function collectStats() {
     const sessions = loadReadingSessions();
     const lib = loadLibrary();
+    const finished = _finishedBooks(lib, sessions);
 
     return {
       streak: computeStreak(sessions),
       totalWords: sessions.reduce(function(acc, s) { return acc + (s.wordsRead || 0); }, 0),
       totalMinutes: Math.floor(sessions.reduce(function(acc, s) { return acc + (s.durationMs || 0); }, 0) / 60000),
-      finished: _finishedBooks(lib, sessions),
+      finished: finished,
+      recaps: _recaps(sessions, finished),
     };
   }
 
@@ -110,7 +173,11 @@ const ShareStats = (function() {
   function _heroOptions(stats) {
     const out = [];
 
-    stats.finished.slice(0, 5).forEach(function(book) {
+    /* Two, not five. The list is sorted by lastOpened, so past the recent
+       couple nobody is reading down a radio list to find a book — and five book
+       rows plus the counters plus the recaps was most of why the sheet read as a
+       configuration exercise rather than an offer. */
+    stats.finished.slice(0, 2).forEach(function(book) {
       out.push({
         id: 'book:' + book.id,
         book: book,
@@ -141,6 +208,52 @@ const ShareStats = (function() {
       });
     }
 
+    /* Recaps last: a named book still outranks any number (§15), and the whole
+       point of a recap is that it is there on the ordinary weeks when nothing
+       was finished. One strong stat each, by what the window actually holds —
+       books finished, then hours, then words. A window with a single day's
+       reading in it is skipped: "1 day of reading this year" is a true sentence
+       nobody wants on a card. */
+    const recapRows = [];
+    (stats.recaps || []).forEach(function(recap) {
+      if (recap.days < 2 && recap.books === 0) return;
+      const hours = Math.floor(recap.minutes / 60);
+      let text = null;
+      if (recap.books > 0) {
+        text = tn('share.hero.recap_books.' + recap.id, recap.books, { n: recap.books });
+      } else if (hours >= 1) {
+        text = tn('share.hero.recap_time.' + recap.id, hours, { n: hours });
+      } else if (recap.words > 0) {
+        text = t('share.hero.recap_words.' + recap.id, { n: formatNumber(recap.words) });
+      }
+      if (!text) return;
+      recapRows.push({ id: 'recap:' + recap.id, recap: recap, label: t('share.item.recap.' + recap.id), text: text });
+    });
+
+    /* At most two windows, and never three. All three offered at once is the
+       same redundancy the hero list already had: "finished a book in the last 7
+       days", "2 books in the last 30 days" and "3 books this year" are three
+       phrasings of one claim, and a chooser full of near-duplicates is what made
+       this sheet feel like a form. The shortest substantial window is the most
+       current thing the user has, the longest is the most impressive, and the
+       middle one is always between two things that say it better. A window whose
+       card text is identical to a shorter one's is dropped outright. */
+    if (recapRows.length > 2) {
+      recapRows.splice(1, recapRows.length - 2);
+    }
+    /* Deduped on the *figures*, not the rendered sentence. Early on every window
+       holds the same reading — a user four days in has read as much this year as
+       they have this week — so the two rows are one card with two captions, and
+       the longer window is the one that says less about now. Comparing the text
+       misses this, because the captions differ by construction. */
+    const seen = {};
+    recapRows.forEach(function(row) {
+      const shape = row.recap.books + '/' + row.recap.minutes + '/' + row.recap.words;
+      if (seen[shape]) return;
+      seen[shape] = true;
+      out.push(row);
+    });
+
     return out;
   }
 
@@ -150,6 +263,40 @@ const ShareStats = (function() {
      entry here without the card being redrawn from scratch. Not in v1. */
   function _extraOptions(stats, heroId) {
     const out = [];
+
+    /* A recap hero takes its supporting lines from the same window, not from
+       all time: "4 hours last week" under a headline about last week, followed
+       by a lifetime total, reads as two unrelated cards. The streak is the one
+       global figure that still belongs, because it is the thing the window is
+       evidence of. */
+    const recapId = (heroId.indexOf('recap:') === 0) ? heroId.slice(6) : null;
+    if (recapId) {
+      const recap = (stats.recaps || []).find(function(r) { return r.id === recapId; });
+      if (recap) {
+        const hours = Math.floor(recap.minutes / 60);
+        if (recap.books > 0) {
+          out.push({ id: 'w-books', label: t('share.item.finished', { n: recap.books }), text: tn('share.line.recap_books.' + recapId, recap.books, { n: recap.books }) });
+        }
+        if (hours >= 1) {
+          out.push({ id: 'w-time', label: tn('share.item.time', hours, { n: hours }), text: tn('share.line.recap_time.' + recapId, hours, { n: hours }) });
+        }
+        if (recap.words > 0) {
+          out.push({ id: 'w-words', label: t('share.item.words', { n: formatNumber(recap.words) }), text: t('share.line.recap_words.' + recapId, { n: formatNumber(recap.words) }) });
+        }
+        if (recap.days >= 2) {
+          out.push({ id: 'w-days', label: tn('share.item.days', recap.days, { n: recap.days }), text: tn('share.line.recap_days.' + recapId, recap.days, { n: recap.days }) });
+        }
+        if (stats.streak >= 2) {
+          out.push({ id: 'streak', label: t('share.item.streak', { n: stats.streak }), text: t('share.line.streak', { n: stats.streak }) });
+        }
+        /* The hero's own stat is already the headline. */
+        return out.filter(function(e) {
+          if (recap.books > 0) return e.id !== 'w-books';
+          if (hours >= 1) return e.id !== 'w-time';
+          return e.id !== 'w-words';
+        });
+      }
+    }
 
     if (heroId !== 'streak' && stats.streak >= 2) {
       out.push({ id: 'streak', label: t('share.item.streak', { n: stats.streak }), text: t('share.line.streak', { n: stats.streak }) });
@@ -612,6 +759,15 @@ const ShareStats = (function() {
       extras: _model.extrasFor(heroId).slice(0, 2).map(function(e) { return e.id; }),
     };
 
+    /* §15 requires the card be editable before sharing, and it still is — but
+       the editing is behind one tap rather than in front of the card. The sheet
+       used to open as a form of up to seven hero radios and four checkboxes,
+       which asked the user to decide something the product already has a
+       considered opinion about (§15 ranks the heroes: a named book, then the
+       streak, then the numbers). Reported as "too many choices", correctly.
+       Default path is now open → look → share. */
+    const hasChoices = heroes.length > 1 || _model.extrasFor(heroId).length > 0;
+
     closeActiveModal();
     AppState.activeModal = 'share-stats';
 
@@ -621,17 +777,24 @@ const ShareStats = (function() {
           <p class="modal-kicker">${t('share.sheet.kicker')}</p>
           <h2 class="modal-title">${t('share.sheet.title')}</h2>
           <div class="share-preview" id="share-preview"></div>
-          ${heroes.length > 1 ? `
-            <p class="share-group-label">${t('share.sheet.hero_label')}</p>
-            <div class="share-options" id="share-heroes">
-              ${heroes.map(function(h) {
-                const checked = h.id === heroId ? ' checked' : '';
-                return '<label class="share-toggle"><input type="radio" name="share-hero" data-hero-id="' + escapeHtml(h.id) + '"' + checked + '> <span>' + escapeHtml(h.label) + '</span></label>';
-              }).join('')}
-            </div>
+          ${hasChoices ? `
+            <button class="share-edit-toggle" id="btn-share-edit" type="button" aria-expanded="false">
+              ${t('share.sheet.edit')}
+            </button>
           ` : ''}
-          <p class="share-group-label" id="share-extras-label">${t('share.sheet.extras_label')}</p>
-          <div class="share-options" id="share-extras"></div>
+          <div class="share-editor" id="share-editor" hidden>
+            ${heroes.length > 1 ? `
+              <p class="share-group-label">${t('share.sheet.hero_label')}</p>
+              <div class="share-options" id="share-heroes">
+                ${heroes.map(function(h) {
+                  const checked = h.id === heroId ? ' checked' : '';
+                  return '<label class="share-toggle"><input type="radio" name="share-hero" data-hero-id="' + escapeHtml(h.id) + '"' + checked + '> <span>' + escapeHtml(h.label) + '</span></label>';
+                }).join('')}
+              </div>
+            ` : ''}
+            <p class="share-group-label" id="share-extras-label">${t('share.sheet.extras_label')}</p>
+            <div class="share-options" id="share-extras"></div>
+          </div>
           <div class="modal-actions">
             <button class="btn btn-ghost" id="btn-share-close" type="button">${t('btn.not_now')}</button>
             <button class="btn btn-primary" id="btn-share-go" type="button">${t('share.sheet.btn_share')}</button>
@@ -648,6 +811,20 @@ const ShareStats = (function() {
         _renderPreview();
       });
     });
+
+    const editToggle = qs('#btn-share-edit');
+    if (editToggle) {
+      editToggle.addEventListener('click', function() {
+        const editor = qs('#share-editor');
+        if (!editor) return;
+        const opening = editor.hidden;
+        editor.hidden = !opening;
+        editToggle.setAttribute('aria-expanded', String(opening));
+        /* Once the user has opened the options, the invitation to open them has
+           done its job and becomes a row of clutter above its own contents. */
+        editToggle.hidden = opening;
+      });
+    }
 
     qs('#btn-share-close').addEventListener('click', closeActiveModal);
     qs('#share-backdrop').addEventListener('click', function(event) {
@@ -751,8 +928,68 @@ const ShareStats = (function() {
     return true;
   }
 
-  /* Called when the user lands on home — never mid-read. Position is sacred
-     (§21) and a modal over a reader is the wrong moment for a celebration. */
+  /* ── Finishing a book, at the moment it happens ──────────────────────
+     §15 originally fired every milestone prompt from home and nowhere else,
+     because "a celebration mid-read is an interruption". That holds for a
+     streak, which crosses at an arbitrary moment in the middle of a chapter. It
+     does not hold for finishing a book: the reading is over, and there is
+     nothing left to interrupt. Reported from use — the prompt was arriving on
+     the *next* app launch, by which time the moment had gone and it read as a
+     bug (see the Free Books return path, which was the direct cause).
+
+     The rule that replaces it: **a completion prompt may interrupt only where
+     the engine can prove the reading is done.** RSVP, Chunk, Scroll and Focus
+     Bold can — `_handleEnd()` means playback ran past the last word, so every
+     word has been on screen. Page mode cannot: arriving on the last page is not
+     reading it (owner, 2026-11-20), and how long that page takes is unknowable.
+     So Page mode offers instead of asking, with a tappable line at the foot of
+     the final page, and this function is never called from it. */
+  function shouldOfferBookFinished(fileId) {
+    try {
+      if (!fileId) return false;
+      if (!localStorage.getItem(KEY_SEEDED)) return false;
+      if (_loadSet(KEY_CELEBRATED_BOOKS).indexOf(fileId) !== -1) return false;
+      return collectStats().finished.some(function(book) { return book.id === fileId; });
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /* The ask, for an engine that has proven the end. Returns whether it showed,
+     so the caller can fall back to its own quieter acknowledgement. */
+  function offerBookFinished(fileId) {
+    try {
+      if (!shouldOfferBookFinished(fileId)) return false;
+      const book = collectStats().finished.find(function(b) { return b.id === fileId; });
+      if (!book) return false;
+      return _showMilestone(
+        t('share.milestone.book.title', { book: book.name }),
+        t('share.milestone.book.body'),
+        'book:' + book.id,
+        function() { _markCelebrated(KEY_CELEBRATED_BOOKS, book.id); }
+      );
+    } catch (err) {
+      console.warn('share-stats: finish offer failed', err);
+      return false;
+    }
+  }
+
+  /* Page mode's tap. Straight to the sheet, no intermediate modal — the user
+     has already answered the question the modal would have asked. Marked
+     celebrated either way, so home does not ask again a minute later. */
+  function openSheetForBook(fileId) {
+    try {
+      _markCelebrated(KEY_CELEBRATED_BOOKS, fileId);
+      openSheet({ preferHeroId: 'book:' + fileId, source: 'milestone' });
+    } catch (err) {
+      console.warn('share-stats: finish share failed', err);
+    }
+  }
+
+  /* Streak milestones, and any book completion the reader did not catch — a
+     book marked read from the library, or finished in a session that ended
+     without the engine reaching the end. Position is sacred (§21), so this
+     still never runs over a reader. */
   function checkMilestones() {
     try {
       if (AppState.activeModal) return;
@@ -809,6 +1046,9 @@ const ShareStats = (function() {
   return {
     openSheet: openSheet,
     checkMilestones: checkMilestones,
+    shouldOfferBookFinished: shouldOfferBookFinished,
+    offerBookFinished: offerBookFinished,
+    openSheetForBook: openSheetForBook,
     hasSomethingToShare: hasSomethingToShare,
     collectStats: collectStats,
   };

@@ -199,6 +199,20 @@ function _bindReaderLifecycleHooks() {
   });
 }
 
+/* A book opened from the Free Books library or the dashboard returns *there*,
+   not to home — and `checkMilestones()` is called from `renderUpload()` alone.
+   So finishing a catalogue book queued its celebration until the user next
+   happened to land on home, which in practice was their next app launch. That
+   is precisely the "I get the share prompt the next time I open it" report, and
+   it reproduced on catalogue books while working correctly on imported ones.
+
+   The engines now ask at the moment they finish (§15), so this is the backstop
+   for everything they cannot catch — a streak that crossed during the read, or
+   a book whose session ended without the engine reaching the end. */
+function _checkMilestonesOffHome() {
+  if (typeof ShareStats !== 'undefined') ShareStats.checkMilestones();
+}
+
 function _bindReaderControls() {
   const backHandler = function() {
     if (_activeEngine) {
@@ -228,9 +242,11 @@ function _bindReaderControls() {
          assumed. */
       renderDashboard({ locked: !AppState.isPro });
       switchView('view-dashboard');
+      _checkMilestonesOffHome();
     } else if (src === 'free-books') {
       renderFreeBooks();
       switchView('view-free-books');
+      _checkMilestonesOffHome();
     } else {
       renderUpload();
       switchView('view-upload');

@@ -2904,6 +2904,90 @@
   white-space: nowrap;
 }
 
+/* The one affordance in front of the card (§15). The sheet opens composed, so
+   this has to read as an invitation rather than a control — a ghost-weight line,
+   not a button competing with Share. It removes itself once used: having opened
+   the options, "change what's on it" sits above its own contents saying nothing. */
+.share-edit-toggle {
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: var(--space-sm) 0 0;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  transition: color 0.12s ease;
+}
+
+.share-edit-toggle:hover,
+.share-edit-toggle:active {
+  color: var(--accent);
+}
+
+.share-editor[hidden] {
+  display: none;
+}
+
+.share-editor {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The finished-book offer on Page mode's last page. Absolutely positioned over
+   the stage and deliberately never in the flow: anything that occupies vertical
+   space changes what fits on a page (§5.1), so in the flow this would reflow
+   the last page at the moment the reader arrived on it. */
+.page-finish-offer {
+  position: absolute;
+  left: 50%;
+  /* The nav bar is a flex item of #view-reader, below .engine-container rather
+     than inside it, so this only has to clear the stage's own bottom edge. */
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 4;
+  display: flex;
+  align-items: stretch;
+  max-width: calc(100% - 32px);
+  background: var(--surface-2);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.page-finish-share {
+  background: none;
+  border: none;
+  padding: 10px 14px;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--accent);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.page-finish-dismiss {
+  background: none;
+  border: none;
+  border-left: 1px solid var(--border);
+  padding: 0 12px;
+  font-size: 18px;
+  line-height: 1;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 0.12s ease;
+}
+
+.page-finish-dismiss:hover,
+.page-finish-dismiss:active {
+  color: var(--text-muted);
+}
+
 /* ── Feature-discovery tips (§23) ───────────────────────────────────────
    One line, aligned to the same 680px column as everything else on home. Not a
    card: the setup prompt above it is a card because it is waiting for an

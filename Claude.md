@@ -760,7 +760,43 @@ Elevated in priority because it doubles as a distribution mechanic, not just ret
 ### Requirements
 - **Free for everyone — not Pro-gated** (decided 2026-09-25). The dashboard this feature nominally lives on is Pro-gated, which would have hidden the one feature prioritized *for distribution* from the users whose shares actually reach non-users. The free tier is also meant to be genuinely generous (§4).
 - **Two entry points, both required:** (1) a visible "Share" button, always available, not just milestone-triggered — in the **home header** (where every user has it) and on the dashboard; (2) a milestone-triggered prompt for natural completion moments, which convert better than a buried button alone: **book completion** ("You finished [Book] — share it?") and **7 / 30 / 100-day streaks**, kept sparse so the prompt never becomes nagging. A milestone is marked celebrated when the offer is *made*, not when it is accepted — re-offering because the user declined is the nagging §9.1 rules out.
-- **Milestone prompts fire from the home screen only**, never over a reader: position is sacred (§21) and a celebration mid-read is an interruption.
+- **A completion prompt may interrupt only where the engine can prove the reading is done**
+  (rewritten 2026-11-20; supersedes "milestone prompts fire from the home screen only"). The old
+  rule sent every prompt to home, and the field result was that finishing a book produced a share
+  offer on the *next app launch* — the moment gone, and reading as a bug. The direct cause was that
+  `checkMilestones()` is called from `renderUpload()` alone, while a book opened from the Free Books
+  library returns to **that** screen, so it reproduced on catalogue books and not on imported ones.
+  Both halves are fixed:
+  - **RSVP, Chunk, Scroll and Focus Bold ask at `_handleEnd()`.** Playback has run past the last
+    word, so every word has been on screen, the engine is idle, and there is nothing left to
+    interrupt — the same reasoning that puts §23's tip on the nudge *unlock* modal rather than the
+    nudge screen.
+  - **Page mode offers instead of asking**, with a tappable line at the foot of the final page
+    (owner, 2026-11-20). Arriving on the last page is not reading it, and how long that page takes
+    is unknowable, so a modal there lands on top of text the reader is still in. The automatic
+    marking stays exactly as §5.2 has it; only the share offer waits for a deliberate tap. The
+    offer is positioned absolutely over the stage and **never in the flow** — anything occupying
+    vertical space changes what fits on a page (§5.1), which would reflow the last page at the
+    moment it is reached.
+  - **Streak milestones stay on home.** A streak crosses at an arbitrary moment mid-chapter, which
+    is exactly what the original rule was protecting, and that protection still stands. Home also
+    remains the backstop for a book marked read from the library or finished in a session the
+    engine did not end.
+- **Recap windows — offered, never prompted** (owner, 2026-11-20). Finishing a book is rare and a
+  streak builds slowly, so for most weeks the card has nothing new to say; "what I read last week"
+  renews every week, and §22 puts this product in a distribution bottleneck. Three windows exist
+  (last 7 days, last 30 days, **this year** — not "last year", which is empty for every current
+  user and would stay broken until December). **At most two are offered at once, deduped on the
+  figures rather than the sentence**: early on every window holds the same reading, so "1,200 words
+  in the last 7 days" and "1,200 words this year" are one card with two captions. Nothing goes
+  looking for the user — a recap arriving unbidden in a week they read nothing has no honest
+  phrasing that is not the guilt framing §9.1 rules out.
+- **The sheet opens composed, not as a form** (owner, 2026-11-20). §15 requires the card be editable
+  before sharing and it still is — behind one "Change what's on it" tap. It previously opened as up
+  to **seven hero radios and four checkboxes**, asking the user to decide something this section
+  already has a considered opinion about, and the owner's reading was "too many choices". Book
+  heroes are capped at 2 (the list is sorted by `lastOpened`; past the recent couple nobody is
+  scanning radios for a book). Default path: open → look → share.
 - Generate the card entirely on-device (Canvas API) — no server, no upload.
 - Must include app name/branding on the image itself, tasteful and small, not a loud ad.
 - User-editable before sharing: simple per-item toggle for which books/achievements to include.
@@ -874,6 +910,7 @@ consistent, and do not grow status narrative here: that is `Tasks.md`'s job.
 | **16.25** | Paywall placement — a deliberate purchase path, and three gates that said nothing | 24 | ✅ code complete; device run and Hindi owed |
 | **16.26** | Debug-only "simulate the free tier" flag, so 16.25 can be tested on device | 25 | ✅ code complete; device run owed |
 | **16.27** | Variable reward on the unlock — rotating copy, a measured count line, milestone tier | 26 | ✅ code complete; device run and Hindi owed |
+| **16.28** | Share moments — card-first sheet, completion prompt at the moment, recap windows | 15 | ✅ code complete; device run and Hindi owed |
 | **16.10** | Store listing rewrite onto the habit framing | 0.1 | ⬜ **next product task**; now the main listing, not just the India CSL |
 | **H3** | Notifications failed silently without exact-alarm permission | 1.5 | ✅ 1.4.7 |
 | **H4** | Pro purchase failed with a generic error | 1.5 | ✅ verified on a Play build; revenue blocker closed |
