@@ -1532,7 +1532,13 @@ said "tap the highlighter". Unicode has none, so it is drawn — inline SVG, the
 `_searchGlyph()` already uses. Added `tip.highlights_screen`, because the existing tip teaches the
 gesture and has no destination, so nothing revealed the new screen.
 
-**Still owed: Hindi sign-off on 21 keys** across this branch.
+**Still owed: Hindi sign-off on 38 keys** across this branch — not 21, which counted only the
+later batches and forgot the saved-words, dictionary and debug strings. All 38 are present in both
+files, so nothing renders raw today; what is owed is a read of the drafted Hindi, not a repair.
+
+**Caught while listing them:** `highlights.empty.body` told the reader to "tap the ▮ button", in
+both languages, and the icon had just stopped being that character. Copy names the control, never
+the glyph.
 
 ---
 

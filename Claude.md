@@ -802,7 +802,7 @@ is current.**
   should look directly at the nudge gate's page counting (a backward swipe used to unlock the app
   outright) and the session recorder (a backward jump used to discard a streak day), plus the
   onboarding Hindi on a narrow screen.
-- **Hindi sign-off owed on 21 keys** from the investment work, on top of the 16.1 and 16.3 strings
+- **Hindi sign-off owed on 38 keys** from the investment work, on top of the 16.1 and 16.3 strings
   §18 already lists. §16 means an unsigned key is not a cosmetic debt: a missing one renders raw.
 - **Still owed on the listing:** 8 screenshots and the 1024×500 feature graphic (16.10). Never a
   release gate, and they can only honestly be captured from the build being shipped.
@@ -1197,7 +1197,9 @@ stop button, a pencil would promise the notes this section leaves out, and a mar
 `dictionary.js`'s `_searchGlyph()` already does for the same reasons — it inherits `currentColor`, so
 the `.active` accent state needs no extra rule. **The band beneath the nib is load-bearing**: it is
 what separates a highlighter from a pen at 18px, and §22's tip copy already says "tap the
-highlighter".
+highlighter". **No string may name the glyph** — `highlights.empty.body` said "tap the ▮ button" in
+both languages and was wrong the moment the icon changed. Copy describes the control, never the
+character.
 
 **Discoverability is §22's job, not a help screen.** **Two tips, not one** — `highlights` teaches
 the gesture and retires on the first commit; `highlights_screen` reveals that the marks are
