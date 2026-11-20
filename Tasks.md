@@ -1394,6 +1394,21 @@ with two captions. Books-finished-in-window is inferred from the last session on
 since §5.2 makes completion a position and there is no finish event to stamp — a re-read moves it,
 which is noted in the code rather than papered over.
 
+**4-0. The collage was unreachable, and the editor could not be closed.** Both reported from use
+after the first cut.
+- Multi-cover only existed on a *recap* hero, and the all-time "4 books finished" figure was a
+  supporting line with no hero — so a reader who finished four books saw the sentence in small grey
+  type and could only make the card about one of them. There is now an all-time `finished` hero
+  with the collage, available the moment two books are done. **One hero per book count, narrowest
+  window winning**: my first dedupe kept display order and so dropped "Finished 4 books in the last
+  7 days" in favour of "Finished 4 books with FlowRead", which is the weaker sentence — the window
+  is the better claim when the counts tie.
+- `hero.bookList` is normalised to the top level, because `_coversFor`/`_coverPool` were reaching
+  into `hero.recap` and would have broken on the new hero.
+- The "Change what's on it" toggle hid itself on open, leaving no way back to the card — and on a
+  phone the open editor pushes the preview off screen, which is precisely when collapsing is
+  wanted. Two states now, never removed.
+
 **4a. Coverless books, and who actually has them.** The owner's correction: every catalogue entry
 has a `coverImage` — **150 of 150, including all 127 TXT titles** — cached at download, so only a
 self-imported DOCX or TXT lacks artwork. The comments justifying the collage fallback with "two
@@ -1443,17 +1458,19 @@ window rather than lifetime totals, and the hero counts collapsing correctly on 
    page. Turn back a page and it goes; turn forward again and it returns.
 3. Finish a **Free Books** book and back out to the library — the prompt must arrive there, which is
    the exact case that was broken.
-4. Open the share sheet — one card, one "Change what's on it", two buttons. Expand it and confirm
-   the toggle disappears rather than sitting above its own contents.
-5. Pick a recap hero and confirm the supporting lines are window figures, not lifetime ones.
-6. Hindi, narrow screen: the recap hero sentences are the longest strings on the card, and
+4. Open the share sheet — one card, one "Change what's on it", two buttons. Expand it, then
+   **collapse it again** and confirm the card is fully visible.
+5. Finish four short books and share from home — the sheet must offer a single multi-book hero with
+   four covers, phrased as the tightest window that holds them.
+6. Pick a recap hero and confirm the supporting lines are window figures, not lifetime ones.
+7. Hindi, narrow screen: the recap hero sentences are the longest strings on the card, and
    `.page-finish-share` is a single line with `text-overflow: ellipsis` — check it is not clipped.
-7. **Import a DOCX or TXT of your own, finish it, and check the recap card** — that is the only
+8. **Import a DOCX or TXT of your own, finish it, and check the recap card** — that is the only
    way to get a coverless book now, and the drop-the-coverless rule is what needs seeing.
-8. Finish 2, then 4 books and share each recap — the fan and then the collage. **Look at a collage
+9. Finish 2, then 4 books and share each recap — the fan and then the collage. **Look at a collage
    on a device with a mix of PDF and TXT books**, which is where the tile frames and the
    two-real-images fallback actually get judged.
-9. Share to one real app and confirm the Play link arrives with the image, and that the recipient's
+10. Share to one real app and confirm the Play link arrives with the image, and that the recipient's
    app shows both rather than silently dropping the text.
 
 **Hindi owed:** 44 new strings drafted, same standing as 16.1/16.3/16.27.

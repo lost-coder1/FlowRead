@@ -782,6 +782,24 @@ Elevated in priority because it doubles as a distribution mechanic, not just ret
     is exactly what the original rule was protecting, and that protection still stands. Home also
     remains the backstop for a book marked read from the library or finished in a session the
     engine did not end.
+- **A multi-book card is reachable without waiting for a window** (added 2026-11-20). The all-time
+  count is a *hero*, not only a supporting line: a reader who had finished four books was told "4
+  books finished" in 34px grey with no way to make the card about it, and the collage was
+  unreachable unless a recap window happened to qualify. It sits after the named books (§15 ranks a
+  named book above any number) and before the counters.
+  **One hero per distinct book count, and the survivor is the narrowest window** — in a first year
+  "this year" holds everything, so the all-time hero and the year recap are two rows making one
+  claim. For an equal count the tighter window is strictly the better sentence: four books in the
+  last 7 days says more than four books ever. The all-time hero is the fallback for when no window
+  qualifies or the counts genuinely differ, never the preferred phrasing; a first attempt that kept
+  display order threw the good sentence away in favour of the weak one.
+- **Any multi-book hero carries its books as `hero.bookList`**, normalised rather than nested under
+  `hero.recap` — `_coversFor` and `_coverPool` must not have to know which kind of hero they were
+  handed, and they did until the all-time hero existed.
+- **The editor's toggle has two states and is never removed.** It first shipped deleting itself on
+  open, on the grounds that "change what's on it" above its own contents says nothing — which left
+  no way back to the card, and on a phone an open editor pushes the preview off screen, so
+  collapsing is exactly when it is wanted. Reported from use.
 - **Covers scale with the number of books** (added 2026-11-20). One book gets the cover panel §15
   already describes. **Two or three get a fan** — overlapped inside that same column, drawn back to
   front so the most recent is on top, leaving the side-by-side layout untouched. **Four or more get

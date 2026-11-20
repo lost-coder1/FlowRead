@@ -226,6 +226,23 @@ const ShareStats = (function() {
       });
     });
 
+    /* The all-time count, as a hero rather than a footnote. It existed only as
+       a supporting line, so a user who had finished four books was told "4 books
+       finished" in 34px grey and given no way to make the card about it — and
+       the collage was unreachable unless a recap window happened to qualify.
+       Reported from use.
+
+       After the named books (§15 ranks a named book above any number) and before
+       the counters, because it is still about books. */
+    if (stats.finished.length > 1) {
+      out.push({
+        id: 'finished',
+        bookList: stats.finished,
+        label: t('share.item.finished', { n: stats.finished.length }),
+        text: tn('share.hero.finished', stats.finished.length, { n: stats.finished.length }),
+      });
+    }
+
     if (stats.streak >= 2) {
       out.push({
         id: 'streak',
@@ -261,7 +278,16 @@ const ShareStats = (function() {
         text = t('share.hero.recap_words.' + recap.id, { n: formatNumber(recap.words) });
       }
       if (!text) return;
-      recapRows.push({ id: 'recap:' + recap.id, recap: recap, label: t('share.item.recap.' + recap.id), text: text });
+      recapRows.push({
+        id: 'recap:' + recap.id,
+        recap: recap,
+        /* Normalised to the top level so every multi-book hero is read the same
+           way — _coversFor and _coverPool must not have to know which kind of
+           hero they were handed. */
+        bookList: recap.bookList,
+        label: t('share.item.recap.' + recap.id),
+        text: text,
+      });
     });
 
     /* At most two windows, and never three. All three offered at once is the
@@ -288,7 +314,34 @@ const ShareStats = (function() {
       out.push(row);
     });
 
-    return out;
+    /* One hero per distinct book count. In a user's first year "this year" holds
+       every book they have finished, so the all-time hero and the year recap are
+       two rows making one claim — the same redundancy the recap windows are
+       already deduped for.
+
+       The survivor is the **narrowest window**, not the earliest row. For an
+       equal count a tighter window is strictly the better claim: four books in
+       the last 7 days says more than four books ever, and if every book a reader
+       has finished was finished this week, that is the thing worth putting on the
+       card. The first version of this kept display order and so threw the good
+       sentence away in favour of the weak one — the all-time hero is the fallback
+       for when no window qualifies or the counts genuinely differ, not the
+       preferred phrasing. Display order itself is unchanged. */
+    const RANK = { 'recap:week': 0, 'recap:month': 1, 'recap:year': 2, finished: 3 };
+    const best = {};
+    out.forEach(function(row) {
+      const n = row.bookList ? row.bookList.length : 0;
+      if (!n) return;
+      const rank = RANK[row.id];
+      if (rank === undefined) return;
+      if (best[n] === undefined || rank < best[n]) best[n] = rank;
+    });
+    return out.filter(function(row) {
+      const n = row.bookList ? row.bookList.length : 0;
+      if (!n) return true;
+      const rank = RANK[row.id];
+      return rank === undefined || rank === best[n];
+    });
   }
 
   /* Supporting lines. Deliberately a flat, ordered list of rows rather than a
@@ -342,7 +395,7 @@ const ShareStats = (function() {
       const h = Math.floor(stats.totalMinutes / 60);
       out.push({ id: 'time', label: tn('share.item.time', h), text: tn('share.line.time', h) });
     }
-    if (stats.finished.length > 1) {
+    if (heroId !== 'finished' && stats.finished.length > 1) {
       out.push({ id: 'finished', label: t('share.item.finished', { n: stats.finished.length }), text: t('share.line.finished', { n: stats.finished.length }) });
     }
 
@@ -530,7 +583,7 @@ const ShareStats = (function() {
       return one ? [one] : [];
     }
 
-    const list = (hero.recap && hero.recap.bookList) ? hero.recap.bookList : [];
+    const list = hero.bookList || [];
     if (list.length === 0) return [];
 
     /* Every book in the window is resolved, not just the first four: which ones
@@ -566,8 +619,8 @@ const ShareStats = (function() {
   /* Every book in a recap window that has real artwork — the pool the picker
      offers and `_coversFor` draws the default four from. */
   function _coverPool(hero) {
-    if (!hero || hero.book || !hero.recap || !hero.recap.bookList) return [];
-    return hero.recap.bookList.filter(function(book) {
+    if (!hero || hero.book || !hero.bookList) return [];
+    return hero.bookList.filter(function(book) {
       const cover = _covers[book.id];
       return cover && cover.img;
     });
@@ -1193,9 +1246,12 @@ const ShareStats = (function() {
         const opening = editor.hidden;
         editor.hidden = !opening;
         editToggle.setAttribute('aria-expanded', String(opening));
-        /* Once the user has opened the options, the invitation to open them has
-           done its job and becomes a row of clutter above its own contents. */
-        editToggle.hidden = opening;
+        /* Two states, never removed. It first shipped hiding itself on the
+           grounds that "change what's on it" above its own contents says
+           nothing — which left no way back to the card, and on a phone the open
+           editor pushes the preview off screen, so collapsing is exactly when it
+           is wanted. Reported from use. */
+        editToggle.textContent = opening ? t('share.sheet.edit_done') : t('share.sheet.edit');
       });
     }
 
