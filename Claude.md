@@ -983,6 +983,8 @@ consistent, and do not grow status narrative here: that is `Tasks.md`'s job.
 | **16.26** | Debug-only "simulate the free tier" flag, so 16.25 can be tested on device | 25 | ✅ code complete; device run owed |
 | **16.27** | Variable reward on the unlock — rotating copy, a measured count line, milestone tier | 26 | ✅ code complete; device run and Hindi owed |
 | **16.28** | Share moments — card-first sheet, completion prompt at the moment, recap windows | 15 | ✅ code complete; device run and Hindi owed |
+| **16.29** | Highlights & notes — the Hooked *investment* phase | 27 | ⬜ **noted only**, added 2026-11-20; not scoped |
+| **16.30** | Engine order — Page first, RSVP second | 5 | ⬜ added 2026-11-20 |
 | **16.10** | Store listing rewrite onto the habit framing | 0.1 | ⬜ **next product task**; now the main listing, not just the India CSL |
 | **H3** | Notifications failed silently without exact-alarm permission | 1.5 | ✅ 1.4.7 |
 | **H4** | Pro purchase failed with a generic error | 1.5 | ✅ verified on a Play build; revenue blocker closed |
@@ -1411,6 +1413,53 @@ manifest line and nothing else moves — **judge it on a device once the milesto
 **No analytics event.** `nudge_read_completed` already fires at exactly this moment, and §9.6's
 allowlist stays closed. `CelebrationFeature.stats()` is exposed for the dashboard and for §15's
 future "time reclaimed" line, which these are the only honest figures for.
+
+---
+
+## 27. Highlights & Notes — the Investment Phase (noted 2026-11-20, not built)
+
+§26 gave the habit loop its variable reward. This is the fourth phase of the same model: the user
+puts something *in*, which makes the app better for them than it was yesterday and loads the next
+trigger by itself. **Nothing here is scoped or signed off** — it is written down so the reasoning is
+not re-derived later.
+
+**Why this investment rather than another.** Several candidates are already on the board and are
+investments in the Hooked sense — the nudge app list (§9), reading plans (16.18), a streak freeze
+(16.19). Highlights are the strongest because they are the only one that creates **content the user
+made**: it accrues, it is theirs, and it exists nowhere else. It is also the only one that makes a
+*finished* book worth reopening, and §5.2 currently treats finishing as the end of a book's life.
+
+**Two mechanisms, not one, and the engines force the split:**
+1. **A highlight is a text selection**, so it needs text on screen: Page, Focus Bold, Scroll, and
+   the §7 Normal view. The owner's guess was right.
+2. **A note or bookmark is a position**, so it works everywhere — RSVP and Chunk included. One tap
+   to mark the spot, because there is no selection to make when one word is on screen. Offering
+   highlights in RSVP would be the silent failure §1.5 forbids; offering *nothing* there is worse,
+   since RSVP is where a reader moves fastest and is most likely to pass something they wanted.
+
+**The interaction problem to settle first.** Long-press is already taken: `word-tap.js` binds it for
+the dictionary, and §23 made the dictionary free precisely so it would get used. Native text
+selection and the word-tap gesture cannot both own the same press. The feature hinges on this and it
+should be decided before any UI is drawn.
+
+**Where it is shown — three places, each for a different reason:**
+- **In the reader**, as a list reachable from the chrome, because a highlight's value is jumping
+  back to it. Each entry stores a word index, so it rides the position system every engine already
+  shares (§5) and needs no new seam.
+- **On the library row**, as a count. This is the part that cannot be skipped: an investment that is
+  not *visible* is not felt, and a highlight the user cannot watch accumulating is a note in a
+  drawer.
+- **Free, never Pro.** §24 puts reading itself on the never-gate list and a highlight is reading.
+  Gating it later would be the dictionary mistake over again — a contradiction with §4 that shipped
+  for three months unnoticed.
+
+**Discoverability is §23's job, not a help screen.** A tip, `when()` gated on having read enough to
+have wanted one, retiring through `markDone()` the first time a highlight is made.
+
+**What would close the loop, and the care it needs.** A highlight is the one thing in this app that
+gives a notification something true and specific to say, which is also exactly how it becomes
+nagging. §11's discipline applies, and "revisit your highlights" must never fire on a book the user
+touched an hour ago.
 
 ---
 

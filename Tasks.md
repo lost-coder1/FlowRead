@@ -8,7 +8,13 @@ decision taken. Completed work and resolved device findings live in
 **[Tasks-archive.md](Tasks-archive.md)**. The split rule: anything that would change a future
 decision stays here or in `Claude.md`; a record of an action already taken goes to the archive.
 
-**Last updated:** 2026-11-20 — **16.28 reworks the share moments** (branch `share-moments`): the
+**Last updated:** 2026-11-20 — **16.28 is merged to master** (`bbb694e`). Two tasks added and not
+started: **16.30**, moving Page to the front of the engine row now that it is the default, and
+**16.29**, highlights and notes as the Hooked *investment* phase — recorded as a design note only,
+with the gesture conflict against `word-tap.js` named as the decision everything else waits on
+(`Claude.md` §27).
+
+Also 2026-11-20 — **16.28 reworks the share moments** (branch `share-moments`): the
 sheet opens as a composed card with the options behind one tap, a finished book is offered for
 sharing *when it is finished* rather than on the next app launch, and three recap windows (last 7
 days, last 30 days, this year) give the card something to say on an ordinary week. `Claude.md`
@@ -1361,6 +1367,58 @@ owns nothing stays free either way, so the flag can never grant.
 **Device run owed:** install the debug variant (Android Studio ▶ installs `debug` by default —
 check the Build Variants panel), confirm the Debug section is present, toggle it and walk the four
 §24 surfaces, then toggle back and confirm Pro returns without a restart.
+
+---
+
+## Task 16.30 — Engine order: Page first  ⬜ added 2026-11-20
+
+**Why.** RSVP leading the row is a leftover from the pre-pivot identity (§0.1), when speed reading
+*was* the product. 16.13 made Page mode the default engine and §9.5 sends every nudged read there,
+so the first tab is now the one thing a reader is least likely to want first. Page moves to the
+front and the rest shift; nothing else about the engines changes.
+
+**Two sites, both listing Page last:**
+- `www/js/views/reader.js:71–75` — the `.engine-tab` buttons.
+- `www/js/views/settings.js:349–353` — the default-mode `<select>`.
+
+**And one stale fallback found while locating them:** `reader.js:32` ends
+`|| AppState.settings.defaultMode || 'rsvp'`. The shipped default is `page` (16.13), so that last
+resort contradicts it — it only fires when settings are missing entirely, which is a fresh install
+mid-boot, but it should read `'page'`.
+
+**Not just a reorder of markup.** Check nothing keys off tab *position*: the active-tab logic,
+`fr_last_engine`, and §9.5's `forceEngine: 'page'` all work by name, which is why this is expected
+to be small — but "expected to be small" is what §3.2 warns about.
+
+---
+
+## Task 16.29 — Highlights & notes: the investment phase  ⬜ noted only, not scoped
+
+**Status:** design recorded, nothing built, nothing signed off (owner, 2026-11-20). `Claude.md` §27
+holds the reasoning; this entry holds what would have to be decided to start.
+
+**The frame.** §26 completed trigger → action → variable reward. Investment is the fourth phase: the
+user puts something in, the app is better for them tomorrow than today, and the next trigger is
+loaded without the app having to nag. Highlights are the candidate because they are the only one
+that produces content *the user made*.
+
+**Open decisions, in the order they block each other:**
+1. **The gesture.** `word-tap.js` owns long-press for the dictionary. Native selection and that
+   press cannot both win. Everything else waits on this.
+2. **Highlight vs note.** Selection-based highlights can only exist in Page / Focus / Scroll /
+   Normal. A position bookmark works in all five. Shipping only the first means RSVP and Chunk
+   silently lack the feature (§1.5); shipping both means two models to explain.
+3. **Storage.** A word index per entry rides §5's position system. But `localStorage` is for UI
+   state (§21) and highlights are user content — closer to the library, which means
+   Filesystem/IndexedDB, and a decision about whether they survive a re-import of the same file.
+4. **Whether a notification uses them.** The strongest loop-closer here and the easiest to turn
+   into nagging (§11).
+
+**What is already settled** (§27): free and never Pro-gated, surfaced in the reader *and* as a count
+on the library row, and discovered through §23's tips rather than a help screen.
+
+**Not to be started without a scoping pass** — §21's stop-and-ask list covers it as a feature not
+otherwise in this document.
 
 ---
 
