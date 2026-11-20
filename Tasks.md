@@ -1394,6 +1394,21 @@ with two captions. Books-finished-in-window is inferred from the last session on
 since §5.2 makes completion a position and there is no finish event to stamp — a re-read moves it,
 which is noted in the code rather than papered over.
 
+**4a. Coverless books, and who actually has them.** The owner's correction: every catalogue entry
+has a `coverImage` — **150 of 150, including all 127 TXT titles** — cached at download, so only a
+self-imported DOCX or TXT lacks artwork. The comments justifying the collage fallback with "two
+thirds of the catalogue is TXT" were repeating §15's pre-catalogue-cover framing and are corrected.
+A multi-book card now **prefers books with artwork and drops the rest**, which was asked for as a
+toggle and built as a rule: nobody would switch such a toggle *on*, so it was a defect with a
+workaround attached. None with artwork → a clean text card. Single-book heroes keep their initials.
+
+**4b. The cover picker, and the bug that paid for it.** `drawCard` drops the supporting lines in
+collage mode while `_renderExtras` went on offering them — a §1.5 silent failure introduced two
+commits earlier on this branch. That slot was dead in exactly the mode where a picker is wanted, so
+the picker replaces it and costs no new group of controls; as a third group it would have been the
+"too many choices" problem again. A fifth tick drops the longest-standing choice, visibly, rather
+than being ignored or greyed.
+
 **4. Covers for a multi-book card.** One book keeps the existing panel; two or three get a fan in
 the same column; four or more get a collage — headline above a row of four tiles, supporting lines
 dropped. Capped at four because the 616px band cannot hold two rows at a size where the covers are
@@ -1433,10 +1448,12 @@ window rather than lifetime totals, and the hero counts collapsing correctly on 
 5. Pick a recap hero and confirm the supporting lines are window figures, not lifetime ones.
 6. Hindi, narrow screen: the recap hero sentences are the longest strings on the card, and
    `.page-finish-share` is a single line with `text-overflow: ellipsis` — check it is not clipped.
-7. Finish 2, then 4 books and share each recap — the fan and then the collage. **Look at a collage
+7. **Import a DOCX or TXT of your own, finish it, and check the recap card** — that is the only
+   way to get a coverless book now, and the drop-the-coverless rule is what needs seeing.
+8. Finish 2, then 4 books and share each recap — the fan and then the collage. **Look at a collage
    on a device with a mix of PDF and TXT books**, which is where the tile frames and the
    two-real-images fallback actually get judged.
-8. Share to one real app and confirm the Play link arrives with the image, and that the recipient's
+9. Share to one real app and confirm the Play link arrives with the image, and that the recipient's
    app shows both rather than silently dropping the text.
 
 **Hindi owed:** 44 new strings drafted, same standing as 16.1/16.3/16.27.

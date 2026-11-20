@@ -2904,6 +2904,16 @@
   white-space: nowrap;
 }
 
+/* The cover picker's capacity line. Sits under the checkboxes, not above them:
+   it describes a consequence of the next tap, which is only meaningful once the
+   list it applies to has been read. */
+.share-covers-hint {
+  margin: var(--space-sm) 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
 /* The one affordance in front of the card (§15). The sheet opens composed, so
    this has to read as an invitation rather than a control — a ghost-weight line,
    not a button competing with Share. It removes itself once used: having opened

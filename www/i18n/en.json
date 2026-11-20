@@ -612,6 +612,8 @@
   "share.sheet.text": "I'm reading more and scrolling less, with FlowRead.",
   "share.sheet.hero_label": "What to lead with",
   "share.sheet.extras_label": "Also include",
+  "share.sheet.covers_label": "Covers to show",
+  "share.sheet.covers_hint": "Showing {n} of up to {max}. Picking a fifth drops the first.",
   "share.sheet.btn_share": "Share",
   "reader.finished": "Finished!",
   "reader.page.share_finish": "Finished it? Share it",

@@ -591,6 +591,8 @@
   "share.sheet.text": "अब scroll कम, पढ़ना ज़्यादा — FlowRead के साथ।",
   "share.sheet.hero_label": "सबसे ऊपर क्या रहे",
   "share.sheet.extras_label": "ये भी जोड़ें",
+  "share.sheet.covers_label": "कौन-से cover दिखें",
+  "share.sheet.covers_hint": "{max} तक में से {n} दिख रहे हैं। पाँचवाँ चुनने पर पहला हट जाएगा।",
   "share.sheet.btn_share": "शेयर करें",
   "reader.finished": "पूरा हुआ!",
   "reader.page.share_finish": "पढ़ लिया? साझा कीजिए",

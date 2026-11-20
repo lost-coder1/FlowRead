@@ -795,10 +795,28 @@ Elevated in priority because it doubles as a distribution mechanic, not just ret
     width alone put a 768px grid in that 616px band on the first attempt.
   - **A fifth book is not drawn.** The headline states the real number, so the grid is a sampler,
     and a "+2 more" line would restate the headline minus four.
-  - **A collage needs real artwork.** Two thirds of the catalogue is TXT with no page one, so a grid
-    of typographic covers is a grid of initials, not a collage. Below two real images the fan is
-    drawn instead. Covers are cached on disk, so a user gets the same layout each time rather than
-    one that flickers.
+  - **A multi-book card prefers books that have real artwork and drops the rest** (owner,
+    2026-11-20). Asked for as a "hide books without covers" option and built as a rule instead:
+    nobody would ever switch that option *on*, since a grid of initial-boxes says nothing about
+    what was read — so it is a defect with a workaround attached, not a preference. Two or more
+    real covers give a fan or collage, exactly one gives the single-cover layout, none gives a
+    clean text card. Honest because the covers were always a sampler: the headline says "9 books
+    this year" and draws four, so drawing two of five is the same kind of claim. **A single-book
+    hero is untouched** — initials work when they are *that book's* identity, which is what §15
+    designed them for, and stop working as a grid.
+  - **Which books can be coverless is narrower than §15 once implied.** All 150 catalogue entries
+    carry a `coverImage`, TXT included (127 of them), and `BookCover.cacheRemote()` stores it at
+    download time — so every Free Books title has artwork and a self-imported PDF has its page one.
+    **Only a self-imported DOCX or TXT has no cover.** Earlier comments blamed "two thirds of the
+    catalogue is TXT with no page one", which was true before catalogue covers shipped and is false
+    now; do not reason from it again.
+  - **The collage's second editor section is the cover picker, not the stat toggles** — and that is
+    a bug fix as much as a feature. `drawCard` drops the supporting lines when it draws a collage,
+    so those toggles were being offered while the card ignored them: the silent failure §1.5
+    forbids. The slot was dead in exactly that mode, which is the only reason a picker is
+    affordable here — as a third group under the hero radios it would be the "too many choices"
+    problem over again. Below four books there is nothing to pick. At capacity a fifth tick drops
+    the longest-standing choice rather than being ignored or greyed out, so the trade is visible.
   - **In a grid the frame is the tile and the artwork is centred inside it**, which is the opposite
     of `_drawCover`'s contain-and-shrink — correct there, because a lone cover has nothing to line
     up with. Mixing the two made every tile a different width and the gaps ragged.

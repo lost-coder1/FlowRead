@@ -55,6 +55,11 @@ const ShareStats = (function() {
 
   let _model = null;   /* the stats behind the currently open sheet */
   let _selection = null;
+  /* What the last preview render resolved: which cover layout the card is in,
+     and the books available to the picker. Known only after the covers have
+     been fetched, which is why the editor's second section is decided here
+     rather than when the sheet is built. */
+  let _coverState = { mode: 'none', pool: [] };
 
   /* ── Stats ─────────────────────────────────────────────────── */
 
@@ -453,11 +458,17 @@ const ShareStats = (function() {
   const FAN_SCALE = 0.72;
   const FAN_STEP_X = 45;
   const FAN_STEP_Y = 30;
-  /* A collage is a visual device, and two thirds of the catalogue is TXT with no
-     page one to render — so a grid of six typographic covers is not a collage,
-     it is a grid of initials. Below this many real images the fan is drawn
+  /* A collage is a visual device, so below two real images the fan is drawn
      instead. Covers are cached on disk, so a given user gets the same layout
-     every time rather than one that flickers between the two. */
+     every time rather than one that flickers between the two.
+
+     **Which books can actually be coverless is narrower than §15 once implied.**
+     All 150 catalogue entries carry a `coverImage`, TXT included (127 of them),
+     and `BookCover.cacheRemote()` stores it at download time — so every Free
+     Books title has real artwork, and a self-imported PDF has its page one. The
+     only coverless book is a self-imported DOCX or TXT. An earlier version of
+     this comment blamed "two thirds of the catalogue is TXT with no page one",
+     which was true before catalogue covers shipped and is not true now. */
   const COLLAGE_MIN_IMAGES = 2;
   const COVER_TIMEOUT_MS = 4000;
 
@@ -499,7 +510,7 @@ const ShareStats = (function() {
         && typeof FreeBooksView.authorForFileId === 'function') {
       try { author = await FreeBooksView.authorForFileId(book.id); } catch (_) {}
     }
-    _covers[book.id] = { img: img, title: book.name || '', author: author };
+    _covers[book.id] = { id: book.id, img: img, title: book.name || '', author: author };
     return _covers[book.id];
   }
 
@@ -511,14 +522,55 @@ const ShareStats = (function() {
      worse than no panel. */
   async function _coversFor(hero) {
     if (!hero) return [];
-    const books = hero.book ? [hero.book]
-      : (hero.recap && hero.recap.bookList ? hero.recap.bookList.slice(0, COLLAGE_MAX) : []);
-    if (books.length === 0) return [];
+    if (hero.book) {
+      /* A single book keeps its typographic cover when it has no artwork — that
+         is §15's design, and initials work when they are *that book's*
+         identity. */
+      const one = await _coverOf(hero.book, Date.now() + COVER_TIMEOUT_MS).catch(function() { return null; });
+      return one ? [one] : [];
+    }
+
+    const list = (hero.recap && hero.recap.bookList) ? hero.recap.bookList : [];
+    if (list.length === 0) return [];
+
+    /* Every book in the window is resolved, not just the first four: which ones
+       are worth drawing is not known until it is known which have artwork. The
+       deadline is shared, so asking for twelve costs the same wall-clock as
+       asking for one. */
     const deadline = Date.now() + COVER_TIMEOUT_MS;
-    const resolved = await Promise.all(books.map(function(book) {
+    const resolved = (await Promise.all(list.map(function(book) {
       return _coverOf(book, deadline).catch(function() { return null; });
-    }));
-    return resolved.filter(Boolean);
+    }))).filter(Boolean);
+
+    /* A multi-book card prefers books that have real covers, and drops the rest
+       (owner, 2026-11-20). Asked for as a "hide books without covers" option and
+       built as a rule instead: nobody would ever switch that option *on*, since
+       a grid of initial-boxes says nothing about what was read — so it is a
+       defect with a workaround attached rather than a preference. Honest because
+       the covers were always a sampler: the headline says "9 books this year" and
+       shows four, so showing two of five is the same kind of claim. If none have
+       artwork the card carries no covers at all, which is the clean version of
+       what was asked for. */
+    const withArt = resolved.filter(function(cover) { return !!cover.img; });
+    if (!withArt.length) return [];
+
+    /* An explicit choice wins; absent one, the most recently finished four. */
+    const chosen = (_selection && _selection.books) || null;
+    if (chosen) {
+      const picked = withArt.filter(function(cover) { return chosen.indexOf(cover.id) !== -1; });
+      if (picked.length) return picked.slice(0, COLLAGE_MAX);
+    }
+    return withArt.slice(0, COLLAGE_MAX);
+  }
+
+  /* Every book in a recap window that has real artwork — the pool the picker
+     offers and `_coversFor` draws the default four from. */
+  function _coverPool(hero) {
+    if (!hero || hero.book || !hero.recap || !hero.recap.bookList) return [];
+    return hero.recap.bookList.filter(function(book) {
+      const cover = _covers[book.id];
+      return cover && cover.img;
+    });
   }
 
   /* Two initials, the same shape the Free Books catalogue placeholder uses. */
@@ -931,6 +983,13 @@ const ShareStats = (function() {
       .filter(function(e) { return _selection.extras.indexOf(e.id) !== -1; });
 
     _coversFor(hero).then(function(covers) {
+      /* Recorded before the draw, so the editor can decide whether its second
+         section is the stat toggles or the cover picker. */
+      const mode = _coverMode(covers);
+      const pool = _coverPool(hero);
+      const changed = (mode !== _coverState.mode) || (pool.length !== _coverState.pool.length);
+      _coverState = { mode: mode, pool: pool };
+      if (changed) _renderExtras();
       return drawCard(hero.text, extras.map(function(e) { return e.text; }), covers);
     }).then(function(canvas) {
       /* The sheet may have been closed while the fonts settled. */
@@ -946,9 +1005,64 @@ const ShareStats = (function() {
     });
   }
 
+  /* The editor's second section. In collage mode it is the cover picker, not the
+     stat toggles — and that is a bug fix as much as a feature: `drawCard` drops
+     the supporting lines when it draws a collage, so the toggles were still being
+     offered while the card ignored them, which is the silent failure §1.5
+     forbids. The slot was dead in exactly that mode, so the picker costs no new
+     group of controls; as a third group under the hero radios it would have been
+     the "too many choices" problem over again. Below four books there is nothing
+     to pick, since every cover is already drawn. */
+  function _renderCoverPicker(box) {
+    const pool = _coverState.pool;
+    const label = qs('#share-extras-label');
+    if (label) {
+      label.hidden = false;
+      label.textContent = t('share.sheet.covers_label');
+    }
+
+    if (!_selection.books) {
+      _selection.books = pool.slice(0, COLLAGE_MAX).map(function(book) { return book.id; });
+    }
+
+    box.innerHTML = pool.map(function(book) {
+      const checked = _selection.books.indexOf(book.id) !== -1 ? ' checked' : '';
+      return '<label class="share-toggle"><input type="checkbox" data-book-id="' +
+        escapeHtml(book.id) + '"' + checked + '> <span>' + escapeHtml(book.name) + '</span></label>';
+    }).join('') +
+      '<p class="share-covers-hint" id="share-covers-hint">' +
+        t('share.sheet.covers_hint', { n: _selection.books.length, max: COLLAGE_MAX }) + '</p>';
+
+    qsa('input[data-book-id]', box).forEach(function(input) {
+      input.addEventListener('change', function() {
+        const id = input.dataset.bookId;
+        const at = _selection.books.indexOf(id);
+        if (input.checked && at === -1) {
+          _selection.books.push(id);
+          /* At capacity, the longest-standing choice drops out. A fifth tick has
+             to *do* something visible — ignoring it, or greying the remaining
+             boxes, is the silent refusal §1.5 rules out, and the user can see
+             exactly which cover they traded. */
+          while (_selection.books.length > COLLAGE_MAX) _selection.books.shift();
+        }
+        if (!input.checked && at !== -1) _selection.books.splice(at, 1);
+        /* Never zero: an empty pick would draw a card with no covers, which the
+           hero radios already offer as a plain stat card. */
+        if (_selection.books.length === 0) _selection.books = [id];
+        _renderExtras();
+        _renderPreview();
+      });
+    });
+  }
+
   function _renderExtras() {
     const box = qs('#share-extras');
     if (!box || !_model) return;
+
+    if (_coverState.mode === 'collage' && _coverState.pool.length > 1) {
+      _renderCoverPicker(box);
+      return;
+    }
 
     const extras = _model.extrasFor(_selection.heroId);
     /* Dropping the hero from the list can orphan a checked extra. */
@@ -957,7 +1071,10 @@ const ShareStats = (function() {
     });
 
     const label = qs('#share-extras-label');
-    if (label) label.hidden = extras.length === 0;
+    if (label) {
+      label.hidden = extras.length === 0;
+      label.textContent = t('share.sheet.extras_label');
+    }
 
     box.innerHTML = extras.length === 0 ? '' : extras.map(function(e) {
       const checked = _selection.extras.indexOf(e.id) !== -1 ? ' checked' : '';
@@ -1007,7 +1124,9 @@ const ShareStats = (function() {
     _selection = {
       heroId: heroId,
       extras: _model.extrasFor(heroId).slice(0, 2).map(function(e) { return e.id; }),
+      books: null,
     };
+    _coverState = { mode: 'none', pool: [] };
 
     /* §15 requires the card be editable before sharing, and it still is — but
        the editing is behind one tap rather than in front of the card. The sheet
@@ -1057,6 +1176,10 @@ const ShareStats = (function() {
       input.addEventListener('change', function() {
         _selection.heroId = input.dataset.heroId;
         _selection.extras = _model.extrasFor(_selection.heroId).slice(0, 2).map(function(e) { return e.id; });
+        /* The books belonged to the window that was selected, so a different
+           hero re-derives them rather than carrying a stale pick across. */
+        _selection.books = null;
+        _coverState = { mode: 'none', pool: [] };
         _renderExtras();
         _renderPreview();
       });
