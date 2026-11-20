@@ -795,11 +795,15 @@ is current.**
   v2 → v3 (every book re-measures once), and `_savePos` decides whether a book counts as **read**, so
   a defect there moves books into the library's Read section and fires §14's completion milestone.
   **Device-verify both before advancing the rollout.**
-- **Unreleased on top of 44:** tasks 16.21–16.30 (branches `nudge-book-selection-fix`,
-  `reader-type-preset`, `feature-discovery-tips`, `paywall-placements`). A device run should look
-  directly at the nudge gate's page counting (a backward swipe used to unlock the app outright) and
-  the session recorder (a backward jump used to discard a streak day), plus the onboarding Hindi on a
-  narrow screen.
+- **Unreleased on top of 44:** tasks 16.21–16.31, all now on `master`. 16.29 and 16.31 (the
+  investment phase — highlights, saved words, dictionary morphology) merged 2026-11-20 after two
+  device passes; the earlier branches `nudge-book-selection-fix`, `reader-type-preset`,
+  `feature-discovery-tips` and `paywall-placements` are still **not device-verified**. A device run
+  should look directly at the nudge gate's page counting (a backward swipe used to unlock the app
+  outright) and the session recorder (a backward jump used to discard a streak day), plus the
+  onboarding Hindi on a narrow screen.
+- **Hindi sign-off owed on 21 keys** from the investment work, on top of the 16.1 and 16.3 strings
+  §18 already lists. §16 means an unsigned key is not a cosmetic debt: a missing one renders raw.
 - **Still owed on the listing:** 8 screenshots and the 1024×500 feature graphic (16.10). Never a
   release gate, and they can only honestly be captured from the build being shipped.
 - **Immediate priority:** device-verify 1.5.5/43, then **16.4 Phase C → D** (remote catalogue, then

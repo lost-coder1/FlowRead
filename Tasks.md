@@ -8,8 +8,8 @@ decision taken. Completed work and resolved device findings live in
 **[Tasks-archive.md](Tasks-archive.md)**. The split rule: anything that would change a future
 decision stays here or in `Claude.md`; a record of an action already taken goes to the archive.
 
-**Last updated:** 2026-11-20 — **16.29: highlights** (branch `investment-highlights`,
-pushed). `features/highlights.js` holds the store, the mode and the range lookup; the engines tint,
+**Last updated:** 2026-11-20 — **16.29 + 16.31: the investment phase, merged to `master`**
+(branch `investment-highlights`, two device passes, owner-verified). `features/highlights.js` holds the store, the mode and the range lookup; the engines tint,
 the reader owns the chrome and the list. Tap the first word, tap the last — no native selection,
 because the gesture conflict is three-way (global `user-select: none`, `word-tap.js` owns
 long-press, and in Page mode the horizontal drag *is* the page turn), and the §6 Normal view is
@@ -1460,33 +1460,79 @@ selected.
 
 ---
 
-## Task 16.29 — Highlights & notes: the investment phase  ⬜ noted only, not scoped
+## Task 16.31 — Saved words, and the dictionary's real defect  ✅ merged to master 2026-11-20
 
-**Status:** design recorded, nothing built, nothing signed off (owner, 2026-11-20). `Claude.md` §27
-holds the reasoning; this entry holds what would have to be decided to start.
+The investment phase taken at its cheapest point first. Every word looked up is kept, grouped by
+the book it was met in, on a Words screen with its count on a home row. Chosen ahead of highlights
+because it needed no gesture decision, no text selection and no new storage model — and because it
+works in RSVP and Chunk, where there is nothing on screen to select.
 
-**The frame.** §26 completed trigger → action → variable reward. Investment is the fourth phase: the
-user puts something in, the app is better for them tomorrow than today, and the next trigger is
-loaded without the app having to nag. Highlights are the candidate because they are the only one
-that produces content *the user made*.
+**The dictionary was never missing vocabulary.** Reported as "missing a lot of words, even simple
+ones"; the asset holds **82,559 entries**, essentially all of WordNet's lemma space. `lookupWord()`
+did an exact key match, so every *inflected* form missed — `books`, `went`, `houses`, `walked`,
+`children`, `cities`, `women`, `taught` all reported nothing while `book`, `go` and `child` sat in
+the file. Ten of eighteen ordinary words tested. `features/morphology.js` is WordNet's own answer
+(Morphy): the word as given, then an irregular table, then suffix rules, first dictionary hit wins.
+The same 46-word sample goes 36 → 43; the three that still miss are `the`, `of` and `and`, which
+WordNet has no entry for at all.
 
-**Open decisions, in the order they block each other:**
-1. **The gesture.** `word-tap.js` owns long-press for the dictionary. Native selection and that
-   press cannot both win. Everything else waits on this.
-2. **Highlight vs note.** Selection-based highlights can only exist in Page / Focus / Scroll /
-   Normal. A position bookmark works in all five. Shipping only the first means RSVP and Chunk
-   silently lack the feature (§1.5); shipping both means two models to explain.
-3. **Storage.** A word index per entry rides §5's position system. But `localStorage` is for UI
-   state (§21) and highlights are user content — closer to the library, which means
-   Filesystem/IndexedDB, and a decision about whether they survive a re-import of the same file.
-4. **Whether a notification uses them.** The strongest loop-closer here and the easiest to turn
-   into nagging (§11).
+**Found in testing, and silent:** with the `-es` rule ahead of the bare `-s`, `castes` resolved to
+`cast`, `notes` to `not` and `rates` to `rat` — each returning a real definition for the wrong word.
+One letter before two. See `Claude.md` §26.2.
 
-**What is already settled** (§27): free and never Pro-gated, surfaced in the reader *and* as a count
-on the library row, and discovered through §23's tips rather than a help screen.
+**Also fixed:** a Devanagari long-press produced no modal, no message and no response at all, while
+§22's tip was telling Hindi readers the feature existed. It now names the limitation and still
+offers Google.
 
-**Not to be started without a scoping pass** — §21's stop-and-ask list covers it as a feature not
-otherwise in this document.
+**Removed:** the dead `engines/highlight.js` — a 130-line "Guided Highlighting Engine" never loaded
+by `index.html` and referenced nowhere, plus its 29 lines of CSS.
+
+---
+
+## Task 16.29 — Highlights: the investment phase  ✅ merged to master 2026-11-20
+
+Built 2026-11-20, two device passes, merged the same day. `Claude.md` §26.3 holds the rules;
+`docs/Design-notes.md` §26 holds the reasoning. The four open decisions this entry used to list
+were all closed:
+
+1. **The gesture — tap the first word, tap the last.** Native selection is not used. The conflict
+   is three-way, not the two-way one first assumed: `user-select: none` is global on `body`,
+   `word-tap.js` owns long-press, and **Page mode's horizontal drag is the page turn**, in the
+   default engine where every nudged read lands. The §6 Normal view is canvas with no text layer,
+   so there is nothing there to select at all.
+2. **Highlights, no notes** (owner) — which removes the text input and the keyboard from the
+   reader. The data model keeps room for a note field without showing one. §1.5 is satisfied
+   without a second model to explain: **in RSVP and Chunk the same button marks the sentence the
+   reader is on**, bounded by the punctuation those engines already pause on.
+3. **Storage — one `localStorage` key per book**, so a reader with forty books does not parse
+   thirty-nine to draw one page. A highlight is **two word indices**, which is what carries it
+   across a page turn mid-highlight, §4.1 rule 3's renumber, a font-scale change and a different
+   screen. The stored text beside them is a cache for the card and the lists; if the two ever
+   disagree, the indices win. **They survive a delete and re-import of the same book** (owner) —
+   `generateFileId()` is content-derived, so they return by themselves.
+4. **Notifications — not used.** A highlight is the one thing here that gives a notification
+   something true and specific to say, which is exactly how it becomes nagging. §10's discipline
+   applies if it is ever revisited.
+
+**Three defects testing caught before the first device pass:** Page's capture listener died with
+its shell and had to be cleared in `_createShell`; the promised Undo was only a `showToast()`,
+which carries no action, until the bar grew a second state; and the share card's quote budget had
+to charge for the book title, or a long one pushed the attribution off the card entirely.
+
+**Device pass 1 — three findings.** The index panel's highlights section was an uncapped flex item,
+and a flex item will not shrink below its content, so the search field and the whole chapter index
+were pushed past the panel's bottom edge where nothing could reach them. The library count went
+onto the two *row* render paths and neither *card* path, so it was invisible to exactly the users
+who have Pro. And the owner **reversed "no global highlights screen"**: there is one, grouped by
+book, and tapping a quote opens that book at that word through a new `startIndex` on
+`resumeFromLibrary` that must beat the completed-book reset to word zero.
+
+**Device pass 2 — the button.** U+25AE read as a pipe or a stop button, and the tip copy already
+said "tap the highlighter". Unicode has none, so it is drawn — inline SVG, the approach
+`_searchGlyph()` already uses. Added `tip.highlights_screen`, because the existing tip teaches the
+gesture and has no destination, so nothing revealed the new screen.
+
+**Still owed: Hindi sign-off on 21 keys** across this branch.
 
 ---
 
