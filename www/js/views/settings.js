@@ -486,6 +486,8 @@ function renderSettings() {
             (typeof debugForcedFree === 'function' && debugForcedFree()) ? 'checked' : ''} />
         </label>
         <p class="settings-copy text-muted">${t('settings.debug.force_free.note')}</p>
+        <button class="btn btn-ghost settings-restore-btn" id="btn-debug-reset-shares">${t('settings.debug.reset_shares')}</button>
+        <p class="settings-copy text-muted">${t('settings.debug.reset_shares.note')}</p>
       </section>
       ` : ''}
 
@@ -619,6 +621,17 @@ function bindSettings() {
       syncThemeChips();
     });
   });
+
+  /* A finished book offers its share prompt once ever, and first-run seeding
+     marks everything already finished as history (§15) — correct in production
+     and impossible to re-check on a device, which is what this is for. */
+  const debugResetShares = qs('#btn-debug-reset-shares');
+  if (debugResetShares) {
+    debugResetShares.addEventListener('click', function() {
+      const done = (typeof ShareStats !== 'undefined') && ShareStats.resetCelebrations();
+      showToast(t(done ? 'settings.debug.toast_shares_reset' : 'error_card.default_msg'));
+    });
+  }
 
   const debugFree = qs('#settings-debug-force-free');
   if (debugFree) {

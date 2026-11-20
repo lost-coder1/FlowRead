@@ -252,6 +252,7 @@
 .reader-index-head,
 .reader-index-seek,
 .reader-index-search {
+  flex: 0 0 auto;
   padding: var(--space-md);
   border-bottom: 1px solid var(--border);
 }
@@ -306,6 +307,9 @@
 
 .reader-index-list {
   flex: 1;
+  /* A flex item defaults to min-height:auto, which refuses to shrink below its
+     content and so defeats its own overflow. */
+  min-height: 0;
   overflow-y: auto;
   padding: var(--space-sm);
 }
@@ -625,35 +629,6 @@
   color: var(--accent) !important;
   font-family: var(--font-mono);
   cursor: pointer;
-}
-
-/* ── Guided Highlighting ────────────────────────────────────── */
-.gh-scroll-container {
-  height: 100%;
-  overflow-y: auto;
-  padding: var(--space-lg) var(--space-md);
-  font-family: var(--font-body);
-  font-size: 20px;
-  line-height: 1.9;
-  -webkit-overflow-scrolling: touch;
-}
-
-.gh-word {
-  display: inline;
-  color: var(--text-dim);
-  cursor: default;
-  border-radius: var(--radius-sm);
-  transition: background 0.08s;
-}
-
-.gh-word.gh-past { color: var(--text); }
-
-.gh-word.gh-current {
-  background: rgba(232, 197, 71, 0.28);
-  color: var(--text);
-  border-radius: 2px;
-  padding: 1px 2px;
-  box-shadow: 0 0 0 1px rgba(232, 197, 71, 0.5);
 }
 
 /* ── Simple Scroll ──────────────────────────────────────────── */

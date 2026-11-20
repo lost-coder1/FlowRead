@@ -137,11 +137,21 @@ const ScrollEngine = (function() {
 
       const frag = document.createDocumentFragment();
       const end = Math.min(i + CHUNK_SIZE, total);
+      /* Highlight marks for this chunk of spans, read once rather than per word
+         (§26.3). Background only, so it changes no geometry. */
+      const marks = (typeof HighlightsFeature !== 'undefined' && AppState.currentFile)
+        ? HighlightsFeature.forFile(AppState.currentFile.id)
+        : [];
+
       for (; i < end; i++) {
         const w = _words[i];
         const span = document.createElement('span');
         span.dataset.index = i;
         span.className = 'scroll-word';
+        if (marks.length && HighlightsFeature.at(marks, i)) span.classList.add('fr-hl');
+        if (typeof HighlightsFeature !== 'undefined' && HighlightsFeature.anchor() === i) {
+          span.classList.add('fr-hl-anchor');
+        }
         if (typeof w === 'string') {
           span.textContent = w + ' ';
           (function(captured) {
@@ -352,5 +362,21 @@ const ScrollEngine = (function() {
     return !!(fileId && fileId === _cacheFileId && _domCache && _buildComplete);
   }
 
-  return { init, play, pause, destroy, getIndex, seekTo, onWPMChange, hasCache };
+  /* Re-tint the spans that currently exist. Scroll builds lazily as the reader
+     moves, and anything built later picks the tint up from the marks read in
+     that build (§26.3). Classes only — no geometry. */
+  function refreshHighlights() {
+    if (typeof HighlightsFeature === 'undefined' || !AppState.currentFile) return;
+    const marks = HighlightsFeature.forFile(AppState.currentFile.id);
+    const anchorIdx = HighlightsFeature.anchor();
+    const spans = document.querySelectorAll('#view-reader .scroll-word[data-index]');
+    for (let i = 0; i < spans.length; i++) {
+      const idx = parseInt(spans[i].dataset.index, 10);
+      if (isNaN(idx)) continue;
+      spans[i].classList.toggle('fr-hl', !!HighlightsFeature.at(marks, idx));
+      spans[i].classList.toggle('fr-hl-anchor', anchorIdx === idx);
+    }
+  }
+
+  return { init, refreshHighlights, play, pause, destroy, getIndex, seekTo, onWPMChange, hasCache };
 })();

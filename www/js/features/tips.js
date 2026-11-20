@@ -90,6 +90,12 @@ const TipsFeature = (function() {
     return (lib.length && lib[0] && lib[0].kind) ? lib[0].kind : '';
   }
 
+  /* The same book, as an item rather than its kind. */
+  function _lastOpened() {
+    const lib = _library();
+    return lib.length ? lib[0] : null;
+  }
+
   /* Whether the user has ever deliberately chosen an engine. reader.js writes
      fr_last_engine on every switch, so a value that differs from the default
      they were handed is proof of a switch; absent, or equal to it, is not. This
@@ -204,6 +210,50 @@ const TipsFeature = (function() {
         el.scrollIntoView({ block: 'center', behavior: 'smooth' });
         el.focus();
       },
+    },
+    {
+      /* Gated on having read enough to have wanted one — a tip about keeping
+         a line is meaningless to someone who has not yet read a page of the
+         book. Retired by HighlightsFeature's first commit, through the reader
+         (§26.3), not from this strip. */
+      id: 'highlights',
+      key: 'tip.highlights',
+      when: function() {
+        if (typeof HighlightsFeature === 'undefined') return false;
+        const last = _lastOpened();
+        if (!last) return false;
+        /* Nothing marked yet, and far enough in to have met a line worth
+           keeping. */
+        return HighlightsFeature.count(last.id) === 0
+          && (typeof loadPosition === 'function' ? loadPosition(last.id) : 0) > 400;
+      },
+    },
+    {
+      /* The gesture tip above teaches the gesture; this one reveals that the
+         marks are collected somewhere, which is the half a reader would never
+         find on their own. Separate rather than a `go` bolted onto that
+         sentence: tapping "tap the highlighter" and landing on a list is a
+         non-sequitur, and §22.3 says a tap does the thing the sentence
+         describes. Mirrors the `words` tip exactly, because it is the same
+         discovery about the same kind of collection. */
+      id: 'highlights_screen',
+      key: 'tip.highlights_screen',
+      when: function() {
+        return typeof HighlightsFeature !== 'undefined' && HighlightsFeature.totalCount() > 0;
+      },
+      go: function() { HighlightsFeature.open(); },
+    },
+    {
+      /* Only reaches someone who has looked a word up but not yet opened the
+         list — the saving is automatic and silent, so the one thing a reader
+         would never discover is that it has been happening. Retires on the
+         first visit, which SavedWordsFeature.open() marks. */
+      id: 'words',
+      key: 'tip.words',
+      when: function() {
+        return typeof SavedWordsFeature !== 'undefined' && SavedWordsFeature.count() > 0;
+      },
+      go: function() { SavedWordsFeature.open(); },
     },
     {
       id: 'share',

@@ -8,7 +8,55 @@ decision taken. Completed work and resolved device findings live in
 **[Tasks-archive.md](Tasks-archive.md)**. The split rule: anything that would change a future
 decision stays here or in `Claude.md`; a record of an action already taken goes to the archive.
 
-**Last updated:** 2026-11-20 — **a 13th discovery tip**: that FlowRead is in the browser's share
+**Last updated:** 2026-11-20 — **16.29: highlights** (branch `investment-highlights`,
+pushed). `features/highlights.js` holds the store, the mode and the range lookup; the engines tint,
+the reader owns the chrome and the list. Tap the first word, tap the last — no native selection,
+because the gesture conflict is three-way (global `user-select: none`, `word-tap.js` owns
+long-press, and in Page mode the horizontal drag *is* the page turn), and the §6 Normal view is
+canvas with no text layer at all. Swipe stays live during the mode, so a quote can straddle a page
+break. RSVP and Chunk mark the sentence instead. The list shares the index panel rather than taking
+a sixth chrome button; the count is on the library row; the share card gains a quote hero ranked
+under a named finished book. Three things testing caught: Page's capture listener died with its
+shell and had to be cleared in `_createShell`, the promised Undo was only a toast until the bar grew
+a second state, and the quote budget had to charge for the book title or a long one pushed the
+attribution off the card. **Nothing is browser-verified — device pass owed, plus Hindi sign-off on
+20 new keys.**
+
+**Device pass 1, 2026-11-20 — three findings, all fixed.** (1) The highlights section in the index
+panel was an uncapped flex item, and a flex item will not shrink below its content, so the search
+field and the entire chapter index were pushed past the panel's bottom edge with nothing able to
+reach them; it is now capped at a third of the panel and scrolls itself, and `.reader-index-list`
+gained the `min-height: 0` its own `overflow-y` needed. (2) The library count was added to the two
+*row* render paths and neither *card* path — Pro renders the library as a grid of cards, so the
+count was invisible to exactly the users who have Pro; all four paths carry it now. (3) **Owner
+reversed "no global highlights screen"**: there is one, grouped by book, reached from its own home
+row beside saved words, and tapping a quote opens that book at that word through a new
+`startIndex` option on `resumeFromLibrary` which beats the completed-book reset to word zero.
+Confirmed working by the owner: the tint in Page/Scroll/Focus Bold, the share card's quote hero,
+and (after the fix) the scrollable index panel.
+
+**Device pass 2, 2026-11-20.** The header button was U+25AE, which the owner read as a pipe and not
+as anything to do with highlighting — correctly, and the tip copy already said "tap the
+highlighter". Replaced with an inline SVG marker over a band, the approach `_searchGlyph()` already
+uses. Also added `tip.highlights_screen`, since the `highlights` tip teaches the gesture and had no
+destination, so nothing revealed the new screen. **21 Hindi keys now awaiting sign-off.**
+
+Also 2026-11-20 — **16.31: saved words, and the dictionary's real defect**
+(branch `investment-highlights`). The Hooked *investment* phase, taken at its cheapest point first:
+every word looked up is now kept, grouped by book, on a Words screen reached from the home header
+with its count on the button. Chosen over highlights for the first pass because it needs no gesture
+decision, no text selection and no new storage model, and it works in RSVP and Chunk where
+highlights never will. **The dictionary was never missing vocabulary** — 82,559 entries, all of
+WordNet's lemma space; `lookupWord()` did an exact key match, so every inflected form missed
+(`books`, `went`, `children`, `cities`, `women`). `features/morphology.js` adds Morphy resolution:
+36 → 43 hits on a 46-word sample, the remaining three being function words WordNet has no entry
+for. Also fixed: a Devanagari word produced **no response at all** from the long-press (silent
+return, §1.5), two dead i18n keys from the removed Pro gate, two hardcoded English strings, and the
+orphan `engines/highlight.js` + its `.gh-*` CSS is deleted. `Claude.md` §26 rewritten — §26.1
+saved words, §26.2 morphology, §26.3 the highlights decisions. **Device pass owed, and Hindi
+sign-off on 15 new keys.**
+
+Also 2026-11-20 — **a 13th discovery tip**: that FlowRead is in the browser's share
 sheet (§23). It was the one capability with no surface teaching it at all — the URL card on home
 is stumble-on-able, the share-intent route is not. Pro-gated like `scan`, and retired by
 `share-handler.js` on a real shared link. Also **16.30 done**: Page leads the engine row, and the seven stale

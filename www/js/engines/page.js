@@ -140,8 +140,14 @@ const PageEngine = (function() {
     }
   }
 
+  let _highlightTapHandler = null;
+
   function _createShell(container) {
     _clearEngineContent(container);
+    /* The previous shell carried the capture listener and has just been removed
+       with it, so the guard in _attachHighlightTapListener has to be cleared or
+       the new shell never gets one. */
+    _highlightTapHandler = null;
     const shell = document.createElement('div');
     shell.className = 'page-shell';
     shell.id = 'page-shell';
@@ -162,6 +168,7 @@ const PageEngine = (function() {
        is there from the first frame rather than only once pagination ends. */
     _ensureNavBar();
     _updateNav();
+    _attachHighlightTapListener();
 
     /* Off-screen measurement page — auto-height (NOT absolute inset:0), positioned
        far off-screen. Width set inline so word wrap matches the visible leaves.
@@ -349,9 +356,22 @@ const PageEngine = (function() {
     const html = [];
     let openHeading = null;
 
+    /* Read once per slab rather than per word: this runs for every measured
+       slab as well as every visible leaf (§4.1 rule 4), and localStorage is not
+       free. A tint is background only, so it adds no height and the cached
+       layout grid stays valid — highlighting a page must never reflow it. */
+    const marks = (typeof HighlightsFeature !== 'undefined' && _fileId())
+      ? HighlightsFeature.forFile(_fileId())
+      : [];
+
     for (let i = from; i < to; i++) {
       const w = _words[i];
       const heading = _headingAt(i);
+      const marked = marks.length
+        ? !!HighlightsFeature.at(marks, i)
+        : false;
+      const anchored = (typeof HighlightsFeature !== 'undefined')
+        && HighlightsFeature.active() && HighlightsFeature.anchor() === i;
 
       /* A range can open or close mid-slab, because a slab boundary has nothing
          to do with where a chapter starts. Reopening the wrapper is what keeps a
@@ -372,10 +392,11 @@ const PageEngine = (function() {
         html.push('<b class="page-pb"></b>');
       }
       const indent = (!heading && _paraStarts && _paraStarts.has(i)) ? ' page-para-first' : '';
+      const mark = (marked ? ' fr-hl' : '') + (anchored ? ' fr-hl-anchor' : '');
       if (w && typeof w === 'object' && w.type === 'placeholder') {
-        html.push('<span class="page-word page-placeholder' + indent + '">' + escapeHtml(w.label || '[Content]') + ' </span>');
+        html.push('<span class="page-word page-placeholder' + indent + mark + '">' + escapeHtml(w.label || '[Content]') + ' </span>');
       } else {
-        html.push('<span class="page-word' + indent + '">' + escapeHtml(typeof w === 'string' ? w : '') + ' </span>');
+        html.push('<span class="page-word' + indent + mark + '">' + escapeHtml(typeof w === 'string' ? w : '') + ' </span>');
       }
     }
     if (openHeading) html.push('</b>');
@@ -506,6 +527,9 @@ const PageEngine = (function() {
     /* Nav bar before layout: it is a flex item, so raising it shrinks the shell,
        and laying leaves out first would make them reflow the moment it appears. */
     _ensureNavBar();
+    /* Also here, not only in _render: a cached layout (§4.1) skips _render
+       entirely, and without this the engine would open with no way to highlight. */
+    _attachHighlightTapListener();
     _pageIndex = _pageForIndex(_index);
     _layoutPages();
     _updateNav();
@@ -587,6 +611,72 @@ const PageEngine = (function() {
     if (!page || !page.el) return;
     if (page.el.parentNode) page.el.parentNode.removeChild(page.el);
     page.el = null;
+  }
+
+  function _fileId() {
+    return (AppState && AppState.currentFile && AppState.currentFile.id) || '';
+  }
+
+  /* ── Highlighting (§26.3) ──────────────────────────────────────────────
+     Tap the first word, tap the last. Bound once on the shell in the capture
+     phase rather than per word, for two reasons: it has to beat both the
+     word-tap dictionary binding and the chrome toggle underneath, and a leaf
+     released by the LRU must not take the handler with it.
+
+     Swipe is deliberately left alone — a quote routinely straddles a page
+     break, so the reader must be able to turn the page between the two taps,
+     and the anchor is a word index that no longer cares which page it is on. */
+  function _attachHighlightTapListener() {
+    const shell = qs('#page-shell');
+    if (!shell || _highlightTapHandler) return;
+
+    _highlightTapHandler = function(e) {
+      if (typeof HighlightsFeature === 'undefined' || !HighlightsFeature.active()) return;
+      const span = e.target && e.target.closest && e.target.closest('.page-word');
+      if (!span) return;
+
+      /* Nothing else may act on this tap: not the dictionary, not the chrome. */
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+
+      const index = _wordIndexOfSpan(span);
+      if (index < 0) return;
+      HighlightsFeature.tapWord(index);
+    };
+
+    shell.addEventListener('click', _highlightTapHandler, true);
+  }
+
+  /* The leaf's own start index plus the span's position inside it — the same
+     one-span-per-word correspondence _bindLeaf relies on. A linear scan over
+     one page's words, on a tap, which is nothing. */
+  function _wordIndexOfSpan(span) {
+    const leaf = span.closest('.page-leaf');
+    if (!leaf) return -1;
+    let start = -1;
+    for (let i = 0; i < _pages.length; i++) {
+      if (_pages[i].el === leaf) { start = _pages[i].startIndex; break; }
+    }
+    if (start < 0) return -1;
+    const spans = leaf.querySelectorAll('.page-word');
+    for (let n = 0; n < spans.length; n++) {
+      if (spans[n] === span) return start + n;
+    }
+    return -1;
+  }
+
+  /* Repaint the live leaves after a highlight is made, removed or anchored.
+     Only the markup changes — the page boundaries are untouched, because a tint
+     has no height (§4.1) — so this rebuilds each leaf's HTML in place and does
+     not re-measure or re-lay out anything. */
+  function refreshHighlights() {
+    for (let i = 0; i < _pages.length; i++) {
+      const page = _pages[i];
+      if (!page || !page.el) continue;
+      page.el.innerHTML = _wordsHtml(page.startIndex, page.endIndex + 1);
+      _bindLeaf(page.el, page.startIndex);
+    }
   }
 
   /* Word tap, long-press dictionary and placeholder chips, bound onto the markup
@@ -1102,5 +1192,5 @@ const PageEngine = (function() {
   /* No hasCache(), deliberately. reader.js reads its absence as "this engine
      opens fast enough that a loading card would only flash" — which is now true
      of Page mode: first paint is one slab, whatever the length of the book. */
-  return { init, play, pause, destroy, getIndex, seekTo, onWPMChange, _debugState };
+  return { init, play, pause, destroy, getIndex, seekTo, onWPMChange, refreshHighlights, _debugState };
 })();

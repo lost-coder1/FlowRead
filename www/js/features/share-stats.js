@@ -19,9 +19,29 @@ const ShareStats = (function() {
   /* One entry per book/streak we have already offered to celebrate, so a
      milestone prompt appears once and never nags (§9.1's tone applies here
      too — a share is an offer, not a chore). */
+  /* What a quote hero may hold in total — the quote *and* its attribution
+     (§26.3). The number is not taste; it is what keeps the attribution on the
+     card.
+
+     A quote hero always carries its book's cover, so it wraps into the 496px
+     side column with heroMaxLines 6. _fitHero steps the face down to 30px and,
+     if even that overflows, ellipsises the **last** line — which in this hero is
+     "— Book Name". An unattributed quotation of someone else's words is the one
+     outcome this feature may not produce.
+
+     Budgeting the quote alone is not enough, and testing caught it: 140
+     characters plus "Hind Swaraj" fits in six lines at 32px, while the same
+     quote plus "The Wealth of Nations, Volume One" runs to seven and loses the
+     attribution. So the title is charged against the same budget, and a long
+     title simply means a shorter quote qualifies. */
+  const QUOTE_BUDGET_CHARS = 150;
+
   const KEY_CELEBRATED_BOOKS = 'fr_share_celebrated_books';
   const KEY_CELEBRATED_STREAKS = 'fr_share_celebrated_streaks';
   const KEY_SEEDED = 'fr_share_seeded';
+  /* Debug only (§25), written by resetCelebrations() and consumed by the next
+     checkMilestones() — see both for why one home render has to be skipped. */
+  const KEY_DEBUG_SKIP = 'fr_debug_milestone_skip';
 
   /* Product decision 2026-09-25: book completion AND streak milestones. Kept
      sparse on purpose — a prompt at every streak day would be nagging. */
@@ -225,6 +245,44 @@ const ShareStats = (function() {
               : t('share.hero.book', { book: book.name })),
       });
     });
+
+    /* A quote the reader kept (§26.3), ranked directly under a named finished
+       book. A line from a book is the most shareable thing this card can carry
+       and the most on-brand — §21 puts the product in a distribution bottleneck
+       — but a finished book is still the bigger claim, so it does not displace
+       one.
+
+       Capped here rather than when the highlight is made: people highlight
+       whole paragraphs, and §14 forbids truncating the thing a slot exists to
+       show, so a long highlight is simply not offered as a quote instead of
+       being ellipsised onto the card. Two at most, like the books, so the sheet
+       stays an offer rather than a configuration exercise.
+
+       The book name is part of the hero text, not a supporting line: a card
+       carrying someone else's words must say whose they are, and a supporting
+       line can be switched off or dropped by the collage layout. */
+    if (typeof HighlightsFeature !== 'undefined') {
+      const quotes = HighlightsFeature.allWithBooks()
+        .filter(function(q) {
+          if (!q.text) return false;
+          /* The attribution is charged against the same budget — see
+             QUOTE_BUDGET_CHARS. +2 for the "— " that precedes the title. */
+          return q.text.length + displayTitle(q.book).length + 2 <= QUOTE_BUDGET_CHARS;
+        })
+        .slice(0, 2);
+
+      quotes.forEach(function(q) {
+        const title = displayTitle(q.book);
+        out.push({
+          id: 'quote:' + q.fileId + ':' + q.start,
+          /* Gives the quote its book's cover through the existing panel — the
+             shape _coverOf and _drawCover already expect. */
+          book: { id: q.fileId, name: q.book, author: q.author, days: 0, lastOpened: 0 },
+          label: t('share.item.quote', { book: title }),
+          text: t('share.hero.quote', { quote: q.text, book: title }),
+        });
+      });
+    }
 
     /* The all-time count, as a hero rather than a footnote. It existed only as
        a supporting line, so a user who had finished four books was told "4 books
@@ -431,7 +489,24 @@ const ShareStats = (function() {
   }
 
   function _wrap(ctx, text, maxWidth) {
-    const words = String(text).split(' ');
+    /* An explicit newline is a line break the caller meant. Canvas fillText
+       does not interpret one — it would measure as part of a word and draw as a
+       stray glyph — so a multi-line hero has to be wrapped segment by segment.
+       Added for §26.3's quote hero, whose attribution belongs on its own line;
+       a string with no newline behaves exactly as before. */
+    const text_ = String(text);
+    if (text_.indexOf('\n') !== -1) {
+      const out = [];
+      const segments = text_.split('\n');
+      for (var seg = 0; seg < segments.length; seg++) {
+        if (!segments[seg]) { out.push(''); continue; }
+        const wrapped = _wrap(ctx, segments[seg], maxWidth);
+        for (var k = 0; k < wrapped.length; k++) out.push(wrapped[k]);
+      }
+      return out;
+    }
+
+    const words = text_.split(' ');
     const lines = [];
     let line = '';
 
@@ -1419,9 +1494,57 @@ const ShareStats = (function() {
      book marked read from the library, or finished in a session that ended
      without the engine reaching the end. Position is sacred (§21), so this
      still never runs over a reader. */
+  /* Debug only (§25) — forget which books and streaks have been celebrated, so
+     a completion prompt can be seen again.
+
+     Without this the feature is effectively untestable, which is the same hole
+     the forced-free flag was built to close. Two things make a book stop
+     offering, both deliberate and both permanent: first-run seeding marks every
+     *already* finished book as history rather than news, and an offer is spent
+     when it is shown (§15 — made, not accepted), so finishing one book across
+     five engines spends it on whichever engine got there first. Correct in
+     production, impossible to re-check on a device.
+
+     It only clears FlowRead's own bookkeeping — no position, no library, no
+     session — so the worst it can do is re-offer a share. The caller is gated
+     on isDebugBuild(); this is also, so it cannot be reached by a release build
+     even if something calls it. */
+  function resetCelebrations() {
+    if (typeof isDebugBuild !== 'function' || !isDebugBuild()) return false;
+    try {
+      localStorage.removeItem(KEY_CELEBRATED_BOOKS);
+      localStorage.removeItem(KEY_CELEBRATED_STREAKS);
+
+      /* KEY_SEEDED is deliberately left set. Clearing it looks right and is
+         worse: the next home render would re-seed every finished book straight
+         back into the celebrated set, undoing the reset before the tester could
+         reach a book.
+
+         The skip flag solves the other half of the same problem. Home is the
+         backstop for a finished book (§15), so the walk back from Settings to a
+         book goes Settings → home → reader, and home's own check would show the
+         milestone modal and spend the offer en route. One render is skipped so
+         the next prompt is the one the reader itself raises, which is the path
+         being tested. */
+      localStorage.setItem(KEY_DEBUG_SKIP, '1');
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   function checkMilestones() {
     try {
       if (AppState.activeModal) return;
+
+      /* Consumed once, and only in a debug build — a release build cannot write
+         this key, so a stray copy of it does nothing (the same belt-and-braces
+         as debugForcedFree(), §25). */
+      if (typeof isDebugBuild === 'function' && isDebugBuild()
+          && localStorage.getItem(KEY_DEBUG_SKIP)) {
+        localStorage.removeItem(KEY_DEBUG_SKIP);
+        return;
+      }
 
       const stats = collectStats();
       const books = _loadSet(KEY_CELEBRATED_BOOKS);
@@ -1476,6 +1599,7 @@ const ShareStats = (function() {
     openSheet: openSheet,
     checkMilestones: checkMilestones,
     shouldOfferBookFinished: shouldOfferBookFinished,
+    resetCelebrations: resetCelebrations,
     offerBookFinished: offerBookFinished,
     openSheetForBook: openSheetForBook,
     hasSomethingToShare: hasSomethingToShare,

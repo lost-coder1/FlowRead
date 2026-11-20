@@ -28,6 +28,29 @@ function renderUpload() {
         <!-- Populated by renderLibrary() -->
       </div>
 
+      <!-- Saved words (§26.1). Not in the header: that row is navigation and
+           was built for three buttons, where a fourth wrapped and split its own
+           label. A word collection is content, like the books above it, so it
+           sits with them. Full width, so the count is more visible here than a
+           badge in a crowded row ever was — and it does not depend on the
+           library being non-empty, which a chip inside that section would.
+           A row, never a card: a card here would read as an unanswered to-do,
+           the same reason §23's tip is one line. -->
+      <button id="home-words-row" class="home-collection-row" type="button" hidden>
+        <span class="home-collection-label">${t('words.title')}</span>
+        <span class="home-collection-count" id="home-words-count"></span>
+        <span class="home-collection-chevron" aria-hidden="true">›</span>
+      </button>
+
+      <!-- Highlights, the same shape and there for the same reason (§26.3). A
+           global screen was rejected at first as a feed; grouped by book it is
+           a collection, and the reader asked for one way in rather than six. -->
+      <button id="home-highlights-row" class="home-collection-row" type="button" hidden>
+        <span class="home-collection-label">${t('highlights.title')}</span>
+        <span class="home-collection-count" id="home-highlights-count"></span>
+        <span class="home-collection-chevron" aria-hidden="true">›</span>
+      </button>
+
       <!-- One-time nudge setup offer, and since Task 16.3 (2026-11-01) it is the
            second chance rather than the first ask: onboarding now asks inline
            (§10.2), so shouldPromptSetup() — which is false as soon as any app is
@@ -204,6 +227,24 @@ function renderUpload() {
     const lib = qs('#library-section');
     if (lib) lib.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
+
+  const wordsRow = qs('#home-words-row');
+  if (wordsRow && typeof SavedWordsFeature !== 'undefined') {
+    const savedCount = SavedWordsFeature.count();
+    wordsRow.hidden = savedCount === 0;
+    const countEl = qs('#home-words-count');
+    if (countEl) countEl.textContent = tn('words.count', savedCount);
+    wordsRow.addEventListener('click', function() { SavedWordsFeature.open(); });
+  }
+
+  const hlRow = qs('#home-highlights-row');
+  if (hlRow && typeof HighlightsFeature !== 'undefined') {
+    const hlTotal = HighlightsFeature.totalCount();
+    hlRow.hidden = hlTotal === 0;
+    const hlCountEl = qs('#home-highlights-count');
+    if (hlCountEl) hlCountEl.textContent = tn('highlights.count', hlTotal);
+    hlRow.addEventListener('click', function() { HighlightsFeature.open(); });
+  }
 
   const shareBtn = qs('#btn-share-stats');
   if (shareBtn && typeof ShareStats !== 'undefined') {
@@ -1710,7 +1751,13 @@ async function renderLibrary() {
         recentLib.map(function(item) {
           const pct = getFileProgress(item);
           const kindLabel = item.kind === 'url' ? 'URL' : item.kind ? item.kind.toUpperCase() : 'PDF';
-          const meta = kindLabel + ' · ' + formatDate(item.lastOpened) + (pct > 0 ? ' · ' + pct + '%' : '');
+          /* Highlights on the row (§26.3). The count is the investment made
+             visible — a mark the reader cannot watch accumulating is a note in
+             a drawer — and it is also what gives a finished book a reason to be
+             reopened, which §4.2 otherwise treats as the end of its life. */
+          const hlCount = (typeof HighlightsFeature !== 'undefined') ? HighlightsFeature.count(item.id) : 0;
+          const meta = kindLabel + ' · ' + formatDate(item.lastOpened) + (pct > 0 ? ' · ' + pct + '%' : '')
+            + (hlCount > 0 ? ' · ' + tn('library.item.highlights', hlCount) : '');
           return [
             '<li class="library-item" data-id="' + escapeHtml(item.id) + '">',
             '<div class="library-item-info">',
@@ -1746,7 +1793,13 @@ async function renderLibrary() {
         readLib.map(function(item) {
           const pct = getFileProgress(item);
           const kindLabel = item.kind === 'url' ? 'URL' : item.kind ? item.kind.toUpperCase() : 'PDF';
-          const meta = kindLabel + ' · ' + formatDate(item.lastOpened) + (pct > 0 ? ' · ' + pct + '%' : '');
+          /* Highlights on the row (§26.3). The count is the investment made
+             visible — a mark the reader cannot watch accumulating is a note in
+             a drawer — and it is also what gives a finished book a reason to be
+             reopened, which §4.2 otherwise treats as the end of its life. */
+          const hlCount = (typeof HighlightsFeature !== 'undefined') ? HighlightsFeature.count(item.id) : 0;
+          const meta = kindLabel + ' · ' + formatDate(item.lastOpened) + (pct > 0 ? ' · ' + pct + '%' : '')
+            + (hlCount > 0 ? ' · ' + tn('library.item.highlights', hlCount) : '');
           return [
             '<li class="library-item" data-id="' + escapeHtml(item.id) + '">',
             '<div class="library-item-info">',
@@ -1800,13 +1853,15 @@ async function renderLibrary() {
     recentLib.forEach(function(item) {
       const pct = getFileProgress(item);
       const kindLabel = item.kind === 'url' ? 'URL' : item.kind ? item.kind.toUpperCase() : 'PDF';
+      const hlCount = (typeof HighlightsFeature !== 'undefined') ? HighlightsFeature.count(item.id) : 0;
       const card = document.createElement('div');
       card.className = 'library-card';
       card.dataset.id = item.id;
       card.innerHTML = [
         '<span class="library-card-kind">' + escapeHtml(kindLabel) + '</span>',
         '<p class="library-card-name">' + escapeHtml(displayTitle(item.name)) + '</p>',
-        '<p class="library-card-meta">' + escapeHtml(formatDate(item.lastOpened)) + (pct > 0 ? ' · ' + pct + '%' : '') + '</p>',
+        '<p class="library-card-meta">' + escapeHtml(formatDate(item.lastOpened)) + (pct > 0 ? ' · ' + pct + '%' : '')
+          + (hlCount > 0 ? ' · ' + escapeHtml(tn('library.item.highlights', hlCount)) : '') + '</p>',
         '<div class="library-card-progress"><div class="library-card-progress-fill" style="width:' + pct + '%"></div></div>',
         '<div class="library-item-actions">',
         '<button class="btn btn-ghost btn-mark-read" type="button" data-mark-read-id="' + escapeHtml(item.id) + '" data-mark-read-wc="' + (item.wordCount || 0) + '">' + t('btn.mark_read') + '</button>',
@@ -1838,13 +1893,15 @@ async function renderLibrary() {
       readLib.forEach(function(item) {
         const pct = getFileProgress(item);
         const kindLabel = item.kind === 'url' ? 'URL' : item.kind ? item.kind.toUpperCase() : 'PDF';
+        const hlCount = (typeof HighlightsFeature !== 'undefined') ? HighlightsFeature.count(item.id) : 0;
         const card = document.createElement('div');
         card.className = 'library-card';
         card.dataset.id = item.id;
         card.innerHTML = [
           '<span class="library-card-kind">' + escapeHtml(kindLabel) + '</span>',
           '<p class="library-card-name">' + escapeHtml(displayTitle(item.name)) + '</p>',
-          '<p class="library-card-meta">' + escapeHtml(formatDate(item.lastOpened)) + (pct > 0 ? ' · ' + pct + '%' : '') + '</p>',
+          '<p class="library-card-meta">' + escapeHtml(formatDate(item.lastOpened)) + (pct > 0 ? ' · ' + pct + '%' : '')
+            + (hlCount > 0 ? ' · ' + escapeHtml(tn('library.item.highlights', hlCount)) : '') + '</p>',
           '<div class="library-card-progress"><div class="library-card-progress-fill" style="width:' + pct + '%"></div></div>',
           '<div class="library-item-actions"><button class="btn btn-ghost btn-mark-unread" type="button" data-mark-unread-id="' + escapeHtml(item.id) + '">' + t('btn.mark_unread') + '</button></div>',
         ].join('');
@@ -2003,6 +2060,15 @@ async function resumeFromLibrary(entry, source, options) {
     const savedPos = loadPosition(entry.id);
     /* If the file was completed, start from the beginning on re-open */
     AppState.currentIndex = savedPos >= data.words.length ? 0 : savedPos;
+
+    /* options.startIndex opens at a specific word — the highlights screen jumps
+       to a kept line (§26.3). It must beat the completed-book rule above: a
+       finished book is exactly the one a highlight sends you back into, and
+       landing on word zero instead of the quote is the silent failure §1.5
+       forbids. Clamped, because a stored index outlives a re-parse. */
+    if (options && typeof options.startIndex === 'number' && options.startIndex >= 0) {
+      AppState.currentIndex = Math.min(options.startIndex, Math.max(0, data.words.length - 1));
+    }
 
     hideLoading();
     /* options.forceEngine lets a caller open in a specific engine for this read
