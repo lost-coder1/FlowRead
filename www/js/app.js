@@ -55,7 +55,7 @@ document.addEventListener('DOMContentLoaded', async function() {
   const settings = typeof getSettings === 'function' ? getSettings() : {};
   AppState.settings = settings;
   AppState.wpm = settings.defaultWpm || loadWPM();
-  AppState.currentEngine = localStorage.getItem('fr_last_engine') || settings.defaultMode || 'rsvp';
+  AppState.currentEngine = localStorage.getItem('fr_last_engine') || settings.defaultMode || 'page';
   AppState.lastReaderEngine = AppState.currentEngine;
 
   try {

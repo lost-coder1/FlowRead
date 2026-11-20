@@ -144,7 +144,7 @@ async function _handleShareUrl(rawText) {
     };
     AppState.currentIndex = 0;
 
-    const defaultMode = (AppState.settings && AppState.settings.defaultMode) || 'rsvp';
+    const defaultMode = (AppState.settings && AppState.settings.defaultMode) || 'page';
     AppState.currentEngine = defaultMode;
     AppState.lastReaderEngine = defaultMode;
     localStorage.setItem('fr_last_engine', defaultMode);

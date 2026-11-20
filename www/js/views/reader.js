@@ -29,7 +29,7 @@ function renderReader(options) {
      user's own default the way share-handler.js does by writing fr_last_engine. */
   const savedEngine = opts.forceEngine
     || localStorage.getItem('fr_last_engine')
-    || AppState.currentEngine || AppState.settings.defaultMode || 'rsvp';
+    || AppState.currentEngine || AppState.settings.defaultMode || 'page';
   const hasPdfBridge = file.kind === 'pdf' && !!(file.pdfDoc && file.pageWordIndex && file.pageWordIndex.length);
   /* Raw PDF on disk but not yet re-parsed — show active button, lazy-load on tap */
   const hasPdfLazy = file.kind === 'pdf' && !file.pdfDoc && !!(file.pdfRawAvailable && file.pageWordIndex && file.pageWordIndex.length);
@@ -69,11 +69,11 @@ function renderReader(options) {
     </div>
 
     <div class="engine-tabs" id="engine-tabs">
+      <button class="engine-tab" data-engine="page">${t('reader.engine.page')}</button>
       <button class="engine-tab" data-engine="rsvp">${t('reader.engine.rsvp')}</button>
       <button class="engine-tab" data-engine="chunk">${t('reader.engine.chunk')}</button>
       <button class="engine-tab" data-engine="focus">${t('reader.engine.focus')}</button>
       <button class="engine-tab" data-engine="scroll">${t('reader.engine.scroll')}</button>
-      <button class="engine-tab" data-engine="page">${t('reader.engine.page')}</button>
     </div>
 
     <div id="rsvp-container" class="engine-container"></div>
@@ -128,7 +128,7 @@ function renderReader(options) {
 
   _applyCalmMode();
 
-  _activeEngine = _engineMap[AppState.currentEngine] || RSVPEngine;
+  _activeEngine = _engineMap[AppState.currentEngine] || PageEngine;
 
   /* Decide whether to show the loading card. Heavy engines (Focus/Scroll) without
      a cache hit need the card; instant engines and cache hits skip it. */
@@ -728,9 +728,10 @@ function _switchEngine(key) {
   const engine = _engineMap[key];
   if (!engine) return;
 
-  /* Capture previous engine for cancel button — fall back to RSVP if same or unset */
+  /* Capture previous engine for cancel button — fall back to the default if
+     same or unset */
   const prevEngineKey = (AppState.currentEngine && AppState.currentEngine !== key)
-    ? AppState.currentEngine : 'rsvp';
+    ? AppState.currentEngine : 'page';
   const previousEngine = _activeEngine;
 
   const currentIndex = previousEngine ? previousEngine.getIndex() : AppState.currentIndex;

@@ -8,9 +8,10 @@ decision taken. Completed work and resolved device findings live in
 **[Tasks-archive.md](Tasks-archive.md)**. The split rule: anything that would change a future
 decision stays here or in `Claude.md`; a record of an action already taken goes to the archive.
 
-**Last updated:** 2026-11-20 — **16.28 is merged to master** (`bbb694e`). Two tasks added and not
-started: **16.30**, moving Page to the front of the engine row now that it is the default, and
-**16.29**, highlights and notes as the Hooked *investment* phase — recorded as a design note only,
+**Last updated:** 2026-11-20 — **16.30 done**: Page leads the engine row, and the seven stale
+`|| 'rsvp'` fallbacks that still contradicted the shipped `defaultMode: 'page'` are gone. Also
+**16.28 merged to master** (`bbb694e`). One task added and not started:
+**16.29**, highlights and notes as the Hooked *investment* phase — a design note only,
 with the gesture conflict against `word-tap.js` named as the decision everything else waits on
 (`Claude.md` §27).
 
@@ -1370,7 +1371,7 @@ check the Build Variants panel), confirm the Debug section is present, toggle it
 
 ---
 
-## Task 16.30 — Engine order: Page first  ⬜ added 2026-11-20
+## Task 16.30 — Engine order: Page first  ✅ code complete, device run owed
 
 **Why.** RSVP leading the row is a leftover from the pre-pivot identity (§0.1), when speed reading
 *was* the product. 16.13 made Page mode the default engine and §9.5 sends every nudged read there,
@@ -1381,14 +1382,30 @@ front and the rest shift; nothing else about the engines changes.
 - `www/js/views/reader.js:71–75` — the `.engine-tab` buttons.
 - `www/js/views/settings.js:349–353` — the default-mode `<select>`.
 
-**And one stale fallback found while locating them:** `reader.js:32` ends
-`|| AppState.settings.defaultMode || 'rsvp'`. The shipped default is `page` (16.13), so that last
-resort contradicts it — it only fires when settings are missing entirely, which is a fresh install
-mid-boot, but it should read `'page'`.
+**Seven stale pre-pivot fallbacks, not the one originally flagged.** `settings.js:73` has
+`defaultMode: 'page'`, so every `|| 'rsvp'` downstream contradicts the shipped default and only
+fires when settings are missing entirely — a fresh install mid-boot, or a corrupt settings blob.
+All now read `page`:
+- `reader.js:32` — the saved-engine chain
+- `reader.js:131` — `_engineMap[...] || RSVPEngine` → `PageEngine`
+- `reader.js:733` — the engine the cancel button returns to
+- `app.js:58` — boot
+- `share-handler.js:147` — a URL shared in from another app
+- `state.js:19`, `state.js:23` — `currentEngine` / `lastReaderEngine` initial values
 
-**Not just a reorder of markup.** Check nothing keys off tab *position*: the active-tab logic,
-`fr_last_engine`, and §9.5's `forceEngine: 'page'` all work by name, which is why this is expected
-to be small — but "expected to be small" is what §3.2 warns about.
+Fixing one of seven would have been worse than fixing none: they are the same defect, and the
+remaining six would each have been found again separately.
+
+**The position check cleared.** Every dispatch is by `dataset.engine`, `qsa('.engine-tab')` is only
+ever iterated (no index access anywhere), `.engine-tab` is `flex: 1` so all five share width
+equally and the row cannot overflow, and `fr_last_engine` / §9.5's `forceEngine` work by name. No
+other file references engine order. Engine names stay Roman in both locales (§17), so no i18n
+change.
+
+**Device run owed:** open a book and confirm Page is the leftmost tab and is the active one;
+switch to RSVP, leave, reopen, and confirm it resumes in RSVP (the reorder must not disturb
+`fr_last_engine`); check Settings' default-mode dropdown lists Page first with the right option
+selected.
 
 ---
 

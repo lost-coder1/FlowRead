@@ -346,11 +346,11 @@ function renderSettings() {
         <div class="settings-row">
           <span class="settings-row-label">${t('settings.field.default_mode')}</span>
           <select id="settings-default-mode" class="settings-select">
+            <option value="page" ${AppState.settings.defaultMode === 'page' ? 'selected' : ''}>${t('settings.mode.page')}</option>
             <option value="rsvp" ${AppState.settings.defaultMode === 'rsvp' ? 'selected' : ''}>${t('settings.mode.rsvp')}</option>
             <option value="chunk" ${AppState.settings.defaultMode === 'chunk' ? 'selected' : ''}>${t('settings.mode.chunk')}</option>
             <option value="focus" ${AppState.settings.defaultMode === 'focus' ? 'selected' : ''}>${t('settings.mode.focus')}</option>
             <option value="scroll" ${AppState.settings.defaultMode === 'scroll' ? 'selected' : ''}>${t('settings.mode.scroll')}</option>
-            <option value="page" ${AppState.settings.defaultMode === 'page' ? 'selected' : ''}>${t('settings.mode.page')}</option>
           </select>
         </div>
 

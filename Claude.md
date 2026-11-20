@@ -244,7 +244,7 @@ Unchanged from pre-pivot. Five engines, all built on the same word-array/`pageWo
 
 **Simple Scroll** — CSS `transform: translateY()`, GPU-composited. Speed multiplier 0.25×–4×.
 
-**Page** (added Phase 15) — same word stream/position system, rendered as swipeable, paginated normal-reading pages. DOM-measured pagination, cached per file/font/viewport **and persisted** (§5.1). **The default landing engine for any read initiated via the nudge system (Section 9)** — RSVP/Chunk are too high-effort for the moment right after someone was redirected from a distracting app. The 2026-09-21 override that sent a nudged read to the user's own engine instead was lifted 2026-11-16, when the load time that caused it was fixed.
+**Page** (added Phase 15) — same word stream/position system, rendered as swipeable, paginated normal-reading pages. **Listed first in the engine row and in Settings, and the fallback every engine lookup lands on** (2026-11-20): it is the default engine (16.13) and §9.5 sends every nudged read here, so RSVP leading the row was a leftover from the pre-pivot identity (§0.1) putting the least likely choice in the most prominent slot. The order is display only — every dispatch is by engine name. DOM-measured pagination, cached per file/font/viewport **and persisted** (§5.1). **The default landing engine for any read initiated via the nudge system (Section 9)** — RSVP/Chunk are too high-effort for the moment right after someone was redirected from a distracting app. The 2026-09-21 override that sent a nudged read to the user's own engine instead was lifted 2026-11-16, when the load time that caused it was fixed.
 
 ### 5.1 Page-mode pagination — three rules that must hold
 
@@ -984,7 +984,7 @@ consistent, and do not grow status narrative here: that is `Tasks.md`'s job.
 | **16.27** | Variable reward on the unlock — rotating copy, a measured count line, milestone tier | 26 | ✅ code complete; device run and Hindi owed |
 | **16.28** | Share moments — card-first sheet, completion prompt at the moment, recap windows | 15 | ✅ code complete; device run and Hindi owed |
 | **16.29** | Highlights & notes — the Hooked *investment* phase | 27 | ⬜ **noted only**, added 2026-11-20; not scoped |
-| **16.30** | Engine order — Page first, RSVP second | 5 | ⬜ added 2026-11-20 |
+| **16.30** | Engine order — Page first, RSVP second | 5 | ✅ code complete; device run owed |
 | **16.10** | Store listing rewrite onto the habit framing | 0.1 | ⬜ **next product task**; now the main listing, not just the India CSL |
 | **H3** | Notifications failed silently without exact-alarm permission | 1.5 | ✅ 1.4.7 |
 | **H4** | Pro purchase failed with a generic error | 1.5 | ✅ verified on a Play build; revenue blocker closed |

@@ -16,11 +16,11 @@ const AppState = {
                                    period it was paid for — entitled, but don't re-offer */
   isPlaying: false,
   currentView: 'view-upload',
-  currentEngine: 'rsvp',
+  currentEngine: 'page',
   normalPage: 1,
   normalZoom: 1,
   normalFitWidth: true,
-  lastReaderEngine: 'rsvp',
+  lastReaderEngine: 'page',
   normalRenderToken: 0,
   chapters: [],
   isIndexOpen: false,
