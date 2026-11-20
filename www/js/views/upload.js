@@ -1733,7 +1733,13 @@ async function renderLibrary() {
         recentLib.map(function(item) {
           const pct = getFileProgress(item);
           const kindLabel = item.kind === 'url' ? 'URL' : item.kind ? item.kind.toUpperCase() : 'PDF';
-          const meta = kindLabel + ' · ' + formatDate(item.lastOpened) + (pct > 0 ? ' · ' + pct + '%' : '');
+          /* Highlights on the row (§26.3). The count is the investment made
+             visible — a mark the reader cannot watch accumulating is a note in
+             a drawer — and it is also what gives a finished book a reason to be
+             reopened, which §4.2 otherwise treats as the end of its life. */
+          const hlCount = (typeof HighlightsFeature !== 'undefined') ? HighlightsFeature.count(item.id) : 0;
+          const meta = kindLabel + ' · ' + formatDate(item.lastOpened) + (pct > 0 ? ' · ' + pct + '%' : '')
+            + (hlCount > 0 ? ' · ' + tn('library.item.highlights', hlCount) : '');
           return [
             '<li class="library-item" data-id="' + escapeHtml(item.id) + '">',
             '<div class="library-item-info">',
@@ -1769,7 +1775,13 @@ async function renderLibrary() {
         readLib.map(function(item) {
           const pct = getFileProgress(item);
           const kindLabel = item.kind === 'url' ? 'URL' : item.kind ? item.kind.toUpperCase() : 'PDF';
-          const meta = kindLabel + ' · ' + formatDate(item.lastOpened) + (pct > 0 ? ' · ' + pct + '%' : '');
+          /* Highlights on the row (§26.3). The count is the investment made
+             visible — a mark the reader cannot watch accumulating is a note in
+             a drawer — and it is also what gives a finished book a reason to be
+             reopened, which §4.2 otherwise treats as the end of its life. */
+          const hlCount = (typeof HighlightsFeature !== 'undefined') ? HighlightsFeature.count(item.id) : 0;
+          const meta = kindLabel + ' · ' + formatDate(item.lastOpened) + (pct > 0 ? ' · ' + pct + '%' : '')
+            + (hlCount > 0 ? ' · ' + tn('library.item.highlights', hlCount) : '');
           return [
             '<li class="library-item" data-id="' + escapeHtml(item.id) + '">',
             '<div class="library-item-info">',

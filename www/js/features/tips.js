@@ -90,6 +90,12 @@ const TipsFeature = (function() {
     return (lib.length && lib[0] && lib[0].kind) ? lib[0].kind : '';
   }
 
+  /* The same book, as an item rather than its kind. */
+  function _lastOpened() {
+    const lib = _library();
+    return lib.length ? lib[0] : null;
+  }
+
   /* Whether the user has ever deliberately chosen an engine. reader.js writes
      fr_last_engine on every switch, so a value that differs from the default
      they were handed is proof of a switch; absent, or equal to it, is not. This
@@ -203,6 +209,23 @@ const TipsFeature = (function() {
         if (!el) return;
         el.scrollIntoView({ block: 'center', behavior: 'smooth' });
         el.focus();
+      },
+    },
+    {
+      /* Gated on having read enough to have wanted one — a tip about keeping
+         a line is meaningless to someone who has not yet read a page of the
+         book. Retired by HighlightsFeature's first commit, through the reader
+         (§26.3), not from this strip. */
+      id: 'highlights',
+      key: 'tip.highlights',
+      when: function() {
+        if (typeof HighlightsFeature === 'undefined') return false;
+        const last = _lastOpened();
+        if (!last) return false;
+        /* Nothing marked yet, and far enough in to have met a line worth
+           keeping. */
+        return HighlightsFeature.count(last.id) === 0
+          && (typeof loadPosition === 'function' ? loadPosition(last.id) : 0) > 400;
       },
     },
     {

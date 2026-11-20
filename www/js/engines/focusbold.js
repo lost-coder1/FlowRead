@@ -9,6 +9,9 @@ const FocusBoldEngine = (function() {
   let _pages = [];      /* [{ startIndex, endIndex, el }] */
   let _pageIndex = 0;
   let _allSpans = [];   /* flat array indexed by word index */
+  /* Highlight ranges for the open book, read once per build rather than per
+     word — _makeWordSpan runs for every word in the book (§26.3). */
+  let _hlMarks = [];
 
   /* DOM cache — keeps built shell alive between engine switches for the same file,
      so re-switching skips the expensive span-creation + layout-measurement phase. */
@@ -85,6 +88,10 @@ const FocusBoldEngine = (function() {
     const CHUNK_SIZE = 4000;
     const total = _words.length;
     let i = 0;
+
+    _hlMarks = (typeof HighlightsFeature !== 'undefined' && AppState.currentFile)
+      ? HighlightsFeature.forFile(AppState.currentFile.id)
+      : [];
 
     function buildChunk() {
       if (_abortBuild) return; /* user cancelled / switched engines mid-build */
@@ -234,6 +241,15 @@ const FocusBoldEngine = (function() {
     const span = document.createElement('span');
     span.className = 'fb-word';
     span.dataset.index = index;
+    if (typeof HighlightsFeature !== 'undefined' && AppState.currentFile) {
+      /* Per word here rather than per page, because this builder is called one
+         word at a time; forFile() is a parse, so it is cached for the page in
+         _hlMarks and invalidated whenever the page is rebuilt. */
+      if (_hlMarks && _hlMarks.length && HighlightsFeature.at(_hlMarks, index)) {
+        span.classList.add('fr-hl');
+      }
+      if (HighlightsFeature.anchor() === index) span.classList.add('fr-hl-anchor');
+    }
 
     if (typeof word !== 'string') {
       span.className += ' fb-placeholder';
@@ -431,5 +447,20 @@ const FocusBoldEngine = (function() {
     return !!(fileId && fileId === _cacheFileId && _domCache && _pages.length > 0 && _buildComplete);
   }
 
-  return { init, play, pause, destroy, getIndex, seekTo, onWPMChange, hasCache };
+  /* Re-tint in place. The spans already exist and a tint has no geometry, so
+     this touches classes only — rebuilding would throw away a pagination pass
+     that cost a full layout. */
+  function refreshHighlights() {
+    if (typeof HighlightsFeature === 'undefined' || !AppState.currentFile) return;
+    _hlMarks = HighlightsFeature.forFile(AppState.currentFile.id);
+    const anchorIdx = HighlightsFeature.anchor();
+    for (let i = 0; i < _allSpans.length; i++) {
+      const span = _allSpans[i];
+      if (!span) continue;
+      span.classList.toggle('fr-hl', !!HighlightsFeature.at(_hlMarks, i));
+      span.classList.toggle('fr-hl-anchor', anchorIdx === i);
+    }
+  }
+
+  return { init, refreshHighlights, play, pause, destroy, getIndex, seekTo, onWPMChange, hasCache };
 })();

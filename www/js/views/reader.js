@@ -65,6 +65,11 @@ function renderReader(options) {
       <button class="btn btn-ghost reader-back" id="btn-reader-back">←</button>
       <p class="reader-filename">${escapeHtml(displayTitle(file.name))}</p>
       <button class="btn btn-ghost reader-calm-toggle" id="btn-reader-calm">${t('reader.btn.calm')}</button>
+      <!-- Highlighting (§26.3). Glyph rather than a word, because this row does
+           not wrap: back + Calm + Index + a label would squeeze the filename to
+           nothing, and unlike the home header it truncates instead of breaking,
+           so the cost of one compact button is a shorter filename. -->
+      <button class="btn btn-ghost reader-hl-toggle" id="btn-reader-highlight" title="${t('reader.hl.title')}" aria-label="${t('reader.hl.title')}">▮</button>
       <button class="btn btn-ghost reader-index-toggle" id="btn-reader-index">${t('reader.btn.index')}</button>
     </div>
 
@@ -83,6 +88,13 @@ function renderReader(options) {
     ${hasUrlSource ? '<button class="reader-normal-toggle" id="btn-open-source-url" title="' + t('reader.btn.url.title') + '">URL</button>' : ''}
     ${hasImgSource ? '<button class="reader-normal-toggle" id="btn-open-img-viewer" title="' + t('reader.btn.img.title') + '">IMG</button>' : ''}
 
+    <!-- Shown only while a highlight is being made. Carries the instruction and
+         the way out; the two taps happen on the text itself (§26.3). -->
+    <div class="reader-hl-bar hidden" id="reader-hl-bar">
+      <span class="reader-hl-bar-text" id="reader-hl-bar-text"></span>
+      <button class="btn btn-ghost reader-hl-bar-cancel" id="btn-reader-hl-cancel">${t('btn.cancel')}</button>
+    </div>
+
     <aside class="reader-index-panel hidden" id="reader-index-panel">
       <div class="reader-index-head">
         <p class="reader-index-title">${t('reader.index.title')}</p>
@@ -97,6 +109,13 @@ function renderReader(options) {
           <button class="btn btn-primary" id="btn-reader-seek-go">${t('reader.index.btn.go')}</button>
         </div>
       </div>
+
+      <!-- Highlights share this panel rather than earning a sixth chrome button:
+           it is the same kind of thing, a list you jump from, and the panel
+           already exists for exactly that (§26.3). Above the chapter search,
+           because a book with 65 chapters would bury it below. Rendered only
+           when the book has any. -->
+      <div class="reader-hl-section hidden" id="reader-hl-section"></div>
 
       <div class="reader-index-search">
         <input type="search" id="reader-index-search" class="reader-index-search-input" placeholder="${t('reader.index.search.placeholder')}" />
@@ -339,6 +358,38 @@ function _bindReaderControls() {
   });
 
   qs('#btn-reader-index').addEventListener('click', _toggleIndexPanel);
+
+  qs('#btn-reader-highlight').addEventListener('click', _onHighlightButton);
+  qs('#btn-reader-hl-cancel').addEventListener('click', function() {
+    if (typeof HighlightsFeature === 'undefined') return;
+    /* Two states, one button: it cancels a highlight being made, and undoes one
+       just made. Never both at once — the mode is over before the Undo appears. */
+    if (this.dataset.mode === 'undo') {
+      if (AppState.currentFile) HighlightsFeature.undoLast(AppState.currentFile.id);
+      _hideHighlightUndo();
+      _refreshHighlightSurfaces();
+      return;
+    }
+    HighlightsFeature.cancel();
+  });
+
+  /* One delegated listener for the engines whose spans carry a word index
+     (Focus Bold, Simple Scroll). Page mode has its own, because its spans are
+     matched by position rather than an attribute, and RSVP and Chunk never need
+     one — they mark a sentence instead (§26.3). Capture phase, so it beats both
+     the word-tap dictionary binding and anything underneath. */
+  qs('#view-reader').addEventListener('click', function(e) {
+    if (typeof HighlightsFeature === 'undefined' || !HighlightsFeature.active()) return;
+    const span = e.target && e.target.closest
+      ? e.target.closest('.fb-word[data-index], .scroll-word[data-index]')
+      : null;
+    if (!span) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+    const index = parseInt(span.dataset.index, 10);
+    if (!isNaN(index)) HighlightsFeature.tapWord(index);
+  }, true);
   qs('#btn-close-index').addEventListener('click', _toggleIndexPanel);
 
   qs('#btn-play-pause').addEventListener('click', function() {
@@ -484,9 +535,181 @@ function _bindSwipeBackGesture(backHandler) {
   document.addEventListener('touchcancel', clearSwipeState, { passive: true, capture: true });
 }
 
+/* ── Highlighting (Claude.md §26.3) ──────────────────────────────────────
+   The reader owns the chrome and the instruction line; HighlightsFeature owns
+   the store and the mode; the engine owns the tint. */
+
+/* Which engines can take two taps on words, and which have no text to tap. */
+function _engineHasTappableText() {
+  return AppState.currentEngine === 'page'
+    || AppState.currentEngine === 'focus'
+    || AppState.currentEngine === 'scroll';
+}
+
+function _onHighlightButton() {
+  if (typeof HighlightsFeature === 'undefined' || !AppState.currentFile) return;
+
+  if (HighlightsFeature.active()) { HighlightsFeature.cancel(); return; }
+
+  /* RSVP and Chunk show one word or a few, so there is nothing to tap twice.
+     Marking the sentence the reader is on is the honest substitute — offering
+     them nothing would be worse, since RSVP is where a reader moves fastest and
+     is most likely to pass something they wanted. */
+  if (!_engineHasTappableText()) {
+    const made = HighlightsFeature.markSentence(
+      AppState.currentFile.id,
+      AppState.currentFile.words,
+      _activeEngine && typeof _activeEngine.getIndex === 'function' ? _activeEngine.getIndex() : 0
+    );
+    if (!made) { showToast(t('reader.hl.failed')); return; }
+    if (typeof TipsFeature !== 'undefined') TipsFeature.markDone('highlights');
+    _refreshHighlightSurfaces();
+    _showHighlightUndo();
+    return;
+
+  }
+
+  /* onExit fires on a commit and on a cancel alike, so the Undo offer is decided
+     by whether the count actually moved rather than by which path got here. */
+  const before = HighlightsFeature.count(AppState.currentFile.id);
+
+  HighlightsFeature.begin({
+    fileId: AppState.currentFile.id,
+    words: AppState.currentFile.words,
+    onChange: _refreshHighlightSurfaces,
+    onExit: function() {
+      const file = AppState.currentFile;
+      if (file && HighlightsFeature.count(file.id) !== before) {
+        /* §22: the tip's whole job is done the first time a highlight is made,
+           so retire it here rather than counting shows. Called from the feature
+           as dictionary.js and bridge.js do, never from the strip. */
+        if (typeof TipsFeature !== 'undefined') TipsFeature.markDone('highlights');
+        _showHighlightUndo();
+      } else {
+        _hideHighlightUndo();
+      }
+    },
+  });
+  _syncHighlightChrome();
+}
+
+/* Repaint whatever is on screen, plus the chrome and the panel list. Called on
+   every mode change — an anchor is drawn too, so the reader can see which word
+   they picked. */
+function _refreshHighlightSurfaces() {
+  if (_activeEngine && typeof _activeEngine.refreshHighlights === 'function') {
+    try { _activeEngine.refreshHighlights(); } catch (_) {}
+  }
+  _syncHighlightChrome();
+  _renderHighlightList();
+}
+
+function _syncHighlightChrome() {
+  const bar = qs('#reader-hl-bar');
+  const text = qs('#reader-hl-bar-text');
+  const btn = qs('#btn-reader-highlight');
+  if (!bar || !text) return;
+
+  const active = typeof HighlightsFeature !== 'undefined' && HighlightsFeature.active();
+  if (btn) btn.classList.toggle('active', active);
+
+  /* Leave the bar alone while it is showing an Undo: that state is owned by
+     _showHighlightUndo and its timer, and the mode is already over. */
+  if (bar.classList.contains('reader-hl-bar-done') && !active) return;
+
+  bar.classList.toggle('hidden', !active);
+  if (!active) return;
+
+  text.textContent = HighlightsFeature.anchor() < 0
+    ? t('reader.hl.tap_first')
+    : t('reader.hl.tap_last');
+}
+
+/* A committed highlight is offered back for one tap, because the commit *is*
+   the second tap — there is no confirm step, which is what keeps a highlight at
+   two taps instead of four, so a mis-tap must cost one action and not a trip to
+   the list. The bar is reused rather than a toast, because showToast() carries
+   no action and an Undo the user cannot press is not an Undo. */
+let _hlUndoTimer = null;
+
+function _showHighlightUndo() {
+  const bar = qs('#reader-hl-bar');
+  const text = qs('#reader-hl-bar-text');
+  const cancel = qs('#btn-reader-hl-cancel');
+  if (!bar || !text || !cancel) return;
+
+  clearTimeout(_hlUndoTimer);
+  bar.classList.remove('hidden');
+  bar.classList.add('reader-hl-bar-done');
+  text.textContent = t('reader.hl.saved');
+  cancel.textContent = t('reader.hl.undo');
+  cancel.dataset.mode = 'undo';
+
+  _hlUndoTimer = setTimeout(_hideHighlightUndo, 5000);
+}
+
+function _hideHighlightUndo() {
+  clearTimeout(_hlUndoTimer);
+  const bar = qs('#reader-hl-bar');
+  const cancel = qs('#btn-reader-hl-cancel');
+  if (cancel) {
+    cancel.textContent = t('btn.cancel');
+    delete cancel.dataset.mode;
+  }
+  if (bar) {
+    bar.classList.remove('reader-hl-bar-done');
+    /* Only hide if no new mode started in the meantime. */
+    if (typeof HighlightsFeature === 'undefined' || !HighlightsFeature.active()) {
+      bar.classList.add('hidden');
+    }
+  }
+}
+
+function _renderHighlightList() {
+  const section = qs('#reader-hl-section');
+  if (!section || typeof HighlightsFeature === 'undefined') return;
+
+  const file = AppState.currentFile;
+  const list = file ? HighlightsFeature.forFile(file.id) : [];
+  if (!list.length) {
+    section.innerHTML = '';
+    section.classList.add('hidden');
+    return;
+  }
+
+  section.classList.remove('hidden');
+  section.innerHTML =
+    '<p class="reader-hl-section-title">' + tn('reader.hl.count', list.length) + '</p>' +
+    list.map(function(h) {
+      return '<div class="reader-hl-item" data-start="' + h.s + '">' +
+        '<button class="reader-hl-item-go" data-go="' + h.s + '">' +
+          escapeHtml(h.t || t('reader.hl.no_text')) +
+        '</button>' +
+        '<button class="reader-hl-item-del" data-del="' + h.s + '" aria-label="' + t('btn.remove') + '">✕</button>' +
+      '</div>';
+    }).join('');
+
+  qsa('#reader-hl-section .reader-hl-item-go').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      const start = parseInt(btn.dataset.go, 10);
+      if (!isNaN(start)) _seekReaderTo(start);
+    });
+  });
+  qsa('#reader-hl-section .reader-hl-item-del').forEach(function(btn) {
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      const start = parseInt(btn.dataset.del, 10);
+      if (isNaN(start) || !AppState.currentFile) return;
+      HighlightsFeature.remove(AppState.currentFile.id, start);
+      _refreshHighlightSurfaces();
+    });
+  });
+}
+
 function _toggleIndexPanel() {
   AppState.isIndexOpen = !AppState.isIndexOpen;
   qs('#reader-index-panel').classList.toggle('hidden', !AppState.isIndexOpen);
+  if (AppState.isIndexOpen) _renderHighlightList();
 }
 
 function _skip(delta) {

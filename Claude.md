@@ -88,7 +88,7 @@ www/
              nudge.js · nudge-apps.js · book-cover.js · analytics-ping.js
              share-stats.js · leaderboard.js · widget-bridge.js · tips.js
              celebration.js · dictionary.js · morphology.js · saved-words.js
-             share-handler.js
+             highlights.js · share-handler.js
 worker/            — §8.6's receiver (Worker + D1 + wrangler.toml). Not in the app bundle.
 android/app/src/main/java/com/flowread/app/
   FlowReadIapPlugin.java · FlowReadOcrPlugin.java · FlowReadDeviceSyncPlugin.java
@@ -1088,9 +1088,11 @@ produced an empty string and `showDictionaryModal()` returned *before showing an
 no message, no response to the long-press, while §22's tip told Hindi readers the feature existed.
 It now names the limitation and still offers Google, which handles Devanagari fine.
 
-### 26.3 Highlights — not built
+### 26.3 Highlights — built 2026-11-20
 
-**Nothing here is scoped or signed off beyond the decisions below** (owner, 2026-11-20).
+`features/highlights.js` owns the store, the mode and the range lookup. The engines own the tint,
+the reader owns the chrome and the list — those surfaces have nothing in common beyond asking this
+module a question.
 
 **No notes, highlights only** (owner, 2026-11-20) — which removes the text input and the keyboard in
 the reader. The data model keeps room for a note field without showing one.
@@ -1102,12 +1104,31 @@ page turn — drag-to-select and swipe-to-turn are the same gesture**, in the de
 every nudged read lands (§8.5). Also, the §6 Normal view renders PDF pages to `<canvas>` with no
 text layer, so there is no text there to select at all.
 
-**So: tap the first word, tap the last word.** Entered from the reader chrome, the bar carries the
-instruction, the second tap commits with an Undo, and the mode exits itself. Same word twice is a
-one-word highlight. It behaves identically in Page, Focus Bold and Scroll rather than degrading per
-engine, and **in RSVP and Chunk the same button highlights the sentence the reader is on** — one tap,
-no selection, the same word-range model, so there is one feature to explain rather than two and §1.5
-is satisfied without introducing notes.
+**So: tap the first word, tap the last word.** Entered from a glyph button in the reader header —
+that row does not wrap and its filename truncates, so one compact button costs filename width rather
+than breaking the layout the way a fourth home-header button did (§26.1). The bar under the header
+carries the instruction, the second tap commits, and the mode exits itself, so there is never a mode
+left on and never a mode plus a modal (§20). Same word twice is a one-word highlight; a backwards
+second tap normalises, because catching the start of a sentence often means swiping back first.
+
+**The commit is the second tap, so Undo has to be real.** There is no confirm step — that is what
+keeps a highlight at two taps instead of four — so a mis-tap must cost one action. The bar stays for
+five seconds as "Highlighted · Undo" rather than firing a toast, because `showToast()` carries no
+action and an Undo nobody can press is not one.
+
+**In RSVP and Chunk the same button marks the sentence the reader is on** — one tap, no selection,
+the same word-range model, bounded by the punctuation those engines already pause on (§4). One
+feature to explain rather than two, and §1.5 is satisfied without introducing notes. Neither engine
+tints, since neither shows the surrounding text; the mark appears in the panel list and on the
+library row.
+
+**Tap handling is one capture listener per surface, never per word.** It has to beat both the
+word-tap dictionary binding and the chrome toggle underneath, and a leaf released by Page mode's LRU
+must not take the handler with it. Page matches a span to a word by position (the one-span-per-word
+correspondence `_bindLeaf` already relies on); Focus Bold and Scroll carry `data-index` already, so
+one delegated listener on the reader serves both. **Page's handler is cleared in `_createShell`** —
+the listener dies with its shell, and the attach guard would otherwise keep the next shell from ever
+getting one.
 
 **A highlight is two word indices**, which is what makes it survive a page turn mid-highlight (a
 quote routinely straddles a break, so swipe stays live during the mode), the §4.1 rule 3 renumber, a
@@ -1121,8 +1142,10 @@ book on upgrade (§4.1 rule 4).
 **Highlights survive a delete and re-import of the same book** (owner, 2026-11-20). `generateFileId()`
 is content-derived, so they return by themselves — intended, not incidental.
 
-**Three places, three reasons:** in the reader as a list reachable from the chrome, which jumps to
-the word index (the seam the §6 bridge and chapter nav already use) · **on the home library row as a
+**Three places, three reasons:** in the reader as a list **inside the index panel**, which jumps to
+the word index (the seam the §6 bridge and chapter nav already use) — it shares that panel rather
+than earning a sixth chrome button, because it is the same kind of thing and the panel exists for
+exactly that; above the chapter search, or a book with 65 chapters buries it · **on the home library row as a
 count**, which cannot be skipped, because an investment that is not *visible* is not felt · **on the
 share card**, second in hero priority under a named finished book — a quoted line is the strongest
 share material this app could have, and §21 puts it in a distribution bottleneck. Two rules on the
@@ -1130,6 +1153,15 @@ quote: **length is capped at share time, not at highlight time** (people highlig
 §14 forbids truncating the thing a slot exists to show, so long highlights are left out of the picker
 rather than ellipsised), and **the card must name the book**, which doubles as attribution for
 quoting copyrighted text.
+
+**The quote's budget covers the attribution, not just the quote** (`QUOTE_BUDGET_CHARS`, 150). A
+quote hero always carries its book's cover, so it wraps into a 496px column at six lines, and
+`_fitHero` ellipsises the **last** line when even 30px overflows — which in this hero is the
+attribution. Testing caught it: 140 characters plus "Hind Swaraj" fits, the same quote plus "The
+Wealth of Nations, Volume One" runs to seven lines and loses the credit. So a long title means a
+shorter quote qualifies, and an unattributed quotation is unreachable rather than unlikely.
+`_wrap()` also learned to honour `\n`, because canvas `fillText` does not and the attribution would
+otherwise have drawn as a stray glyph mid-sentence.
 
 **No global all-books highlights screen** — highlights are per book, and a stream of quotes from six
 books is a feed, not a collection. Saved words get the single growing list (§26.1) because a

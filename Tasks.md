@@ -8,7 +8,21 @@ decision taken. Completed work and resolved device findings live in
 **[Tasks-archive.md](Tasks-archive.md)**. The split rule: anything that would change a future
 decision stays here or in `Claude.md`; a record of an action already taken goes to the archive.
 
-**Last updated:** 2026-11-20 — **16.31: saved words, and the dictionary's real defect**
+**Last updated:** 2026-11-20 — **16.29: highlights** (branch `investment-highlights`,
+pushed). `features/highlights.js` holds the store, the mode and the range lookup; the engines tint,
+the reader owns the chrome and the list. Tap the first word, tap the last — no native selection,
+because the gesture conflict is three-way (global `user-select: none`, `word-tap.js` owns
+long-press, and in Page mode the horizontal drag *is* the page turn), and the §6 Normal view is
+canvas with no text layer at all. Swipe stays live during the mode, so a quote can straddle a page
+break. RSVP and Chunk mark the sentence instead. The list shares the index panel rather than taking
+a sixth chrome button; the count is on the library row; the share card gains a quote hero ranked
+under a named finished book. Three things testing caught: Page's capture listener died with its
+shell and had to be cleared in `_createShell`, the promised Undo was only a toast until the bar grew
+a second state, and the quote budget had to charge for the book title or a long one pushed the
+attribution off the card. **Nothing is browser-verified — device pass owed, plus Hindi sign-off on
+14 new keys.**
+
+Also 2026-11-20 — **16.31: saved words, and the dictionary's real defect**
 (branch `investment-highlights`). The Hooked *investment* phase, taken at its cheapest point first:
 every word looked up is now kept, grouped by book, on a Words screen reached from the home header
 with its count on the button. Chosen over highlights for the first pass because it needs no gesture

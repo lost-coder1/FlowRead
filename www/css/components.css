@@ -3179,6 +3179,121 @@
    to-do. --surface-2 rather than --surface so it sits *under* that prompt in
    the visual hierarchy instead of beside it. No new palette entries, radius
    within §16's 2–4px. */
+/* ── Highlights (Claude.md §26.3) ───────────────────────────
+   Background only, on spans every engine already builds. Nothing here may add
+   height, padding or a border that occupies space: the tint is applied inside
+   Page mode's shared markup builder, so anything with geometry would change
+   what fits on a page and reflow the book (§4.1 rule 4). */
+.fr-hl {
+  background: rgba(232, 197, 71, 0.16);
+  border-radius: 2px;
+}
+
+/* The first of the two taps, so the reader can see which word they picked.
+   Stronger than the tint it is about to become. */
+.fr-hl-anchor {
+  background: rgba(232, 197, 71, 0.4);
+  border-radius: 2px;
+  color: var(--text);
+}
+
+.reader-hl-toggle {
+  min-width: 40px;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.reader-hl-toggle.active {
+  color: var(--accent);
+}
+
+/* The instruction line while a highlight is being made. Sits under the header
+   rather than over the text: covering the words is the one thing a surface for
+   choosing words must not do. */
+.reader-hl-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 8px var(--space-md);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  z-index: 11;
+}
+
+.reader-hl-bar-text {
+  flex: 1;
+  font-family: var(--font-body);
+  font-size: 13px;
+  color: var(--text);
+  min-width: 0;
+}
+
+.reader-hl-bar-done .reader-hl-bar-text {
+  color: var(--success);
+}
+
+.reader-hl-bar-cancel {
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+
+/* The list, inside the index panel it shares with the chapter index. */
+.reader-hl-section {
+  padding: 0 var(--space-md) var(--space-md);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-sm);
+}
+
+.reader-hl-section-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin: 0 0 var(--space-sm);
+}
+
+.reader-hl-item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-xs);
+}
+
+/* Wraps to as many lines as the quote needs — three lines of a kept sentence is
+   the content here, not an overflow. */
+.reader-hl-item-go {
+  flex: 1;
+  background: none;
+  border: 0;
+  border-left: 2px solid var(--accent-2);
+  padding: 2px var(--space-sm);
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  text-align: left;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.reader-hl-item-go:hover,
+.reader-hl-item-go:active {
+  color: var(--text);
+  border-left-color: var(--accent);
+}
+
+.reader-hl-item-del {
+  flex: 0 0 auto;
+  background: none;
+  border: 0;
+  color: var(--text-dim);
+  font-size: 11px;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+
 /* ── Saved-words row on home (Claude.md §26.1) ──────────────
    Deliberately shaped like .home-tip rather than like an import card: both are
    one quiet line that must not read as a pending decision. It was first put in

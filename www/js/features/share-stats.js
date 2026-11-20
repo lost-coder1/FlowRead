@@ -19,6 +19,23 @@ const ShareStats = (function() {
   /* One entry per book/streak we have already offered to celebrate, so a
      milestone prompt appears once and never nags (§9.1's tone applies here
      too — a share is an offer, not a chore). */
+  /* What a quote hero may hold in total — the quote *and* its attribution
+     (§26.3). The number is not taste; it is what keeps the attribution on the
+     card.
+
+     A quote hero always carries its book's cover, so it wraps into the 496px
+     side column with heroMaxLines 6. _fitHero steps the face down to 30px and,
+     if even that overflows, ellipsises the **last** line — which in this hero is
+     "— Book Name". An unattributed quotation of someone else's words is the one
+     outcome this feature may not produce.
+
+     Budgeting the quote alone is not enough, and testing caught it: 140
+     characters plus "Hind Swaraj" fits in six lines at 32px, while the same
+     quote plus "The Wealth of Nations, Volume One" runs to seven and loses the
+     attribution. So the title is charged against the same budget, and a long
+     title simply means a shorter quote qualifies. */
+  const QUOTE_BUDGET_CHARS = 150;
+
   const KEY_CELEBRATED_BOOKS = 'fr_share_celebrated_books';
   const KEY_CELEBRATED_STREAKS = 'fr_share_celebrated_streaks';
   const KEY_SEEDED = 'fr_share_seeded';
@@ -229,6 +246,44 @@ const ShareStats = (function() {
       });
     });
 
+    /* A quote the reader kept (§26.3), ranked directly under a named finished
+       book. A line from a book is the most shareable thing this card can carry
+       and the most on-brand — §21 puts the product in a distribution bottleneck
+       — but a finished book is still the bigger claim, so it does not displace
+       one.
+
+       Capped here rather than when the highlight is made: people highlight
+       whole paragraphs, and §14 forbids truncating the thing a slot exists to
+       show, so a long highlight is simply not offered as a quote instead of
+       being ellipsised onto the card. Two at most, like the books, so the sheet
+       stays an offer rather than a configuration exercise.
+
+       The book name is part of the hero text, not a supporting line: a card
+       carrying someone else's words must say whose they are, and a supporting
+       line can be switched off or dropped by the collage layout. */
+    if (typeof HighlightsFeature !== 'undefined') {
+      const quotes = HighlightsFeature.allWithBooks()
+        .filter(function(q) {
+          if (!q.text) return false;
+          /* The attribution is charged against the same budget — see
+             QUOTE_BUDGET_CHARS. +2 for the "— " that precedes the title. */
+          return q.text.length + displayTitle(q.book).length + 2 <= QUOTE_BUDGET_CHARS;
+        })
+        .slice(0, 2);
+
+      quotes.forEach(function(q) {
+        const title = displayTitle(q.book);
+        out.push({
+          id: 'quote:' + q.fileId + ':' + q.start,
+          /* Gives the quote its book's cover through the existing panel — the
+             shape _coverOf and _drawCover already expect. */
+          book: { id: q.fileId, name: q.book, author: q.author, days: 0, lastOpened: 0 },
+          label: t('share.item.quote', { book: title }),
+          text: t('share.hero.quote', { quote: q.text, book: title }),
+        });
+      });
+    }
+
     /* The all-time count, as a hero rather than a footnote. It existed only as
        a supporting line, so a user who had finished four books was told "4 books
        finished" in 34px grey and given no way to make the card about it — and
@@ -434,7 +489,24 @@ const ShareStats = (function() {
   }
 
   function _wrap(ctx, text, maxWidth) {
-    const words = String(text).split(' ');
+    /* An explicit newline is a line break the caller meant. Canvas fillText
+       does not interpret one — it would measure as part of a word and draw as a
+       stray glyph — so a multi-line hero has to be wrapped segment by segment.
+       Added for §26.3's quote hero, whose attribution belongs on its own line;
+       a string with no newline behaves exactly as before. */
+    const text_ = String(text);
+    if (text_.indexOf('\n') !== -1) {
+      const out = [];
+      const segments = text_.split('\n');
+      for (var seg = 0; seg < segments.length; seg++) {
+        if (!segments[seg]) { out.push(''); continue; }
+        const wrapped = _wrap(ctx, segments[seg], maxWidth);
+        for (var k = 0; k < wrapped.length; k++) out.push(wrapped[k]);
+      }
+      return out;
+    }
+
+    const words = text_.split(' ');
     const lines = [];
     let line = '';
 
