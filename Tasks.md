@@ -8,7 +8,22 @@ decision taken. Completed work and resolved device findings live in
 **[Tasks-archive.md](Tasks-archive.md)**. The split rule: anything that would change a future
 decision stays here or in `Claude.md`; a record of an action already taken goes to the archive.
 
-**Last updated:** 2026-11-20 — **a 13th discovery tip**: that FlowRead is in the browser's share
+**Last updated:** 2026-11-20 — **16.31: saved words, and the dictionary's real defect**
+(branch `investment-highlights`). The Hooked *investment* phase, taken at its cheapest point first:
+every word looked up is now kept, grouped by book, on a Words screen reached from the home header
+with its count on the button. Chosen over highlights for the first pass because it needs no gesture
+decision, no text selection and no new storage model, and it works in RSVP and Chunk where
+highlights never will. **The dictionary was never missing vocabulary** — 82,559 entries, all of
+WordNet's lemma space; `lookupWord()` did an exact key match, so every inflected form missed
+(`books`, `went`, `children`, `cities`, `women`). `features/morphology.js` adds Morphy resolution:
+36 → 43 hits on a 46-word sample, the remaining three being function words WordNet has no entry
+for. Also fixed: a Devanagari word produced **no response at all** from the long-press (silent
+return, §1.5), two dead i18n keys from the removed Pro gate, two hardcoded English strings, and the
+orphan `engines/highlight.js` + its `.gh-*` CSS is deleted. `Claude.md` §26 rewritten — §26.1
+saved words, §26.2 morphology, §26.3 the highlights decisions. **Device pass owed, and Hindi
+sign-off on 15 new keys.**
+
+Also 2026-11-20 — **a 13th discovery tip**: that FlowRead is in the browser's share
 sheet (§23). It was the one capability with no surface teaching it at all — the URL card on home
 is stumble-on-able, the share-intent route is not. Pro-gated like `scan`, and retired by
 `share-handler.js` on a real shared link. Also **16.30 done**: Page leads the engine row, and the seven stale
