@@ -760,5 +760,11 @@
   "tip.words": "Every word you look up is kept. Tap to see your collection.",
   "library.item.highlights.one": "1 highlight",
   "library.item.highlights.other": "{n} highlights",
-  "tip.highlights": "Tap the highlighter, then tap the first and last word to keep a line."
+  "tip.highlights": "Tap the highlighter, then tap the first and last word to keep a line.",
+  "highlights.title": "Highlights",
+  "highlights.count.one": "1 highlight kept",
+  "highlights.count.other": "{n} highlights kept",
+  "highlights.empty.title": "No highlights yet",
+  "highlights.empty.body": "While reading, tap the ▮ button in the header, then tap the first and last word of the line you want to keep.",
+  "highlights.no_text": "(marked passage)"
 }

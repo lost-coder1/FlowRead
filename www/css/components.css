@@ -3307,7 +3307,7 @@
    one quiet line that must not read as a pending decision. It was first put in
    the header, which is built for three buttons — a fourth wrapped and broke its
    own label mid-text. */
-.home-words-row {
+.home-collection-row {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
@@ -3323,13 +3323,13 @@
   transition: background 0.14s, border-color 0.14s;
 }
 
-.home-words-row:hover,
-.home-words-row:active {
+.home-collection-row:hover,
+.home-collection-row:active {
   background: var(--surface);
   border-color: var(--accent-2);
 }
 
-.home-words-label {
+.home-collection-label {
   font-family: var(--font-body);
   font-size: 14px;
   color: var(--text);
@@ -3338,7 +3338,7 @@
 
 /* The count is the mechanic, not a detail — it is why this row exists (§26.1).
    Pushed to the right by the label, kept on one line. */
-.home-words-count {
+.home-collection-count {
   flex: 1 1 auto;
   font-family: var(--font-mono);
   font-size: 11px;
@@ -3349,7 +3349,7 @@
   text-overflow: ellipsis;
 }
 
-.home-words-chevron {
+.home-collection-chevron {
   flex: 0 0 auto;
   font-size: 16px;
   line-height: 1;
@@ -3621,4 +3621,45 @@
    palette — §16's --error at low emphasis on the heading only. */
 .settings-debug > h2 {
   color: var(--error);
+}
+
+/* ── Highlights screen (Claude.md §26.3) ────────────────────────────────
+   Reuses the saved-words screen's shell wholesale: the two are the same kind
+   of thing — a collection grouped by the book it came from — and a second
+   typography scale for the second one would be §15's "no new scale" broken
+   for no reason. Only the quote itself differs, because it is a sentence and
+   not a term. */
+
+.words-group-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.hl-group-count {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--text-dim);
+}
+
+/* Wraps to as many lines as the quote needs, like the reader's panel list and
+   for the same reason (§22.4): a slot whose whole job is to show the kept line
+   cannot clip it. The rule on the left is what makes it read as a quotation. */
+.hl-quote {
+  border-left: 2px solid var(--accent-2);
+  padding-left: var(--space-sm);
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+.hl-quote:hover,
+.hl-quote:active {
+  border-left-color: var(--accent);
 }

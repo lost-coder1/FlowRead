@@ -20,7 +20,20 @@ under a named finished book. Three things testing caught: Page's capture listene
 shell and had to be cleared in `_createShell`, the promised Undo was only a toast until the bar grew
 a second state, and the quote budget had to charge for the book title or a long one pushed the
 attribution off the card. **Nothing is browser-verified — device pass owed, plus Hindi sign-off on
-14 new keys.**
+20 new keys.**
+
+**Device pass 1, 2026-11-20 — three findings, all fixed.** (1) The highlights section in the index
+panel was an uncapped flex item, and a flex item will not shrink below its content, so the search
+field and the entire chapter index were pushed past the panel's bottom edge with nothing able to
+reach them; it is now capped at a third of the panel and scrolls itself, and `.reader-index-list`
+gained the `min-height: 0` its own `overflow-y` needed. (2) The library count was added to the two
+*row* render paths and neither *card* path — Pro renders the library as a grid of cards, so the
+count was invisible to exactly the users who have Pro; all four paths carry it now. (3) **Owner
+reversed "no global highlights screen"**: there is one, grouped by book, reached from its own home
+row beside saved words, and tapping a quote opens that book at that word through a new
+`startIndex` option on `resumeFromLibrary` which beats the completed-book reset to word zero.
+Confirmed working by the owner: the tint in Page/Scroll/Focus Bold, the share card's quote hero,
+and (after the fix) the scrollable index panel.
 
 Also 2026-11-20 — **16.31: saved words, and the dictionary's real defect**
 (branch `investment-highlights`). The Hooked *investment* phase, taken at its cheapest point first:

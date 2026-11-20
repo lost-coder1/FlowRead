@@ -1014,7 +1014,7 @@ reclaimed" line, which these are the only honest figures for.
 
 ---
 
-## 26. Investment — saved words (built), highlights (next)
+## 26. Investment — saved words and highlights (both built)
 
 §25 gave the loop its variable reward; this is the fourth phase of the same model — the user puts
 something *in*, which makes the app better for them than it was yesterday and loads the next trigger
@@ -1142,11 +1142,18 @@ book on upgrade (§4.1 rule 4).
 **Highlights survive a delete and re-import of the same book** (owner, 2026-11-20). `generateFileId()`
 is content-derived, so they return by themselves — intended, not incidental.
 
-**Three places, three reasons:** in the reader as a list **inside the index panel**, which jumps to
+**Four places, four reasons:** in the reader as a list **inside the index panel**, which jumps to
 the word index (the seam the §6 bridge and chapter nav already use) — it shares that panel rather
 than earning a sixth chrome button, because it is the same kind of thing and the panel exists for
-exactly that; above the chapter search, or a book with 65 chapters buries it · **on the home library row as a
-count**, which cannot be skipped, because an investment that is not *visible* is not felt · **on the
+exactly that; above the chapter search, or a book with 65 chapters buries it — and **capped and
+scrolled on its own**, because the panel is a column flex box whose only scroller is the chapter
+list, so an uncapped section there cannot shrink below its content and pushed the search field and
+the whole index past the bottom edge where nothing could reach them (the list also needs
+`min-height: 0`, without which its own `overflow-y` cannot take effect) · **the global screen above**
+· **on the home library row as a
+count** — on **all four** render paths, because Pro renders the library as a grid of cards and the
+count first went onto the two row paths only, making it invisible to exactly the users who have Pro
+· **on the
 share card**, second in hero priority under a named finished book — a quoted line is the strongest
 share material this app could have, and §21 puts it in a distribution bottleneck. Two rules on the
 quote: **length is capped at share time, not at highlight time** (people highlight paragraphs, and
@@ -1163,9 +1170,21 @@ shorter quote qualifies, and an unattributed quotation is unreachable rather tha
 `_wrap()` also learned to honour `\n`, because canvas `fillText` does not and the attribution would
 otherwise have drawn as a stray glyph mid-sentence.
 
-**No global all-books highlights screen** — highlights are per book, and a stream of quotes from six
-books is a feed, not a collection. Saved words get the single growing list (§26.1) because a
-vocabulary genuinely is one. **Free, never Pro** — §23 puts reading itself on the never-gate list and
+**There is a global highlights screen, and it is grouped by book** (owner, 2026-11-20, reversing
+the original "no global screen"). The concern that produced that rule stands and is now a
+*condition*: an **ungrouped** stream of quotes from six books is a feed, not a collection. Under a
+book title, with its own count, it is what the reader kept from that read — and one entry point
+instead of six, which is what was actually asked for. Two consequences that are load-bearing:
+**tapping a quote opens its book at that word**, through `resumeFromLibrary`'s `startIndex`, which
+must beat the completed-book reset to word zero — a finished book is exactly the one a highlight
+sends you back into (§4.2), and landing on page one instead of the quote is the silent failure §1.5
+forbids. And **book order is recency while order inside a book is reading order**, the store's own,
+which is also what the reader's panel list shows. Saved words keep the single ungrouped list
+(§26.1) because a vocabulary genuinely is one list; a book's marks are not.
+
+**The home row is the same control as §26.1's, and the class is shared** (`.home-collection-row`) —
+two investments of the same kind, so a second typography scale for the second one would break §15
+for nothing. Each row hides itself at zero. **Free, never Pro** — §23 puts reading itself on the never-gate list and
 a highlight is reading; gating it later would be the dictionary mistake again.
 
 **Discoverability is §22's job, not a help screen.** And a highlight is the one thing here that gives a

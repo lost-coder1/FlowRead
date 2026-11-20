@@ -760,5 +760,11 @@
   "tip.words": "आप जो भी शब्द देखते हैं, वह सेव हो जाता है। अपना संग्रह देखने के लिए टैप करें।",
   "library.item.highlights.one": "1 हाइलाइट",
   "library.item.highlights.other": "{n} हाइलाइट",
-  "tip.highlights": "हाइलाइटर टैप करें, फिर पहला और आख़िरी शब्द टैप करके कोई पंक्ति सहेज लें।"
+  "tip.highlights": "हाइलाइटर टैप करें, फिर पहला और आख़िरी शब्द टैप करके कोई पंक्ति सहेज लें।",
+  "highlights.title": "हाइलाइट",
+  "highlights.count.one": "1 हाइलाइट सहेजी गई",
+  "highlights.count.other": "{n} हाइलाइट सहेजी गईं",
+  "highlights.empty.title": "अभी कोई हाइलाइट नहीं",
+  "highlights.empty.body": "पढ़ते समय हेडर में ▮ बटन दबाएँ, फिर जिस पंक्ति को सहेजना है उसके पहले और आखिरी शब्द पर टैप करें।",
+  "highlights.no_text": "(चिह्नित अंश)"
 }

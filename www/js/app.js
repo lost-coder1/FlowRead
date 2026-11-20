@@ -122,7 +122,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     /* Utility views the user did not come back for. The reader and the normal
        viewer are never touched — someone returning to a book is exactly who
        must not be interrupted, and position is sacred (Claude.md §21). */
-    const STALE_VIEWS = ['view-settings', 'view-dashboard', 'view-free-books', 'view-nudge', 'view-words'];
+    const STALE_VIEWS = ['view-settings', 'view-dashboard', 'view-free-books', 'view-nudge', 'view-words', 'view-highlights'];
     const STALE_AFTER_MS = 30 * 60 * 1000;
     let backgroundedAt = 0;
 
@@ -198,7 +198,8 @@ document.addEventListener('DOMContentLoaded', async function() {
 
       /* 5. Settings, Dashboard, or Free Books — return to home */
       if (view === 'view-settings' || view === 'view-dashboard' ||
-          view === 'view-free-books' || view === 'view-words') {
+          view === 'view-free-books' || view === 'view-words' ||
+          view === 'view-highlights') {
         renderUpload();
         switchView('view-upload');
         return;

@@ -36,10 +36,19 @@ function renderUpload() {
            library being non-empty, which a chip inside that section would.
            A row, never a card: a card here would read as an unanswered to-do,
            the same reason §23's tip is one line. -->
-      <button id="home-words-row" class="home-words-row" type="button" hidden>
-        <span class="home-words-label">${t('words.title')}</span>
-        <span class="home-words-count" id="home-words-count"></span>
-        <span class="home-words-chevron" aria-hidden="true">›</span>
+      <button id="home-words-row" class="home-collection-row" type="button" hidden>
+        <span class="home-collection-label">${t('words.title')}</span>
+        <span class="home-collection-count" id="home-words-count"></span>
+        <span class="home-collection-chevron" aria-hidden="true">›</span>
+      </button>
+
+      <!-- Highlights, the same shape and there for the same reason (§26.3). A
+           global screen was rejected at first as a feed; grouped by book it is
+           a collection, and the reader asked for one way in rather than six. -->
+      <button id="home-highlights-row" class="home-collection-row" type="button" hidden>
+        <span class="home-collection-label">${t('highlights.title')}</span>
+        <span class="home-collection-count" id="home-highlights-count"></span>
+        <span class="home-collection-chevron" aria-hidden="true">›</span>
       </button>
 
       <!-- One-time nudge setup offer, and since Task 16.3 (2026-11-01) it is the
@@ -226,6 +235,15 @@ function renderUpload() {
     const countEl = qs('#home-words-count');
     if (countEl) countEl.textContent = tn('words.count', savedCount);
     wordsRow.addEventListener('click', function() { SavedWordsFeature.open(); });
+  }
+
+  const hlRow = qs('#home-highlights-row');
+  if (hlRow && typeof HighlightsFeature !== 'undefined') {
+    const hlTotal = HighlightsFeature.totalCount();
+    hlRow.hidden = hlTotal === 0;
+    const hlCountEl = qs('#home-highlights-count');
+    if (hlCountEl) hlCountEl.textContent = tn('highlights.count', hlTotal);
+    hlRow.addEventListener('click', function() { HighlightsFeature.open(); });
   }
 
   const shareBtn = qs('#btn-share-stats');
@@ -2042,6 +2060,15 @@ async function resumeFromLibrary(entry, source, options) {
     const savedPos = loadPosition(entry.id);
     /* If the file was completed, start from the beginning on re-open */
     AppState.currentIndex = savedPos >= data.words.length ? 0 : savedPos;
+
+    /* options.startIndex opens at a specific word — the highlights screen jumps
+       to a kept line (§26.3). It must beat the completed-book rule above: a
+       finished book is exactly the one a highlight sends you back into, and
+       landing on word zero instead of the quote is the silent failure §1.5
+       forbids. Clamped, because a stored index outlives a re-parse. */
+    if (options && typeof options.startIndex === 'number' && options.startIndex >= 0) {
+      AppState.currentIndex = Math.min(options.startIndex, Math.max(0, data.words.length - 1));
+    }
 
     hideLoading();
     /* options.forceEngine lets a caller open in a specific engine for this read

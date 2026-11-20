@@ -286,6 +286,170 @@ const HighlightsFeature = (function() {
     return out.sort(function(a, b) { return b.ts - a.ts; });
   }
 
+  /* Every highlight the reader has, grouped by the book it was made in and
+     carrying its library entry, so the screen can open the book without
+     looking it up again. Newest book first, newest mark first inside it.
+
+     Grouped, and that is the whole condition on this screen existing (§26.3):
+     an ungrouped stream of quotes from six books is a feed, and a feed is the
+     thing that was rejected. Under a book title it is a collection of what the
+     reader kept from *that* read, with one way in instead of six. */
+  function allGrouped() {
+    let lib = [];
+    try {
+      lib = loadLibrary() || [];
+    } catch (_) {
+      return [];
+    }
+
+    const groups = [];
+    for (let i = 0; i < lib.length; i++) {
+      const item = lib[i];
+      const list = _read(item.id);
+      if (!list.length) continue;
+
+      /* Which book first is recency — the read you were just in is the one you
+         are looking for. Inside a book it is *reading* order, the store's own
+         order, which is also what the reader's panel list shows: marks from one
+         book are read the way the book is, and two made in the same
+         millisecond would otherwise order themselves arbitrarily. */
+      let newest = 0;
+      for (let j = 0; j < list.length; j++) {
+        if ((list[j].ts || 0) > newest) newest = list[j].ts || 0;
+      }
+
+      groups.push({
+        entry: item,
+        fileId: item.id,
+        book: item.name || '',
+        newest: newest,
+        marks: list,
+      });
+    }
+
+    return groups.sort(function(a, b) { return b.newest - a.newest; });
+  }
+
+  function totalCount() {
+    const groups = allGrouped();
+    let n = 0;
+    for (let i = 0; i < groups.length; i++) n += groups[i].marks.length;
+    return n;
+  }
+
+  /* ── The screen ────────────────────────────────────────────────────────
+     Reached from its own row on home, like saved words (§26.1), and for the
+     same reason: an investment nobody can watch accumulating is not felt. */
+
+  function render() {
+    const view = qs('#view-highlights');
+    if (!view) return;
+
+    const groups = allGrouped();
+    const out = [
+      '<div class="words-screen">',
+      '<header class="words-header">',
+      '<button class="btn btn-ghost words-back-btn" id="btn-highlights-back" type="button">\u2190</button>',
+      '<h1 class="words-heading">' + t('highlights.title') + '</h1>',
+      '</header>',
+    ];
+
+    if (!groups.length) {
+      /* The empty state names the gesture, because nothing else in the app
+         does and a reader who has never found the button is exactly who
+         arrives here (§1.5). */
+      out.push(
+        '<div class="words-empty">',
+        '<p class="words-empty-title">' + t('highlights.empty.title') + '</p>',
+        '<p class="words-empty-body">' + t('highlights.empty.body') + '</p>',
+        '</div>',
+        '</div>'
+      );
+      view.innerHTML = out.join('');
+      _bindScreen();
+      return;
+    }
+
+    out.push('<p class="words-count">' + tn('highlights.count', totalCount()) + '</p>');
+
+    for (let g = 0; g < groups.length; g++) {
+      const group = groups[g];
+      out.push('<section class="words-group">');
+      out.push(
+        '<h2 class="words-group-title">' + escapeHtml(displayTitle(group.book)) +
+        '<span class="hl-group-count">' + tn('library.item.highlights', group.marks.length) + '</span>' +
+        '</h2>'
+      );
+      out.push('<ul class="words-list">');
+
+      for (let i = 0; i < group.marks.length; i++) {
+        const mark = group.marks[i];
+        const text = mark.t
+          ? escapeHtml(mark.t)
+          : t('highlights.no_text');
+        out.push(
+          '<li class="words-item hl-item" data-file="' + escapeHtml(group.fileId) + '" data-start="' + mark.s + '">',
+          '<div class="words-item-main hl-quote">' + text + '</div>',
+          '<button class="btn-icon words-remove hl-remove" data-file="' + escapeHtml(group.fileId) + '" data-start="' + mark.s + '" type="button" aria-label="' + t('btn.remove') + '">\u2715</button>',
+          '</li>'
+        );
+      }
+
+      out.push('</ul>');
+      out.push('</section>');
+    }
+
+    out.push('</div>');
+    view.innerHTML = out.join('');
+    _bindScreen();
+  }
+
+  function _bindScreen() {
+    const back = qs('#btn-highlights-back');
+    if (back) {
+      back.addEventListener('click', function() {
+        renderUpload();
+        switchView('view-upload');
+      });
+    }
+
+    qsa('#view-highlights .hl-remove').forEach(function(btn) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        remove(btn.getAttribute('data-file'), parseInt(btn.getAttribute('data-start'), 10));
+        render();
+      });
+    });
+
+    /* Tapping a quote opens its book *at that word*. This is the payoff the
+       whole phase is for — §4.2 otherwise treats a finished book as done, and
+       a highlight is the one thing that gives it a reason to be reopened. The
+       word index is the same seam the §6 bridge and chapter nav jump through. */
+    qsa('#view-highlights .hl-quote').forEach(function(el) {
+      el.addEventListener('click', function() {
+        const li = el.closest('.hl-item');
+        if (!li) return;
+        const fileId = li.getAttribute('data-file');
+        const start = parseInt(li.getAttribute('data-start'), 10);
+        let entry = null;
+        try {
+          entry = (loadLibrary() || []).filter(function(it) { return it.id === fileId; })[0] || null;
+        } catch (_) {}
+        if (!entry) {
+          showToast(t('toast.file_not_cached'));
+          return;
+        }
+        resumeFromLibrary(entry, 'highlights', { startIndex: isNaN(start) ? 0 : start });
+      });
+    });
+  }
+
+  function open() {
+    if (typeof TipsFeature !== 'undefined') TipsFeature.markDone('highlights');
+    render();
+    switchView('view-highlights');
+  }
+
   function removeAllFor(fileId) {
     try { localStorage.removeItem(_key(fileId)); } catch (_) {}
   }
@@ -294,5 +458,6 @@ const HighlightsFeature = (function() {
     forFile, count, add, remove, at, textOf,
     begin, cancel, active, anchor, tapWord, undoLast,
     markSentence, allWithBooks, removeAllFor,
+    allGrouped, totalCount, render, open,
   };
 })();
