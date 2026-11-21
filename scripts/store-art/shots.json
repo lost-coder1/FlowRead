@@ -1,0 +1,42 @@
+[
+  {
+    "slug": "nudge",
+    "file": "FlowReadSS1.jpeg",
+    "caption": "A gentle nudge. Never a wall."
+  },
+  {
+    "slug": "reward",
+    "file": "FlowReadClosedNudge.jpeg",
+    "caption": "Read a little. Your clock resets."
+  },
+  {
+    "slug": "reading",
+    "file": "FlowreadHighlight.jpeg",
+    "caption": "Calm reading. Keep the lines that matter."
+  },
+  {
+    "slug": "home",
+    "file": "FlowReadHome2.jpeg",
+    "caption": "Watch the days add up."
+  },
+  {
+    "slug": "freebooks",
+    "file": "FlowReadFreeBook.jpeg",
+    "caption": "Free books, one tap away."
+  },
+  {
+    "slug": "control",
+    "file": "FlowReadSettingsNudge.jpeg",
+    "caption": "You pick the apps. You stop any time."
+  },
+  {
+    "slug": "share",
+    "file": "FlowReadShareCardEdit.jpeg",
+    "caption": "Share what you finished."
+  },
+  {
+    "slug": "ownbooks",
+    "file": "FlowReadOwnbookNewSS.jpeg",
+    "caption": "Bring your own books."
+  }
+]
