@@ -136,10 +136,10 @@ checklist passed on one device rather than a fleet.
 1. ~~The **16.2 device checklist**~~ — ✅ **run and passed 2026-11-02** against 1.5.3 / 41, with
    R8 active. All sixteen items, battery included. No longer a gate.
 2. **Store listing** must describe the subscription and the habit framing (Task 16.10). Hard gate
-   on selling `flowread_plus`. The **privacy policy is done** — rewritten 2026-11-02 and now
-   version-controlled as `privacy_policy.html` — but it still has to be **published to the hosted
-   URL**, and **Play Console Data safety must be re-filed** (a separate form; editing the policy
-   does not touch it).
+   on selling `flowread_plus`. The **privacy policy is done** — rewritten 2026-11-02, version-
+   controlled as `privacy_policy.html`, and **re-published to the hosted URL 2026-11-21**.
+   **Play Console Data safety re-filed as *Optional* 2026-11-21** (a separate form; editing the
+   policy does not touch it).
 3. **Production promotion.** Production is still on **1.4.5 / 32** — builds 33, 34, 36, 37, 38,
    39 and 40 have never left Internal testing, which includes the entire pivot.
 
@@ -507,12 +507,12 @@ Q2/Q8 resolved · **Ref:** §9, §9.3a, §9.4a, §1.6 · **Size:** XL — larges
       **The policy now lives in the repo** so an amendment is a diff rather than archaeology, and
       so the text that shipped with a given build is recoverable. **Published to the hosted URL
       2026-11-16** — that is a manual step and is not done by committing the file, so any future
-      amendment needs it done again.
-- [~] **Play Console Data safety — filed 2026-11-02, and must be re-filed once more.** The first
-      filing had to answer *collection is required*, because no opt-out existed. An opt-out was
-      then built the same day (below), so the answer becomes **Optional** — **re-file before
-      promoting**, since the form as it stands understates the user's control and reads badly on
-      a privacy-positioned listing.
+      amendment needs it done again. **Re-published 2026-11-21**, carrying the amended §8.6 event
+      list; the live policy and the two allowlist copies now agree.
+- [x] **Play Console Data safety — re-filed as *Optional* 2026-11-21.** The first filing
+      (2026-11-02) had to answer *collection is required*, because no opt-out existed. An opt-out
+      was built the same day (below), which left the filed form understating the user's control
+      and reading badly on a privacy-positioned listing. Now corrected.
 - [x] **Analytics opt-out — built 2026-11-02.** `fr_analytics_opt_out`, a toggle in Settings →
       About, checked inside `logEvent()` on every call so it takes effect immediately rather than
       at the next launch. Three properties worth keeping: the storage key is the opt-**out** while
@@ -526,8 +526,8 @@ Q2/Q8 resolved · **Ref:** §9, §9.3a, §9.4a, §1.6 · **Size:** XL — larges
       Data safety had to say collection was required. For an app positioned on §1.4
       privacy-by-architecture, that line is conspicuous on the listing.
       Hindi is **drafted, not signed off** — same standing as the other 16.1/16.3 strings.
-- [ ] **Data safety, original note — still applies.** Editing the policy does not touch it; it is
-      a separate form. Two triggers now, not one: the subscription, and the pings. Recommended
+- [x] **Data safety, original note — acted on 2026-11-21.** Editing the policy does not touch it;
+      it is a separate form. Two triggers now, not one: the subscription, and the pings. Recommended
       declaration: **App activity → App interactions**, *not* linked to identity, *not* used for
       tracking or advertising — filed **now**, while `ENDPOINT = ''` makes it over-declaration,
       because the alternative is a declaration that silently becomes false on a one-character code
@@ -552,9 +552,9 @@ Q2/Q8 resolved · **Ref:** §9, §9.3a, §9.4a, §1.6 · **Size:** XL — larges
       `preview_urls = false` was set: every deployment otherwise gets a second public URL that
       writes to the same database, and nothing needs it.
       Wrangler is a devDependency of `worker/` alone — the app's `package.json` is untouched (§21).
-      **Still owed:** re-file Data safety as *Optional* (below), re-publish the amended privacy
-      policy, and move to a custom domain when the domain is bought (a route plus one constant;
-      nothing migrates).
+      **Still owed:** move to a custom domain when the domain is bought (a route plus one
+      constant; nothing migrates). Data safety was re-filed as *Optional* and the amended privacy
+      policy re-published, both 2026-11-21.
       **Design notes on the receiver, written 2026-11-16 and still binding.**
       **D1, not KV, and aggregate-only:** a row is a counter for one
       (day, event, dimensions) tuple, so the store physically cannot hold a sequence of one
@@ -2140,7 +2140,8 @@ listing it is a promise made to someone *before* they pay, which is a different 
 back when 16.4 ships, not before.** Full description now 3891/4000.
 
 **Outstanding**
-- [x] Data safety re-filed as **Optional**, 2026-11-02.
+- [x] Data safety re-filed as **Optional**, 2026-11-21. (This line read 2026-11-02 until then,
+      which was the date of the *first* filing — the one that had to say collection was required.)
 - [~] Hindi title / short / full — **"okay for now" (owner, 2026-11-02)**, same standing as Q10:
       the English listing can go live, and owner-written Hindi may replace the drafts later. The
       India CSL leads with the habit framing, **not** a translation of the Phase 15 speed-reading

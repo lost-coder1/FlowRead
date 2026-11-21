@@ -784,10 +784,10 @@ is current.**
   rollout**, clearing builds 33–42. Privacy policy rewritten, version-controlled as
   `privacy_policy.html`, published. **Check whether the rollout has advanced past 20%.**
 - **Latest build: 1.5.6 / 44** (2026-11-17). **The first build in which §8.6's pings actually send**
-  (`ENDPOINT` is filled). **Two compliance items are owed before promotion:** re-file Play Data safety
-  as *Optional* (the standing filing says required, untrue since the opt-out shipped), and re-publish
-  the amended `privacy_policy.html` to its hosted URL — committing the file does not publish it, and
-  the live event list is now incomplete.
+  (`ENDPOINT` is filled). **Both compliance items cleared 2026-11-21:** Play Data safety re-filed as
+  *Optional*, and the amended `privacy_policy.html` re-published to its hosted URL. **Re-publishing is
+  a manual step that committing the file does not perform** — §8.6's two allowlist copies and the
+  published policy must keep changing together, so any future amendment owes it again.
 - **1.5.5 / 43** carried the Page-mode rewrite, paragraph structure with **Page as the default
   engine**, chapter detection, styled headings, catalogue covers, last-page completion, and the
   catalogue's growth to 150 books. **This is the build to watch, because Page mode stopped being
