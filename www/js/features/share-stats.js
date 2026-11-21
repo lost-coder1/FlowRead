@@ -1187,7 +1187,16 @@ const ShareStats = (function() {
     const box = qs('#share-extras');
     if (!box || !_model) return;
 
-    if (_coverState.mode === 'collage' && _coverState.pool.length > 1) {
+    /* Gated on the pool — what this hero *could* draw — and never on the mode
+       the current pick happens to produce. _coverMode reads the covers actually
+       drawn, so unticking a fourth book turned the card into a fan and took the
+       picker away with it, leaving no control able to tick anything back: the
+       section removed itself in response to being used, which is the silent
+       failure §1.5 forbids (the only way out was switching hero and back, which
+       silently reset the pick). The pool does not move when a box is ticked, so
+       the section stays put while the selection changes underneath it. Below
+       four there is still nothing to pick, since every cover is already drawn. */
+    if (_coverState.pool.length >= COLLAGE_MAX) {
       _renderCoverPicker(box);
       return;
     }

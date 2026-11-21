@@ -24,3 +24,7 @@ scripts/
 # Cloudflare Worker local cache
 worker/.wrangler/
 worker/node_modules/
+
+# Generated Play Store art -- rebuild with scripts/store-art/build.py.
+# The source captures beside it are versioned; these outputs are not.
+Playstore Assets/final/
