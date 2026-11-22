@@ -22,18 +22,26 @@ export const V_HEIGHT = 1920;
 /* The caption goes above the phone instead of beside it, so the device gets
    the full width and the screen comes out 30% larger than in landscape --
    which is the whole reason this cut exists. */
-const K = 1.3;
+/* Sized against the platform, not the frame. Instagram Reels and YouTube
+   Shorts cover the bottom fifth with captions, the handle and the audio bar,
+   and at 1.30/490 every call to action landed inside it -- "Start reading" at
+   1553, the escape hatch at 1632, "Open Instagram" at 1667, against a safe
+   line of 1536. Smaller and higher puts the worst of them at 1489. */
+const K = 1.22;
 const G = geom(K);
 const PHONE_LEFT = (V_WIDTH - G.w) / 2;
-const PHONE_TOP = 490;
+const PHONE_TOP = 410;
 
-const CAP_TOP = 150;
+/* The frame has generous dark margin up top and the headline was not using
+   it, which left the subline flush against the bezel. */
+const CAP_TOP = 120;
 const CAP_SIZE = 64;
-const SUB_TOP = 352;
+const SUB_TOP = 296;
 
-/* Gentler than landscape's 1.40: the screen is already larger here, and the
-   phone has less room above and below to grow into. */
-const PUSH = 1.14;
+/* Gentler than landscape's 1.40: the screen is already larger here, the
+   phone has less room to grow into, and every pixel it grows downward pushes
+   a call to action closer to the platform's overlay. */
+const PUSH = 1.08;
 
 const FadeIn: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const frame = useCurrentFrame();

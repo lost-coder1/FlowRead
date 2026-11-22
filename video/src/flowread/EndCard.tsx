@@ -3,6 +3,26 @@ import { Img, staticFile, useCurrentFrame, useVideoConfig, interpolate, spring }
 import { COLORS, FONT } from "./theme";
 import { Plate } from "./Plate";
 
+/* The Play mark, drawn.
+   On the listing itself the Install button sits directly under the video, so
+   this is redundant there; in a Reels or Shorts feed nothing says which store
+   to search, and an iOS viewer searches the wrong one. It is drawn rather
+   than fetched because nothing here reaches the network, and because the
+   asset is not in the repo.
+
+   Google's brand guidelines ask for their own supplied badge, unaltered. If
+   that matters for the listing, drop the official PNG in public/ and this
+   becomes an <Img>. Section 15's palette does not govern it -- it is somebody
+   else's mark and recolouring it would be the actual violation. */
+const PlayMark: React.FC<{ size: number }> = ({ size }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" style={{ display: "block" }}>
+    <path d="M3.6 1.8 L13.8 12 L3.6 22.2 C3.2 21.9 3 21.5 3 21 V3 C3 2.5 3.2 2.1 3.6 1.8 Z" fill="#00A0FF" />
+    <path d="M3.6 1.8 C4.1 1.5 4.7 1.5 5.2 1.75 L17.45 8.65 L13.8 12 Z" fill="#00DF6C" />
+    <path d="M17.45 8.65 L20.9 10.6 C21.6 11 21.6 13 20.9 13.4 L17.45 15.35 L13.8 12 Z" fill="#FFC900" />
+    <path d="M3.6 22.2 L13.8 12 L17.45 15.35 L5.2 22.25 C4.7 22.5 4.1 22.5 3.6 22.2 Z" fill="#FF3A44" />
+  </svg>
+);
+
 export const EndCard: React.FC<{ portrait?: boolean }> = ({ portrait = false }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -96,6 +116,36 @@ export const EndCard: React.FC<{ portrait?: boolean }> = ({ portrait = false }) 
               </div>
             </React.Fragment>
           ))}
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
+            marginTop: -14,
+            opacity: interpolate(frame, [56, 74], [0, 1], {
+              extrapolateLeft: "clamp",
+              extrapolateRight: "clamp",
+            }),
+            translate: `0px ${interpolate(frame, [56, 76], [12, 0], {
+              extrapolateLeft: "clamp",
+              extrapolateRight: "clamp",
+            })}px`,
+          }}
+        >
+          <PlayMark size={portrait ? 30 : 32} />
+          <div
+            style={{
+              fontFamily: FONT,
+              fontWeight: 500,
+              fontSize: portrait ? 28 : 30,
+              color: "rgba(232,228,220,0.72)",
+              letterSpacing: "0.02em",
+            }}
+          >
+            Available on Google Play
+          </div>
         </div>
       </div>
     </>
