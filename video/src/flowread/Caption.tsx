@@ -1,75 +1,105 @@
-import { useCurrentFrame, useVideoConfig, interpolate, spring } from "remotion";
+import { useCurrentFrame, useVideoConfig, interpolate, spring, Easing } from "remotion";
 import { COLORS, FONT } from "./theme";
 
 type Props = {
+  /** Words wrapped in *asterisks* take the accent colour. */
   text: string;
-  /** "left" sits beside the phone; "center" is for the full-bleed opening. */
   align?: "left" | "center";
   size?: number;
-  color?: string;
-  /** Fade the caption out this many frames before the sequence ends. */
-  holdOut?: boolean;
+  /** Frames before the end of the sequence that the exit begins. */
+  exitAt?: number;
+  top?: number;
 };
 
-/* Word-by-word rise. Staggering the words is most of what separates kinetic
-   typography from a block of text with a fade on it. */
+/* Words rise out of a clip mask on the way in and sink back out on the way
+   out. The reference does the same thing, and it is most of what separates
+   kinetic typography from text with a fade on it: nothing ever simply
+   disappears. */
+/* `*...*` marks an accent span, which may be several words long. Splitting
+   on whitespace first and testing each word was wrong: "*few pages*" arrives
+   as "*few" and "pages*." and neither opens and closes, so the asterisks
+   rendered on screen. Split on the marker instead, then attach trailing
+   punctuation to the word before it so "pages ." never appears. */
+type Token = { w: string; accent: boolean };
+
+function tokenize(text: string): Token[] {
+  const out: Token[] = [];
+  text.split("*").forEach((part, i) => {
+    part
+      .split(/\s+/)
+      .filter(Boolean)
+      .forEach((w) => {
+        if (/^[.,;:!?'")\]]+$/.test(w) && out.length) out[out.length - 1].w += w;
+        else out.push({ w, accent: i % 2 === 1 });
+      });
+  });
+  return out;
+}
+
 export const Caption: React.FC<Props> = ({
   text,
   align = "left",
   size = 84,
-  color = COLORS.white,
-  holdOut = true,
+  exitAt = 16,
+  top,
 }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
-  const words = text.split(" ");
-
-  const out = holdOut
-    ? interpolate(frame, [durationInFrames - 10, durationInFrames - 2], [1, 0], {
-        extrapolateLeft: "clamp",
-        extrapolateRight: "clamp",
-      })
-    : 1;
+  const words = tokenize(text);
+  const lineH = Math.round(size * 1.18);
 
   return (
     <div
       style={{
         position: "absolute",
         left: align === "center" ? 0 : 130,
-        right: align === "center" ? 0 : undefined,
         width: align === "center" ? "100%" : 1000,
-        top: align === "center" ? 430 : 360,
+        top: top ?? (align === "center" ? 430 : 372),
         display: "flex",
         flexWrap: "wrap",
-        gap: `0px ${Math.round(size * 0.26)}px`,
+        gap: `6px ${Math.round(size * 0.26)}px`,
         justifyContent: align === "center" ? "center" : "flex-start",
-        opacity: out,
       }}
     >
-      {words.map((word, i) => {
-        const s = spring({
+      {words.map(({ w: word, accent }, i) => {
+
+        const inS = spring({
           frame: frame - i * 3,
           fps,
-          config: { damping: 20, mass: 0.7 },
-          durationInFrames: 30,
+          config: { damping: 19, mass: 0.7 },
+          durationInFrames: 32,
         });
+        /* Exit is faster than entry and staggers from the other end, so the
+           line clears instead of unravelling. */
+        const outT = interpolate(
+          frame,
+          [durationInFrames - exitAt + (words.length - 1 - i) * 1.5, durationInFrames - 3],
+          [0, 1],
+          { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.bezier(0.5, 0, 0.9, 0.4) },
+        );
+
+        const y = interpolate(inS, [0, 1], [lineH, 0]) - outT * lineH * 0.85;
+
         return (
           <span
             key={`${word}-${i}`}
-            style={{
-              fontFamily: FONT,
-              fontWeight: 600,
-              fontSize: size,
-              lineHeight: 1.12,
-              color,
-              letterSpacing: "-0.015em",
-              textShadow: "0 6px 26px rgba(0,0,0,0.55)",
-              opacity: interpolate(s, [0, 0.5], [0, 1], { extrapolateRight: "clamp" }),
-              translate: `0px ${interpolate(s, [0, 1], [34, 0])}px`,
-              display: "inline-block",
-            }}
+            style={{ display: "inline-block", height: lineH, overflow: "hidden" }}
           >
-            {word}
+            <span
+              style={{
+                display: "inline-block",
+                fontFamily: FONT,
+                fontWeight: 600,
+                fontSize: size,
+                lineHeight: `${lineH}px`,
+                color: accent ? COLORS.accent : COLORS.white,
+                letterSpacing: "-0.015em",
+                translate: `0px ${y}px`,
+                opacity: 1 - outT,
+              }}
+            >
+              {word}
+            </span>
           </span>
         );
       })}

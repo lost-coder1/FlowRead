@@ -1,183 +1,197 @@
-import { AbsoluteFill, Sequence, useCurrentFrame, interpolate } from "remotion";
+import { AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
 import { TransitionSeries, linearTiming } from "@remotion/transitions";
 import { fade } from "@remotion/transitions/fade";
+import { slide } from "@remotion/transitions/slide";
 import { Plate } from "./Plate";
-import { PhoneFrame } from "./PhoneFrame";
+import { Device } from "./Device";
 import { Caption } from "./Caption";
-import { AbstractFeed, RunawayClock } from "./AbstractFeed";
+import { TileWall, ClockSweep } from "./Opener";
 import { EndCard } from "./EndCard";
 import { sec } from "./theme";
 
-/* Scene lengths, in seconds, before transitions eat into them.
-   The two nudge beats share one scene rather than cutting between identical
-   frames: the push continues across both captions instead of restarting. */
+/* Structure: drawn motion graphics carry the problem, real footage carries
+   the product, and a drawn card closes. The middle is what a store listing is
+   actually for -- a video that never shows the app withholds the one thing
+   the viewer came to see. */
 export const SCENES = {
-  doomscroll: 5,
-  nudge: 8,
-  reading: 6,
-  reward: 4,
-  highlight: 4,
-  dictionary: 3,
-  freebooks: 5,
-  endcard: 3,
+  tiles: 3.5,
+  clock: 3.5,
+  nudge: 5.5,
+  reading: 5.5,
+  unlock: 4.5,
+  highlight: 6.5,
+  dictionary: 4.5,
+  library: 4.5,
+  end: 3.5,
 } as const;
 
-export const XFADE = 12;
-const TRANSITIONS = Object.keys(SCENES).length - 1;
-
+export const XFADE = 10;
+const N_TRANSITIONS = Object.keys(SCENES).length - 1;
 export const TOTAL_FRAMES =
-  Object.values(SCENES).reduce((a, b) => a + sec(b), 0) - TRANSITIONS * XFADE;
+  Object.values(SCENES).reduce((a, b) => a + sec(b), 0) - N_TRANSITIONS * XFADE;
 
-const Shot: React.FC<{
-  src: string;
-  caption: string;
-  zoom?: [number, number];
-  focus?: [number, number];
-  enter?: boolean;
-}> = ({ src, caption, zoom, focus, enter }) => (
-  <AbsoluteFill>
-    <Plate />
-    <PhoneFrame src={src} zoom={zoom} focus={focus} enter={enter} />
-    <Caption text={caption} />
-  </AbsoluteFill>
-);
-
-const FadeIn: React.FC<{ frames?: number; children: React.ReactNode }> = ({
-  frames = 10,
-  children,
-}) => {
+/* One slow push applied to the whole scene. Together with the plate's own
+   drift and the device's zoom this gives three planes moving at three rates,
+   which is what reads as depth rather than a slideshow. */
+const Camera: React.FC<{ children: React.ReactNode; to?: number }> = ({ children, to = 1.02 }) => {
   const frame = useCurrentFrame();
+  const { durationInFrames } = useVideoConfig();
   return (
     <AbsoluteFill
-      style={{ opacity: interpolate(frame, [0, frames], [0, 1], { extrapolateRight: "clamp" }) }}
+      style={{
+        scale: interpolate(frame, [0, durationInFrames], [1, to], {
+          extrapolateRight: "clamp",
+          easing: Easing.bezier(0.3, 0, 0.3, 1),
+          output: "perceptual-scale",
+        }),
+      }}
     >
       {children}
     </AbsoluteFill>
   );
 };
 
-const t = () => (
-  <TransitionSeries.Transition
-    presentation={fade()}
-    timing={linearTiming({ durationInFrames: XFADE })}
-  />
+type ShotProps = {
+  src: string;
+  caption: string;
+  playbackRate?: number;
+  trimAfter?: number;
+  zoom?: [number, number];
+  focus?: [number, number];
+  tiltY?: [number, number];
+  tiltX?: [number, number];
+  enter?: boolean;
+};
+
+const Shot: React.FC<ShotProps> = ({ src, caption, ...rest }) => (
+  <Camera>
+    <Plate />
+    <Device src={src} {...rest} />
+    <Caption text={caption} />
+  </Camera>
 );
 
-export const Promo: React.FC = () => {
-  return (
-    <AbsoluteFill style={{ backgroundColor: "#0a0a0b" }}>
-      <TransitionSeries>
-        {/* 1. The problem, drawn rather than captured. */}
-        <TransitionSeries.Sequence durationInFrames={sec(SCENES.doomscroll)}>
-          <AbsoluteFill>
-            <AbstractFeed />
-            <Sequence durationInFrames={sec(2.6)}>
-              <Caption text="You meant to read tonight." align="center" size={96} />
-            </Sequence>
-            <Sequence from={sec(2.6)}>
-              <RunawayClock />
-              <Caption text="Then the scrolling took over." align="center" size={96} />
-            </Sequence>
-          </AbsoluteFill>
-        </TransitionSeries.Sequence>
-        {t()}
-
-        {/* 2. The nudge arrives and is held, so the escape hatch is readable.
-               One continuous push across both captions. */}
-        <TransitionSeries.Sequence durationInFrames={sec(SCENES.nudge)}>
-          <AbsoluteFill>
-            <Plate />
-            <PhoneFrame
-              src="shots/FlowReadSS1.jpeg"
-              enter
-              zoom={[1, 1.3]}
-              focus={[0.45, 0.78]}
-            />
-            <Sequence durationInFrames={sec(4)}>
-              <Caption text="FlowRead catches you first." />
-            </Sequence>
-            <Sequence from={sec(4)}>
-              <Caption text="A gentle nudge. Always your choice." size={82} />
-            </Sequence>
-          </AbsoluteFill>
-        </TransitionSeries.Sequence>
-        {t()}
-
-        <TransitionSeries.Sequence durationInFrames={sec(SCENES.reading)}>
-          <Shot
-            src="shots/FlowreadHighlight.jpeg"
-            caption="Just a few pages."
-            zoom={[1.0, 1.08]}
-            focus={[0.3, 0.46]}
-          />
-        </TransitionSeries.Sequence>
-        {t()}
-
-        <TransitionSeries.Sequence durationInFrames={sec(SCENES.reward)}>
-          <Shot
-            src="shots/FlowReadClosedNudge.jpeg"
-            caption="Your clock resets."
-            zoom={[1.12, 1.04]}
-            focus={[0.46, 0.46]}
-          />
-        </TransitionSeries.Sequence>
-        {t()}
-
-        {/* STAND-IN: the highlights list is not captured yet, so the reading
-            shot stands in for it. Replace once the device session happens. */}
-        <TransitionSeries.Sequence durationInFrames={sec(SCENES.highlight)}>
-          <Shot
-            src="shots/FlowreadHighlight.jpeg"
-            caption="Keep the lines that stay with you."
-            zoom={[1.14, 1.22]}
-            focus={[0.46, 0.5]}
-          />
-        </TransitionSeries.Sequence>
-        {t()}
-
-        {/* STAND-IN: saved words screen not captured yet. */}
-        <TransitionSeries.Sequence durationInFrames={sec(SCENES.dictionary)}>
-          <Shot
-            src="shots/FlowReadHome2.jpeg"
-            caption="And every word you learn."
-            zoom={[1.04, 1.12]}
-            focus={[0.62, 0.84]}
-          />
-        </TransitionSeries.Sequence>
-        {t()}
-
-        {/* The library beat is the choice, not a catalogue size: start with
-            something free, or bring what you already have. No count is quoted,
-            so the catalogue can grow without dating the video. */}
-        <TransitionSeries.Sequence durationInFrames={sec(SCENES.freebooks)}>
-          <AbsoluteFill>
-            <Plate />
-            <Sequence durationInFrames={sec(2.9)}>
-              <PhoneFrame
-                src="shots/FlowReadFreeBook.jpeg"
-                zoom={[1.0, 1.1]}
-                focus={[0.34, 0.58]}
-              />
-              <Caption text="Start with a free book." />
-            </Sequence>
-            <Sequence from={sec(2.7)}>
-              <FadeIn>
-                <PhoneFrame
-                  src="shots/FlowReadOwnbookNewSS.jpeg"
-                  zoom={[1.0, 1.08]}
-                  focus={[0.42, 0.56]}
-                />
-                <Caption text="Or bring your own." />
-              </FadeIn>
-            </Sequence>
-          </AbsoluteFill>
-        </TransitionSeries.Sequence>
-        {t()}
-
-        <TransitionSeries.Sequence durationInFrames={sec(SCENES.endcard)}>
-          <EndCard />
-        </TransitionSeries.Sequence>
-      </TransitionSeries>
-    </AbsoluteFill>
+const t = (dir?: "from-right") =>
+  dir ? (
+    <TransitionSeries.Transition
+      presentation={slide({ direction: "from-right" })}
+      timing={linearTiming({ durationInFrames: XFADE + 4 })}
+    />
+  ) : (
+    <TransitionSeries.Transition
+      presentation={fade()}
+      timing={linearTiming({ durationInFrames: XFADE })}
+    />
   );
-};
+
+export const Promo: React.FC = () => (
+  <AbsoluteFill style={{ backgroundColor: "#0d0d0d" }}>
+    <TransitionSeries>
+      {/* ── drawn: the problem ─────────────────────────────── */}
+      <TransitionSeries.Sequence durationInFrames={sec(SCENES.tiles)}>
+        <Camera to={1.05}>
+          <Plate drift={0.5} />
+          <TileWall />
+          <Caption text="You meant to *read* tonight." />
+        </Camera>
+      </TransitionSeries.Sequence>
+      {t()}
+
+      <TransitionSeries.Sequence durationInFrames={sec(SCENES.clock)}>
+        <Camera to={1.04}>
+          <Plate drift={0.5} />
+          <ClockSweep />
+          <Caption text="Then the *scrolling* took over." />
+        </Camera>
+      </TransitionSeries.Sequence>
+      {t("from-right")}
+
+      {/* ── real footage: the product ──────────────────────── */}
+      <TransitionSeries.Sequence durationInFrames={sec(SCENES.nudge)}>
+        <Camera>
+          <Plate />
+          <Device
+            src="clips/01_nudge.mp4"
+            enter
+            playbackRate={0.6}
+            zoom={[1.0, 1.08]}
+            focus={[0.44, 0.66]}
+            tiltY={[-7, -2]}
+            tiltX={[2, 0]}
+          />
+          <Sequence durationInFrames={sec(2.9)}>
+            <Caption text="FlowRead catches you *first*." exitAt={12} />
+          </Sequence>
+          <Sequence from={sec(2.9)}>
+            <Caption text="A gentle nudge. *Always your choice*." size={74} />
+          </Sequence>
+        </Camera>
+      </TransitionSeries.Sequence>
+      {t()}
+
+      <TransitionSeries.Sequence durationInFrames={sec(SCENES.reading)}>
+        <Shot
+          src="clips/02_reading.mp4"
+          caption="Just a *few pages*."
+          playbackRate={1.3}
+          zoom={[1.0, 1.07]}
+          focus={[0.44, 0.52]}
+          tiltY={[5, 1]}
+        />
+      </TransitionSeries.Sequence>
+      {t()}
+
+      <TransitionSeries.Sequence durationInFrames={sec(SCENES.unlock)}>
+        <Shot
+          src="clips/03_unlock.mp4"
+          caption="Your clock *resets*."
+          zoom={[1.08, 1.0]}
+          focus={[0.45, 0.45]}
+          tiltY={[-5, -1]}
+        />
+      </TransitionSeries.Sequence>
+      {t()}
+
+      <TransitionSeries.Sequence durationInFrames={sec(SCENES.highlight)}>
+        <Shot
+          src="clips/04_highlight.mp4"
+          caption="Keep the lines that *stay with you*."
+          playbackRate={1.45}
+          zoom={[1.0, 1.07]}
+          focus={[0.46, 0.58]}
+          tiltY={[5, 1]}
+        />
+      </TransitionSeries.Sequence>
+      {t()}
+
+      <TransitionSeries.Sequence durationInFrames={sec(SCENES.dictionary)}>
+        <Shot
+          src="clips/05_dictionary.mp4"
+          caption="And every *word* you learn."
+          playbackRate={1.75}
+          zoom={[1.0, 1.1]}
+          focus={[0.44, 0.46]}
+          tiltY={[-7, -2]}
+        />
+      </TransitionSeries.Sequence>
+      {t()}
+
+      {/* No catalogue count is quoted, so growing the library cannot date it. */}
+      <TransitionSeries.Sequence durationInFrames={sec(SCENES.library)}>
+        <Shot
+          src="clips/06_freebooks.mp4"
+          caption="Start *free*, or bring your own."
+          playbackRate={1.75}
+          zoom={[1.0, 1.08]}
+          focus={[0.44, 0.5]}
+          tiltY={[5, 1]}
+        />
+      </TransitionSeries.Sequence>
+      {t()}
+
+      <TransitionSeries.Sequence durationInFrames={sec(SCENES.end)}>
+        <EndCard />
+      </TransitionSeries.Sequence>
+    </TransitionSeries>
+  </AbsoluteFill>
+);

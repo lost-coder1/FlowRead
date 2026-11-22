@@ -5,11 +5,12 @@ import { Plate } from "./Plate";
 export const EndCard: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const s = spring({ frame, fps, config: { damping: 22, mass: 0.8 }, durationInFrames: 36 });
+  const s = spring({ frame, fps, config: { damping: 20, mass: 0.8 }, durationInFrames: 38 });
+  const line = spring({ frame: frame - 14, fps, config: { damping: 22 }, durationInFrames: 34 });
 
   return (
     <>
-      <Plate drift={0.4} />
+      <Plate drift={0.35} />
       <div
         style={{
           position: "absolute",
@@ -18,7 +19,7 @@ export const EndCard: React.FC = () => {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          gap: 42,
+          gap: 44,
         }}
       >
         <div
@@ -26,34 +27,46 @@ export const EndCard: React.FC = () => {
             display: "flex",
             alignItems: "center",
             gap: 30,
-            opacity: interpolate(s, [0, 0.5], [0, 1], { extrapolateRight: "clamp" }),
-            scale: interpolate(s, [0, 1], [0.9, 1], { output: "perceptual-scale" }),
+            opacity: interpolate(s, [0, 0.45], [0, 1], { extrapolateRight: "clamp" }),
+            scale: interpolate(s, [0, 1], [0.88, 1], { output: "perceptual-scale" }),
           }}
         >
-          <Img src={staticFile("icon.png")} style={{ width: 112, height: 112, borderRadius: 25 }} />
-          <div style={{ fontFamily: FONT, fontWeight: 700, fontSize: 92, letterSpacing: "-0.02em" }}>
+          <Img src={staticFile("icon.png")} style={{ width: 118, height: 118, borderRadius: 26 }} />
+          <div style={{ fontFamily: FONT, fontWeight: 700, fontSize: 96, letterSpacing: "-0.02em" }}>
             <span style={{ color: COLORS.white }}>Flow</span>
             <span style={{ color: COLORS.accent }}>Read</span>
+          </div>
+        </div>
+
+        <div style={{ height: 76, overflow: "hidden" }}>
+          <div
+            style={{
+              fontFamily: FONT,
+              fontWeight: 600,
+              fontSize: 58,
+              lineHeight: "76px",
+              color: COLORS.cream,
+              translate: `0px ${interpolate(line, [0, 1], [76, 0])}px`,
+            }}
+          >
+            Read more. Scroll less.
           </div>
         </div>
 
         <div
           style={{
             fontFamily: FONT,
-            fontWeight: 600,
-            fontSize: 58,
-            color: COLORS.cream,
-            opacity: interpolate(frame, [18, 38], [0, 1], {
+            fontWeight: 500,
+            fontSize: 30,
+            color: "rgba(232,228,220,0.62)",
+            letterSpacing: "0.04em",
+            opacity: interpolate(frame, [34, 52], [0, 1], {
               extrapolateLeft: "clamp",
               extrapolateRight: "clamp",
             }),
-            translate: `0px ${interpolate(frame, [18, 38], [16, 0], {
-              extrapolateLeft: "clamp",
-              extrapolateRight: "clamp",
-            })}px`,
           }}
         >
-          Read more. Scroll less.
+          No account · Works offline · Free to start
         </div>
       </div>
     </>

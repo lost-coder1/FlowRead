@@ -12,6 +12,7 @@ export const COLORS = {
   cream: "#e8e4dc",
   white: "#ffffff",
   ink: "#100e0c",
+  textMuted: "#6b6660",
 };
 
 /* Avenir Next is resolved from the system, which is safe because rendering
