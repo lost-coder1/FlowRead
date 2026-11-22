@@ -12,7 +12,7 @@ const TILE_ROWS = 5;
 
 /* Beat 1: a wall of app tiles lighting up with notifications, faster and
    faster, until it is the only thing on screen. */
-export const TileWall: React.FC = () => {
+export const TileWall: React.FC<{ centered?: boolean }> = ({ centered = false }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
 
@@ -48,8 +48,10 @@ export const TileWall: React.FC = () => {
       <div
         style={{
           position: "absolute",
-          right: 210,
-          top: 150 + drift,
+          ...(centered
+            ? { left: "50%", translate: `${-gridW / 2}px 0` }
+            : { right: 210 }),
+          top: (centered ? 760 : 150) + drift,
           width: gridW,
           display: "flex",
           flexWrap: "wrap",

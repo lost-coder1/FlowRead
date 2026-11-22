@@ -14,32 +14,55 @@ const STATUS_PX = 96;
 /* Fitting the capture to the screen's width leaves ~74px over, spent hiding
    the status bar at the top and the gesture bar at the bottom. Nothing is
    cropped horizontally, so no line of app UI loses its first character. */
-const MEDIA_W = PHONE.screenW;
-const MEDIA_H = (PHONE.screenW * CAPTURE_H) / CAPTURE_W;
-const MEDIA_TOP = -(STATUS_PX * PHONE.screenW) / CAPTURE_W;
+/* Geometry is derived from a single scale factor so the vertical cut can use
+   a larger device without a second copy of any of this. */
+export const geom = (k: number) => {
+  const screenW = PHONE.screenW * k;
+  return {
+    w: PHONE.width * k,
+    h: PHONE.height * k,
+    radius: PHONE.radius * k,
+    bezelX: PHONE.bezelX * k,
+    bezelY: PHONE.bezelY * k,
+    screenRadius: PHONE.screenRadius * k,
+    screenW,
+    screenH: PHONE.screenH * k,
+    mediaW: screenW,
+    mediaH: (screenW * CAPTURE_H) / CAPTURE_W,
+    mediaTop: -(STATUS_PX * screenW) / CAPTURE_W,
+  };
+};
 
-const Key: React.FC<{ top: number; height: number; side: "l" | "r" }> = ({ top, height, side }) => (
+const Key: React.FC<{ top: number; height: number; side: "l" | "r"; w: number; k: number }> = ({
+  top, height, side, w, k,
+}) => (
   <div
     style={{
       position: "absolute",
       top,
       height,
-      width: 4,
-      [side === "r" ? "left" : "right"]: side === "r" ? PHONE.width - 1 : PHONE.width - 1,
-      borderRadius: 2,
+      width: 4 * k,
+      [side === "r" ? "left" : "right"]: w - k,
+      borderRadius: 2 * k,
       background: "#2b2622",
     }}
   />
 );
 
-export const Stage: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const Stage: React.FC<{
+  children: React.ReactNode;
+  k?: number;
+  left?: number;
+  top?: number;
+}> = ({ children, k = 1, left: leftIn, top: topIn }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
 
-  const w = PHONE.width;
-  const h = PHONE.height;
-  const left = width - 190 - w;
-  const top = (height - h) / 2;
+  const g = geom(k);
+  const w = g.w;
+  const h = g.h;
+  const left = leftIn ?? width - 190 - w;
+  const top = topIn ?? (height - h) / 2;
 
   const rise = spring({ frame, fps, config: { damping: 200, mass: 0.7 } });
 
@@ -55,48 +78,47 @@ export const Stage: React.FC<{ children: React.ReactNode }> = ({ children }) => 
         translate: `0 ${interpolate(rise, [0, 1], [46, 0])}px`,
       }}
     >
-      <div style={{ position: "absolute", inset: -24, borderRadius: PHONE.radius + 24, background: COLORS.cream, opacity: 0.2, filter: "blur(38px)" }} />
-      <div style={{ position: "absolute", inset: 0, translate: "8px 30px", borderRadius: PHONE.radius, background: "#000", opacity: 0.58, filter: "blur(44px)" }} />
+      <div style={{ position: "absolute", inset: -24 * k, borderRadius: g.radius + 24 * k, background: COLORS.cream, opacity: 0.2, filter: `blur(${38 * k}px)` }} />
+      <div style={{ position: "absolute", inset: 0, translate: `${8 * k}px ${30 * k}px`, borderRadius: g.radius, background: "#000", opacity: 0.58, filter: `blur(${44 * k}px)` }} />
 
-      <Key side="r" top={232} height={96} />
-      <Key side="l" top={196} height={58} />
-      <Key side="l" top={268} height={58} />
+      <Key side="r" top={232 * k} height={96 * k} w={w} k={k} />
+      <Key side="l" top={196 * k} height={58 * k} w={w} k={k} />
+      <Key side="l" top={268 * k} height={58 * k} w={w} k={k} />
 
       {/* body */}
       <div
         style={{
           position: "absolute",
           inset: 0,
-          borderRadius: PHONE.radius,
+          borderRadius: g.radius,
           background: "#141210",
-          border: `3px solid rgba(232,228,220,0.82)`,
+          border: `${3 * k}px solid rgba(232,228,220,0.82)`,
           boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.6)",
         }}
       >
         {/* earpiece and camera, which is most of what makes a rectangle a phone */}
-        <div style={{ position: "absolute", top: PHONE.bezelY / 2 - 3, left: "50%", translate: "-34px 0", width: 56, height: 5, borderRadius: 3, background: "#272320" }} />
-        <div style={{ position: "absolute", top: PHONE.bezelY / 2 - 5, left: "50%", translate: "30px 0", width: 9, height: 9, borderRadius: "50%", background: "#0a0908", border: "1px solid #2e2924" }} />
+        <div style={{ position: "absolute", top: g.bezelY / 2 - 3 * k, left: "50%", translate: `${-34 * k}px 0`, width: 56 * k, height: 5 * k, borderRadius: 3 * k, background: "#272320" }} />
+        <div style={{ position: "absolute", top: g.bezelY / 2 - 5 * k, left: "50%", translate: `${30 * k}px 0`, width: 9 * k, height: 9 * k, borderRadius: "50%", background: "#0a0908", border: `${k}px solid #2e2924` }} />
 
         {/* screen */}
         <div
           style={{
             position: "absolute",
-            left: PHONE.bezelX,
-            top: PHONE.bezelY,
-            width: PHONE.screenW,
-            height: PHONE.screenH,
-            borderRadius: PHONE.screenRadius,
+            left: g.bezelX,
+            top: g.bezelY,
+            width: g.screenW,
+            height: g.screenH,
+            borderRadius: g.screenRadius,
             overflow: "hidden",
             background: COLORS.ink,
           }}
         >
-          {/* every screen renders at this exact geometry, so a swap cannot shift the picture */}
-          <div style={{ position: "absolute", left: 0, top: MEDIA_TOP, width: MEDIA_W, height: MEDIA_H }}>
+          <div style={{ position: "absolute", left: 0, top: g.mediaTop, width: g.mediaW, height: g.mediaH }}>
             {children}
           </div>
         </div>
 
-        <div style={{ position: "absolute", inset: 0, borderRadius: PHONE.radius, background: "linear-gradient(104deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0) 46%)", pointerEvents: "none" }} />
+        <div style={{ position: "absolute", inset: 0, borderRadius: g.radius, background: "linear-gradient(104deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0) 46%)", pointerEvents: "none" }} />
       </div>
     </div>
   );
@@ -121,16 +143,17 @@ export const Screen: React.FC<{ children: React.ReactNode; fadeIn?: number }> = 
 
 /* The feed fills the screen rather than the capture box -- it is drawn, not
    captured, so it has no status bar to hide. */
-export const DrawnScreen: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const DrawnScreen: React.FC<{ children: React.ReactNode; k?: number }> = ({ children, k = 1 }) => {
   const frame = useCurrentFrame();
+  const g = geom(k);
   return (
     <div
       style={{
         position: "absolute",
         left: 0,
-        top: -MEDIA_TOP,
-        width: PHONE.screenW,
-        height: PHONE.screenH,
+        top: -g.mediaTop,
+        width: g.screenW,
+        height: g.screenH,
         opacity: interpolate(frame, [0, 10], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }),
       }}
     >

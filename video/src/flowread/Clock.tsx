@@ -3,7 +3,7 @@ import { COLORS, FONT } from "./theme";
 
 /* The clock sits in the caption column now, not across the middle of the
    frame: the phone has the stage, and the time is the supporting fact. */
-export const ClockReadout: React.FC = () => {
+export const ClockReadout: React.FC<{ centered?: boolean }> = ({ centered = false }) => {
   const frame = useCurrentFrame();
   const { durationInFrames } = useVideoConfig();
   const t = interpolate(frame, [0, durationInFrames], [0, 1], {
@@ -19,7 +19,7 @@ export const ClockReadout: React.FC = () => {
   const C = 2 * Math.PI * R;
 
   return (
-    <div style={{ position: "absolute", left: 132, top: 648, display: "flex", alignItems: "center", gap: 26, opacity: interpolate(frame, [4, 20], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) }}>
+    <div style={{ position: "absolute", ...(centered ? { left: 0, width: "100%", justifyContent: "center" } : { left: 132 }), top: centered ? 352 : 648, display: "flex", alignItems: "center", gap: 26, opacity: interpolate(frame, [4, 20], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) }}>
       <svg width={128} height={128}>
         <circle cx={64} cy={64} r={R} fill="none" stroke="rgba(232,228,220,0.16)" strokeWidth={7} />
         <circle

@@ -3,7 +3,7 @@ import { Img, staticFile, useCurrentFrame, useVideoConfig, interpolate, spring }
 import { COLORS, FONT } from "./theme";
 import { Plate } from "./Plate";
 
-export const EndCard: React.FC = () => {
+export const EndCard: React.FC<{ portrait?: boolean }> = ({ portrait = false }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const s = spring({ frame, fps, config: { damping: 20, mass: 0.8 }, durationInFrames: 38 });
@@ -11,7 +11,7 @@ export const EndCard: React.FC = () => {
 
   return (
     <>
-      <Plate drift={0.35} />
+      <Plate drift={0.35} portrait={portrait} />
       <div
         style={{
           position: "absolute",

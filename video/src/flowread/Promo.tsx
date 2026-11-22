@@ -1,3 +1,4 @@
+import React from "react";
 import { AbsoluteFill, Audio, Sequence, Img, useCurrentFrame, useVideoConfig, interpolate, staticFile } from "remotion";
 import { Video } from "@remotion/media";
 import { Plate } from "./Plate";
@@ -7,15 +8,15 @@ import { Caption } from "./Caption";
 import { ClockReadout } from "./Clock";
 import { TileWall } from "./Opener";
 import { EndCard } from "./EndCard";
-import { sec, PHONE, WIDTH, HEIGHT } from "./theme";
+import { sec, PHONE, WIDTH, HEIGHT, FONT } from "./theme";
 
 /* The nudge has to be on screen inside five seconds: that is where people
    leave. The two drawn beats state the problem and get out of the way. */
-const TILES = 2.0;
-const FEED = 2.3;
-const PRODUCT = 25.5;
-const END = 3.2;
-const BLEND = 14;
+export const TILES = 2.0;
+export const FEED = 2.3;
+export const PRODUCT = 25.5;
+export const END = 3.2;
+export const BLEND = 14;
 
 export const TOTAL_FRAMES = sec(TILES + FEED + PRODUCT + END);
 
@@ -23,7 +24,7 @@ const STAGE_IN = TILES;              /* the phone arrives on the feed beat */
 const PRODUCT_IN = TILES + FEED;
 const STAGE_LEN = FEED + PRODUCT;
 
-type Beat = {
+export type Beat = {
   at: number;
   len: number;
   clip: string;
@@ -36,7 +37,7 @@ type Beat = {
   still?: string;
 };
 
-const BEATS: Beat[] = [
+export const BEATS: Beat[] = [
   {
     at: 0, len: 5.0, clip: "01_nudge.mp4", rate: 0.6,
     cap: "FlowRead catches you *first*.",
@@ -81,8 +82,8 @@ const BEATS: Beat[] = [
 const PUSH = 1.40;
 const PUSH_X = -88;    /* keeps the phone's left edge clear of the captions */
 const PUSH_Y = -36;    /* centres on 0.525 of the screen, not its middle */
-const RAMP = 0.5;
-const DETAILS: [number, number][] = [
+export const RAMP = 0.5;
+export const DETAILS: [number, number][] = [
   [FEED + 0, FEED + 5.0],        /* the nudge */
   [FEED + 9.5, FEED + 13.5],     /* the completion card */
   [FEED + 22.8, FEED + 25.5],    /* the import screen */
@@ -129,6 +130,55 @@ const FadeOut: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     <AbsoluteFill style={{ opacity: interpolate(frame, [durationInFrames - BLEND, durationInFrames], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) }}>
       {children}
     </AbsoluteFill>
+  );
+};
+
+/* The film can only show one app being intercepted, and a viewer reasonably
+   concludes that is the only one it handles. It is not: section 8.4 narrows
+   the accessibility filter to whatever the user picks, from a <queries>
+   listing of every launcher app on the device. Said once, under the beat that
+   introduces the mechanic, and set quietly so it reads as a fact rather than
+   a second headline.
+
+   The claim is compatibility, not quantity -- section 3 gives the free tier
+   one app at a time -- so it says "works with", never "all at once". */
+export const APPS = ["Instagram", "YouTube", "Reddit", "X", "any app"];
+
+const SubLine: React.FC = () => {
+  const frame = useCurrentFrame();
+  const o = interpolate(frame, [14, 32], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: 132,
+        top: 612,
+        display: "flex",
+        alignItems: "center",
+        gap: 13,
+        opacity: o,
+        translate: `0px ${interpolate(o, [0, 1], [10, 0])}px`,
+      }}
+    >
+      {APPS.map((a, i) => (
+        <React.Fragment key={a}>
+          {i > 0 ? (
+            <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#e8c547", opacity: 0.7 }} />
+          ) : null}
+          <div
+            style={{
+              fontFamily: FONT,
+              fontWeight: 500,
+              fontSize: 32,
+              letterSpacing: "0.015em",
+              color: i === APPS.length - 1 ? "rgba(232,228,220,0.82)" : "rgba(232,228,220,0.62)",
+            }}
+          >
+            {i === 0 ? `Works with ${a}` : a}
+          </div>
+        </React.Fragment>
+      ))}
+    </div>
   );
 };
 
@@ -240,6 +290,7 @@ export const Promo: React.FC = () => (
         {BEATS.map((b) => (
           <Sequence key={b.clip} from={sec(b.at)} durationInFrames={sec(b.len)}>
             <Rule />
+            {b.at === 0 ? <SubLine /> : null}
             {b.cap2 ? (
               <>
                 <Sequence durationInFrames={sec(b.split!)}>

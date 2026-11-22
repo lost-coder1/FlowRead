@@ -2,13 +2,16 @@ import { AbsoluteFill, Img, staticFile, useCurrentFrame, interpolate } from "rem
 
 /* The listing's own gradient, drifting very slowly so the frame is never
    completely static behind a held shot. */
-export const Plate: React.FC<{ drift?: number }> = ({ drift = 1 }) => {
+export const Plate: React.FC<{ drift?: number; portrait?: boolean }> = ({
+  drift = 1,
+  portrait = false,
+}) => {
   const frame = useCurrentFrame();
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#2a1f14", overflow: "hidden" }}>
       <Img
-        src={staticFile("plate-landscape.png")}
+        src={staticFile(portrait ? "plate-portrait.png" : "plate-landscape.png")}
         style={{
           width: "108%",
           height: "108%",

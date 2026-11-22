@@ -54,6 +54,11 @@ export const Caption: React.FC<Props> = ({
         position: "absolute",
         left: align === "center" ? 0 : 130,
         width: align === "center" ? "100%" : 880,   /* clears the pushed-in device */
+        /* Centred captions are the vertical cut's, where the frame is only
+           1080 wide: without a gutter a long line reaches the edge. */
+        boxSizing: "border-box" as const,
+        paddingLeft: align === "center" ? 74 : 0,
+        paddingRight: align === "center" ? 74 : 0,
         top: top ?? (align === "center" ? 430 : 372),
         display: "flex",
         flexWrap: "wrap",
