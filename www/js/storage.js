@@ -462,30 +462,43 @@ function loadReadingSessions() {
 /* Consecutive days with at least one session, counting back from today.
    Derived from the session store rather than stored, so it can never drift out
    of sync with it. Shared by the dashboard and the share card. */
+/* A streak is alive if it was fed today *or* yesterday.
+
+   Counting back from today alone meant that at every local midnight the streak
+   read 0 until the user next read — a twelve-day run reported as nothing all
+   morning, which is the silent failure §1.5 forbids. It does not stay on the
+   home screen either: the dashboard, the streak notification and §14's share
+   card all read this, and the card is an image that leaves the device with the
+   number on it.
+
+   Local-time keys throughout, matching §8.3's local-midnight boundary. */
 function computeStreak(sessions) {
   const dateset = new Set(sessions.map(function(s) { return s.date; }));
   let streak = 0;
   let cursor = new Date();
 
-  for (var i = 0; i < 365; i++) {
-    var mm = String(cursor.getMonth() + 1).padStart(2, '0');
-    var dd = String(cursor.getDate()).padStart(2, '0');
-    var dateStr = cursor.getFullYear() + '-' + mm + '-' + dd;
+  /* A today with no reading yet is a day still in progress, not a broken
+     streak, so the walk starts at yesterday. If yesterday is missing too the
+     loop fails its first test and returns 0, which is the real broken streak. */
+  if (!dateset.has(_dateKey(cursor))) cursor.setDate(cursor.getDate() - 1);
 
-    if (dateset.has(dateStr)) {
-      streak++;
-      cursor.setDate(cursor.getDate() - 1);
-    } else {
-      break;
-    }
+  for (var i = 0; i < 365; i++) {
+    if (!dateset.has(_dateKey(cursor))) break;
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
   }
 
   return streak;
 }
 
-function todayDateString() {
-  var d = new Date();
+/* One place that turns a Date into the YYYY-MM-DD key `fr_stats` is keyed by,
+   so the streak walk and today's lookup cannot disagree about a date. */
+function _dateKey(d) {
   var mm = String(d.getMonth() + 1).padStart(2, '0');
   var dd = String(d.getDate()).padStart(2, '0');
   return d.getFullYear() + '-' + mm + '-' + dd;
+}
+
+function todayDateString() {
+  return _dateKey(new Date());
 }
