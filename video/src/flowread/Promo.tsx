@@ -1,4 +1,4 @@
-import { AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig, interpolate, staticFile } from "remotion";
+import { AbsoluteFill, Sequence, Img, useCurrentFrame, useVideoConfig, interpolate, staticFile } from "remotion";
 import { Video } from "@remotion/media";
 import { Plate } from "./Plate";
 import { Stage, Screen, DrawnScreen } from "./Stage";
@@ -11,27 +11,51 @@ import { sec } from "./theme";
 
 const TILES = 3.5;
 const FEED = 3.5;
-const PRODUCT = 30;
+const PRODUCT = 31.5;
 const END = 3.5;
 const BLEND = 14;
 
 export const TOTAL_FRAMES = sec(TILES + FEED + PRODUCT + END);
 
-const STAGE_IN = TILES;                 /* the phone arrives on the feed beat */
+const STAGE_IN = TILES;              /* the phone arrives on the feed beat */
 const PRODUCT_IN = TILES + FEED;
 const STAGE_LEN = FEED + PRODUCT;
 
-/* Beat slots, in seconds from the start of the product section. */
-const BEATS = [
-  { at: 0,    len: 5.5, clip: "01_nudge.mp4",      rate: 0.6,  cap: "FlowRead catches you *first*." },
+type Beat = {
+  at: number;
+  len: number;
+  clip: string;
+  rate: number;
+  cap: string;
+  /* A beat that makes two statements owes two screens and two captions. */
+  split?: number;
+  cap2?: string;
+  cap2Size?: number;
+  still?: string;
+};
+
+const BEATS: Beat[] = [
+  {
+    at: 0, len: 5.5, clip: "01_nudge.mp4", rate: 0.6,
+    cap: "FlowRead catches you *first*.",
+    /* The escape hatch is the whole point of that screen, so it gets said
+       while the screen is still up rather than left to be noticed. */
+    split: 2.9, cap2: "A gentle nudge. *Always your choice*.", cap2Size: 74,
+  },
   { at: 5.5,  len: 5.0, clip: "02_reading.mp4",    rate: 1.3,  cap: "Just a *few pages*." },
   { at: 10.5, len: 4.5, clip: "03_unlock.mp4",     rate: 1.0,  cap: "Your clock *resets*." },
   { at: 15,   len: 6.0, clip: "04_highlight.mp4",  rate: 1.55, cap: "Keep the lines that *stay with you*." },
   { at: 21,   len: 4.5, clip: "05_dictionary.mp4", rate: 1.75, cap: "And every *word* you learn." },
-  { at: 25.5, len: 4.5, clip: "06_freebooks.mp4",  rate: 1.75, cap: "Start *free*, or bring your own." },
+  {
+    at: 25.5, len: 6.0, clip: "06_freebooks.mp4", rate: 1.75,
+    cap: "Start with the *free books*.",
+    /* The catalogue alone left "bring your own" as an unbacked claim. This is
+       the import screen the eighth store screenshot is built from, so the
+       second half of the offer is shown rather than merely asserted. */
+    split: 3.0, cap2: "Or bring your *own*.",
+    still: "shots/FlowReadOwnbookNewSS.jpeg",
+  },
 ];
-
-const NUDGE_SPLIT = 2.9;
 
 const FadeIn: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const frame = useCurrentFrame();
@@ -59,13 +83,9 @@ const Rule: React.FC = () => {
   return (
     <div
       style={{
-        position: "absolute",
-        left: 132,
-        top: 318,
-        height: 3,
+        position: "absolute", left: 132, top: 318, height: 3,
         width: interpolate(frame, [4, 26], [0, 132], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }),
-        background: "#e8c547",
-        opacity: 0.85,
+        background: "#e8c547", opacity: 0.85,
       }}
     />
   );
@@ -94,22 +114,34 @@ export const Promo: React.FC = () => (
             </DrawnScreen>
           </Sequence>
 
-          {BEATS.map((b, i) => (
-            <Sequence
-              key={b.clip}
-              from={sec(FEED + b.at)}
-              durationInFrames={sec(b.len) + (i === BEATS.length - 1 ? 0 : 18)}
-            >
-              <Screen>
-                <Video
-                  src={staticFile(`clips/${b.clip}`)}
-                  muted
-                  playbackRate={b.rate}
-                  style={{ position: "absolute", inset: 0, width: "100%" }}
-                />
-              </Screen>
-            </Sequence>
-          ))}
+          {BEATS.map((b, i) => {
+            const last = i === BEATS.length - 1;
+            const clipLen = b.still ? sec(b.split!) + 18 : sec(b.len) + (last ? 0 : 18);
+            return (
+              <Sequence key={b.clip} from={sec(FEED + b.at)}>
+                <Sequence durationInFrames={clipLen}>
+                  <Screen>
+                    <Video
+                      src={staticFile(`clips/${b.clip}`)}
+                      muted
+                      playbackRate={b.rate}
+                      style={{ position: "absolute", inset: 0, width: "100%" }}
+                    />
+                  </Screen>
+                </Sequence>
+                {b.still ? (
+                  /* 786x1601: already cropped to the screen, with no status bar
+                     to hide, so it fills the screen box rather than the capture
+                     box the recordings are placed in. */
+                  <Sequence from={sec(b.split!)} durationInFrames={sec(b.len - b.split!)}>
+                    <DrawnScreen>
+                      <Img src={staticFile(b.still)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    </DrawnScreen>
+                  </Sequence>
+                ) : null}
+              </Sequence>
+            );
+          })}
         </Stage>
       </FadeOut>
     </Sequence>
@@ -121,24 +153,23 @@ export const Promo: React.FC = () => (
 
     <Sequence from={sec(PRODUCT_IN)} durationInFrames={sec(PRODUCT)}>
       <FadeIn>
-        {BEATS.map((b, i) =>
-          i === 0 ? (
-            <Sequence key="cap0" from={sec(b.at)} durationInFrames={sec(b.len)}>
-              <Rule />
-              <Sequence durationInFrames={sec(NUDGE_SPLIT)}>
-                <Caption text={b.cap} exitAt={12} />
-              </Sequence>
-              <Sequence from={sec(NUDGE_SPLIT)}>
-                <Caption text="A gentle nudge. *Always your choice*." size={74} />
-              </Sequence>
-            </Sequence>
-          ) : (
-            <Sequence key={b.clip} from={sec(b.at)} durationInFrames={sec(b.len)}>
-              <Rule />
+        {BEATS.map((b) => (
+          <Sequence key={b.clip} from={sec(b.at)} durationInFrames={sec(b.len)}>
+            <Rule />
+            {b.cap2 ? (
+              <>
+                <Sequence durationInFrames={sec(b.split!)}>
+                  <Caption text={b.cap} exitAt={12} />
+                </Sequence>
+                <Sequence from={sec(b.split!)}>
+                  <Caption text={b.cap2} size={b.cap2Size ?? 84} />
+                </Sequence>
+              </>
+            ) : (
               <Caption text={b.cap} />
-            </Sequence>
-          ),
-        )}
+            )}
+          </Sequence>
+        ))}
       </FadeIn>
     </Sequence>
 
