@@ -21,15 +21,20 @@ export const FONT = '"Avenir Next", -apple-system, BlinkMacSystemFont, sans-seri
 
 /* Phone geometry in the 1920x1080 frame. The source captures are 786x1601. */
 export const PHONE = {
-  /* Taller than the frame on purpose: a portrait phone shown whole inside
-     1080px is too small to read, and unreadable app content is the one thing a
-     promo video cannot afford. It bleeds off the top and bottom instead. */
-  height: 1240,
-  get width() {
-    return Math.round(this.height * (786 / 1601));
-  },
-  radius: 34,
-  frame: 9,
+  /* The whole device fits inside the frame now. At 1240 it bled off the top
+     *and* the bottom, which leaves no silhouette -- the viewer sees a tall
+     rectangle of screenshot, not a phone. The store screenshots get away with
+     bleeding because they bleed only downward, so the rounded top still reads.
+     Bleeding downward here is not available: the nudge's buttons, including
+     the escape hatch, live at the bottom of the screen. */
+  height: 1020,
+  width: 501,
+  radius: 46,
+  bezelX: 11,
+  bezelY: 28,
+  screenRadius: 34,
+  get screenW() { return this.width - this.bezelX * 2; },
+  get screenH() { return this.height - this.bezelY * 2; },
 };
 
 export const sec = (s: number) => Math.round(s * FPS);

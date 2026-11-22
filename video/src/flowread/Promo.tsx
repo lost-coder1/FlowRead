@@ -1,24 +1,27 @@
-import { AbsoluteFill, Sequence, useCurrentFrame, interpolate, staticFile } from "remotion";
+import { AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig, interpolate, staticFile } from "remotion";
 import { Video } from "@remotion/media";
-import { TransitionSeries, linearTiming } from "@remotion/transitions";
-import { fade } from "@remotion/transitions/fade";
 import { Plate } from "./Plate";
-import { Stage, Screen } from "./Stage";
+import { Stage, Screen, DrawnScreen } from "./Stage";
+import { Feed } from "./Feed";
 import { Caption } from "./Caption";
-import { TileWall, ClockSweep } from "./Opener";
+import { ClockReadout } from "./Clock";
+import { TileWall } from "./Opener";
 import { EndCard } from "./EndCard";
 import { sec } from "./theme";
 
-const OPENER = 7;
+const TILES = 3.5;
+const FEED = 3.5;
 const PRODUCT = 30;
 const END = 3.5;
 const BLEND = 14;
 
-export const TOTAL_FRAMES = sec(OPENER + PRODUCT + END);
+export const TOTAL_FRAMES = sec(TILES + FEED + PRODUCT + END);
 
-/* Beat slots inside the product section, in seconds from its start.
-   Playback rates fit each clip to its slot; none is sped up far enough to
-   make the UI unreadable. */
+const STAGE_IN = TILES;                 /* the phone arrives on the feed beat */
+const PRODUCT_IN = TILES + FEED;
+const STAGE_LEN = FEED + PRODUCT;
+
+/* Beat slots, in seconds from the start of the product section. */
 const BEATS = [
   { at: 0,    len: 5.5, clip: "01_nudge.mp4",      rate: 0.6,  cap: "FlowRead catches you *first*." },
   { at: 5.5,  len: 5.0, clip: "02_reading.mp4",    rate: 1.3,  cap: "Just a *few pages*." },
@@ -28,29 +31,29 @@ const BEATS = [
   { at: 25.5, len: 4.5, clip: "06_freebooks.mp4",  rate: 1.75, cap: "Start *free*, or bring your own." },
 ];
 
-/* The nudge beat carries a second line: the escape hatch is the point, and it
-   needs saying while it is on screen. */
 const NUDGE_SPLIT = 2.9;
 
-const Fade: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+const FadeIn: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const frame = useCurrentFrame();
   return (
-    <AbsoluteFill
-      style={{
-        opacity: interpolate(frame, [0, BLEND], [0, 1], {
-          extrapolateLeft: "clamp",
-          extrapolateRight: "clamp",
-        }),
-      }}
-    >
+    <AbsoluteFill style={{ opacity: interpolate(frame, [0, BLEND], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) }}>
       {children}
     </AbsoluteFill>
   );
 };
 
-/* A hairline that wipes out under the caption. The only drawn flourish in the
-   product section -- it keeps a thread back to the opener's vocabulary
-   without putting motion anywhere near the footage. */
+const FadeOut: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const frame = useCurrentFrame();
+  const { durationInFrames } = useVideoConfig();
+  return (
+    <AbsoluteFill style={{ opacity: interpolate(frame, [durationInFrames - BLEND, durationInFrames], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }) }}>
+      {children}
+    </AbsoluteFill>
+  );
+};
+
+/* A hairline wiping out above each caption -- the only drawn flourish left in
+   the product half, and nowhere near the footage. */
 const Rule: React.FC = () => {
   const frame = useCurrentFrame();
   return (
@@ -60,10 +63,7 @@ const Rule: React.FC = () => {
         left: 132,
         top: 318,
         height: 3,
-        width: interpolate(frame, [4, 26], [0, 132], {
-          extrapolateLeft: "clamp",
-          extrapolateRight: "clamp",
-        }),
+        width: interpolate(frame, [4, 26], [0, 132], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }),
         background: "#e8c547",
         opacity: 0.85,
       }}
@@ -75,37 +75,29 @@ export const Promo: React.FC = () => (
   <AbsoluteFill style={{ backgroundColor: "#0d0d0d" }}>
     <Plate />
 
-    {/* ── drawn: the problem ───────────────────────────────── */}
-    <Sequence durationInFrames={sec(OPENER) + BLEND}>
-      <TransitionSeries>
-        <TransitionSeries.Sequence durationInFrames={sec(3.6)}>
-          <AbsoluteFill>
-            <TileWall />
-            <Caption text="You meant to *read* tonight." />
-          </AbsoluteFill>
-        </TransitionSeries.Sequence>
-        <TransitionSeries.Transition
-          presentation={fade()}
-          timing={linearTiming({ durationInFrames: 10 })}
-        />
-        <TransitionSeries.Sequence durationInFrames={sec(3.8) + BLEND}>
-          <AbsoluteFill>
-            <ClockSweep />
-            <Caption text="Then the *scrolling* took over." />
-          </AbsoluteFill>
-        </TransitionSeries.Sequence>
-      </TransitionSeries>
+    <Sequence durationInFrames={sec(TILES) + BLEND}>
+      <FadeOut>
+        <TileWall />
+        <Caption text="You meant to *read* tonight." />
+      </FadeOut>
     </Sequence>
 
-    {/* ── real footage: one device, content changing inside it ── */}
-    <Sequence from={sec(OPENER)} durationInFrames={sec(PRODUCT) + BLEND}>
-      <Fade>
+    {/* The device enters once, here, and does not move again until the end
+        card. The feed it arrives on is the problem; everything after it on
+        the same screen is the answer. */}
+    <Sequence from={sec(STAGE_IN)} durationInFrames={sec(STAGE_LEN) + BLEND}>
+      <FadeOut>
         <Stage>
+          <Sequence durationInFrames={sec(FEED) + 20}>
+            <DrawnScreen>
+              <Feed />
+            </DrawnScreen>
+          </Sequence>
+
           {BEATS.map((b, i) => (
             <Sequence
               key={b.clip}
-              from={sec(b.at)}
-              /* overruns its slot so the next screen dissolves over it */
+              from={sec(FEED + b.at)}
               durationInFrames={sec(b.len) + (i === BEATS.length - 1 ? 0 : 18)}
             >
               <Screen>
@@ -119,7 +111,16 @@ export const Promo: React.FC = () => (
             </Sequence>
           ))}
         </Stage>
+      </FadeOut>
+    </Sequence>
 
+    <Sequence from={sec(STAGE_IN)} durationInFrames={sec(FEED)}>
+      <Caption text="Then the *scrolling* took over." />
+      <ClockReadout />
+    </Sequence>
+
+    <Sequence from={sec(PRODUCT_IN)} durationInFrames={sec(PRODUCT)}>
+      <FadeIn>
         {BEATS.map((b, i) =>
           i === 0 ? (
             <Sequence key="cap0" from={sec(b.at)} durationInFrames={sec(b.len)}>
@@ -138,13 +139,13 @@ export const Promo: React.FC = () => (
             </Sequence>
           ),
         )}
-      </Fade>
+      </FadeIn>
     </Sequence>
 
-    <Sequence from={sec(OPENER + PRODUCT)} durationInFrames={sec(END)}>
-      <Fade>
+    <Sequence from={sec(TILES + FEED + PRODUCT)} durationInFrames={sec(END)}>
+      <FadeIn>
         <EndCard />
-      </Fade>
+      </FadeIn>
     </Sequence>
   </AbsoluteFill>
 );

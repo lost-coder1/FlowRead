@@ -1,5 +1,5 @@
-import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, spring, Easing } from "remotion";
-import { COLORS, FONT } from "./theme";
+import { AbsoluteFill, useCurrentFrame, useVideoConfig, interpolate, spring } from "remotion";
+import { COLORS } from "./theme";
 
 /* The opening two beats are drawn, never captured.
    A promo video showing a competitor's real app carries their trade dress and
@@ -100,60 +100,3 @@ export const TileWall: React.FC = () => {
 /* Beat 2: a ring sweeping away an evening, with the clock running under it.
    The reference uses a countdown ring for focus earned; this is its opposite,
    time being spent. */
-export const ClockSweep: React.FC = () => {
-  const frame = useCurrentFrame();
-  const { durationInFrames } = useVideoConfig();
-
-  const R = 180;
-  const C = 2 * Math.PI * R;
-  const p = interpolate(frame, [6, durationInFrames - 8], [0, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-    easing: Easing.bezier(0.5, 0, 0.5, 1),
-  });
-
-  const mins = Math.floor(interpolate(p, [0, 1], [21 * 60 + 14, 23 * 60 + 52]));
-  const hh = String(Math.floor(mins / 60) % 24).padStart(2, "0");
-  const mm = String(mins % 60).padStart(2, "0");
-
-  const cx = 1430;
-  const cy = 540;
-
-  return (
-    <AbsoluteFill>
-      <svg width="1920" height="1080" style={{ position: "absolute", inset: 0 }}>
-        <circle cx={cx} cy={cy} r={R} fill="none" stroke="#2a2a2a" strokeWidth={10} />
-        <circle
-          cx={cx}
-          cy={cy}
-          r={R}
-          fill="none"
-          stroke={COLORS.accent2}
-          strokeWidth={10}
-          strokeLinecap="round"
-          strokeDasharray={C}
-          strokeDashoffset={C * (1 - p)}
-          transform={`rotate(-90 ${cx} ${cy})`}
-        />
-      </svg>
-      <div
-        style={{
-          position: "absolute",
-          left: cx - 200,
-          top: cy - 46,
-          width: 400,
-          textAlign: "center",
-          fontFamily: FONT,
-          fontWeight: 600,
-          fontSize: 86,
-          color: COLORS.cream,
-          fontVariantNumeric: "tabular-nums",
-          letterSpacing: "0.01em",
-          opacity: interpolate(frame, [4, 16], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }),
-        }}
-      >
-        {hh}:{mm}
-      </div>
-    </AbsoluteFill>
-  );
-};

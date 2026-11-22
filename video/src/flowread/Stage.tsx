@@ -1,118 +1,137 @@
-import { useCurrentFrame, useVideoConfig, interpolate, Easing } from "remotion";
+import { useCurrentFrame, useVideoConfig, interpolate, spring } from "remotion";
 import { PHONE, COLORS } from "./theme";
 
-/* One device for the whole product section.
-   The screen recordings already move; a zoom or pan on top of them fights the
-   content and crops the app's own chrome -- the engine tab row was being cut
-   off the top. So the capture is shown whole and 1:1, and the only movement
-   the frame itself makes is a single slow rotation across the entire section,
-   never a per-scene reset. */
+/* One device, entering once and then held absolutely still.
+   Nothing zooms, pans or rotates it. A perspective rotation, however slow,
+   still changes the thing's apparent size, which on a screen recording reads
+   as exactly the drift this is meant to be free of. The motion in this half
+   of the film is the app's own. */
 
-/* Capture is 1080x2340. Fitting its width to the phone leaves ~80px over,
-   which is spent hiding the status bar at the top and the gesture bar at the
-   bottom -- the phone's furniture, not the product's. Nothing is cropped
-   horizontally, so no line of app UI ever loses its first character. */
 const CAPTURE_W = 1080;
 const CAPTURE_H = 2340;
 const STATUS_PX = 96;
 
+/* Fitting the capture to the screen's width leaves ~74px over, spent hiding
+   the status bar at the top and the gesture bar at the bottom. Nothing is
+   cropped horizontally, so no line of app UI loses its first character. */
+const MEDIA_W = PHONE.screenW;
+const MEDIA_H = (PHONE.screenW * CAPTURE_H) / CAPTURE_W;
+const MEDIA_TOP = -(STATUS_PX * PHONE.screenW) / CAPTURE_W;
+
+const Key: React.FC<{ top: number; height: number; side: "l" | "r" }> = ({ top, height, side }) => (
+  <div
+    style={{
+      position: "absolute",
+      top,
+      height,
+      width: 4,
+      [side === "r" ? "left" : "right"]: side === "r" ? PHONE.width - 1 : PHONE.width - 1,
+      borderRadius: 2,
+      background: "#2b2622",
+    }}
+  />
+);
+
 export const Stage: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const frame = useCurrentFrame();
-  const { durationInFrames, width, height } = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
 
   const w = PHONE.width;
   const h = PHONE.height;
-  const left = width - 180 - w;
+  const left = width - 190 - w;
   const top = (height - h) / 2;
 
-  /* One continuous sweep, about a quarter of a degree per second. Enough that
-     the frame is never dead, far too slow to compete with the screen. */
-  const ry = interpolate(frame, [0, durationInFrames], [-5.5, 1.5], {
-    extrapolateRight: "clamp",
-    easing: Easing.bezier(0.4, 0, 0.6, 1),
-  });
-
-  const mediaW = w;
-  const mediaH = (w * CAPTURE_H) / CAPTURE_W;
-  const mediaTop = -(STATUS_PX * w) / CAPTURE_W;
+  const rise = spring({ frame, fps, config: { damping: 200, mass: 0.7 } });
 
   return (
-    <div style={{ position: "absolute", left, top, width: w, height: h, perspective: 2400 }}>
+    <div
+      style={{
+        position: "absolute",
+        left,
+        top,
+        width: w,
+        height: h,
+        opacity: interpolate(rise, [0, 0.4], [0, 1], { extrapolateRight: "clamp" }),
+        translate: `0 ${interpolate(rise, [0, 1], [46, 0])}px`,
+      }}
+    >
+      <div style={{ position: "absolute", inset: -24, borderRadius: PHONE.radius + 24, background: COLORS.cream, opacity: 0.2, filter: "blur(38px)" }} />
+      <div style={{ position: "absolute", inset: 0, translate: "8px 30px", borderRadius: PHONE.radius, background: "#000", opacity: 0.58, filter: "blur(44px)" }} />
+
+      <Key side="r" top={232} height={96} />
+      <Key side="l" top={196} height={58} />
+      <Key side="l" top={268} height={58} />
+
+      {/* body */}
       <div
         style={{
-          width: "100%",
-          height: "100%",
-          transformStyle: "preserve-3d",
-          transform: `rotateY(${ry}deg)`,
+          position: "absolute",
+          inset: 0,
+          borderRadius: PHONE.radius,
+          background: "#141210",
+          border: `3px solid rgba(232,228,220,0.82)`,
+          boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.6)",
         }}
       >
+        {/* earpiece and camera, which is most of what makes a rectangle a phone */}
+        <div style={{ position: "absolute", top: PHONE.bezelY / 2 - 3, left: "50%", translate: "-34px 0", width: 56, height: 5, borderRadius: 3, background: "#272320" }} />
+        <div style={{ position: "absolute", top: PHONE.bezelY / 2 - 5, left: "50%", translate: "30px 0", width: 9, height: 9, borderRadius: "50%", background: "#0a0908", border: "1px solid #2e2924" }} />
+
+        {/* screen */}
         <div
           style={{
             position: "absolute",
-            inset: -22,
-            borderRadius: PHONE.radius + 22,
-            background: COLORS.cream,
-            opacity: 0.24,
-            filter: "blur(34px)",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            translate: `${-ry * 1.8}px 26px`,
-            borderRadius: PHONE.radius,
-            background: "#000",
-            opacity: 0.55,
-            filter: "blur(40px)",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            inset: 0,
-            borderRadius: PHONE.radius,
-            background: COLORS.ink,
-            border: "3px solid rgba(232,228,220,0.8)",
+            left: PHONE.bezelX,
+            top: PHONE.bezelY,
+            width: PHONE.screenW,
+            height: PHONE.screenH,
+            borderRadius: PHONE.screenRadius,
             overflow: "hidden",
+            background: COLORS.ink,
           }}
         >
-          {/* Every screen renders at exactly this geometry, so swapping the
-              content cannot shift the picture. */}
-          <div
-            style={{ position: "absolute", left: 0, top: mediaTop, width: mediaW, height: mediaH }}
-          >
+          {/* every screen renders at this exact geometry, so a swap cannot shift the picture */}
+          <div style={{ position: "absolute", left: 0, top: MEDIA_TOP, width: MEDIA_W, height: MEDIA_H }}>
             {children}
           </div>
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              background: `linear-gradient(${104 + ry * 2}deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0) 44%)`,
-            }}
-          />
         </div>
+
+        <div style={{ position: "absolute", inset: 0, borderRadius: PHONE.radius, background: "linear-gradient(104deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0) 46%)", pointerEvents: "none" }} />
       </div>
     </div>
   );
 };
 
-/* A screen inside the Stage. Cross-dissolves with whatever is beneath it, so
+/* A screen inside the Stage, cross-dissolving with whatever is beneath it so
    the device never blinks between beats. */
-export const Screen: React.FC<{ children: React.ReactNode; fadeIn?: number }> = ({
-  children,
-  fadeIn = 11,
-}) => {
+export const Screen: React.FC<{ children: React.ReactNode; fadeIn?: number }> = ({ children, fadeIn = 12 }) => {
   const frame = useCurrentFrame();
   return (
     <div
       style={{
         position: "absolute",
         inset: 0,
-        opacity: interpolate(frame, [0, fadeIn], [0, 1], {
-          extrapolateLeft: "clamp",
-          extrapolateRight: "clamp",
-        }),
+        opacity: interpolate(frame, [0, fadeIn], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }),
+      }}
+    >
+      {children}
+    </div>
+  );
+};
+
+/* The feed fills the screen rather than the capture box -- it is drawn, not
+   captured, so it has no status bar to hide. */
+export const DrawnScreen: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const frame = useCurrentFrame();
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: 0,
+        top: -MEDIA_TOP,
+        width: PHONE.screenW,
+        height: PHONE.screenH,
+        opacity: interpolate(frame, [0, 10], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }),
       }}
     >
       {children}
