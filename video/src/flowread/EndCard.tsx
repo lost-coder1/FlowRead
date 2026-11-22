@@ -1,3 +1,4 @@
+import React from "react";
 import { Img, staticFile, useCurrentFrame, useVideoConfig, interpolate, spring } from "remotion";
 import { COLORS, FONT } from "./theme";
 import { Plate } from "./Plate";
@@ -53,20 +54,48 @@ export const EndCard: React.FC = () => {
           </div>
         </div>
 
-        <div
-          style={{
-            fontFamily: FONT,
-            fontWeight: 500,
-            fontSize: 30,
-            color: "rgba(232,228,220,0.62)",
-            letterSpacing: "0.04em",
-            opacity: interpolate(frame, [34, 52], [0, 1], {
-              extrapolateLeft: "clamp",
-              extrapolateRight: "clamp",
-            }),
-          }}
-        >
-          No account · Works offline · Free to start
+        {/* The closing claim was set at 30px in muted grey and read as a
+            footnote, when it is in fact the whole objection-handling: no
+            sign-up, no connection, no card. Full brightness, larger, and
+            arriving one at a time so each is actually read. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
+          {["No account", "Works offline", "Free to start"].map((item, i) => (
+            <React.Fragment key={item}>
+              {i > 0 ? (
+                <div
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    background: COLORS.accent,
+                    opacity: interpolate(frame, [30 + i * 9, 42 + i * 9], [0, 0.9], {
+                      extrapolateLeft: "clamp",
+                      extrapolateRight: "clamp",
+                    }),
+                  }}
+                />
+              ) : null}
+              <div
+                style={{
+                  fontFamily: FONT,
+                  fontWeight: 600,
+                  fontSize: 42,
+                  color: COLORS.cream,
+                  letterSpacing: "0.01em",
+                  opacity: interpolate(frame, [26 + i * 9, 40 + i * 9], [0, 1], {
+                    extrapolateLeft: "clamp",
+                    extrapolateRight: "clamp",
+                  }),
+                  translate: `0px ${interpolate(frame, [26 + i * 9, 42 + i * 9], [14, 0], {
+                    extrapolateLeft: "clamp",
+                    extrapolateRight: "clamp",
+                  })}px`,
+                }}
+              >
+                {item}
+              </div>
+            </React.Fragment>
+          ))}
         </div>
       </div>
     </>

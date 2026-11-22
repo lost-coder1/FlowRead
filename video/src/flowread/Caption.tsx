@@ -53,7 +53,7 @@ export const Caption: React.FC<Props> = ({
       style={{
         position: "absolute",
         left: align === "center" ? 0 : 130,
-        width: align === "center" ? "100%" : 1000,
+        width: align === "center" ? "100%" : 880,   /* clears the pushed-in device */
         top: top ?? (align === "center" ? 430 : 372),
         display: "flex",
         flexWrap: "wrap",

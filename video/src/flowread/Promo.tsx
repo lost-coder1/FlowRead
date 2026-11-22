@@ -7,12 +7,14 @@ import { Caption } from "./Caption";
 import { ClockReadout } from "./Clock";
 import { TileWall } from "./Opener";
 import { EndCard } from "./EndCard";
-import { sec } from "./theme";
+import { sec, PHONE, WIDTH, HEIGHT } from "./theme";
 
-const TILES = 3.5;
-const FEED = 3.5;
-const PRODUCT = 31.5;
-const END = 3.5;
+/* The nudge has to be on screen inside five seconds: that is where people
+   leave. The two drawn beats state the problem and get out of the way. */
+const TILES = 2.0;
+const FEED = 2.3;
+const PRODUCT = 25.5;
+const END = 3.2;
 const BLEND = 14;
 
 export const TOTAL_FRAMES = sec(TILES + FEED + PRODUCT + END);
@@ -36,26 +38,80 @@ type Beat = {
 
 const BEATS: Beat[] = [
   {
-    at: 0, len: 5.5, clip: "01_nudge.mp4", rate: 0.6,
+    at: 0, len: 5.0, clip: "01_nudge.mp4", rate: 0.6,
     cap: "FlowRead catches you *first*.",
-    /* The escape hatch is the whole point of that screen, so it gets said
-       while the screen is still up rather than left to be noticed. */
-    split: 2.9, cap2: "A gentle nudge. *Always your choice*.", cap2Size: 74,
+    split: 2.6, cap2: "A gentle nudge. *Always your choice*.", cap2Size: 72,
   },
-  { at: 5.5,  len: 5.0, clip: "02_reading.mp4",    rate: 1.3,  cap: "Just a *few pages*." },
-  { at: 10.5, len: 4.5, clip: "03_unlock.mp4",     rate: 1.0,  cap: "Your clock *resets*." },
-  { at: 15,   len: 6.0, clip: "04_highlight.mp4",  rate: 1.55, cap: "Keep the lines that *stay with you*." },
-  { at: 21,   len: 4.5, clip: "05_dictionary.mp4", rate: 1.75, cap: "And every *word* you learn." },
+  { at: 5.0,  len: 4.5, clip: "02_reading.mp4", rate: 1.3, cap: "Just a *few pages*." },
   {
-    at: 25.5, len: 6.0, clip: "06_freebooks.mp4", rate: 1.75,
+    at: 9.5, len: 4.0, clip: "03_unlock.mp4", rate: 1.0,
+    /* "Your clock resets" is the mechanism, which only means anything to
+       someone who already knows the mechanism. This says what happened. */
+    cap: "You traded scrolling for *reading*.",
+  },
+  /* Highlighting and the dictionary are real, but they are not what makes
+     this app different -- Kindle has both -- and at eleven seconds they were
+     taking a quarter of the film. Cut to six and a half between them, which
+     means each is shown faster: enough to reach the payoff, not enough to
+     study. That is the right trade for a feature nobody installs for. */
+  { at: 13.5, len: 3.5, clip: "04_highlight.mp4",  rate: 2.2, cap: "Keep the lines that *stay with you*." },
+  { at: 17.0, len: 3.0, clip: "05_dictionary.mp4", rate: 2.4, cap: "And every *word* you learn." },
+  {
+    at: 20.0, len: 5.5, clip: "06_freebooks.mp4", rate: 1.75,
     cap: "Start with the *free books*.",
-    /* The catalogue alone left "bring your own" as an unbacked claim. This is
-       the import screen the eighth store screenshot is built from, so the
-       second half of the offer is shown rather than merely asserted. */
-    split: 3.0, cap2: "Or bring your *own*.",
+    split: 2.8, cap2: "Or bring your *own*.",
     still: "shots/FlowReadOwnbookNewSS.jpeg",
   },
 ];
+
+/* A held push, not a drift.
+   The whole phone at this size makes its own UI small, so the three screens
+   that are text rather than picture -- the nudge, the completion card and the
+   import grid -- are moved closer for as long as they are up. The device is
+   still never zoomed *into*: the camera scales the whole thing, so the app's
+   layout is never cropped and never reflows. It eases in at the boundary,
+   holds dead still for the beat, and eases back out.
+
+   Windows are in stage-relative seconds; the stage starts at the feed. */
+/* 1.40, and no closer. At 1.45 the push cut off "Continue to Instagram
+   anyway" -- the escape hatch section 8.1 makes a product rule, and the thing
+   the very next caption claims. A promo that crops it is making a claim its
+   own footage contradicts. At 1.40 the visible band is 75.6% of the phone,
+   placed at 0.147-0.903, which holds the headline and both buttons. */
+const PUSH = 1.40;
+const PUSH_X = -88;    /* keeps the phone's left edge clear of the captions */
+const PUSH_Y = -36;    /* centres on 0.525 of the screen, not its middle */
+const RAMP = 0.5;
+const DETAILS: [number, number][] = [
+  [FEED + 0, FEED + 5.0],        /* the nudge */
+  [FEED + 9.5, FEED + 13.5],     /* the completion card */
+  [FEED + 22.8, FEED + 25.5],    /* the import screen */
+];
+
+const Push: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const frame = useCurrentFrame();
+  const xs: number[] = [0];
+  const ys: number[] = [0];
+  DETAILS.forEach(([a, b]) => {
+    xs.push(sec(a - RAMP), sec(a), sec(b), sec(b + RAMP));
+    ys.push(0, 1, 1, 0);
+  });
+  const lin = interpolate(frame, xs, ys, { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const d = lin * lin * (3 - 2 * lin);   /* smoothstep, so the ramp has no corners */
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        transformOrigin: `${WIDTH - 190 - PHONE.width / 2}px ${HEIGHT / 2}px`,
+        transform: `translate(${PUSH_X * d}px, ${PUSH_Y * d}px) scale(${1 + (PUSH - 1) * d})`,
+      }}
+    >
+      {children}
+    </div>
+  );
+};
 
 const FadeIn: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const frame = useCurrentFrame();
@@ -133,6 +189,7 @@ export const Promo: React.FC = () => (
         the same screen is the answer. */}
     <Sequence from={sec(STAGE_IN)} durationInFrames={sec(STAGE_LEN) + BLEND}>
       <FadeOut>
+        <Push>
         <Stage>
           <Sequence durationInFrames={sec(FEED) + 20}>
             <DrawnScreen>
@@ -169,6 +226,7 @@ export const Promo: React.FC = () => (
             );
           })}
         </Stage>
+        </Push>
       </FadeOut>
     </Sequence>
 
