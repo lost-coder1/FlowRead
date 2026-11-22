@@ -1,4 +1,4 @@
-import { AbsoluteFill, Sequence, Img, useCurrentFrame, useVideoConfig, interpolate, staticFile } from "remotion";
+import { AbsoluteFill, Audio, Sequence, Img, useCurrentFrame, useVideoConfig, interpolate, staticFile } from "remotion";
 import { Video } from "@remotion/media";
 import { Plate } from "./Plate";
 import { Stage, Screen, DrawnScreen } from "./Stage";
@@ -91,8 +91,34 @@ const Rule: React.FC = () => {
   );
 };
 
+/* The bed is pre-normalised to about -14 LUFS in public/audio, not attenuated
+   here: the source track is -10.7 LUFS, which is hot enough that riding it
+   down with a volume number would leave its dynamics squashed against the
+   ceiling. Fades only, in frames, so changing the runtime cannot strand them.
+
+   It carries nothing. The clips are muted and the captions say everything the
+   video has to say, because a store listing autoplays silent and most people
+   will never hear this. */
+const Bed: React.FC = () => {
+  const { durationInFrames } = useVideoConfig();
+  return (
+    <Audio
+      src={staticFile("audio/bed.m4a")}
+      volume={(f) =>
+        interpolate(
+          f,
+          [0, 24, durationInFrames - 78, durationInFrames - 4],
+          [0, 1, 1, 0],
+          { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+        )
+      }
+    />
+  );
+};
+
 export const Promo: React.FC = () => (
   <AbsoluteFill style={{ backgroundColor: "#0d0d0d" }}>
+    <Bed />
     <Plate />
 
     <Sequence durationInFrames={sec(TILES) + BLEND}>
