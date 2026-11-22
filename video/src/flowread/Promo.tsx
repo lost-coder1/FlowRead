@@ -9,6 +9,7 @@ import { ClockReadout } from "./Clock";
 import { TileWall } from "./Opener";
 import { EndCard } from "./EndCard";
 import { sec, PHONE, WIDTH, HEIGHT, FONT } from "./theme";
+import { STRINGS, Locale } from "./strings";
 
 /* The nudge has to be on screen inside five seconds: that is where people
    leave. The two drawn beats state the problem and get out of the way. */
@@ -29,39 +30,26 @@ export type Beat = {
   len: number;
   clip: string;
   rate: number;
-  cap: string;
   /* A beat that makes two statements owes two screens and two captions. */
   split?: number;
-  cap2?: string;
   cap2Size?: number;
   still?: string;
 };
 
 export const BEATS: Beat[] = [
-  {
-    at: 0, len: 5.0, clip: "01_nudge.mp4", rate: 0.6,
-    cap: "FlowRead catches you *first*.",
-    split: 2.6, cap2: "A gentle nudge. *Always your choice*.", cap2Size: 72,
-  },
-  { at: 5.0,  len: 4.5, clip: "02_reading.mp4", rate: 1.3, cap: "Just a *few pages*." },
-  {
-    at: 9.5, len: 4.0, clip: "03_unlock.mp4", rate: 1.0,
-    /* "Your clock resets" is the mechanism, which only means anything to
-       someone who already knows the mechanism. This says what happened. */
-    cap: "You traded scrolling for *reading*.",
-  },
+  { at: 0,    len: 5.0, clip: "01_nudge.mp4",      rate: 0.6,  split: 2.6, cap2Size: 72 },
+  { at: 5.0,  len: 4.5, clip: "02_reading.mp4",    rate: 1.3 },
+  { at: 9.5,  len: 4.0, clip: "03_unlock.mp4",     rate: 1.0 },
   /* Highlighting and the dictionary are real, but they are not what makes
      this app different -- Kindle has both -- and at eleven seconds they were
      taking a quarter of the film. Cut to six and a half between them, which
      means each is shown faster: enough to reach the payoff, not enough to
      study. That is the right trade for a feature nobody installs for. */
-  { at: 13.5, len: 3.5, clip: "04_highlight.mp4",  rate: 2.2, cap: "Keep the lines that *stay with you*." },
-  { at: 17.0, len: 3.0, clip: "05_dictionary.mp4", rate: 2.4, cap: "And every *word* you learn." },
+  { at: 13.5, len: 3.5, clip: "04_highlight.mp4",  rate: 2.2 },
+  { at: 17.0, len: 3.0, clip: "05_dictionary.mp4", rate: 2.4 },
   {
     at: 20.0, len: 5.5, clip: "06_freebooks.mp4", rate: 1.75,
-    cap: "Start with the *free books*.",
-    split: 2.8, cap2: "Or bring your *own*.",
-    still: "shots/FlowReadOwnbookNewSS.jpeg",
+    split: 2.8, still: "shots/FlowReadOwnbookNewSS.jpeg",
   },
 ];
 
@@ -142,10 +130,9 @@ const FadeOut: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
    The claim is compatibility, not quantity -- section 3 gives the free tier
    one app at a time -- so it says "works with", never "all at once". */
-export const APPS = ["Instagram", "YouTube", "Reddit", "X", "any app"];
-
-const SubLine: React.FC = () => {
+const SubLine: React.FC<{ locale?: Locale }> = ({ locale = "en" }) => {
   const frame = useCurrentFrame();
+  const { apps, appsPrefix } = STRINGS[locale];
   const o = interpolate(frame, [14, 32], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   return (
     <div
@@ -160,7 +147,7 @@ const SubLine: React.FC = () => {
         translate: `0px ${interpolate(o, [0, 1], [10, 0])}px`,
       }}
     >
-      {APPS.map((a, i) => (
+      {apps.map((a, i) => (
         <React.Fragment key={a}>
           {i > 0 ? (
             <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#e8c547", opacity: 0.7 }} />
@@ -171,10 +158,10 @@ const SubLine: React.FC = () => {
               fontWeight: 500,
               fontSize: 32,
               letterSpacing: "0.015em",
-              color: i === APPS.length - 1 ? "rgba(232,228,220,0.82)" : "rgba(232,228,220,0.62)",
+              color: i === apps.length - 1 ? "rgba(232,228,220,0.82)" : "rgba(232,228,220,0.62)",
             }}
           >
-            {i === 0 ? `Works with ${a}` : a}
+            {i === 0 && appsPrefix ? `${appsPrefix} ${a}` : a}
           </div>
         </React.Fragment>
       ))}
@@ -222,7 +209,9 @@ const Bed: React.FC = () => {
   );
 };
 
-export const Promo: React.FC = () => (
+export const Promo: React.FC<{ locale?: Locale }> = ({ locale = "en" }) => {
+  const S = STRINGS[locale];
+  return (
   <AbsoluteFill style={{ backgroundColor: "#0d0d0d" }}>
     <Bed />
     <Plate />
@@ -230,7 +219,7 @@ export const Promo: React.FC = () => (
     <Sequence durationInFrames={sec(TILES) + BLEND}>
       <FadeOut>
         <TileWall />
-        <Caption text="You meant to *read* tonight." />
+        <Caption text={S.tiles} />
       </FadeOut>
     </Sequence>
 
@@ -281,7 +270,7 @@ export const Promo: React.FC = () => (
     </Sequence>
 
     <Sequence from={sec(STAGE_IN)} durationInFrames={sec(FEED)}>
-      <Caption text="Then the *scrolling* took over." />
+      <Caption text={S.clock} />
       <ClockReadout />
     </Sequence>
 
@@ -290,18 +279,18 @@ export const Promo: React.FC = () => (
         {BEATS.map((b) => (
           <Sequence key={b.clip} from={sec(b.at)} durationInFrames={sec(b.len)}>
             <Rule />
-            {b.at === 0 ? <SubLine /> : null}
-            {b.cap2 ? (
+            {b.at === 0 ? <SubLine locale={locale} /> : null}
+            {S.beats[b.clip].cap2 ? (
               <>
                 <Sequence durationInFrames={sec(b.split!)}>
-                  <Caption text={b.cap} exitAt={12} />
+                  <Caption text={S.beats[b.clip].cap} exitAt={12} />
                 </Sequence>
                 <Sequence from={sec(b.split!)}>
-                  <Caption text={b.cap2} size={b.cap2Size ?? 84} />
+                  <Caption text={S.beats[b.clip].cap2!} size={b.cap2Size ?? 84} />
                 </Sequence>
               </>
             ) : (
-              <Caption text={b.cap} />
+              <Caption text={S.beats[b.clip].cap} />
             )}
           </Sequence>
         ))}
@@ -310,8 +299,9 @@ export const Promo: React.FC = () => (
 
     <Sequence from={sec(TILES + FEED + PRODUCT)} durationInFrames={sec(END)}>
       <FadeIn>
-        <EndCard />
+        <EndCard locale={locale} />
       </FadeIn>
     </Sequence>
-  </AbsoluteFill>
-);
+    </AbsoluteFill>
+  );
+};

@@ -17,7 +17,12 @@ export const COLORS = {
 
 /* Avenir Next is resolved from the system, which is safe because rendering
    happens locally on the machine that built the screenshots. */
-export const FONT = '"Avenir Next", -apple-system, BlinkMacSystemFont, sans-serif';
+/* Devanagari is appended as a per-glyph fallback rather than switched to,
+   exactly as www/css/base.css does it: Avenir Next has no Devanagari, so a
+   Hindi caption falls through to Noto while "FlowRead" and "Google Play" in
+   the same line keep the Latin face. One stack, no locale threading. */
+export const FONT =
+  '"Avenir Next", "Noto Sans Devanagari", -apple-system, BlinkMacSystemFont, sans-serif';
 
 /* Phone geometry in the 1920x1080 frame. The source captures are 786x1601. */
 export const PHONE = {

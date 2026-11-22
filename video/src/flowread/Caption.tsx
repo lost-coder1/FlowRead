@@ -19,7 +19,7 @@ type Props = {
    on whitespace first and testing each word was wrong: "*few pages*" arrives
    as "*few" and "pages*." and neither opens and closes, so the asterisks
    rendered on screen. Split on the marker instead, then attach trailing
-   punctuation to the word before it so "pages ." never appears. */
+   punctuation -- the Devanagari danda among it -- to the word before it so "pages ." never appears. */
 type Token = { w: string; accent: boolean };
 
 function tokenize(text: string): Token[] {
@@ -29,7 +29,7 @@ function tokenize(text: string): Token[] {
       .split(/\s+/)
       .filter(Boolean)
       .forEach((w) => {
-        if (/^[.,;:!?'")\]]+$/.test(w) && out.length) out[out.length - 1].w += w;
+        if (/^[.,;:!?'")\]।]+$/.test(w) && out.length) out[out.length - 1].w += w;
         else out.push({ w, accent: i % 2 === 1 });
       });
   });
@@ -47,6 +47,18 @@ export const Caption: React.FC<Props> = ({
   const { fps, durationInFrames } = useVideoConfig();
   const words = tokenize(text);
   const lineH = Math.round(size * 1.18);
+
+  /* Both staggers are scaled to the time available rather than fixed per
+     word. At a fixed 1.5 frames the exit of a long line started after its own
+     end -- interpolate was handed [75, 75] and refused -- and Hindi hit it
+     first simply because the same sentence takes more words. A fixed entry
+     step has the quieter version of the same fault: the last word of a long
+     line arrives after the caption is half over. */
+  const gaps = Math.max(1, words.length - 1);
+  const inStep = Math.min(3, Math.max(0.6, ((durationInFrames - 32) * 0.4) / gaps));
+  const outTo = durationInFrames - 3;
+  const outFrom = durationInFrames - exitAt;
+  const outStep = Math.min(1.5, Math.max(0.3, ((outTo - outFrom) * 0.5) / gaps));
 
   return (
     <div
@@ -69,7 +81,7 @@ export const Caption: React.FC<Props> = ({
       {words.map(({ w: word, accent }, i) => {
 
         const inS = spring({
-          frame: frame - i * 3,
+          frame: frame - i * inStep,
           fps,
           config: { damping: 19, mass: 0.7 },
           durationInFrames: 32,
@@ -78,7 +90,7 @@ export const Caption: React.FC<Props> = ({
            line clears instead of unravelling. */
         const outT = interpolate(
           frame,
-          [durationInFrames - exitAt + (words.length - 1 - i) * 1.5, durationInFrames - 3],
+          [Math.min(outFrom + (words.length - 1 - i) * outStep, outTo - 1), outTo],
           [0, 1],
           { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: Easing.bezier(0.5, 0, 0.9, 0.4) },
         );

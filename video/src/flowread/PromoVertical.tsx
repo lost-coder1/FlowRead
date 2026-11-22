@@ -9,7 +9,8 @@ import { ClockReadout } from "./Clock";
 import { TileWall } from "./Opener";
 import { EndCard } from "./EndCard";
 import { sec, FONT } from "./theme";
-import { TILES, FEED, PRODUCT, END, BLEND, BEATS, DETAILS, RAMP, APPS } from "./Promo";
+import { TILES, FEED, PRODUCT, END, BLEND, BEATS, DETAILS, RAMP } from "./Promo";
+import { STRINGS, Locale } from "./strings";
 
 /* The Shorts cut: 1080x1920, same film, same beats, same bed.
    Everything here is layout. The beat list, the clips, the captions and the
@@ -107,8 +108,9 @@ const Rule: React.FC = () => {
   );
 };
 
-const SubLine: React.FC = () => {
+const SubLine: React.FC<{ locale: Locale }> = ({ locale }) => {
   const frame = useCurrentFrame();
+  const { apps, appsPrefix } = STRINGS[locale];
   const o = interpolate(frame, [14, 32], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
   return (
     <div
@@ -118,16 +120,16 @@ const SubLine: React.FC = () => {
         opacity: o, translate: `0px ${interpolate(o, [0, 1], [10, 0])}px`,
       }}
     >
-      {APPS.map((a, i) => (
+      {apps.map((a, i) => (
         <React.Fragment key={a}>
           {i > 0 ? <div style={{ width: 5, height: 5, borderRadius: "50%", background: "#e8c547", opacity: 0.7 }} /> : null}
           <div
             style={{
               fontFamily: FONT, fontWeight: 500, fontSize: 27, letterSpacing: "0.015em",
-              color: i === APPS.length - 1 ? "rgba(232,228,220,0.82)" : "rgba(232,228,220,0.62)",
+              color: i === apps.length - 1 ? "rgba(232,228,220,0.82)" : "rgba(232,228,220,0.62)",
             }}
           >
-            {i === 0 ? `Works with ${a}` : a}
+            {i === 0 && appsPrefix ? `${appsPrefix} ${a}` : a}
           </div>
         </React.Fragment>
       ))}
@@ -150,7 +152,9 @@ const Bed: React.FC = () => {
   );
 };
 
-export const PromoVertical: React.FC = () => (
+export const PromoVertical: React.FC<{ locale?: Locale }> = ({ locale = "en" }) => {
+  const S = STRINGS[locale];
+  return (
   <AbsoluteFill style={{ backgroundColor: "#0d0d0d" }}>
     <Bed />
     <Plate portrait />
@@ -158,7 +162,7 @@ export const PromoVertical: React.FC = () => (
     <Sequence durationInFrames={sec(TILES) + BLEND}>
       <FadeOut>
         <TileWall centered />
-        <Caption text="You meant to *read* tonight." align="center" top={CAP_TOP} size={CAP_SIZE} />
+        <Caption text={S.tiles} align="center" top={CAP_TOP} size={CAP_SIZE} />
       </FadeOut>
     </Sequence>
 
@@ -198,7 +202,7 @@ export const PromoVertical: React.FC = () => (
     </Sequence>
 
     <Sequence from={sec(TILES)} durationInFrames={sec(FEED)}>
-      <Caption text="Then the *scrolling* took over." align="center" top={CAP_TOP} size={CAP_SIZE} />
+      <Caption text={S.clock} align="center" top={CAP_TOP} size={CAP_SIZE} />
       <ClockReadout centered />
     </Sequence>
 
@@ -207,18 +211,18 @@ export const PromoVertical: React.FC = () => (
         {BEATS.map((b) => (
           <Sequence key={b.clip} from={sec(b.at)} durationInFrames={sec(b.len)}>
             <Rule />
-            {b.at === 0 ? <SubLine /> : null}
-            {b.cap2 ? (
+            {b.at === 0 ? <SubLine locale={locale} /> : null}
+            {S.beats[b.clip].cap2 ? (
               <>
                 <Sequence durationInFrames={sec(b.split!)}>
-                  <Caption text={b.cap} align="center" top={CAP_TOP} size={CAP_SIZE} exitAt={12} />
+                  <Caption text={S.beats[b.clip].cap} align="center" top={CAP_TOP} size={CAP_SIZE} exitAt={12} />
                 </Sequence>
                 <Sequence from={sec(b.split!)}>
-                  <Caption text={b.cap2} align="center" top={CAP_TOP} size={b.cap2Size ? CAP_SIZE - 6 : CAP_SIZE} />
+                  <Caption text={S.beats[b.clip].cap2!} align="center" top={CAP_TOP} size={b.cap2Size ? CAP_SIZE - 6 : CAP_SIZE} />
                 </Sequence>
               </>
             ) : (
-              <Caption text={b.cap} align="center" top={CAP_TOP} size={CAP_SIZE} />
+              <Caption text={S.beats[b.clip].cap} align="center" top={CAP_TOP} size={CAP_SIZE} />
             )}
           </Sequence>
         ))}
@@ -227,8 +231,9 @@ export const PromoVertical: React.FC = () => (
 
     <Sequence from={sec(TILES + FEED + PRODUCT)} durationInFrames={sec(END)}>
       <FadeIn>
-        <EndCard portrait />
+        <EndCard portrait locale={locale} />
       </FadeIn>
     </Sequence>
-  </AbsoluteFill>
-);
+    </AbsoluteFill>
+  );
+};

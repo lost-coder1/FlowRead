@@ -1,6 +1,7 @@
 import React from "react";
 import { Img, staticFile, useCurrentFrame, useVideoConfig, interpolate, spring } from "remotion";
 import { COLORS, FONT } from "./theme";
+import { STRINGS, Locale } from "./strings";
 import { Plate } from "./Plate";
 
 /* The Play mark, drawn.
@@ -23,9 +24,13 @@ const PlayMark: React.FC<{ size: number }> = ({ size }) => (
   </svg>
 );
 
-export const EndCard: React.FC<{ portrait?: boolean }> = ({ portrait = false }) => {
+export const EndCard: React.FC<{ portrait?: boolean; locale?: Locale }> = ({
+  portrait = false,
+  locale = "en",
+}) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const S = STRINGS[locale];
   const s = spring({ frame, fps, config: { damping: 20, mass: 0.8 }, durationInFrames: 38 });
   const line = spring({ frame: frame - 14, fps, config: { damping: 22 }, durationInFrames: 34 });
 
@@ -70,7 +75,7 @@ export const EndCard: React.FC<{ portrait?: boolean }> = ({ portrait = false }) 
               translate: `0px ${interpolate(line, [0, 1], [76, 0])}px`,
             }}
           >
-            Read more. Scroll less.
+            {S.tagline}
           </div>
         </div>
 
@@ -79,7 +84,7 @@ export const EndCard: React.FC<{ portrait?: boolean }> = ({ portrait = false }) 
             sign-up, no connection, no card. Full brightness, larger, and
             arriving one at a time so each is actually read. */}
         <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
-          {["No account", "Works offline", "Free to start"].map((item, i) => (
+          {S.features.map((item, i) => (
             <React.Fragment key={item}>
               {i > 0 ? (
                 <div
@@ -144,7 +149,7 @@ export const EndCard: React.FC<{ portrait?: boolean }> = ({ portrait = false }) 
               letterSpacing: "0.02em",
             }}
           >
-            Available on Google Play
+            {S.store}
           </div>
         </div>
       </div>
