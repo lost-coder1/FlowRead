@@ -2073,8 +2073,27 @@ async function resumeFromLibrary(entry, source, options) {
     hideLoading();
     /* options.forceEngine lets a caller open in a specific engine for this read
        only — the nudge flow always lands in Page mode (§9.5) without changing
-       the user's saved default. */
-    renderReader(options && options.forceEngine ? { forceEngine: options.forceEngine } : undefined);
+       the user's saved default.
+
+       startIndex must be forwarded too, or it is computed here and discarded:
+       renderReader falls back to loadPosition() when given none, and for a
+       finished book that is wordCount — §4.2 makes completion *be* the
+       position — so a highlight opened its book at the *end* instead of at the
+       quote, which is precisely what §26.3 says must not happen.
+
+       Forwarded only when the caller actually supplied one. The completed-book
+       reset above is likewise still defeated by that same fallback, but it is
+       deliberately left alone here: carrying it through would open a finished
+       book at word zero, and since pause() saves on exit through _savePos(),
+       merely opening one and backing out would write position 0 and strip the
+       book of its Read status and its progress. That is a product decision
+       about re-reading, not part of this fix. */
+    const readerOpts = {};
+    if (options && options.forceEngine) readerOpts.forceEngine = options.forceEngine;
+    if (options && typeof options.startIndex === 'number' && options.startIndex >= 0) {
+      readerOpts.startIndex = AppState.currentIndex;   /* clamped above */
+    }
+    renderReader(readerOpts);
     switchView('view-reader');
   } catch (_) {
     hideLoading();
