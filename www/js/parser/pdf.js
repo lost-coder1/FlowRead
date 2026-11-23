@@ -415,12 +415,17 @@ function detectHeadersFooters(allPageData, numPages) {
   return recurring;
 }
 
-/* Normalize: lowercase, digits→#, strip punctuation, collapse whitespace */
+/* Normalize: lowercase, digits→#, strip punctuation, collapse whitespace.
+   Devanagari is kept: `\w` is ASCII-only (§5), so stripping everything outside
+   it collapsed every Devanagari footer to '' or '#'. Empty normalisations are
+   skipped by the caller, so a running footer like "गोदान / 5" was invisible to
+   header/footer detection and stayed in the text of every Hindi book. */
 function normalizeLine(text) {
   return text
     .toLowerCase()
+    .replace(/[\u0966-\u096F]+/g, '#')      /* Devanagari digits ०-९ */
     .replace(/\d+/g, '#')
-    .replace(/[^\w\s#]/g, '')
+    .replace(/[^\w\s#\u0900-\u097F]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }

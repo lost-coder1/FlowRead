@@ -64,7 +64,7 @@ const PAGE_LAYOUT_MAX = 10;
 function savePageLayout(key, starts, wordCount) {
   try {
     localStorage.setItem(PAGE_LAYOUT_PREFIX + key, JSON.stringify({
-      v: 3, starts: starts, words: wordCount, ts: Date.now(),
+      v: 4, starts: starts, words: wordCount, ts: Date.now(),
     }));
   } catch (e) {
     /* Quota, or storage blocked entirely. This is a cache: losing it costs one
@@ -91,8 +91,10 @@ function _readPageLayout(key, wordCount) {
     const entry = JSON.parse(raw);
     /* Each version changed what occupies vertical space, so every earlier grid
        describes a layout that no longer exists: v2 added paragraph breaks, v3
-       added chapter headings. Both move every page boundary in the book. */
-    if (!entry || entry.v !== 3 || !Array.isArray(entry.starts) || entry.starts.length === 0) return null;
+       added chapter headings, v4 made a bare numeral its own paragraph (which
+       moves an indent, and gives scanned books their chapter headings). Each
+       moves page boundaries through the book. */
+    if (!entry || entry.v !== 4 || !Array.isArray(entry.starts) || entry.starts.length === 0) return null;
     /* A file re-imported under the same id can hold different text, and the
        stored boundaries would then point into the wrong words. */
     if (typeof wordCount === 'number' && entry.words !== wordCount) return null;
@@ -353,9 +355,11 @@ async function loadFileData(fileId) {
 /* ── OCR checkpoints ─────────────────────────────────────────
    A scanned book is OCR'd a page at a time and nothing was written down until
    the last page finished, so a phone call at page 300 of 355 discarded all of
-   it. The checkpoint is the same shape as the file data -- words, pageWordIndex
-   and rawLines are append-only, so a prefix of them is a valid book -- plus the
-   page the next run should start from.
+   it. The checkpoint holds the recognised text of each finished page, which the
+   parser turns into the reader's arrays once the last page is in (cleaning needs
+   the whole book), plus the page the next run should start from. It carries the
+   parser's format version, so a checkpoint from an older build is discarded
+   rather than misread.
 
    It is deliberately NOT the file data itself and the book is not in the library
    until OCR completes: a half-OCR'd book would report a word count that is a
@@ -368,12 +372,11 @@ function _ocrCheckpointPath(fileId) {
 async function saveOcrCheckpoint(fileId, state) {
   if (!fileId || !state) return false;
   const payload = JSON.stringify({
+    v: state.v,
     pagesDone: state.pagesDone,
     pageCount: state.pageCount,
     lockedScript: state.lockedScript || null,
-    words: state.words,
-    pageWordIndex: state.pageWordIndex,
-    rawLines: state.rawLines,
+    pageTexts: state.pageTexts,
     savedAt: Date.now(),
   });
 
@@ -416,7 +419,7 @@ async function loadOcrCheckpoint(fileId) {
         encoding: 'utf8',
       });
       const parsed = JSON.parse(result.data);
-      if (parsed && Array.isArray(parsed.words) && parsed.pagesDone > 0) return parsed;
+      if (parsed && Array.isArray(parsed.pageTexts) && parsed.pagesDone > 0) return parsed;
       return null;
     } catch (_) {}
   }
@@ -424,7 +427,7 @@ async function loadOcrCheckpoint(fileId) {
     const raw = localStorage.getItem('fr_ocrckpt_' + fileId);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.words) && parsed.pagesDone > 0) return parsed;
+      if (parsed && Array.isArray(parsed.pageTexts) && parsed.pagesDone > 0) return parsed;
     }
   } catch (_) {}
   return null;

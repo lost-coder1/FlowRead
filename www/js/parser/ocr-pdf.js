@@ -188,34 +188,179 @@ async function _renderForOcr(pdfDoc, pageNum, opts) {
    work, high enough that the writes are a rounding error against OCR itself. */
 const OCR_CHECKPOINT_PAGES = 20;
 
+/* Bumped when the checkpoint's shape changes: v1 held the built word arrays,
+   v2 holds the recognised page texts, since cleaning now happens after the
+   last page. An older checkpoint is discarded, costing one interrupted run. */
+const OCR_CHECKPOINT_VERSION = 2;
+
 /* opts.resume          a checkpoint from storage.loadOcrCheckpoint()
    opts.onCheckpoint    called with the same shape every OCR_CHECKPOINT_PAGES
    onProgress(page, total, info)  info carries { etaMs, msPerPage } once measured */
+
+/* ── Cleaning OCR output ─────────────────────────────────────
+   The text-layer parser strips running headers, footers and page numbers
+   (pdf.js §3); the OCR path did none of it, so every scanned book carried its
+   furniture in the reading text -- Godaan held 399 footer lines like
+   "गोदान / 5" and "6/ गोदान", counted as words and offered to the chapter
+   detector as candidates. The frequency test is pdf.js's; what the OCR path
+   cannot do is use geometry, because the plugin returns text and no boxes, so
+   the header/footer band is the first and last lines of each page in reading
+   order rather than a measured strip. */
+const OCR_BAND_LINES = 2;
+const OCR_RUNNING_SHARE = 0.12;
+const OCR_RUNNING_MIN = 3;
+const OCR_BAND_MAX_WORDS = 12;
+
+/* A bare numeral is either a page number or a chapter marker, and in a scanned
+   book they are the same string. Page numbers are told apart by arithmetic: a
+   page-number sequence keeps a constant offset from the page it sits on, while
+   Godaan's chapter numbers (2 on page 14, 4 on page 29, 7 on page 83) do not.
+   Only the constant-offset ones are stripped; what survives is handed to the
+   chapter detector, which checks it forms a sequence of its own. */
+/* A constant offset that repeats this many times is page numbering, however
+   long the book: an appended catalogue with its own 26 numbered pages is still
+   page numbering. Chapter numbers cannot reach it, because pages advance faster
+   than chapters do, so every chapter marker sits at its own offset. */
+const OCR_PAGENO_MIN_RUN = 10;
+const OCR_BARE_NUMERAL = /^[\s.:\u2014-]*([0-9]{1,4}|[\u0966-\u096F]{1,4})[.):]?[\s.:\u2014-]*$/;
+
+function _ocrNumeralValue(text) {
+  const m = text.match(OCR_BARE_NUMERAL);
+  if (!m) return null;
+  let digits = '';
+  for (let i = 0; i < m[1].length; i++) {
+    const code = m[1].charCodeAt(i);
+    digits += (code >= 0x0966 && code <= 0x096F) ? String(code - 0x0966) : m[1].charAt(i);
+  }
+  const value = parseInt(digits, 10);
+  return isNaN(value) ? null : value;
+}
+
+/* Lines that recur in the band across the book: the running head and footer. */
+function _ocrRunningLines(pages) {
+  const freq = {};
+  for (let p = 0; p < pages.length; p++) {
+    const lines = pages[p];
+    for (let i = 0; i < lines.length; i++) {
+      const inBand = i < OCR_BAND_LINES || i >= lines.length - OCR_BAND_LINES;
+      if (!inBand) continue;
+      if (lines[i].split(/\s+/).length > OCR_BAND_MAX_WORDS) continue;
+      /* A bare numeral normalises to '#', which recurs on every page that has
+         one, so the frequency test would sweep up the chapter markers along
+         with the page numbers. Numerals are decided by arithmetic below. */
+      if (_ocrNumeralValue(lines[i]) !== null) continue;
+      const norm = normalizeLine(lines[i]);
+      if (!norm) continue;
+      freq[norm] = (freq[norm] || 0) + 1;
+    }
+  }
+  const threshold = Math.max(OCR_RUNNING_MIN, pages.length * OCR_RUNNING_SHARE);
+  const running = new Set();
+  Object.keys(freq).forEach(function(norm) {
+    if (freq[norm] >= threshold) running.add(norm);
+  });
+  return running;
+}
+
+/* Bare numerals whose value keeps a constant offset from their page number. */
+function _ocrPageNumberLines(pages) {
+  const byOffset = {};
+  const found = [];
+  for (let p = 0; p < pages.length; p++) {
+    const lines = pages[p];
+    for (let i = 0; i < lines.length; i++) {
+      const value = _ocrNumeralValue(lines[i]);
+      if (value === null) continue;
+      const offset = value - (p + 1);
+      found.push({ page: p, line: i, offset: offset });
+      byOffset[offset] = (byOffset[offset] || 0) + 1;
+    }
+  }
+  const numbering = {};
+  Object.keys(byOffset).forEach(function(offset) {
+    if (byOffset[offset] >= OCR_PAGENO_MIN_RUN) numbering[offset] = byOffset[offset];
+  });
+  const stripped = new Set();
+  for (let k = 0; k < found.length; k++) {
+    if (numbering[found[k].offset]) stripped.add(found[k].page + ':' + found[k].line);
+  }
+  console.log('[OCR] page-number lines: ' + stripped.size + ' of ' + found.length
+    + ' bare numerals (offsets ' + JSON.stringify(numbering) + ')');
+  return stripped;
+}
+
+/* Build the reader's arrays from the recognised page texts. Done in one pass at
+   the end rather than per page, because "does this line recur across the book?"
+   cannot be answered while the book is still being read. */
+function _ocrBuild(pageTexts) {
+  /* A plain loop, not map: a sparse pageTexts (a hole from JSON, or a page whose
+     render failed) keeps its holes through map and would crash the frequency
+     pass. Every page must contribute an entry, even an empty one, because
+     pageWordIndex is positional. */
+  const pages = [];
+  for (let i = 0; i < pageTexts.length; i++) {
+    pages.push(String(pageTexts[i] || '').split('\n')
+      .map(function(l) { return l.trim(); })
+      .filter(function(l) { return l.length > 0; }));
+  }
+
+  const running = _ocrRunningLines(pages);
+  const pageNumbers = _ocrPageNumberLines(pages);
+  console.log('[OCR] running head/foot lines: ' + running.size + ' distinct');
+
+  const words = [];
+  const pageWordIndex = [];
+  const rawLines = [];
+  let dropped = 0;
+
+  for (let p = 0; p < pages.length; p++) {
+    pageWordIndex.push(words.length);
+    const lines = pages[p];
+    for (let i = 0; i < lines.length; i++) {
+      const text = lines[i];
+      if (running.has(normalizeLine(text))) { dropped++; continue; }
+      if (pageNumbers.has(p + ':' + i)) { dropped++; continue; }
+      /* isNoiseLine strips every bare numeral, which here would take the
+         chapter markers with the page numbers -- those are handled above. */
+      if (_ocrNumeralValue(text) === null && isNoiseLine(text)) { dropped++; continue; }
+
+      const lineWordStart = words.length;
+      const lineWords = text.split(/\s+/).filter(Boolean);
+      for (let w = 0; w < lineWords.length; w++) words.push(lineWords[w]);
+      if (lineWords.length > 0) {
+        rawLines.push({ text: text, pageIndex: p, wordIndex: lineWordStart });
+      }
+    }
+  }
+
+  console.log('[OCR] cleaning dropped ' + dropped + ' lines of furniture');
+  return { words: words, pageWordIndex: pageWordIndex, rawLines: rawLines };
+}
+
 async function parseScannedPDF(pdfDoc, onProgress, opts) {
   if (!OCREngine.isAvailable()) throw { type: 'ocr-unavailable', detail: 'OCR not available' };
 
   const o = opts || {};
   const pageCount = pdfDoc.numPages;
-  let words = [];
-  let pageWordIndex = [];
-  let rawLines = [];
+  /* One recognised text per page, in page order. The reader's arrays are built
+     from these at the end, because the cleaning pass asks whether a line recurs
+     across the whole book -- a question that has no answer mid-run. */
+  let pageTexts = [];
   let startPage = 1;
 
-  /* Resume a run that was interrupted. The three arrays are append-only, so a
-     prefix of them is exactly what the first N pages would have produced; the
-     checkpoint is trusted only if its page bookkeeping is self-consistent. */
+  /* Resume a run that was interrupted. A prefix of pageTexts is exactly what
+     the first N pages produced, and is trusted only if its own bookkeeping
+     agrees: the checkpoint format is versioned, so a checkpoint written before
+     the cleaning pass existed is discarded rather than misread. */
   const resume = o.resume;
-  if (resume && resume.pagesDone > 0 && resume.pagesDone < pageCount
-      && Array.isArray(resume.words) && Array.isArray(resume.pageWordIndex)
-      && Array.isArray(resume.rawLines)
-      && resume.pageWordIndex.length === resume.pagesDone
+  if (resume && resume.v === OCR_CHECKPOINT_VERSION
+      && resume.pagesDone > 0 && resume.pagesDone < pageCount
+      && Array.isArray(resume.pageTexts)
+      && resume.pageTexts.length === resume.pagesDone
       && resume.pageCount === pageCount) {
-    words = resume.words;
-    pageWordIndex = resume.pageWordIndex;
-    rawLines = resume.rawLines;
+    pageTexts = resume.pageTexts;
     startPage = resume.pagesDone + 1;
-    console.log('[OCR] resuming at page ' + startPage + '/' + pageCount
-      + ' with ' + words.length + ' words already read');
+    console.log('[OCR] resuming at page ' + startPage + '/' + pageCount);
   }
 
   /* Per-document state. A scanned book is one script and one set of quirks all
@@ -386,17 +531,7 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
     console.log('[OCR] page ' + p + '/' + pageCount + ' chars=' + pageText.length
       + ' in ' + (Date.now() - oStart) + 'ms');
 
-    pageWordIndex.push(words.length);
-
-    const pageLines = pageText.split('\n').filter(function(l) { return l.trim().length > 0; });
-    pageLines.forEach(function(line) {
-      const lineWordStart = words.length;
-      const lineWords = line.trim().split(/\s+/).filter(Boolean);
-      lineWords.forEach(function(w) { words.push(w); });
-      if (lineWords.length > 0) {
-        rawLines.push({ text: line.trim(), pageIndex: p - 1, wordIndex: lineWordStart });
-      }
-    });
+    pageTexts[p - 1] = pageText;
 
     /* Recorded before the checkpoint below, which is not part of the per-page
        cost and grows with the book -- counting it would make the estimate
@@ -412,12 +547,11 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
         && (p - startPage + 1) % OCR_CHECKPOINT_PAGES === 0) {
       try {
         await o.onCheckpoint({
+          v: OCR_CHECKPOINT_VERSION,
           pagesDone: p,
           pageCount: pageCount,
           lockedScript: lockedScript,
-          words: words,
-          pageWordIndex: pageWordIndex,
-          rawLines: rawLines,
+          pageTexts: pageTexts,
         });
       } catch (e) {
         /* A checkpoint that cannot be written is not a failed import. */
@@ -426,6 +560,8 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
     }
   }
 
+  const built = _ocrBuild(pageTexts);
+  const words = built.words;
   const wordCount = words.filter(function(w) { return typeof w === 'string'; }).length;
   const totalMs = Date.now() - t0;
   const pagesThisRun = pageCount - startPage + 1;
@@ -440,8 +576,8 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
 
   return {
     words: words,
-    pageWordIndex: pageWordIndex,
-    rawLines: rawLines,
+    pageWordIndex: built.pageWordIndex,
+    rawLines: built.rawLines,
     metadata: {
       pageCount: pageCount,
       wordCount: wordCount,
