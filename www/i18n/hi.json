@@ -20,7 +20,6 @@
   "ocr.full_ready": "पूरे {n} पेज तैयार हैं।",
   "ocr.open_full": "पूरी किताब खोलिए",
   "ocr.swapped": "पूरी किताब आ गई — {n} पेज।",
-  "ocr.recognising_at": "अभी पेज {at} पढ़ा जा रहा है।",
   "ocr.more_ready": "{n} और पेज तैयार हैं।",
   "ocr.add_pages": "जोड़िए",
   "ocr.extended": "{n} और पेज जुड़ गए।",

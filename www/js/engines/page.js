@@ -766,10 +766,12 @@ const PageEngine = (function() {
     if (typeof OcrProgressive !== 'undefined' && OcrProgressive.isPartial(AppState.currentFile)) {
       _endFloor = 0;
       _removeFinishOffer();
-      /* Arriving at the last page there is, rather than being blocked at it.
-         Same answer either way: say where the run has got to, or add the pages
-         it has already reached. */
-      if (_atLastPage()) OcrProgressive.atEndOfAvailable();
+      /* Arriving at the last page there is, or leaving it. This runs on every
+         turn, which is what makes it the signal: the offer to add pages opens
+         when the reader gets to the end of the batch and closes when they move
+         off it, so it is never in the corner of their eye mid-chapter. It does
+         not add anything -- trying to turn *past* the end is what does that. */
+      OcrProgressive.noteAtEnd(_atLastPage());
       return;
     }
     if (!_atLastPage()) { _endFloor = 0; _removeFinishOffer(); return; }

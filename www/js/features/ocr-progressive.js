@@ -45,7 +45,8 @@ const OcrProgressive = (function() {
   let _api = null;
   /* Where the background run has got to, for the bar. */
   let _progress = null;   /* { done, total, etaMs } */
-  let _barTick = 0;
+  /* Whether the reader has reached the last page that exists yet. */
+  let _atEnd = false;
   /* The full result, once it has landed under a reader that has not swapped. */
   let _ready = null;      /* { fileId, result } */
 
@@ -167,15 +168,23 @@ const OcrProgressive = (function() {
     await _persist(fileId, result, live);
   }
 
-  /* Called many times a second's worth of pages; the bar is redrawn at most
-     once a second, because a counter that changes under a reader's eye is
-     exactly the fidget this screen should not have. */
+  /* Recorded, never drawn (owner, 2026-11-23). A counter ticking upward at the
+     top of the page is movement in the reader's peripheral vision while they
+     are trying to read, which is the one thing a reading app may not do -- and
+     it is movement about a background job they already chose to ignore. The
+     bar changes state when the reader arrives somewhere, not when the run does.
+     Kept because the toast at the end of the batch still wants a real figure
+     rather than a guess (§1.5). */
   function onBackgroundProgress(current, total, info) {
     _progress = { done: current, total: total, etaMs: (info && info.etaMs) || 0 };
-    const now = Date.now();
-    if (now - _barTick < 1000) return;
-    _barTick = now;
-    _renderPartialBar();
+  }
+
+  /* The reader is on the last page there is, or has left it. The only thing
+     that opens the offer, so a reader in the middle of a book never sees one. */
+  function noteAtEnd(atEnd) {
+    const was = _atEnd;
+    _atEnd = !!atEnd;
+    if (was !== _atEnd) _renderPartialBar();
   }
 
   /* How many more pages could be added right now. */
@@ -238,6 +247,7 @@ const OcrProgressive = (function() {
     }
     if (!built || !built.metadata || !built.metadata.wordCount) return false;
 
+    _atEnd = false;
     await _replaceArrays(file.id, built);
     showToast(_t('ocr.extended', { n: extra }));
     return true;
@@ -255,6 +265,7 @@ const OcrProgressive = (function() {
   function atEndOfAvailable() {
     const file = AppState.currentFile;
     if (!isPartial(file)) return false;
+    _atEnd = true;
     if (_ready && _ready.fileId === file.id) {
       showToast(_t('ocr.full_ready_hint', { n: _ready.result.metadata.pageCount }));
       _renderPartialBar();
@@ -401,18 +412,18 @@ const OcrProgressive = (function() {
     if (_ready && _ready.fileId === file.id) {
       text = _t('ocr.full_ready', { n: _ready.result.metadata.pageCount });
       action = _t('ocr.open_full');
-    } else if (_extraReady() > 0) {
-      /* Offered rather than taken: adding pages reflows the book, and §1.5 does
-         not allow that to happen under a reader who did not ask. Reaching the
-         end *is* asking, which is what atEndOfAvailable() acts on. */
+    } else if (_atEnd && _extraReady() > 0) {
+      /* Only at the end of the batch, and only then. Offered rather than taken
+         because adding pages reflows the book, and §1.5 does not allow that
+         under a reader who did not ask -- but a reader who has run out of pages
+         is the one person for whom this is the answer rather than a
+         distraction. */
       text = _t('ocr.more_ready', { n: _extraReady() });
       action = _t('ocr.add_pages');
     } else if (_run && _run.fileId === file.id) {
-      const at = _progress ? _progress.done : info.pagesDone;
-      const eta = (_progress && _progress.etaMs > 0 && typeof formatRemaining === 'function')
-        ? ' \u00b7 ~' + formatRemaining(_progress.etaMs) : '';
-      text = _t('ocr.partial_reading', { done: info.pagesDone, total: info.pageCount })
-        + ' ' + _t('ocr.recognising_at', { at: at }) + eta;
+      /* Deliberately static: what the reader can read, not what the run is
+         doing. The figure only changes when they act. */
+      text = _t('ocr.partial_reading', { done: info.pagesDone, total: info.pageCount });
     } else {
       /* No run and nothing ready: an interrupted import. The checkpoint is
          still on disk, so saying so is actionable rather than an apology --
@@ -446,6 +457,7 @@ const OcrProgressive = (function() {
     watch: watch,
     swap: swap,
     extend: extend,
+    noteAtEnd: noteAtEnd,
     atEndOfAvailable: atEndOfAvailable,
     interceptEnd: interceptEnd,
     onBackgroundProgress: onBackgroundProgress,

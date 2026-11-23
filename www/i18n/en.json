@@ -20,7 +20,6 @@
   "ocr.full_ready": "All {n} pages are ready.",
   "ocr.open_full": "Open the full book",
   "ocr.swapped": "The whole book is here — {n} pages.",
-  "ocr.recognising_at": "Now reading page {at}.",
   "ocr.more_ready": "{n} more pages are ready.",
   "ocr.add_pages": "Add them",
   "ocr.extended": "{n} more pages added.",
