@@ -612,7 +612,7 @@ so the same word legitimately sits on a different page *number*.
 
 ---
 
-## Task 16.33 — Table detection destroys prose. ✅ fixed 2026-11-23, awaiting device check
+## Task 16.33 — Table detection destroys prose. ✅ fixed 2026-11-23, device-verified
 
 **Reported on device by the owner 2026-11-23** as "detecting simple words as tables sometimes".
 **Measurement found it far worse than the report.** Hooking the shipping `detectTableRanges`
@@ -674,7 +674,8 @@ deliberately ragged columns refused, and both catalogue books flagging **zero** 
 their text (1,524 → 9,132 words, and 37,512 → 37,579). Run against the shipping `parsePDF`, with the
 before/after word counts taken by stashing the fix rather than trusting an earlier run.
 
-**Owed:** a device check, and a real table in a real PDF. The positive case is verified against
+**Device-verified by the owner 2026-11-23.** **Still owed: a real table in a real PDF** — the
+negative cases are now confirmed on a device, but the *positive* case is verified only against
 synthetic line objects — the detector's actual input type — because no catalogue PDF to hand contains
 a table. `free-books.json`'s `requiresOcr` has no equivalent here, so if a book's table is missed
 there is no per-book escape hatch.
