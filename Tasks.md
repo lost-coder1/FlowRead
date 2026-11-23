@@ -8,7 +8,11 @@ decision taken. Completed work and resolved device findings live in
 **[Tasks-archive.md](Tasks-archive.md)**. The split rule: anything that would change a future
 decision stays here or in `Claude.md`; a record of an action already taken goes to the archive.
 
-**Last updated:** 2026-11-23 — **1.5.7 / 45 built and signed, awaiting upload.** Device
+**Last updated:** 2026-11-23 — **1.5.7 / 45 built and signed, awaiting upload.** **`ocr-progressive-read`
+carries ten commits, all device-verified, and is ready to merge:** 16.32's three phases, 16.34, and
+16.35. Not yet in a build for the store — 45 predates all of it, so whatever ships next needs a
+versionCode bump and a fresh Hindi pass over the 22 new strings (16 tip rewrites, 6 `ocr.*` keys,
+`reader.index.close`, `banner.broken_glyphs.msg`), which the 2026-11-23 sign-off predates. Device
 verification, Hindi sign-off and the listing art are all cleared by the owner, which closes
 everything that was blocking this build. **Merged since:** the OCR speed/cleaning work and
 paragraph structure in Focus Bold and Simple Scroll (`reader-paragraphs`), device-verified on an
@@ -629,7 +633,7 @@ rather than guessing a threshold.
 
 ---
 
-## Task 16.34 — The index panel has no way to close itself. ✅ built 2026-11-23
+## Task 16.34 — The index panel has no way to close itself. ✅ built 2026-11-23, device-verified
 
 **Reported by the owner 2026-11-23:** tapping the index button opens the right-hand panel,
 but the panel carries no close control — the only way out is to find the index button again and
@@ -663,7 +667,7 @@ implementation turned up:
 
 ---
 
-## Task 16.35 — *वीजा का इंतजार* shows CJK characters between the Hindi words. ✅ fixed 2026-11-23
+## Task 16.35 — *वीजा का इंतजार* shows CJK characters between the Hindi words. ✅ fixed 2026-11-23, device-verified
 
 **Reported on device by the owner 2026-11-23, and the report was corrected by them the next
 message: the book does *not* go through OCR.** It is a normal text-layer PDF in the catalogue, read
@@ -726,7 +730,9 @@ behind the user's back. `showLegacyEncodingBanner()` became `showGarbledTextBann
 faults, one remedy, one banner, and the message says which fault you have.
 
 **Verified against the shipping `parsePDF`**, not a reimplementation of the rule: `strayGlyphRatio
-=0.1483 hasBrokenGlyphs=true` for the book, `0.0000`/`false` for the other five.
+=0.1483 hasBrokenGlyphs=true` for the book, `0.0000`/`false` for the other five. **Device-verified
+by the owner 2026-11-23** — the book now routes to OCR from the catalogue and reads correctly,
+which also puts it on 16.32's prefix path.
 
 **Worth knowing for the catalogue:** `free-books.json` has a `requiresOcr` flag for exactly this
 situation — "PDFs whose encoding evades the heuristics". It was not used here because the heuristic
