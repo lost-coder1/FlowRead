@@ -162,22 +162,37 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
   const t0 = Date.now();
   let renderMs = 0, ocrMs = 0;
 
+  /* ETA state. A cumulative mean was swinging between 15 and 5 minutes: the
+     first page of a run carries ML Kit's model load and pdf.js's worker
+     warmup, and every twentieth page carries a checkpoint write that grows
+     with the book. So: measure each page on its own, drop the first one,
+     take the median of the recent ones rather than the mean (one slow page
+     must not move the figure), and ease the displayed value towards it. */
+  const ETA_WINDOW = 12;
+  const recentPageMs = [];
+  let etaShown = 0;
+
+  function _etaFor(pagesLeft) {
+    if (!recentPageMs.length || pagesLeft <= 0) return 0;
+    const sorted = recentPageMs.slice().sort(function(a, b) { return a - b; });
+    const median = sorted[Math.floor(sorted.length / 2)];
+    const estimate = median * pagesLeft;
+    etaShown = etaShown > 0 ? (etaShown * 0.7 + estimate * 0.3) : estimate;
+    return etaShown;
+  }
+
   /* One render is kept in flight ahead of the loop: page N+1 rasterises and
      encodes while ML Kit is working on page N, which are different threads and
      were previously each idle waiting for the other. */
   let pending = _renderForOcr(pdfDoc, startPage, OCR_LORES);
 
   for (let p = startPage; p <= pageCount; p++) {
-    /* ETA from this run's own measured rate, so it reflects this document's page
-       size and script rather than a guess. Blank until there is something to
-       measure -- a made-up figure is the §1.5 failure, not a missing one. */
-    const donePages = p - startPage;
-    const msPerPage = donePages > 0 ? (Date.now() - t0) / donePages : 0;
+    /* ETA from this run's own measured pages, so it reflects this document's
+       page size and script rather than a guess. Blank until there is something
+       to measure -- a made-up figure is the §1.5 failure, not a missing one. */
+    const pageStart = Date.now();
     if (typeof onProgress === 'function') {
-      onProgress(p, pageCount, {
-        msPerPage: msPerPage,
-        etaMs: msPerPage > 0 ? msPerPage * (pageCount - p + 1) : 0,
-      });
+      onProgress(p, pageCount, { etaMs: _etaFor(pageCount - p + 1) });
     }
 
     const rStart = Date.now();
@@ -264,6 +279,15 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
         rawLines.push({ text: line.trim(), pageIndex: p - 1, wordIndex: lineWordStart });
       }
     });
+
+    /* Recorded before the checkpoint below, which is not part of the per-page
+       cost and grows with the book -- counting it would make the estimate
+       climb as the run progresses. The first page of a run is skipped: it
+       carries ML Kit's model load and is not representative of the rest. */
+    if (p > startPage) {
+      recentPageMs.push(Date.now() - pageStart);
+      if (recentPageMs.length > ETA_WINDOW) recentPageMs.shift();
+    }
 
     if (typeof o.onCheckpoint === 'function'
         && p < pageCount
