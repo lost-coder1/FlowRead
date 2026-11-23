@@ -173,7 +173,22 @@ position loss.
   chunk for the strongest pause.
 - **Focus Bold** — full page, first 40% of each word bold, highlight advances word-by-word. Do NOT
   call it "Bionic Reading" (trademarked).
-- **Simple Scroll** — `transform: translateY()`, GPU-composited, 0.25×–4×.
+- **Simple Scroll** — `transform: translateY()`, GPU-composited, 0.25×–4×. **Its rate is measured,
+  not assumed:** content height over word count is pixels per word, taken off the built DOM wherever
+  `_maxScrollY` is. The old `(wpm/60000) × 28 / 8` hardcoded a 28px line of exactly 8 words, so every
+  font scale but the default scrolled slower than the number promised, and paragraphs would have
+  added to the same silent error (§1.5).
+
+**The three full-screen engines share paragraph structure** — Page, Focus Bold and Simple Scroll all
+take `ParagraphStructure.startsFor()`, in §4.1 rule 4's one form: **indent, no blank line**. **RSVP
+and Chunk are excluded**, deliberately: one word at a time has nothing to indent. **Headings stay
+Page-mode-only** (owner) — Focus Bold and Scroll guide the eye through a stretch of text, and a
+heading is a navigational landmark, which is not their job. Page mode's zero-height `.page-pb`
+sibling may **not** be copied into the other two: both address their spans by index and Focus Bold's
+pagination appends `_allSpans[j]` one node at a time, so a sibling break would be orphaned and
+desynchronise the run. `.fr-para-break` generates the block inside the word instead — no extra node,
+same layout. Focus Bold needs nothing further, since its pagination measures real geometry; neither
+engine caches a grid, so **no `fr_page_layout` bump is owed** by a change confined to them.
 
 ### 4.1 Page-mode pagination (notes §5.1 — read before touching this)
 
@@ -229,7 +244,15 @@ placeholders, builds `pageWordIndex[]`.
 every parser owes it: **TXT** the blank-line boundary (exact) · **DOCX** every line, since
 `extractRawText` emits one paragraph per newline (exact) · **PDF** inferred from geometry — a line
 indented past the body's left margin, or one following a line that stopped short of the right margin
-(`finishLine()` keeps `x0`/`x1`). **Books imported before this cannot be re-parsed** (only PDFs keep
+(`finishLine()` keeps `x0`/`x1`) · **OCR** the same two tests on ML Kit's own line boxes, normalised
+to 0..1000 of the page width because the hi-res fallback describes one layout in two pixel scales.
+The OCR path **reuses `measureParagraphGeometry` and `_isParagraphStart`** rather than restating
+them: one definition of a paragraph start, and the parser only owes `x0`/`x1`. Boxes travel with the
+text that survives, so a merged two-script page and the embedded-image fallback leave their lines
+box-less and unable to start a paragraph. **An unmeasurable book must claim nothing at all** —
+`paragraphs.js` reads a single truthy `paraStart` anywhere as proof the parser recorded them all, so
+flagging only the first line would make the whole book one paragraph, worse than the inference it
+displaced. **Books imported before this cannot be re-parsed** (only PDFs keep
 raw bytes), so `paragraphs.js` infers from stored line lengths: short of the wrap width *and* ending
 a sentence ended the paragraph — 94.6% precision / 86.9% recall, carried by the sentence half (81%
 without). A missed break merges two paragraphs, no worse than before.
