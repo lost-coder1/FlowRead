@@ -894,6 +894,23 @@ body.engine-page .reader-normal-toggle { display: none !important; }
   margin-left: 1.5em;
 }
 
+/* The same paragraph in Focus Bold and Simple Scroll. Both of those engines
+   move or rebuild their word spans by index -- Focus Bold's pagination appends
+   _allSpans[j] one node at a time -- so a sibling break element like .page-pb
+   would be left behind and desynchronise the run. A generated block inside the
+   word does the identical job with no extra node: zero height, splits the
+   inline flow, and the indent on the word is what the eye reads.
+   Not in RSVP or Chunk: one word at a time has nothing to indent. */
+.fr-para-break::before {
+  content: '';
+  display: block;
+  height: 0;
+}
+
+.fr-para-break {
+  margin-left: 1.5em;
+}
+
 /* Chapter headings (§6.2 supplies the ranges, page.js wraps the words). Sizes
    are in em so the font-scale setting carries them, and the palette is §16's
    with no additions. Measurement runs through the same markup, so the space a

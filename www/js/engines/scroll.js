@@ -3,6 +3,9 @@
 const ScrollEngine = (function() {
   let _words = [], _index = 0;
   let _rafId = null, _scrollY = 0, _maxScrollY = 0, _multiplier = 1.0, _lineThick = 1;
+  /* Word indices where a paragraph begins, and the measured height one word
+     occupies -- see _measurePxPerWord. */
+  let _paraStarts = null, _pxPerWord = 0;
   let _outerEl = null, _trackEl = null, _lastTs = null;
   let _spanTops = [], _lastIndexSyncTs = 0, _lastSavedIndex = -1;
 
@@ -17,6 +20,12 @@ const ScrollEngine = (function() {
   function init(words, startIndex) {
     _words = words;
     _index = startIndex || 0;
+    /* Same source as Page mode's and Focus Bold's: one answer to where
+       paragraphs start (§5). Resolved before the spans are built, since it is
+       baked into them and the DOM is cached between engine switches. */
+    _paraStarts = (typeof ParagraphStructure !== 'undefined' && AppState.currentFile)
+      ? ParagraphStructure.startsFor(AppState.currentFile)
+      : null;
     _abortBuild = false;
     _buildComplete = false;
     _multiplier = parseFloat(localStorage.getItem('fr_scroll_mult') || '1.0');
@@ -52,6 +61,7 @@ const ScrollEngine = (function() {
         _cacheSpanPositions();
         if (_outerEl && _trackEl) {
           _maxScrollY = Math.max(0, _trackEl.offsetHeight - _outerEl.clientHeight);
+          _measurePxPerWord();
         }
         const target = qs('[data-index="' + _index + '"].scroll-word');
         if (target && _outerEl) {
@@ -148,6 +158,7 @@ const ScrollEngine = (function() {
         const span = document.createElement('span');
         span.dataset.index = i;
         span.className = 'scroll-word';
+        if (_paraStarts && _paraStarts.has(i)) span.classList.add('fr-para-break');
         if (marks.length && HighlightsFeature.at(marks, i)) span.classList.add('fr-hl');
         if (typeof HighlightsFeature !== 'undefined' && HighlightsFeature.anchor() === i) {
           span.classList.add('fr-hl-anchor');
@@ -181,6 +192,7 @@ const ScrollEngine = (function() {
           _cacheSpanPositions();
           if (_outerEl) {
             _maxScrollY = Math.max(0, (_trackEl ? _trackEl.offsetHeight : 0) - _outerEl.clientHeight);
+            _measurePxPerWord();
           }
           const target = qs('[data-index="' + _index + '"].scroll-word');
           if (target && _outerEl) {
@@ -225,13 +237,29 @@ const ScrollEngine = (function() {
     _applyLine();
   }
 
+  /* How many pixels a word of this book occupies, measured off the built DOM.
+     The rate was (wpm/60000) * 28 / 8: a hardcoded 28px line holding exactly 8
+     words. That was already wrong for any font scale but the default -- a
+     larger font makes more lines, so the reader scrolled slower than the number
+     promised -- and paragraph breaks, which leave a partly filled line at the
+     end of every paragraph, would have added to the same silent error (§1.5).
+     Content height over word count is px-per-word directly, so it carries the
+     font, the line height, the viewport width and the paragraphs at once. */
+  function _measurePxPerWord() {
+    const height = _trackEl ? _trackEl.offsetHeight : 0;
+    _pxPerWord = (height > 0 && _words.length > 0) ? (height / _words.length) : 0;
+  }
+
   function _frame(ts) {
     if (!AppState.isPlaying) return;
     if (_lastTs === null) _lastTs = ts;
     const delta = Math.min(ts - _lastTs, 50); /* cap at 50ms to avoid big jumps after tab switch */
     _lastTs = ts;
 
-    const pxPerMs = (AppState.wpm / 60000) * 28 / 8 * _multiplier;
+    /* The fallback is the old constant, for the one frame before the DOM has
+       been measured; it is the same order of magnitude by construction. */
+    const pxPerWord = _pxPerWord > 0 ? _pxPerWord : (28 / 8);
+    const pxPerMs = (AppState.wpm / 60000) * pxPerWord * _multiplier;
     _scrollY += pxPerMs * delta;
     _applyTransform();
 
@@ -301,6 +329,7 @@ const ScrollEngine = (function() {
     /* Recompute max scroll in case layout changed */
     if (_outerEl && _trackEl) {
       _maxScrollY = Math.max(0, _trackEl.offsetHeight - _outerEl.clientHeight);
+      _measurePxPerWord();
     }
     const btn = qs('#btn-play-pause');
     if (btn) btn.textContent = '⏸';
