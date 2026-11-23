@@ -378,20 +378,30 @@ function _isParagraphStart(line, prevKept, paraGeom, isFirstLine) {
      adjacency test can reach it. A genuine break is not lost, because a
      paragraph's last line stopping within three characters of the right margin
      is rare in justified text and merges two paragraphs when it happens -- the
-     failure §5 already accepts as the lesser one. */
-  if (prevKept && typeof prevKept.x1 === 'number' && prevKept.x1 >= paraGeom.shortBefore) {
+     failure §5 already accepts as the lesser one.
+
+     NOT on the OCR path, where this was tried and had to come back out. ML Kit
+     reports the extent of a BLOCK, so "reached the right margin" means nothing
+     consistent there, and the gate suppressed so many paragraph starts that
+     Page mode's chapter headings -- whose range runs from the chapter to the
+     next paragraph start (§4.1 rule 5) -- styled the opening pages of a book
+     whole. A rule resting on true line extents cannot be applied to boxes that
+     are not line extents. */
+  if (!paraGeom.fromOcr && prevKept
+      && typeof prevKept.x1 === 'number' && prevKept.x1 >= paraGeom.shortBefore) {
     return false;
   }
-  /* Past that gate the previous line stopped short, so it ended its paragraph
-     rather than wrapping into this one -- whether or not this line is indented.
-     The indent is what tells the two apart in a book that does not space its
-     paragraphs, so it stays as the positive signal. */
-  if (paraGeom.requireSentenceEnd && prevKept
-      && !PARA_SENTENCE_END.test(prevKept.text || '')) {
-    return false;
-  }
+  /* This line is indented. */
   if (typeof line.x0 === 'number' && line.x0 > paraGeom.indentFrom) return true;
+  /* The line before it stopped well short of the right margin, so it ended its
+     paragraph rather than wrapping into this one. */
   if (prevKept && typeof prevKept.x1 === 'number' && prevKept.x1 < paraGeom.shortBefore) {
+    /* Not evidence on its own where the extents come from OCR: a block ends
+       wherever the recogniser grouped, routinely mid-paragraph. Measured at 70%
+       of starts following a finished sentence on one book against 14% on
+       another, so there the previous line must have finished a sentence too --
+       the pairing paragraphs.js's inference already relies on. */
+    if (paraGeom.fromOcr && !PARA_SENTENCE_END.test(prevKept.text || '')) return false;
     return true;
   }
   return false;

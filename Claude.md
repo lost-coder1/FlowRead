@@ -247,7 +247,21 @@ indented past the body's left margin, or one following a line that stopped short
 (`finishLine()` keeps `x0`/`x1`) · **OCR** the same two tests on ML Kit's own line boxes, normalised
 to 0..1000 of the page width because the hi-res fallback describes one layout in two pixel scales.
 The OCR path **reuses `measureParagraphGeometry` and `_isParagraphStart`** rather than restating
-them: one definition of a paragraph start, and the parser only owes `x0`/`x1`. Boxes travel with the
+them: one definition of a paragraph start, and the parser only owes `x0`/`x1`/`y`. **But two of
+those rules hold only for PDF geometry, and `fromOcr` is what separates them** — ML Kit reports the
+extent of a *block*, not of a line of type. (1) **"A line after one that ran the full measure is a
+continuation"** is PDF-only: it is what stops a *hanging* indent — a numbered list whose
+continuation lines align under the item text — from stranding a sentence's last word as its own
+paragraph, and on the English volume it took paragraph starts from 31% of lines to 18% (5.7 lines
+each, against a measured p50 = p80 right edge, i.e. justified). **Applied to OCR it suppressed all
+but 167 starts in 2715 lines**, so a chapter heading's range — which runs to the next paragraph
+start (§4.1 rule 5) — styled a book's opening pages whole. Tried, reverted, do not re-apply.
+(2) **A short predecessor needs a finished sentence on the OCR path only**, since a block ends
+wherever the recogniser grouped: 70% of starts followed a sentence on a 435-page book against 14%
+on an 86-page one. **A fragment of a line is told from a line by `lineGap`**, the median gap between
+consecutive lines, measured per document because the units are the PDF's own; under 0.7 of it, two
+lines are one line, which is what `groupIntoLines`' 3-unit baseline tolerance produces on a text
+layer whose words carry their own baselines. Boxes travel with the
 text that survives, so a merged two-script page and the embedded-image fallback leave their lines
 box-less and unable to start a paragraph. **An unmeasurable book must claim nothing at all** —
 `paragraphs.js` reads a single truthy `paraStart` anywhere as proof the parser recorded them all, so
