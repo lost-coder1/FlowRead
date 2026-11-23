@@ -867,10 +867,11 @@ is current.**
 - **Latest uploaded build: 1.5.6 / 44** (2026-11-17). **The first build in which §8.6's pings
   actually send** (`ENDPOINT` is filled). **Play Data safety was re-filed as *Optional* 2026-11-21.**
   **The matching policy re-publish was recorded but never happened** — the hosted copy was still
-  the 2026-11-02 text when it was checked on 2026-11-24, so production has been pinging against an
-  understated policy since 1.5.6. Amended and re-dated 2026-11-24 (Phase C's catalogue fetch plus
-  the IP paragraph); **publishing it is owed.** **Record a publish against the hosted file, never
-  against the commit.** **Re-publishing is a manual step that committing the file does not perform** — §8.6's two
+  the 2026-11-02 text when it was checked on 2026-11-24, so production had been pinging against an
+  understated policy since 1.5.6. Amended, re-dated and **published 2026-11-24**, verified by
+  fetching the live page back byte-identical to `privacy_policy.html`. **Record a publish against
+  the hosted file, never against the commit** — that is what went wrong, and a commit is not a
+  publish. **Re-publishing is a manual step that committing the file does not perform** — §8.6's two
   allowlist copies and the published policy must keep changing together, so any future amendment
   owes it again.
 - **1.5.7 / 45 is built and signed, not yet uploaded** (2026-11-23, `master`). Carries tasks

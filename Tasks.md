@@ -264,8 +264,19 @@ hosted file, not the commit.
   `raw.githubusercontent.com/lost-coder1/flowread-privacy/main/catalog/v1/catalog.json` — the same
   public repo that hosts the policy, which already exists and already publishes. Recorded in
   `Claude.md` §12 as a path that **may never move**, with `v1/` as the only escape hatch.
-- **Owed before Phase C code ships: publish both files to that repo.** The policy amendment is a
-  prerequisite of the fetch existing, not a follow-up to it.
+- **Published 2026-11-24, verified against the host.** `lost-coder1/flowread-privacy@01cd514`
+  → `https://lost-coder1.github.io/flowread-privacy/` fetched back cache-busted at **10,515 bytes,
+  byte-identical to `privacy_policy.html`**, with every amended passage present: the date, the
+  catalogue bullet, the IP paragraph, the tenure buckets, the `first` flag, the totals-only
+  storage, the opt-out and all six previously-unlisted events. That closes the six-week gap as
+  well as Phase C's own requirement. **This is what a publish record looks like** — the live
+  bytes, not the commit.
+- **`catalog/v1/catalog.json` now exists and serves `{"books": []}`** (HTTP 200 over the raw URL).
+  Empty is the correct starting state: the bundled 150 are the offline floor and the remote file
+  only ever adds. It exists already so the first device test meets a real file rather than a 404 —
+  the fallback path is still owed a deliberate test of its own, which a 404 cannot be mistaken for.
+- **Still owed for Phase C:** the loader (`_loadCatalog()` merge, dedupe on `id`, remote wins,
+  cache-bust, silent fallback), the validator and the editor.
 
 **2026-11-16 — Paragraphs restored, and Page mode is now the default (Tasks 16.13, 16.14).**
 Page mode was rendering books as one unbroken wall of words with chapter titles run into
