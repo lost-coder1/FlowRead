@@ -2311,20 +2311,74 @@ every one of the 127 `txt` entries (the new and the original 65) carries a heade
 which older texts use. **Not yet exercised in the app** — the library view has not been opened
 against the grown file on device or in a browser.
 
-**C — Remote catalogue.**
-- [ ] `_loadCatalog()` reads bundled + remote, dedupes on `id`, remote wins. The bundled file stays
+**C — Remote catalogue. Code complete 2026-11-24; device run owed.**
+- [x] **Privacy policy amended and published** 2026-11-24, verified against the live host. It also
+      closed the six-week gap described above. The IP exception is stated once for every outbound
+      request rather than per bullet, because the Gutenberg downloads always had the same property
+      and three bullets claimed "no data about you is sent".
+- [x] `_loadCatalog()` reads bundled + remote, dedupes on `id`, remote wins. The bundled file stays
       in the app **forever as the offline floor** (§1.1) — a fresh install with no internet still
       has a library. The remote file only ever *adds*.
-- [ ] **Cache-bust the request** (`?v=<timestamp>`). Without it an edit is invisible for hours and
-      "I updated it and nothing happened" becomes a monthly frustration. `raw.githubusercontent`
-      serves a ~5-minute cache, which is tolerable; WP's was not.
-- [ ] **Fail silently to the bundled 88** on any error — invalid JSON, no network, timeout. A
-      hand-edited file breaks on one trailing comma, and the user must never see an empty library.
-      Trade-off to accept knowingly: the owner gets no feedback that their edit was malformed.
-      A small local HTML form that emits valid JSON was offered and not taken up; revisit if
-      hand-editing proves error-prone.
-- [ ] **Privacy policy gains a line** — a catalogue fetch is a new network request, and the GitHub
-      /WP servers see IPs. §1.1 needs the exception recorded too.
+- [x] **Cache-bust the request** (`?v=<timestamp>`, plus `cache: 'no-store'`).
+- [x] **Fail silently to the bundled 150** on any error — invalid JSON, no network, timeout, a
+      file over 512 KB, a shape that is not `{books: []}`.
+- [x] **The remote fetch is never in the paint path**, which the task did not ask for and the
+      design needs. The library paints from the bundled file plus the last fetch's cache
+      (`fr_remote_catalog`, localStorage, no network), and the refresh runs behind it, re-rendering
+      **the grid only** if the file actually changed. An awaited fetch would put a spinner on a
+      screen that already has 150 books, and a dead network would hold it there. It also makes the
+      8s timeout non-load-bearing, which matters because `CapacitorHttp` routes fetch through
+      native and may ignore an `AbortSignal`. Cost, accepted: a book added while the library is
+      shut appears on the *next* open rather than this one.
+- [x] **Grid-only re-render is complete, not a compromise** — all twelve categories are already
+      represented in the bundled 150, so a remote addition can only land in a chip that is already
+      on screen. Verified against the data. A full `render()` would have cleared the search box and
+      scroll position under a reader mid-browse.
+- [x] **Every entry is re-validated on the way in, and again on the way out of the cache** — the
+      rules can tighten in a later build while an older build's cache survives. `_cleanEntry()`
+      checks every field the card, filters, sort and download path read, so none of them has to,
+      and it copies only known fields rather than passing the object through.
+- [x] **One category list, not two.** `_CATEGORY_KEYS` now feeds the label lookup, and the
+      validator reads it out of the source. Two lists is what put raw slugs on six chips in Phase
+      A. **A category cannot be introduced remotely** — it needs a label and an en/hi key, so it
+      is an app release. The loader drops an unknown-category entry rather than drawing its slug.
+- [x] **`https` is required for `sourceUrl`,** and a non-https `coverImage` is ignored while the
+      entry survives. The remote file is hand-edited on a public repo and its strings reach
+      `innerHTML`; the existing card markup escapes them, and this closes the URL half.
+
+**The validator — `scripts/catalog/validate.mjs` (force-added).** Phase C's accepted cost was that
+*the owner* gets no feedback either: the app's silence is right for the reader and useless for
+whoever made the typo. This is that feedback, and it runs before the commit rather than after the
+release.
+- **It has no opinion of its own.** The category list is read out of `free-books.js`, the labels out
+  of en.json and hi.json, and the structural rules are the ones `_cleanEntry()` applies at runtime.
+  The two therefore cannot drift, which is the Phase A failure in its general form.
+- **It names a line and a column for a JSON syntax error** — "Unexpected token }" on one line of
+  4,000 is not a location, and the trailing comma is the single likeliest failure.
+- **It retries the Gutenberg mirror the app retries.** Found while testing: gutenberg.org was
+  answering a site-wide 503, and the first run declared a perfectly good entry broken. With 127
+  entries on that host, a maintenance window would condemn the whole catalogue and train the owner
+  to ignore the tool — **a validator nobody believes is worse than none.** A URL is wrong only if
+  both hosts refuse it, and the fallback is reported once rather than per URL.
+- **Errors are what a reader would hit; warnings are cosmetic.** A 404 `sourceUrl` is an error, a
+  404 cover is a warning. Missing covers and lengths are aggregated into one line each — reported
+  per entry, twenty of them buried the real errors, which is this script's own failure mode
+  reproduced in its output.
+- **Two checks that exist because the data model is unforgiving:** a remote `id` matching a bundled
+  one with a *different* `sourceUrl` is an error, not a warning — identity is the URL, so it
+  orphans every saved position — and **nothing may disappear from `books[]`**, compared against
+  the published file (or any baseline via `--published`).
+- Also checks Phase D's `dropMonth` / `dropChoices` already, since they cost nothing to validate
+  and will be hand-edited monthly.
+- **Verified by running it:** the trailing comma, the unknown category, `epub`, a non-https URL, a
+  duplicate id, a re-pointed bundled id, a missing field, the malformed `dropMonth`, a repeated and
+  an unresolvable `dropChoices` entry, and a deletion from `books[]` — each fires and exits
+  non-zero. A good file passes through the mirror during a live Gutenberg outage.
+- The loader's own `_cleanEntry`, `_cleanList` and `_merge` were exercised separately (20 cases:
+  remote-wins-in-place, order stability, the 500 cap, a bad entry not taking the list with it).
+
+**Still open in C:** the local editor form, and a device run — the fallback path needs a deliberate
+test, since an empty remote file and a missing one are indistinguishable from a passing one.
 
 **D — Monthly drops. Mechanic revised 2026-11-17: a choice of one from ten, subscribers only.**
 

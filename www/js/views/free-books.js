@@ -77,15 +77,177 @@ var FreeBooksView = (function() {
 
   /* ── Catalog ─────────────────────────────────────────────────── */
 
+  /* ── Remote catalogue (16.4 Phase C) ─────────────────────────────
+     Books added after a build shipped come from one hand-edited public file.
+     Three properties, in the order they matter:
+
+     1. **The bundled file is the offline floor and is never replaced** (§1.1).
+        The remote file only ever *adds*; a fresh install with no network has
+        the whole 150-book library. Every failure here is silent, because the
+        reader asked for a library and got one — there is nothing to report.
+     2. **The remote fetch is never in the paint path.** The library renders
+        from the bundled file plus whatever the last fetch cached, which needs
+        no network at all, and the refresh runs behind it and re-renders only
+        if the file actually changed. An awaited fetch would mean a spinner on
+        a screen that already has 150 books to show, and a dead network would
+        hold it there. It also means the timeout below not biting costs
+        nothing, which matters because `CapacitorHttp` routes fetch through
+        native and may ignore an AbortSignal.
+     3. **The worst a bad edit can do is not appear.** The file is hand-edited,
+        so every entry is re-validated on the way in and on the way out of the
+        cache — a malformed one is dropped rather than rendered half-built
+        (§1.5). The owner's feedback path is `scripts/catalog/validate.mjs`
+        before committing, not the app after.
+
+     The URL may never move; `Claude.md` §12 carries the contract, and `v1/` is
+     the only escape hatch for a shape change. */
+  var _REMOTE_URL =
+    'https://raw.githubusercontent.com/lost-coder1/flowread-privacy/main/catalog/v1/catalog.json';
+  var _REMOTE_CACHE_KEY   = 'fr_remote_catalog';
+  var _REMOTE_TIMEOUT_MS  = 8000;
+  var _REMOTE_MAX_BOOKS   = 500;
+  var _REMOTE_MAX_BYTES   = 512 * 1024;
+
+  var _bundled   = null;   /* the floor, kept so a refresh can re-merge */
+  var _remoteSig = null;   /* what the last applied remote list looked like */
+  var _refreshed = false;  /* one fetch per app session, not per render */
+
+  function _isHttpsUrl(url) {
+    return typeof url === 'string' && url.indexOf('https://') === 0;
+  }
+
+  /* A catalogue entry the renderer can rely on, or null. Every field the card,
+     the filters, the sort and the download path read is checked here, so none
+     of them has to. Unknown language is dropped for the same reason as unknown
+     category: the tabs offer en and hi, so anything else is unreachable except
+     under "All" and is far more likely to be a typo than an intention. */
+  function _cleanEntry(raw) {
+    if (!raw || typeof raw !== 'object') return null;
+
+    var required = ['id', 'title', 'author', 'language', 'category', 'sourceUrl', 'fileType'];
+    var out = {};
+    for (var i = 0; i < required.length; i++) {
+      var v = raw[required[i]];
+      if (typeof v !== 'string' || !v) return null;
+      out[required[i]] = v;
+    }
+
+    /* §12: `free-books.js` branches on exactly these two, and an `html` entry
+       would reach the PDF parser and fail. */
+    if (out.fileType !== 'pdf' && out.fileType !== 'txt') return null;
+    if (out.language !== 'en' && out.language !== 'hi') return null;
+    if (_CATEGORY_KEYS.indexOf(out.category) === -1) return null;
+    if (!_isHttpsUrl(out.sourceUrl)) return null;
+
+    if (_isHttpsUrl(raw.coverImage)) out.coverImage = raw.coverImage;
+    if (typeof raw.approxLength === 'string') out.approxLength = raw.approxLength;
+    return out;
+  }
+
+  function _cleanList(list) {
+    var out = [];
+    if (!Array.isArray(list)) return out;
+    for (var i = 0; i < list.length && out.length < _REMOTE_MAX_BOOKS; i++) {
+      var entry = _cleanEntry(list[i]);
+      if (entry) out.push(entry);
+    }
+    return out;
+  }
+
+  /* Remote wins on a shared `id`, and wins *in place* so the bundled order —
+     which the region-aware sort is layered on top of — does not shuffle just
+     because a book was re-described. New books append. */
+  function _merge(bundled, remote) {
+    var books = bundled.slice();
+    var at = {};
+    for (var i = 0; i < books.length; i++) at[books[i].id] = i;
+    for (var j = 0; j < remote.length; j++) {
+      var b = remote[j];
+      if (at[b.id] !== undefined) books[at[b.id]] = b;
+      else { at[b.id] = books.length; books.push(b); }
+    }
+    return books;
+  }
+
+  /* Re-validated on read, not trusted because we wrote it: the rules can
+     tighten in a later build while a cache written by an older one survives. */
+  function _readRemoteCache() {
+    try {
+      var raw = localStorage.getItem(_REMOTE_CACHE_KEY);
+      if (!raw) return [];
+      var data = JSON.parse(raw);
+      return _cleanList(data && data.books);
+    } catch (_) { return []; }
+  }
+
+  function _writeRemoteCache(books) {
+    try {
+      localStorage.setItem(_REMOTE_CACHE_KEY, JSON.stringify({ books: books, at: Date.now() }));
+    } catch (_) {}   /* a full quota costs freshness, nothing else */
+  }
+
+  async function _fetchRemote() {
+    var ctrl  = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function() { ctrl.abort(); }, _REMOTE_TIMEOUT_MS) : null;
+    try {
+      /* Cache-bust: without it an edit is invisible for hours and "I updated it
+         and nothing happened" becomes a monthly frustration. */
+      var opts = { cache: 'no-store' };
+      if (ctrl) opts.signal = ctrl.signal;
+      var res = await fetch(_REMOTE_URL + '?v=' + Date.now(), opts);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      var text = await res.text();
+      if (text.length > _REMOTE_MAX_BYTES) throw new Error('catalogue too large');
+      var data = JSON.parse(text);
+      if (!data || !Array.isArray(data.books)) throw new Error('catalogue shape');
+      return _cleanList(data.books);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  /* Fire-and-forget. Never awaited, never reported, never retried within a
+     session: the next launch is the retry, and the reader is already reading. */
+  async function _refreshRemote() {
+    if (_refreshed) return;
+    _refreshed = true;
+
+    var fresh;
+    try { fresh = await _fetchRemote(); } catch (_) { return; }
+
+    var sig = JSON.stringify(fresh);
+    if (sig === _remoteSig) return;   /* unchanged: no write, no re-render */
+    _remoteSig = sig;
+    _writeRemoteCache(fresh);
+
+    if (!_bundled) return;
+    _catalog = { books: _merge(_bundled, fresh) };
+
+    /* The grid alone, not the whole view: a full render() would clear the
+       search box and the scroll position under a reader who is mid-browse. The
+       chip row cannot go stale from this, because all twelve categories are
+       represented in the bundled catalogue already, so a remote addition can
+       only ever land in a chip that is on screen. */
+    _renderGrid();
+  }
+
   async function _loadCatalog() {
     if (_catalog) return _catalog;
+
+    var bundled = [];
     try {
       var res = await fetch('data/free-books.json');
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      _catalog = await res.json();
-    } catch (_) {
-      _catalog = { books: [] };
-    }
+      var data = await res.json();
+      if (data && Array.isArray(data.books)) bundled = data.books;
+    } catch (_) {}
+
+    _bundled = bundled;
+    var cached = _readRemoteCache();
+    _remoteSig = JSON.stringify(cached);
+    _catalog = { books: _merge(bundled, cached) };
+
+    _refreshRemote();   /* deliberately not awaited */
     return _catalog;
   }
 
@@ -183,22 +345,24 @@ var FreeBooksView = (function() {
     return cats;
   }
 
+  /* The categories the app can actually render. One list, because three things
+     have to agree about it: this label lookup, `_sorted()`'s priority map, and
+     the `freebooks.cat.*` keys in en.json and hi.json. It was two lists once
+     and six of the twelve chips rendered as raw slugs (Phase A).
+
+     It is also why a category cannot be introduced remotely: a book in an
+     unknown one would draw its slug on a chip and sort last by accident, and no
+     remote file can add an i18n key. `_cleanEntry()` drops such an entry and
+     `scripts/catalog/validate.mjs` refuses to let one be committed, so a new
+     category is an app release — deliberately. */
+  var _CATEGORY_KEYS = [
+    'social_justice', 'constitution_law', 'philosophy', 'classics',
+    'buddhism', 'biography_history', 'poetry', 'history_politics',
+    'science_fiction', 'drama', 'essays', 'strategy',
+  ];
+
   function _categoryLabel(cat) {
-    var map = {
-      'social_justice':   t('freebooks.cat.social_justice'),
-      'constitution_law': t('freebooks.cat.constitution_law'),
-      'philosophy':       t('freebooks.cat.philosophy'),
-      'classics':         t('freebooks.cat.classics'),
-      'buddhism':         t('freebooks.cat.buddhism'),
-      'biography_history':t('freebooks.cat.biography_history'),
-      'poetry':           t('freebooks.cat.poetry'),
-      'history_politics': t('freebooks.cat.history_politics'),
-      'science_fiction':  t('freebooks.cat.science_fiction'),
-      'drama':            t('freebooks.cat.drama'),
-      'essays':           t('freebooks.cat.essays'),
-      'strategy':         t('freebooks.cat.strategy'),
-    };
-    return map[cat] || cat;
+    return _CATEGORY_KEYS.indexOf(cat) !== -1 ? t('freebooks.cat.' + cat) : cat;
   }
 
   /* ── Card HTML ───────────────────────────────────────────────── */
