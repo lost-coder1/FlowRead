@@ -122,12 +122,24 @@ async function parsePDF(arrayBuffer) {
 
   /* Garbage-text heuristic: if most "words" are short/no-vowel/mixed-alnum tokens,
      it's almost certainly low-quality embedded OCR rather than real text. */
+  /* Devanagari counts as real text. Scoring "real" as ASCII-with-a-vowel made a
+     clean Unicode Hindi text layer score junkRatio 1.00, so textLooksGarbled was
+     true, hasTextLayer false, and a perfectly readable Hindi PDF was declared
+     scanned -- sent to OCR, which is slower and worse than the text it threw
+     away, or to the scanned-PDF modal for a user without OCR. Legacy KrutiDev
+     encoding is unaffected: it IS ASCII, so it still scores as junk (and
+     hasLegacyEncoding below is computed separately anyway).
+     The trade: a garbled *Devanagari* text layer now reads rather than being
+     re-OCR'd. That is rarer than a well-made Hindi PDF, which was always
+     mis-handled. */
+  const DEVANAGARI_RE = /[\u0900-\u097F]/;
   let realWords = 0, junkWords = 0;
   for (let i = 0; i < words.length; i++) {
     const w = words[i];
     if (typeof w !== 'string') continue;
     const stripped = w.replace(/[^A-Za-z]/g, '');
     if (stripped.length >= 3 && /[aeiouAEIOU]/.test(stripped)) realWords++;
+    else if (w.replace(/[^\u0900-\u097F]/g, '').length >= 2) realWords++;
     else junkWords++;
   }
   const totalTokens = realWords + junkWords;

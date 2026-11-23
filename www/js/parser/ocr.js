@@ -22,6 +22,46 @@ const OCREngine = (function() {
     return (res && res.text) ? res.text.trim() : '';
   }
 
+  /* Hindi books carry English -- page numbers, publisher pages, quoted titles --
+     so when both passes found something real, both are kept. Devanagari leads
+     because it is the body text; the Latin pass's reading of Devanagari is
+     transliteration noise, so it is only appended when it found real words of
+     its own. One copy of this rule, used by detection and by the rescue. */
+  function combine(devText, latinText) {
+    const dev = _scoreText(devText);
+    const lat = _scoreText(latinText);
+    if (!devText) return latinText || '';
+    if (!latinText) return devText;
+    if (dev.devanagariChars > 0) {
+      /* The Devanagari recognizer reads Latin as well, so on a Hindi page the
+         Latin pass is a transliteration of the same glyphs -- "गोदान / 35" comes
+         back as "TGIT / 35", and those tokens have vowels in them, so counting
+         real words is not enough to tell them from English. The Latin text is
+         therefore kept only when it found materially more Latin than the
+         Devanagari pass did AND does not itself look like junk (measured:
+         English prose scores 0.24 on this ratio, Devanagari-as-Latin 0.57). */
+      const addsLatin = lat.latinWords >= dev.latinWords + 8 && lat.junkRatio < 0.5;
+      return addsLatin ? (devText + '\n' + latinText).trim() : devText;
+    }
+    return lat.realWords > dev.realWords ? latinText : devText;
+  }
+
+  /* Both scripts on one image, with the scores, for the caller that has to
+     decide what this *document* is rather than what this page says. */
+  async function recogniseBoth(base64Image) {
+    const latinText = await _detect(base64Image, 'latin');
+    let devText = '';
+    try { devText = await _detect(base64Image, 'devanagari'); }
+    catch (e) { console.warn('[OCR] devanagari attempt failed:', e); }
+    return {
+      latinText: latinText,
+      devText: devText,
+      text: combine(devText, latinText),
+      latin: _scoreText(latinText),
+      dev: _scoreText(devText),
+    };
+  }
+
   /* Recognise with both scripts and report which one won, so a caller processing a
      whole document can stop paying for two passes per page (see ocr-pdf.js). */
   async function recogniseAuto(base64Image) {
@@ -45,9 +85,8 @@ const OCREngine = (function() {
 
     /* Devanagari script returns non-Latin characters — count any Devanagari unicode block */
     if (devText.length > latinText.length || devScore.devanagariChars > 0) {
-      /* Merge both — Hindi docs sometimes have English headers/page numbers */
-      if (latinScore.realWords >= 3 && devScore.devanagariChars > 0) {
-        return { text: (devText + '\n' + latinText).trim(), script: 'both' };
+      if (latinScore.latinWords >= 3 && devScore.devanagariChars > 0) {
+        return { text: combine(devText, latinText), script: 'both' };
       }
       return { text: devText, script: 'devanagari' };
     }
@@ -61,15 +100,7 @@ const OCREngine = (function() {
   async function recogniseBase64(base64Image, opts) {
     const script = opts && opts.script;
     if (script === 'latin' || script === 'devanagari') return _detect(base64Image, script);
-    if (script === 'both') {
-      const latinText = await _detect(base64Image, 'latin');
-      let devText = '';
-      try { devText = await _detect(base64Image, 'devanagari'); }
-      catch (e) { console.warn('[OCR] devanagari attempt failed:', e); }
-      if (!devText) return latinText;
-      if (!latinText) return devText;
-      return (devText + '\n' + latinText).trim();
-    }
+    if (script === 'both') return (await recogniseBoth(base64Image)).text;
     return (await recogniseAuto(base64Image)).text;
   }
 
@@ -83,16 +114,25 @@ const OCREngine = (function() {
       if (code >= 0x0900 && code <= 0x097F) devanagariChars++;
     }
     const tokens = text.split(/\s+/).filter(Boolean);
+    let devWords = 0;
     for (let j = 0; j < tokens.length; j++) {
       const stripped = tokens[j].replace(/[^A-Za-z]/g, '');
       if (stripped.length >= 3 && /[aeiouAEIOU]/.test(stripped)) realWords++;
+      /* A Devanagari word is real text, not junk. Without this a perfect
+         Devanagari page scores junkRatio 1.00, so any caller asking "did this
+         pass read the page properly?" is told no for every Hindi page there is. */
+      else if (tokens[j].replace(/[^\u0900-\u097F]/g, '').length >= 2) { realWords++; devWords++; }
       else if (tokens[j].length > 0) junkWords++;
     }
     const total = realWords + junkWords;
     return {
       realWords: realWords,
+      devWords: devWords,
+      latinWords: realWords - devWords,
+      tokens: tokens.length,
       junkRatio: total > 0 ? junkWords / total : 0,
       devanagariChars: devanagariChars,
+      letters: text.replace(/\s+/g, '').length,
     };
   }
 
@@ -163,5 +203,6 @@ const OCREngine = (function() {
     });
   }
 
-  return { isAvailable, recogniseBase64, recogniseAuto, pdfPageToBase64, imageFileToBase64 };
+  return { isAvailable, recogniseBase64, recogniseAuto, recogniseBoth, combine,
+           scoreText: _scoreText, pdfPageToBase64, imageFileToBase64 };
 })();

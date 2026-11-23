@@ -100,8 +100,76 @@ const OCR_THIN_CHARS = 20;
    chapter divider. */
 const OCR_BLANK_BYTES_PER_MP = 30000;
 
+/* Deciding what scripts a document is written in, before committing to one
+   pass per page for the rest of it.
+
+   Both scripts run through the whole window, so nothing in it is lost either
+   way -- the window only decides what happens AFTER it. Evidence is taken from
+   body pages only: the front of an Indian-published Hindi book is covers, a
+   publisher page, an ISBN and a catalogue, which is the only English in the
+   book, and judging from those pages calls a Hindi novel bilingual. */
+const OCR_DETECT_EVIDENCE_PAGES = 12;
+const OCR_DETECT_SKIP_MAX = 8;
+
+/* Evidence that a document contains Devanagari at all. Measured on device: ML
+   Kit's Devanagari recognizer reads Latin script as well -- it returned
+   'janchetna.books@gmail.com' and 'Website - http://janchetnabooks.org' from a
+   Hindi publisher page correctly -- so a document with any Devanagari in it is
+   read by that one model, and the Latin pass adds a transliteration of the same
+   glyphs. The reverse is not true: the Latin model has no Devanagari glyphs and
+   turns a Sanskrit quotation into noise. So Devanagari is the safer primary
+   wherever it appears, and 'both' survives only for the case below where the
+   Devanagari model is measurably worse on a page's Latin. Two pages, or ten
+   words, so that one hallucinated token cannot decide it. */
+const OCR_DEV_MIN_PAGES = 2;
+const OCR_DEV_MIN_WORDS = 10;
+
+/* A page has to carry at least this many words of a script to count for it. */
+const OCR_MIXED_MIN_WORDS_PER_PAGE = 2;
+
+/* On a re-sampled page, how much better the Latin pass has to be before a
+   Devanagari-locked document pays for two passes: materially more real Latin
+   words than the Devanagari pass found, and enough of them to be a passage
+   rather than a caption. */
+const OCR_LATIN_BETTER_MARGIN = 1.5;
+const OCR_LATIN_BETTER_MIN = 15;
+
+/* Even after locking, one page in this many runs both scripts anyway. The
+   quality gate below cannot see a two-line Sanskrit quotation inside a full
+   page of English -- the page reads perfectly well, because almost all of it
+   did -- so the only way to find a minority script that appears rarely is to
+   keep looking. 4% more work, and the upgrade to 'both' is permanent: a
+   document is never un-bilingual. */
+const OCR_RESAMPLE_EVERY = 25;
+
 function _ocrThin(text) {
   return (text || '').replace(/\s+/g, '').length < OCR_THIN_CHARS;
+}
+
+/* Did the locked script actually read this page? Emptiness is not the only way
+   a pass fails: the Latin recognizer on a Devanagari page, and the reverse,
+   both return plenty of characters of nonsense. So the test is the one
+   detection uses -- quality -- and it has to be script-aware, since a perfect
+   Devanagari page has no ASCII words and a perfect English one no Devanagari. */
+function _needsSecondOpinion(text, script) {
+  if (_ocrThin(text)) return true;
+  if (script === 'both') return false;       /* both already ran */
+  const sc = OCREngine.scoreText(text);
+  if (script === 'devanagari') {
+    /* Little Devanagari is not itself a problem: this model reads Latin too, so
+       an English page inside a Hindi book comes back correct. It is only
+       suspicious when what came back is ALSO junk -- then neither script was
+       read and the Latin model is worth a try. */
+    return sc.devanagariChars < sc.letters * 0.2 && sc.junkRatio > 0.5;
+  }
+  /* Latin. Sparse pages (a chapter opening) are left alone -- 'few real words'
+     is normal there and a second pass on every chapter page is pure cost.
+     The threshold is measured, not guessed: clean English prose scores 0.30 on
+     this heuristic, because every word under three letters counts against it,
+     while Devanagari misread as Latin scores 0.72. Anything near 0.3 would
+     re-run half the pages of an English book for nothing. */
+  if (sc.tokens < 20) return false;
+  return sc.junkRatio > 0.5 || sc.latinWords < 5;
 }
 
 async function _renderForOcr(pdfDoc, pageNum, opts) {
@@ -154,10 +222,15 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
      the way through, so each of these is learned once rather than re-tested on
      every page. */
   let lockedScript = (resume && startPage > 1 && resume.lockedScript) || null;
-  const scriptVotes = [];
+  /* Evidence for the lock, accumulated over the detection window (body pages). */
+  let detectDevWords = 0, detectLatinWords = 0, detectSamples = 0;
+  let detectDevPages = 0, detectLatinPages = 0;
+  const detectSkipTo = Math.min(OCR_DETECT_SKIP_MAX, Math.floor(pageCount * 0.05));
+  const detectFrom = Math.max(startPage, detectSkipTo + 1);
+  const detectUntil = Math.min(pageCount, detectFrom + OCR_DETECT_EVIDENCE_PAGES - 1);
   let xobjectHelped = false;      /* the embedded-image path has rescued a page */
   let xobjectAttempts = 0;
-  let hiresPages = 0, rescuePages = 0, xobjectPages = 0;
+  let hiresPages = 0, rescuePages = 0, xobjectPages = 0, resamplePages = 0;
 
   const t0 = Date.now();
   let renderMs = 0, ocrMs = 0;
@@ -204,27 +277,72 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
     const oStart = Date.now();
     try {
       if (rendered.base64) {
-        if (lockedScript) {
+        /* One page in OCR_RESAMPLE_EVERY keeps checking for the other script. */
+        const resampling = !!lockedScript && lockedScript !== 'both'
+          && p % OCR_RESAMPLE_EVERY === 0;
+
+        if (lockedScript && lockedScript !== 'both' && !resampling) {
           pageText = await OCREngine.recogniseBase64(rendered.base64, { script: lockedScript });
-          /* Rescue: a page the locked script cannot read gets the full two-script
-             treatment, so locking can only ever cost time, never text. */
-          if (_ocrThin(pageText)) {
+          /* A page the locked script could not read gets the other one, so
+             locking can cost time but never a page. This catches a whole page
+             in the other script -- the publisher page in a Hindi book, a page
+             of Sanskrit in an English one -- and nothing smaller: a two-line
+             quotation leaves the page reading well, because almost all of it
+             did. That case is OCR_RESAMPLE_EVERY's job, not this gate's. */
+          if (_needsSecondOpinion(pageText, lockedScript)) {
             rescuePages++;
-            const auto = await OCREngine.recogniseAuto(rendered.base64);
-            if (auto.text.length > pageText.length) pageText = auto.text;
+            const other = lockedScript === 'latin' ? 'devanagari' : 'latin';
+            const otherText = await OCREngine.recogniseBase64(rendered.base64, { script: other });
+            pageText = lockedScript === 'latin'
+              ? OCREngine.combine(otherText, pageText)
+              : OCREngine.combine(pageText, otherText);
           }
         } else {
-          const auto = await OCREngine.recogniseAuto(rendered.base64);
-          pageText = auto.text;
-          if (!_ocrThin(pageText)) {
-            scriptVotes.push(auto.script);
-            /* Two pages agreeing is enough; three pages is the cap either way. */
-            if (scriptVotes.length >= 2 && scriptVotes[scriptVotes.length - 1] === scriptVotes[scriptVotes.length - 2]) {
-              lockedScript = auto.script;
-            } else if (scriptVotes.length >= 3) {
-              lockedScript = scriptVotes.indexOf('both') !== -1 ? 'both' : auto.script;
+          /* Unlocked, locked to 'both', or re-sampling: run both, keep both. */
+          const both = await OCREngine.recogniseBoth(rendered.base64);
+          pageText = both.text;
+
+          if (resampling) {
+            resamplePages++;
+            if (lockedScript === 'latin' && both.dev.devWords >= OCR_MIXED_MIN_WORDS_PER_PAGE) {
+              /* Devanagari turned up in a document that looked English. Switch
+                 to the model that reads both scripts rather than paying for
+                 two passes. */
+              console.log('[OCR] page ' + p + ' carries ' + both.dev.devWords
+                + ' devanagari words - switching to the devanagari pass, which reads both');
+              lockedScript = 'devanagari';
+            } else if (lockedScript === 'devanagari'
+                && both.latin.latinWords >= OCR_LATIN_BETTER_MIN
+                && both.latin.latinWords > both.dev.realWords * OCR_LATIN_BETTER_MARGIN) {
+              /* The one case that needs two passes: the Devanagari model is
+                 under-reading this book's Latin. */
+              console.log('[OCR] page ' + p + ': latin pass found '
+                + both.latin.latinWords + ' words against ' + both.dev.realWords
+                + ' - upgrading to both scripts for the rest of the book');
+              lockedScript = 'both';
             }
-            if (lockedScript) console.log('[OCR] script locked to ' + lockedScript + ' at page ' + p);
+          }
+
+          if (!lockedScript && p >= detectFrom && !_ocrThin(pageText)) {
+            /* Evidence, not a vote: what each script contributed in *real*
+               words. A Latin pass reading Devanagari scores almost none, which
+               is what separates a bilingual book from a misread monolingual
+               one -- and it is counted per page, not per word, so a handful of
+               Sanskrit quotations still register. */
+            detectDevWords += both.dev.devWords;
+            detectLatinWords += both.latin.latinWords;
+            if (both.dev.devWords >= OCR_MIXED_MIN_WORDS_PER_PAGE) detectDevPages++;
+            if (both.latin.latinWords >= OCR_MIXED_MIN_WORDS_PER_PAGE) detectLatinPages++;
+            detectSamples++;
+          }
+          if (!lockedScript && p >= detectUntil && detectSamples > 0) {
+            const devSeen = detectDevPages >= OCR_DEV_MIN_PAGES
+              || detectDevWords >= OCR_DEV_MIN_WORDS;
+            lockedScript = devSeen ? 'devanagari' : 'latin';
+            console.log('[OCR] script locked to ' + lockedScript + ' at page ' + p
+              + ' (' + detectSamples + ' body pages sampled from ' + detectFrom
+              + ': dev words=' + detectDevWords + ' on ' + detectDevPages + ' pages'
+              + ', latin words=' + detectLatinWords + ' on ' + detectLatinPages + ' pages)');
           }
         }
 
@@ -317,7 +435,8 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
     + ' | words=' + wordCount
     + ' | script=' + (lockedScript || 'unlocked')
     + ' | render-wait=' + Math.round(renderMs / 1000) + 's ocr=' + Math.round(ocrMs / 1000) + 's'
-    + ' | hires-retries=' + hiresPages + ' script-rescues=' + rescuePages + ' xobject-rescues=' + xobjectPages);
+    + ' | hires-retries=' + hiresPages + ' script-rescues=' + rescuePages
+    + ' resamples=' + resamplePages + ' xobject-rescues=' + xobjectPages);
 
   return {
     words: words,
