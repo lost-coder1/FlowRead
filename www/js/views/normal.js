@@ -1,6 +1,23 @@
 /* Embedded Normal PDF view with lazy page rendering */
 
 const NormalView = (function() {
+  /* The pages this file actually has words for.
+
+     pdfDoc.numPages is the whole PDF, but a scan still being OCR'd has reader
+     arrays for only the first twenty pages (§16.32), and the bridge reads
+     `pageWordIndex.length` and clamps (features/bridge.js). So without this,
+     "Read from here" on page 300 of a partial book silently drops the reader at
+     page 20 -- a §1.5 silent failure rather than a crash, which is why it would
+     have survived a device run. */
+  function _pagesAvailable(file) {
+    const pdfPages = (file && file.pdfDoc && file.pdfDoc.numPages) || 0;
+    if (typeof OcrProgressive !== 'undefined' && OcrProgressive.isPartial(file)) {
+      const have = (file.pageWordIndex && file.pageWordIndex.length) || 0;
+      if (have > 0) return pdfPages ? Math.min(pdfPages, have) : have;
+    }
+    return pdfPages;
+  }
+
   let _observer = null;
   let _renderedPages = new Map();
   let _visiblePage = 1;
@@ -16,7 +33,7 @@ const NormalView = (function() {
     _isBindingScroll = false;
     AppState.normalRenderToken += 1;
     const token = AppState.normalRenderToken;
-    AppState.normalPage = Math.max(1, Math.min(file.pdfDoc.numPages, pageNumber || AppState.normalPage || 1));
+    AppState.normalPage = Math.max(1, Math.min(_pagesAvailable(file), pageNumber || AppState.normalPage || 1));
 
     view.innerHTML = `
       <div class="normal-view">
@@ -24,8 +41,8 @@ const NormalView = (function() {
           <button class="btn btn-ghost" id="btn-normal-back">←</button>
           <button class="btn btn-ghost" id="btn-normal-prev">‹</button>
           <div class="normal-page-input-wrap">
-            <input class="normal-page-input" id="normal-page-input" type="number" min="1" max="${file.pdfDoc.numPages}" value="${AppState.normalPage}" />
-            <span class="normal-page-total">/ ${file.pdfDoc.numPages}</span>
+            <input class="normal-page-input" id="normal-page-input" type="number" min="1" max="${_pagesAvailable(file)}" value="${AppState.normalPage}" />
+            <span class="normal-page-total">/ ${_pagesAvailable(file)}</span>
           </div>
           <button class="btn btn-ghost" id="btn-normal-next">›</button>
           <button class="btn btn-ghost" id="btn-normal-zoom-out">${t('normal.btn.zoom_out')}</button>
@@ -36,7 +53,7 @@ const NormalView = (function() {
         </div>
         <div class="normal-scroll" id="normal-scroll">
           <div class="normal-pages" id="normal-pages">
-            ${buildPageShells(file.pdfDoc.numPages)}
+            ${buildPageShells(_pagesAvailable(file))}
           </div>
         </div>
       </div>
@@ -153,7 +170,7 @@ const NormalView = (function() {
   }
 
   function renderVisibleWindow(token) {
-    const total = AppState.currentFile.pdfDoc.numPages;
+    const total = _pagesAvailable(AppState.currentFile);
     const start = Math.max(1, AppState.normalPage - 2);
     const end = Math.min(total, AppState.normalPage + 2);
 
@@ -272,7 +289,7 @@ const NormalView = (function() {
     const file = AppState.currentFile;
     if (!file || !file.pdfDoc) return;
 
-    const targetPage = Math.max(1, Math.min(file.pdfDoc.numPages, pageNumber || 1));
+    const targetPage = Math.max(1, Math.min(_pagesAvailable(file), pageNumber || 1));
     const shell = qs('.normal-page-shell[data-page="' + targetPage + '"]');
     const scrollEl = qs('#normal-scroll');
     if (!shell || !scrollEl) return;

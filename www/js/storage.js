@@ -16,8 +16,14 @@ function savePosition(fileId, wordIndex) {
      id check is what keeps it honest when the current file is not the one being
      written — markFileAsRead() writes another file's position from the
      library. */
+  /* `words.length` is the prefix's while a scan is still being OCR'd (§16.32),
+     so the end of twenty pages would read as the end of the book. The floor in
+     page.js is already gated on this and is the only route to the threshold --
+     this is the second lock on a door that cannot be opened twice, because the
+     event it guards cannot be taken back. */
   if (AppState.currentFile && AppState.currentFile.id === fileId &&
-      AppState.currentFile.words && wordIndex >= AppState.currentFile.words.length) {
+      AppState.currentFile.words && wordIndex >= AppState.currentFile.words.length &&
+      !(typeof OcrProgressive !== 'undefined' && OcrProgressive.isPartial(AppState.currentFile))) {
     _logBookFinished(fileId, 'read');
   }
 }

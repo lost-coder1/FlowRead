@@ -188,6 +188,26 @@ async function _renderForOcr(pdfDoc, pageNum, opts) {
    work, high enough that the writes are a rounding error against OCR itself. */
 const OCR_CHECKPOINT_PAGES = 20;
 
+/* How many pages the reader is offered before the rest is recognised (§16.32).
+   Twenty, and not a number chosen for feel: it is where both cleaning passes
+   start working. _ocrRunningLines' threshold is max(3, pages x 0.12), which is
+   3 here, so a running head on every page clears it; and OCR_PAGENO_MIN_RUN is
+   10, which a numbered twenty-page stretch meets. At ten pages the page-number
+   arithmetic would fall below its run and page numbers would survive into the
+   prefix only to vanish on the swap -- text changing under the reader, which
+   §1.5 forbids. Lowering either threshold to compensate is the mistake §5
+   records: loosened numeral rules turned an 86-page book into 61 chapters. */
+const OCR_PREFIX_PAGES = 20;
+
+/* Pause between pages while a reader is open. OCR itself is native and off the
+   WebView thread, but the pdf.js rasterise before it is not, and it competes
+   with Page mode's slab measurement (§4.1 rule 1) in the engine every nudged
+   read lands in (§8.5). Measured cost is about 430ms a page, so this roughly
+   halves throughput while someone is reading and costs nothing when they are
+   not -- and OCR still usually finishes first, since twenty pages is fifteen
+   minutes of reading against three minutes of recognising four hundred. */
+const OCR_READING_YIELD_MS = 400;
+
 /* Bumped when the checkpoint's shape changes: v1 held the built word arrays,
    v2 the recognised page texts (cleaning happens after the last page), v3 the
    recognised lines with their boxes, which paragraph inference needs. An older
@@ -385,6 +405,46 @@ function _ocrBuild(pageLines) {
   return { words: words, pageWordIndex: pageWordIndex, rawLines: rawLines };
 }
 
+/* The first N pages as a complete, independently cleaned book.
+
+   This needs no second code path because _ocrBuild is a pure function of a page
+   array: pages 1..N are a whole book to it, so the prefix is cleaned,
+   paragraphed and chapter-detected exactly as a finished book is -- not shown
+   raw while cleaning catches up. That is the property the whole feature rests
+   on, and it is why the prefix shape was chosen over a reader that grows.
+
+   What it cannot be is *identical* to the same pages inside the full build.
+   Every document-wide question gets a different answer from a shorter document:
+   a line recurring three times in twenty pages is furniture at threshold 3 and
+   is kept by the full build at 52; paragraph geometry measured over front
+   matter is not the body's; and §5 rule 5 needs a run of three bare numerals
+   before it will call them chapters. All of it resolves at the swap, which is
+   why the swap is a deliberate tap and never silent. */
+function buildOcrPrefix(pageLines, pages, fullPageCount) {
+  const slice = pageLines.slice(0, pages);
+  const built = _ocrBuild(slice);
+  const wordCount = built.words.filter(function(w) { return typeof w === 'string'; }).length;
+  return {
+    words: built.words,
+    pageWordIndex: built.pageWordIndex,
+    rawLines: built.rawLines,
+    metadata: {
+      pageCount: pages,
+      wordCount: wordCount,
+      hasTextLayer: true,
+      sourceType: 'pdf-ocr',
+      hasLegacyEncoding: false,
+      hasBrokenGlyphs: false,
+      title: '',
+      /* The flag every other system keys off. Its presence is what suppresses
+         the completion floor (§4.2), keeps book_finished unfired (§8.6) and
+         bounds Normal view -- and, saved with the file, what lets a killed
+         process be told from a finished import. */
+      ocrPartial: { pagesDone: pages, pageCount: fullPageCount },
+    },
+  };
+}
+
 async function parseScannedPDF(pdfDoc, onProgress, opts) {
   if (!OCREngine.isAvailable()) throw { type: 'ocr-unavailable', detail: 'OCR not available' };
 
@@ -454,7 +514,54 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
      were previously each idle waiting for the other. */
   let pending = _renderForOcr(pdfDoc, startPage, OCR_LORES);
 
+  /* The prefix is offered once, the moment enough contiguous pages exist. A
+     resumed run may already be past the mark on its first iteration, which is
+     why this is tested in the loop rather than counted up to. */
+  let prefixOffered = pageCount <= OCR_PREFIX_PAGES;   /* nothing to offer on a short book */
+  /* Contiguous pages from the front. Equal to the loop counter in an ordinary
+     run and to the resume point in a resumed one, which is why it is tracked
+     rather than inferred from pageLines.length -- that array is positional and
+     a resumed run fills it from the checkpoint, holes and all. */
+  let pagesRecognised = startPage - 1;
+
+  function _maybeOfferPrefix(pagesDone) {
+    if (prefixOffered || typeof o.onPrefixReady !== 'function') return;
+    if (pagesDone < OCR_PREFIX_PAGES) return;
+    prefixOffered = true;
+    try {
+      o.onPrefixReady({
+        firstPages: OCR_PREFIX_PAGES,
+        pageCount: pageCount,
+        /* A live handle on the run, not a one-shot thunk. The reader can come
+           back for more: the owner's point is that the first twenty pages of a
+           scan are mostly title, acknowledgements, contents and foreword, so a
+           reader skims them in a minute and is back to waiting. `pagesDone`
+           reports what the run has reached *now*, and `build` takes any prefix
+           of it -- each one a whole book to _ocrBuild, exactly as the first was.
+           Nothing is built until it is asked for: a cleaning pass over the
+           pages costs real time and most runs are never extended. */
+        pagesDone: function() { return pagesRecognised; },
+        build: function(n) {
+          const upTo = Math.max(1, Math.min(n || OCR_PREFIX_PAGES, pagesRecognised));
+          return buildOcrPrefix(pageLines, upTo, pageCount);
+        },
+      });
+    } catch (e) {
+      /* An offer that cannot be drawn is not a failed import. */
+      console.warn('[OCR] prefix offer failed:', e);
+    }
+  }
+
+  _maybeOfferPrefix(startPage - 1);
+
   for (let p = startPage; p <= pageCount; p++) {
+    /* Reading is what the wait exists to reach, so it wins the thread. Only
+       ever a yield between pages -- never a pause that could strand the run,
+       since nothing restarts it but this loop. */
+    if (typeof o.shouldYield === 'function' && o.shouldYield()) {
+      await new Promise(function(r) { setTimeout(r, OCR_READING_YIELD_MS); });
+    }
+
     /* ETA from this run's own measured pages, so it reflects this document's
        page size and script rather than a guess. Blank until there is something
        to measure -- a made-up figure is the §1.5 failure, not a missing one. */
@@ -612,6 +719,9 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
       if (recentPageMs.length > ETA_WINDOW) recentPageMs.shift();
     }
 
+    pagesRecognised = p;
+    _maybeOfferPrefix(p);
+
     if (typeof o.onCheckpoint === 'function'
         && p < pageCount
         && (p - startPage + 1) % OCR_CHECKPOINT_PAGES === 0) {
@@ -658,6 +768,7 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
          file and the reader shows a banner offering to fix the text with OCR --
          the five minutes the user has just waited through. */
       hasLegacyEncoding: false,
+      hasBrokenGlyphs: false,
       title: '',
     },
   };
@@ -666,7 +777,8 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
 /* The import flow's single entry point for OCR'ing a scanned PDF.
    Owns the four things every call site needs and none of them should repeat:
    resuming an interrupted run, checkpointing, the overlay's page counter and
-   progress bar, and clearing the checkpoint once there is nothing to resume.
+   progress bar, the rotating tips that fill the wait (§22), and clearing the
+   checkpoint once there is nothing to resume.
    Failures propagate -- the checkpoint is deliberately LEFT behind, since the
    whole point is that the next attempt does not start from page one. */
 async function ocrScannedPdf(pdfDoc, fileId) {
@@ -675,7 +787,27 @@ async function ocrScannedPdf(pdfDoc, fileId) {
     try { resume = await loadOcrCheckpoint(fileId); } catch (_) { resume = null; }
   }
 
+  /* Set the moment the reader takes the prefix. After that this run no longer
+     owns the loading overlay and must stop writing to it.
+
+     It is a shared, global surface with seven writers -- the OCR counter here,
+     free-books.js's download percentage and its page-parse counter, and four in
+     upload.js -- and before Phase 2 only one of them could ever be running. A
+     background run that keeps painting into it produces two counters
+     alternating in one label a few times a second: "page 19", "page 235",
+     "page 20". Reported on device against a Hindi book, which is simply where
+     scanned books are; nothing about it is Hindi, and nothing about it is the
+     page numbering. From here the run reports to the reader's own bar instead,
+     which is where a background job's progress belongs. */
+  let handedOff = false;
+
   const onProgress = function(current, total, info) {
+    if (handedOff) {
+      if (typeof OcrProgressive !== 'undefined') {
+        OcrProgressive.onBackgroundProgress(current, total, info);
+      }
+      return;
+    }
     const msg = qs('#loading-message');
     if (msg) msg.textContent = t('loading.ocr_page', { current: current, total: total });
     if (typeof setLoadingProgress === 'function') {
@@ -683,14 +815,69 @@ async function ocrScannedPdf(pdfDoc, fileId) {
     }
   };
 
+  /* Started here rather than at the four call sites: this function exists so
+     none of them has to repeat the overlay's bookkeeping, and the tips are more
+     of it. Stopped in the finally, so a failed or cancelled import cannot leave
+     an interval rotating against a hidden node. */
+  if (typeof OcrWaitTips !== 'undefined') OcrWaitTips.start();
+
+  /* ── Reading before the end (§16.32) ──────────────────────────────────
+     The whole feature is here, and it is deliberately shaped so that **no call
+     site changes**. All four of them do the same thing with what this returns:
+     merge it into the file, save it, open the reader. Handing them a twenty-page
+     book instead of a four-hundred-page one needs none of that code to know,
+     which is worth more than any amount of plumbing -- `free-books.js` and the
+     three in `upload.js` diverge afterwards, and four edited copies of a swap
+     dance is four places to get it wrong.
+
+     So: one promise with two ways to settle. Whichever of "the user tapped Start
+     reading" and "OCR finished" happens first is what the caller receives. If it
+     was the prefix, the full run keeps going and OcrProgressive takes ownership
+     of it -- including the checkpoint, which must not be deleted while a run is
+     still using it. */
+  let settlePrefix = null;
+  const prefixTap = new Promise(function(resolve) { settlePrefix = resolve; });
+
+  const fullRun = parseScannedPDF(pdfDoc, onProgress, {
+    resume: resume,
+    onCheckpoint: fileId ? function(state) { return saveOcrCheckpoint(fileId, state); } : null,
+    /* Politeness only applies once someone is actually reading. */
+    shouldYield: function() {
+      return typeof AppState !== 'undefined' && AppState.currentView === 'view-reader';
+    },
+    onPrefixReady: function(offer) {
+      if (typeof OcrProgressive === 'undefined') return;
+      OcrProgressive.offer(offer, settlePrefix);
+    },
+  });
+
+  /* A rejection reaching nobody is an unhandled rejection that can kill the
+     background run silently. Attached now, before any await, so the window in
+     which that is possible never opens. */
+  let fullFailed = null;
+  const fullSettled = fullRun.catch(function(err) { fullFailed = err; return null; });
+
   try {
-    const result = await parseScannedPDF(pdfDoc, onProgress, {
-      resume: resume,
-      onCheckpoint: fileId ? function(state) { return saveOcrCheckpoint(fileId, state); } : null,
-    });
+    const outcome = await Promise.race([
+      fullSettled.then(function(r) { return { full: r }; }),
+      prefixTap.then(function(r) { return { prefix: r }; }),
+    ]);
+
+    if (outcome.prefix) {
+      /* Before anything else: the overlay stops being this run's to write to. */
+      handedOff = true;
+      /* The checkpoint stays: the run that is still going is the one using it,
+         and OcrProgressive deletes it when that run lands. */
+      OcrProgressive.watch(fileId, fullSettled, function() { return fullFailed; });
+      return outcome.prefix;
+    }
+
+    if (fullFailed) throw fullFailed;
     if (fileId) await deleteOcrCheckpoint(fileId);
-    return result;
+    return outcome.full;
   } finally {
+    if (typeof OcrWaitTips !== 'undefined') OcrWaitTips.stop();
     if (typeof clearLoadingProgress === 'function') clearLoadingProgress();
+    if (typeof OcrProgressive !== 'undefined') OcrProgressive.hideOffer();
   }
 }

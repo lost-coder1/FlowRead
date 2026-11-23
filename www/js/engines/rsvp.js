@@ -262,6 +262,20 @@ const RSVPEngine = (function() {
 
   function _handleEnd() {
     AppState.isPlaying = false;
+    /* A scan still being OCR'd has not ended, it has run out (§16.32). The line
+       below writes words.length, which *is* the completion threshold
+       isFileFullyRead() tests -- so without this, playing to the end of twenty
+       pages marked a four-hundred-page book Read in the library. Page mode's
+       floor was guarded when this landed and these four were not: the same
+       defect behind four more doors. */
+    if (typeof OcrProgressive !== 'undefined'
+        && OcrProgressive.interceptEnd(AppState.currentFile)) {
+      if (AppState.currentFile) {
+        savePosition(AppState.currentFile.id, Math.max(0, _words.length - 1));
+      }
+      _updatePlayPauseBtn();
+      return;
+    }
     if (AppState.currentFile) savePosition(AppState.currentFile.id, _words.length);
     /* §17 — this was a hardcoded English string in all five engines, which
        meant a Hindi reader got English at the most significant moment the app

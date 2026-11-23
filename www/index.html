@@ -72,6 +72,13 @@
       <div class="loading-progress-track"><div class="loading-progress-fill"></div></div>
       <p id="loading-progress-eta"></p>
     </div>
+    <!-- Start reading the pages already recognised, while the rest continues
+         behind the reader (Claude.md 16.32). Appears only once enough pages
+         exist; an ordinary import never shows it. -->
+    <button id="loading-prefix" class="loading-prefix hidden"></button>
+    <!-- Rotating tips for the one long wait in the app (Claude.md 22). Inert
+         text: a tap here would abandon the import it is waiting on. -->
+    <p id="loading-tip" class="hidden"></p>
   </div>
 
   <!-- Global toast container -->
@@ -115,6 +122,8 @@
   <script src="js/features/book-cover.js"></script>
   <script src="js/features/share-stats.js"></script>
   <script src="js/features/tips.js"></script>
+  <script src="js/features/ocr-wait.js"></script>
+  <script src="js/features/ocr-progressive.js"></script>
   <script src="js/features/celebration.js"></script>
 
   <!-- Parsers -->

@@ -613,7 +613,9 @@ async function handleFileSelect(file) {
     switchView('view-reader');
 
     if (result.metadata.hasLegacyEncoding) {
-      showLegacyEncodingBanner();
+      showGarbledTextBanner('banner.legacy_encoding.msg');
+    } else if (result.metadata.hasBrokenGlyphs) {
+      showGarbledTextBanner('banner.broken_glyphs.msg');
     }
   } catch (err) {
     hideLoading();
@@ -722,7 +724,9 @@ async function handlePdfFromIntent(arrayBuffer, fileName) {
     switchView('view-reader');
 
     if (result.metadata.hasLegacyEncoding) {
-      showLegacyEncodingBanner();
+      showGarbledTextBanner('banner.legacy_encoding.msg');
+    } else if (result.metadata.hasBrokenGlyphs) {
+      showGarbledTextBanner('banner.broken_glyphs.msg');
     }
   } catch (err) {
     hideLoading();
@@ -1130,18 +1134,22 @@ function showScannedPdfModal() {
   );
 }
 
-function showLegacyEncodingBanner() {
+/* Two different faults, one remedy and one banner: a legacy Indic encoding, and
+   a Unicode text layer whose conjuncts carry no ToUnicode mapping (16.35). The
+   message differs because the user should be told which one they have, but OCR
+   is the answer to both, so `msgKey` is all that varies. */
+function showGarbledTextBanner(msgKey) {
   /* Non-blocking banner at top of reader — dismiss if text is fine, tap if garbled */
-  const existing = document.getElementById('legacy-encoding-banner');
+  const existing = document.getElementById('garbled-text-banner');
   if (existing) return;
 
   const banner = document.createElement('div');
-  banner.id = 'legacy-encoding-banner';
+  banner.id = 'garbled-text-banner';
   const safeTop = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--safe-top')) || 0;
   banner.style.cssText = 'position:fixed;top:' + (56 + safeTop) + 'px;left:0;right:0;z-index:9999;background:#1c1c1c;border-bottom:1px solid #2a2a2a;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;color:#e8e4dc';
 
   const msg = document.createElement('span');
-  msg.textContent = t('banner.legacy_encoding.msg');
+  msg.textContent = t(msgKey || 'banner.legacy_encoding.msg');
   msg.style.flex = '1';
 
   const actionBtn = document.createElement('button');

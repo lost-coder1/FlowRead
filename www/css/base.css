@@ -344,6 +344,95 @@ a:hover {
   min-height: 1em;
 }
 
+/* "Start reading the first 20 pages" on the OCR overlay (Claude.md 16.32).
+   Deliberately not a primary accent-filled button: the run is still the main
+   event on this screen and the offer is a shortcut out of it, so it reads as an
+   invitation rather than a call to action. */
+.loading-prefix {
+  margin-top: var(--space-sm);
+  padding: var(--space-sm) var(--space-lg);
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.15s ease-out;
+  max-width: min(360px, calc(100vw - 2 * var(--space-xl)));
+  text-align: center;
+  line-height: 1.5;
+}
+
+.loading-prefix:active {
+  background: rgba(232, 197, 71, 0.12);
+}
+
+/* The bar under the engine tabs while a book is only partly recognised. Carries
+   a statement and at most one action; it is never a modal (Claude.md 20) and it
+   never grows to two lines of chrome. */
+.reader-partial {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.reader-partial-text {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.reader-partial-action {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+/* A rotating tip under the OCR progress bar. Wider and softer than the page
+   counter above it, because it is prose rather than a figure -- and it must
+   never be truncated (Claude.md 22), so no line clamp and no ellipsis: it
+   wraps, and the overlay's centred flex column grows around it. */
+#loading-tip {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  max-width: min(360px, calc(100vw - 2 * var(--space-xl)));
+  padding: 0 var(--space-md);
+  margin-top: var(--space-sm);
+  text-align: center;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  opacity: 0;
+  transition: opacity 0.3s ease-out;
+}
+
+#loading-tip.is-in {
+  opacity: 1;
+}
+
+/* The one animated thing on this screen, so it honours the preference in both
+   layers the way the celebration does (Claude.md 25.5): the class still
+   arrives, it simply has nothing to transition. */
+@media (prefers-reduced-motion: reduce) {
+  #loading-tip {
+    transition: none;
+    opacity: 1;
+  }
+}
+
 /* ── Toast container ────────────────────────────────────────── */
 #toast-container {
   position: fixed;
