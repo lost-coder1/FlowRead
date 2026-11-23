@@ -666,7 +666,8 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
 /* The import flow's single entry point for OCR'ing a scanned PDF.
    Owns the four things every call site needs and none of them should repeat:
    resuming an interrupted run, checkpointing, the overlay's page counter and
-   progress bar, and clearing the checkpoint once there is nothing to resume.
+   progress bar, the rotating tips that fill the wait (§22), and clearing the
+   checkpoint once there is nothing to resume.
    Failures propagate -- the checkpoint is deliberately LEFT behind, since the
    whole point is that the next attempt does not start from page one. */
 async function ocrScannedPdf(pdfDoc, fileId) {
@@ -683,6 +684,12 @@ async function ocrScannedPdf(pdfDoc, fileId) {
     }
   };
 
+  /* Started here rather than at the four call sites: this function exists so
+     none of them has to repeat the overlay's bookkeeping, and the tips are more
+     of it. Stopped in the finally, so a failed or cancelled import cannot leave
+     an interval rotating against a hidden node. */
+  if (typeof OcrWaitTips !== 'undefined') OcrWaitTips.start();
+
   try {
     const result = await parseScannedPDF(pdfDoc, onProgress, {
       resume: resume,
@@ -691,6 +698,7 @@ async function ocrScannedPdf(pdfDoc, fileId) {
     if (fileId) await deleteOcrCheckpoint(fileId);
     return result;
   } finally {
+    if (typeof OcrWaitTips !== 'undefined') OcrWaitTips.stop();
     if (typeof clearLoadingProgress === 'function') clearLoadingProgress();
   }
 }

@@ -344,6 +344,38 @@ a:hover {
   min-height: 1em;
 }
 
+/* A rotating tip under the OCR progress bar. Wider and softer than the page
+   counter above it, because it is prose rather than a figure -- and it must
+   never be truncated (Claude.md 22), so no line clamp and no ellipsis: it
+   wraps, and the overlay's centred flex column grows around it. */
+#loading-tip {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  max-width: min(360px, calc(100vw - 2 * var(--space-xl)));
+  padding: 0 var(--space-md);
+  margin-top: var(--space-sm);
+  text-align: center;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  opacity: 0;
+  transition: opacity 0.3s ease-out;
+}
+
+#loading-tip.is-in {
+  opacity: 1;
+}
+
+/* The one animated thing on this screen, so it honours the preference in both
+   layers the way the celebration does (Claude.md 25.5): the class still
+   arrives, it simply has nothing to transition. */
+@media (prefers-reduced-motion: reduce) {
+  #loading-tip {
+    transition: none;
+    opacity: 1;
+  }
+}
+
 /* ── Toast container ────────────────────────────────────────── */
 #toast-container {
   position: fixed;

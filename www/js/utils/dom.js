@@ -35,6 +35,9 @@ function showLoading(message) {
 function hideLoading() {
   hide(qs('#loading-overlay'));
   clearLoadingProgress();
+  /* The OCR run's own finally stops this too; here for the paths that hide the
+     overlay without one, so a rotation can never outlive the screen it is on. */
+  if (typeof OcrWaitTips !== 'undefined') OcrWaitTips.stop();
 }
 
 /* Determinate progress for a long job on the loading overlay.

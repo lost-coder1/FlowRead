@@ -37,6 +37,9 @@ const TipsFeature = (function() {
   const MAX_SHOWS = 3;
 
   const CURSOR_KEY = 'fr_tips_cursor';
+  /* The wait screen rotates through many tips in one sitting, so it cannot
+     share the home strip's cursor without racing ahead of it. */
+  const WAIT_CURSOR_KEY = 'fr_tips_wait_cursor';
   const HOME_KEY = 'fr_tips_home';
   const SHOWN_PREFIX = 'fr_tips_shown_';
   const DONE_PREFIX = 'fr_tips_done_';
@@ -297,10 +300,14 @@ const TipsFeature = (function() {
     try { localStorage.setItem(DONE_PREFIX + id, '1'); } catch (_) {}
   }
 
-  function _eligible(tip) {
+  /* `ignoreCap` drops the three-show limit and nothing else. Only the OCR wait
+     screen passes it, and the reasoning is in poolForWait() below. Every other
+     gate still applies -- in particular `when`, which is what keeps §23's rule
+     that a tip may never teach a locked feature. */
+  function _eligible(tip, ignoreCap) {
     if (!tip) return false;
     if (isDone(tip.id)) return false;
-    if (_num(SHOWN_PREFIX + tip.id) >= MAX_SHOWS) return false;
+    if (!ignoreCap && _num(SHOWN_PREFIX + tip.id) >= MAX_SHOWS) return false;
     /* A key missing from the active locale renders as the key name — i18n.js has
        no English fallback (§17) — so an untranslated tip is skipped rather than
        shown raw. A short pool in one language narrows the rotation; it never
@@ -398,6 +405,60 @@ const TipsFeature = (function() {
     return tip;
   }
 
+  /* ── The OCR wait screen ───────────────────────────────────────────────
+
+     Importing a scanned book is a long, determinate wait -- a 435-page Hindi
+     scan is about three minutes -- and until now the only thing on that screen
+     was a page counter. Rotating tips through it is the one surface in the app
+     where the user is captive, has nothing else to do, and is looking at a
+     progress bar rather than at a book.
+
+     Which is why this returns a *list* and not a pick, and why it is the one
+     caller allowed past MAX_SHOWS:
+
+     1. **It spends no cap.** A three-minute wait rotates fifteen or more tips.
+        Charged against the three-show limit, one import would retire most of
+        the pool and silently empty the home strip for a user who had merely
+        imported a book. The cap exists to stop a tip arriving again *after it
+        was understood and declined* on a surface seen every day (§23); a
+        scanned-book import is rare, and nothing here is competing for
+        attention with the thing the user came to do.
+     2. **It keeps its own cursor**, so it neither drags the home strip's
+        rotation forward nor repeats whatever home showed this morning first.
+        The cursor advances by one per wait, so two imports do not open on the
+        same sentence.
+     3. **isDone and `when` still hold.** A retired capability tip must stay
+        retired, and a tip for a locked feature must never appear -- that one
+        is §23's rule and not negotiable for a surface's convenience.
+
+     Tips are inert here, as in the unlock modal and for a sibling reason: the
+     only thing that screen is for is the import finishing, and a tap that
+     navigated away would abandon it. The copy was rewritten to suit, so no tip
+     instructs a tap that will not answer. */
+  function poolForWait() {
+    const eligible = [];
+    const start = _num(WAIT_CURSOR_KEY);
+    let firstIdx = -1;
+    for (var i = 0; i < TIPS.length; i++) {
+      const idx = (start + i) % TIPS.length;
+      const tip = TIPS[idx];
+      if (!_eligible(tip, true)) continue;
+      if (firstIdx === -1) firstIdx = idx;
+      eligible.push(tip);
+    }
+    /* The cursor advances past the tip this wait actually *opened* on, not past
+       the slot it started from. Stepping the raw index by one looks equivalent
+       and is not: when that next slot is ineligible, both waits fall through to
+       the same first eligible tip and two imports in a row open on the same
+       sentence. Found in testing. Deliberately not advanced past the whole
+       pool -- a wait shows most of it, and skipping everything shown would
+       leave the following import nothing to open with. */
+    if (firstIdx !== -1) {
+      try { localStorage.setItem(WAIT_CURSOR_KEY, String((firstIdx + 1) % TIPS.length)); } catch (_) {}
+    }
+    return eligible;
+  }
+
   /* The library read is cached for the duration of one selection pass, so a
      surface that renders twice does not re-parse it. Dropped afterwards because
      an import can land between renders. */
@@ -409,6 +470,8 @@ const TipsFeature = (function() {
   return {
     pickForHome: function() { return _withFreshState(pickForHome); },
     pickForUnlock: function() { return _withFreshState(pickForUnlock); },
+    /* A list, not a pick: the wait screen rotates. See poolForWait(). */
+    poolForWait: function() { return _withFreshState(poolForWait); },
     dismissHome: dismissHome,
     markDone: markDone,
     isDone: isDone,
