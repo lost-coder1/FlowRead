@@ -7,6 +7,7 @@ const FocusBoldEngine = (function() {
   let _index = 0;
   let _timerId = null;
   let _pages = [];      /* [{ startIndex, endIndex, el }] */
+  let _paraStarts = null;   /* word indices where a paragraph begins */
   let _pageIndex = 0;
   let _allSpans = [];   /* flat array indexed by word index */
   /* Highlight ranges for the open book, read once per build rather than per
@@ -61,6 +62,12 @@ const FocusBoldEngine = (function() {
     _domCache = null;
     _buildComplete = false;
     _cacheFileId = fileId;
+    /* Resolved before the build, because paragraph breaks change where pages
+       end and the pagination below measures the real geometry. Same source as
+       Page mode's: one answer to where paragraphs start (§5). */
+    _paraStarts = (typeof ParagraphStructure !== 'undefined' && AppState.currentFile)
+      ? ParagraphStructure.startsFor(AppState.currentFile)
+      : null;
     _render();
   }
 
@@ -240,6 +247,7 @@ const FocusBoldEngine = (function() {
   function _makeWordSpan(word, index) {
     const span = document.createElement('span');
     span.className = 'fb-word';
+    if (_paraStarts && _paraStarts.has(index)) span.classList.add('fr-para-break');
     span.dataset.index = index;
     if (typeof HighlightsFeature !== 'undefined' && AppState.currentFile) {
       /* Per word here rather than per page, because this builder is called one

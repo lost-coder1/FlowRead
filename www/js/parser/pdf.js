@@ -122,12 +122,24 @@ async function parsePDF(arrayBuffer) {
 
   /* Garbage-text heuristic: if most "words" are short/no-vowel/mixed-alnum tokens,
      it's almost certainly low-quality embedded OCR rather than real text. */
+  /* Devanagari counts as real text. Scoring "real" as ASCII-with-a-vowel made a
+     clean Unicode Hindi text layer score junkRatio 1.00, so textLooksGarbled was
+     true, hasTextLayer false, and a perfectly readable Hindi PDF was declared
+     scanned -- sent to OCR, which is slower and worse than the text it threw
+     away, or to the scanned-PDF modal for a user without OCR. Legacy KrutiDev
+     encoding is unaffected: it IS ASCII, so it still scores as junk (and
+     hasLegacyEncoding below is computed separately anyway).
+     The trade: a garbled *Devanagari* text layer now reads rather than being
+     re-OCR'd. That is rarer than a well-made Hindi PDF, which was always
+     mis-handled. */
+  const DEVANAGARI_RE = /[\u0900-\u097F]/;
   let realWords = 0, junkWords = 0;
   for (let i = 0; i < words.length; i++) {
     const w = words[i];
     if (typeof w !== 'string') continue;
     const stripped = w.replace(/[^A-Za-z]/g, '');
     if (stripped.length >= 3 && /[aeiouAEIOU]/.test(stripped)) realWords++;
+    else if (w.replace(/[^\u0900-\u097F]/g, '').length >= 2) realWords++;
     else junkWords++;
   }
   const totalTokens = realWords + junkWords;
@@ -191,6 +203,7 @@ async function parsePDF(arrayBuffer) {
   /* ── 6. Detect image-like gaps and insert placeholders ────── */
   insertImagePlaceholders(words, allPageData, pageWordIndex);
 
+
   return {
     words,
     pageWordIndex,
@@ -213,9 +226,14 @@ async function parsePDF(arrayBuffer) {
 function measureParagraphGeometry(allPageData, headerFooterSet) {
   const lefts = [];
   const rights = [];
+  /* Vertical distances between consecutive lines on a page. Most pairs are
+     genuine lines, so the median is the document's real line height -- which is
+     what tells a line apart from a fragment of one. */
+  const gaps = [];
 
   for (let i = 0; i < allPageData.length; i++) {
     const lines = allPageData[i].lines;
+    let prevY = null;
     for (let j = 0; j < lines.length; j++) {
       const line = lines[j];
       if (typeof line.x0 !== 'number' || typeof line.x1 !== 'number') continue;
@@ -223,6 +241,14 @@ function measureParagraphGeometry(allPageData, headerFooterSet) {
       if (isNoiseLine(line.text)) continue;
       lefts.push(line.x0);
       rights.push(line.x1);
+      if (typeof line.y === 'number') {
+        if (prevY !== null) {
+          const dy = Math.abs(prevY - line.y);
+          /* A page boundary is not a line gap. */
+          if (dy > 0 && dy < 200) gaps.push(dy);
+        }
+        prevY = line.y;
+      }
     }
   }
   /* Too little text to tell a margin from an indent; better no paragraphs than
@@ -242,20 +268,92 @@ function measureParagraphGeometry(allPageData, headerFooterSet) {
   /* Roughly one character, assuming a 60-ish character measure. */
   const em = Math.max(4, width / 60);
 
+  gaps.sort(function(a, b) { return a - b; });
+  const lineGap = gaps.length >= 20 ? gaps[Math.floor(gaps.length / 2)] : 0;
+
   return {
+    em: em,
+    lineGap: lineGap,
     indentFrom: bodyLeft + em * 1.2,
     shortBefore: bodyRight - em * 3,
   };
 }
 
+/* The same test paragraphs.js's line-length inference uses, for the same
+   reason: in prose a paragraph ends where a sentence does. */
+const PARA_SENTENCE_END = /[.!?।॥:;"'’”]\s*$/;
+
 function _isParagraphStart(line, prevKept, paraGeom, isFirstLine) {
   if (isFirstLine) return true;
   if (!paraGeom) return false;
+  /* A line sharing the previous line's baseline is a fragment of it, not a new
+     paragraph. groupIntoLines separates lines on a 3-unit baseline difference,
+     which is tight for a text layer whose words carry their own slightly
+     different baselines -- as an OCR-produced layer does -- so a single word
+     gets lifted out of the middle of its line and becomes a "line" of its own.
+     It then sits well right of the margin, the indent test fires, and a
+     paragraph appears to begin on one word of a sentence. Measured against the
+     document's own line height rather than a fixed figure, because the units
+     here are whatever the PDF uses; at well under a line apart, two lines are
+     one line. Either half of the split may come first, so the distance is
+     absolute, which also makes a page boundary -- a jump of most of a page --
+     fall outside it. Cost: a genuine paragraph break between two lines set
+     closer than 0.7 of the document's line height is missed, merging two
+     paragraphs, the failure §5 already accepts as the lesser one. */
+  if (paraGeom.lineGap > 0 && prevKept
+      && typeof line.y === 'number' && typeof prevKept.y === 'number'
+      && Math.abs(prevKept.y - line.y) < paraGeom.lineGap * 0.7) {
+    return false;
+  }
+  /* The same defect where no baseline is recorded -- the OCR path, whose lines
+     come from ML Kit blocks: there a fragment is adjacent to where the previous
+     line stopped, since a block splits at a line end rather than mid-line. */
+  if (prevKept && typeof line.y !== 'number'
+      && typeof line.x0 === 'number' && typeof prevKept.x1 === 'number'
+      && line.x0 > paraGeom.indentFrom
+      && Math.abs(line.x0 - prevKept.x1) <= paraGeom.em * 2) {
+    return false;
+  }
+  /* A line following one that ran the full measure continues it: what wraps,
+     continues. Without this the indent test cannot tell a first-line indent
+     from a HANGING indent, where it is the continuation lines that are indented
+     so they align under the item's text -- which is how a numbered list set
+     this way strands a sentence's last word as its own paragraph:
+
+         (i) Sati or the burning of the widow on the funeral pyre of her deceased
+             husband.                     <- indented, but a continuation
+
+     Measured on a device: the line above runs the full measure, and the stranded
+     line sits a full line height below it, so neither the fragment test nor an
+     adjacency test can reach it. A genuine break is not lost, because a
+     paragraph's last line stopping within three characters of the right margin
+     is rare in justified text and merges two paragraphs when it happens -- the
+     failure §5 already accepts as the lesser one.
+
+     NOT on the OCR path, where this was tried and had to come back out. ML Kit
+     reports the extent of a BLOCK, so "reached the right margin" means nothing
+     consistent there, and the gate suppressed so many paragraph starts that
+     Page mode's chapter headings -- whose range runs from the chapter to the
+     next paragraph start (§4.1 rule 5) -- styled the opening pages of a book
+     whole. A rule resting on true line extents cannot be applied to boxes that
+     are not line extents. */
+  if (!paraGeom.fromOcr && prevKept
+      && typeof prevKept.x1 === 'number' && prevKept.x1 >= paraGeom.shortBefore) {
+    return false;
+  }
   /* This line is indented. */
   if (typeof line.x0 === 'number' && line.x0 > paraGeom.indentFrom) return true;
   /* The line before it stopped well short of the right margin, so it ended its
      paragraph rather than wrapping into this one. */
-  if (prevKept && typeof prevKept.x1 === 'number' && prevKept.x1 < paraGeom.shortBefore) return true;
+  if (prevKept && typeof prevKept.x1 === 'number' && prevKept.x1 < paraGeom.shortBefore) {
+    /* Not evidence on its own where the extents come from OCR: a block ends
+       wherever the recogniser grouped, routinely mid-paragraph. Measured at 70%
+       of starts following a finished sentence on one book against 14% on
+       another, so there the previous line must have finished a sentence too --
+       the pairing paragraphs.js's inference already relies on. */
+    if (paraGeom.fromOcr && !PARA_SENTENCE_END.test(prevKept.text || '')) return false;
+    return true;
+  }
   return false;
 }
 
@@ -403,12 +501,17 @@ function detectHeadersFooters(allPageData, numPages) {
   return recurring;
 }
 
-/* Normalize: lowercase, digits→#, strip punctuation, collapse whitespace */
+/* Normalize: lowercase, digits→#, strip punctuation, collapse whitespace.
+   Devanagari is kept: `\w` is ASCII-only (§5), so stripping everything outside
+   it collapsed every Devanagari footer to '' or '#'. Empty normalisations are
+   skipped by the caller, so a running footer like "गोदान / 5" was invisible to
+   header/footer detection and stayed in the text of every Hindi book. */
 function normalizeLine(text) {
   return text
     .toLowerCase()
+    .replace(/[\u0966-\u096F]+/g, '#')      /* Devanagari digits ०-९ */
     .replace(/\d+/g, '#')
-    .replace(/[^\w\s#]/g, '')
+    .replace(/[^\w\s#\u0900-\u097F]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }

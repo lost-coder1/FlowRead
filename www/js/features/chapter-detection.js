@@ -45,6 +45,36 @@ const CH_DEVANAGARI_HEAD = /^(अध्याय|भाग|खण्ड|पर�
 const CH_DEVANAGARI_PART = /^(भाग|खण्ड)/;
 const CH_HAS_DEVANAGARI = /[ऀ-ॿ]/;
 
+/* A paragraph that is nothing but a number. On its own this is worthless -- a
+   page number looks exactly the same -- so it is never classified as a heading
+   by shape. It is resolved document-wide instead, by _numeralSequenceHits:
+   Premchand's Godaan, and a great many Hindi and Urdu books, mark chapters with
+   a bare numeral and no word at all, which every rule here used to miss. */
+const CH_BARE_NUMERAL = /^[\s.:—-]*([0-9]{1,4}|[\u0966-\u096F]{1,4})[.):]?[\s.:—-]*$/;
+
+/* What makes a run of bare numerals a chapter list rather than a coincidence:
+   it ascends, it does not skip far (an OCR'd number can be lost, two cannot),
+   each marker is a chapter's worth of text from the last, and there are enough
+   of them to be a structure. The gap is what rejects a numbered list inside the
+   text and the back-matter catalogue, whose entries sit a few words apart. */
+const CH_SEQUENCE_MAX_STEP = 3;
+const CH_SEQUENCE_MIN_GAP = 400;
+const CH_SEQUENCE_MIN_RUN = 3;
+
+/* A verified run this long is the book's structure, so the shape-based guesses
+   go, exactly as _dropWeakRules does for a book that numbers its chapters with
+   a word. Godaan's 34 markers against 149 short-Devanagari guesses is the case:
+   without this the real index is buried in dialogue fragments. */
+const CH_SEQUENCE_DOMINANT = 5;
+
+/* And what disqualifies a run: values that keep a constant offset from the page
+   they sit on are page numbering, not chapters. Scanned books imported before
+   the OCR parser learned to strip page numbers still carry them, and a 1,2,3
+   per page run otherwise reads as a perfect chapter sequence -- an 86-page book
+   produced 61 "chapters" that way. Real chapter numbers advance far slower than
+   pages do, so their offsets scatter. */
+const CH_SEQUENCE_MAX_PAGENO_SHARE = 0.5;
+
 /* A real sentence boundary: two or more letters, a stop, then more text.
    "Chapter I. The Twin-Verses" is not one — the token before the stop is a
    numeral, which is how a heading numbers itself, not how a sentence ends.
@@ -65,7 +95,7 @@ const CH_STOPWORDS = [
 
 /* The shape rules guess from capitalisation alone, so they are only trusted when
    nothing stronger carried the book — see _dropWeakRules. */
-const CH_STRONG_RULES = ['keyword', 'numbered', 'devanagari-keyword'];
+const CH_STRONG_RULES = ['keyword', 'numbered', 'devanagari-keyword', 'numeral-sequence'];
 const CH_WEAK_RULES = ['all-caps', 'title-case', 'roman', 'devanagari-short'];
 const CH_STRONG_ENOUGH = 5;
 
@@ -93,7 +123,11 @@ function detectChapters(file) {
     });
   }
 
-  hits = _dropWeakRules(hits);
+  const sequence = _numeralSequenceHits(file.rawLines);
+  hits = hits.concat(sequence);
+  hits = (sequence.length >= CH_SEQUENCE_DOMINANT)
+    ? hits.filter(function(hit) { return CH_WEAK_RULES.indexOf(hit.rule) === -1; })
+    : _dropWeakRules(hits);
   hits = _dedupeChapters(hits);
   hits = _dropFrontDuplicates(hits, totalWords);
 
@@ -150,6 +184,9 @@ function _isHeadingShaped(text, maxChars, maxWords) {
 
 function classifyChapterLine(text) {
   if (!_isHeadingShaped(text, CH_MAX_CHARS_ANCHORED, CH_MAX_WORDS_ANCHORED)) return null;
+
+  /* Resolved across the document, not here (see CH_BARE_NUMERAL). */
+  if (CH_BARE_NUMERAL.test(text)) return null;
 
   if (CH_DEVANAGARI_HEAD.test(text)) {
     return { rule: 'devanagari-keyword', depth: CH_DEVANAGARI_PART.test(text) ? 1 : 2 };
@@ -216,6 +253,82 @@ function _isTitleCase(text) {
     return false;
   }
   return true;
+}
+
+/* Bare numerals, resolved as a document-wide sequence. One "7" proves nothing;
+   7 after 6 after 5, each a chapter's worth of words later, is a chapter list.
+   The longest such run wins, so a book's real markers outvote the stray
+   numbers around them.
+
+   This one rule reads rawLines rather than paragraphs, against the discipline
+   at the top of this file, and deliberately: a bare numeral IS a standalone
+   line, and paragraph inference merges it into the chapter's first paragraph
+   (the numeral ends no sentence, so the next line does not start one), which
+   is where it became invisible. The fragment problem that moved everything
+   else to paragraphs cannot arise here -- a fragment of prose is not a bare
+   number -- and the sequence test is a far stronger guard than any shape. */
+function _numeralSequenceHits(lines) {
+  const candidates = [];
+  for (let i = 0; i < lines.length; i++) {
+    const text = String((lines[i] && lines[i].text) || '').replace(/\s+/g, ' ').trim();
+    const match = text.match(CH_BARE_NUMERAL);
+    if (!match) continue;
+    let digits = '';
+    for (let c = 0; c < match[1].length; c++) {
+      const code = match[1].charCodeAt(c);
+      digits += (code >= 0x0966 && code <= 0x096F) ? String(code - 0x0966) : match[1].charAt(c);
+    }
+    const value = parseInt(digits, 10);
+    if (isNaN(value) || value === 0) continue;
+    if (typeof lines[i].wordIndex !== 'number') continue;
+    candidates.push({
+      value: value,
+      title: text,
+      page: (lines[i].pageIndex || 0) + 1,
+      wordIndex: lines[i].wordIndex,
+    });
+  }
+  if (candidates.length < CH_SEQUENCE_MIN_RUN) return [];
+
+  /* Longest ascending run, by the four tests above. */
+  const best = [];
+  const from = [];
+  let endOfBest = -1;
+  for (let i = 0; i < candidates.length; i++) {
+    best[i] = 1;
+    from[i] = -1;
+    for (let j = 0; j < i; j++) {
+      const step = candidates[i].value - candidates[j].value;
+      const gap = candidates[i].wordIndex - candidates[j].wordIndex;
+      if (step < 1 || step > CH_SEQUENCE_MAX_STEP) continue;
+      if (gap < CH_SEQUENCE_MIN_GAP) continue;
+      if (best[j] + 1 > best[i]) { best[i] = best[j] + 1; from[i] = j; }
+    }
+    if (endOfBest === -1 || best[i] > best[endOfBest]) endOfBest = i;
+  }
+  if (endOfBest === -1 || best[endOfBest] < CH_SEQUENCE_MIN_RUN) return [];
+
+  const run = [];
+  for (let k = endOfBest; k !== -1; k = from[k]) run.unshift(candidates[k]);
+
+  const offsets = {};
+  let commonest = 0;
+  for (let i = 0; i < run.length; i++) {
+    const offset = run[i].value - run[i].page;
+    offsets[offset] = (offsets[offset] || 0) + 1;
+    if (offsets[offset] > commonest) commonest = offsets[offset];
+  }
+  if (commonest / run.length > CH_SEQUENCE_MAX_PAGENO_SHARE) {
+    console.log('[chapters] numeral sequence of ' + run.length
+      + ' rejected: it tracks the page number (' + commonest + ' at one offset)');
+    return [];
+  }
+
+  console.log('[chapters] numeral sequence: ' + run.length + ' markers, '
+    + run[0].value + ' to ' + run[run.length - 1].value);
+  return run.map(function(c) {
+    return { title: c.title, rule: 'numeral-sequence', depth: 2, page: c.page, wordIndex: c.wordIndex };
+  });
 }
 
 /* If a book numbers its chapters, that is its structure, and the shape-based

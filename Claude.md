@@ -173,7 +173,22 @@ position loss.
   chunk for the strongest pause.
 - **Focus Bold** — full page, first 40% of each word bold, highlight advances word-by-word. Do NOT
   call it "Bionic Reading" (trademarked).
-- **Simple Scroll** — `transform: translateY()`, GPU-composited, 0.25×–4×.
+- **Simple Scroll** — `transform: translateY()`, GPU-composited, 0.25×–4×. **Its rate is measured,
+  not assumed:** content height over word count is pixels per word, taken off the built DOM wherever
+  `_maxScrollY` is. The old `(wpm/60000) × 28 / 8` hardcoded a 28px line of exactly 8 words, so every
+  font scale but the default scrolled slower than the number promised, and paragraphs would have
+  added to the same silent error (§1.5).
+
+**The three full-screen engines share paragraph structure** — Page, Focus Bold and Simple Scroll all
+take `ParagraphStructure.startsFor()`, in §4.1 rule 4's one form: **indent, no blank line**. **RSVP
+and Chunk are excluded**, deliberately: one word at a time has nothing to indent. **Headings stay
+Page-mode-only** (owner) — Focus Bold and Scroll guide the eye through a stretch of text, and a
+heading is a navigational landmark, which is not their job. Page mode's zero-height `.page-pb`
+sibling may **not** be copied into the other two: both address their spans by index and Focus Bold's
+pagination appends `_allSpans[j]` one node at a time, so a sibling break would be orphaned and
+desynchronise the run. `.fr-para-break` generates the block inside the word instead — no extra node,
+same layout. Focus Bold needs nothing further, since its pagination measures real geometry; neither
+engine caches a grid, so **no `fr_page_layout` bump is owed** by a change confined to them.
 
 ### 4.1 Page-mode pagination (notes §5.1 — read before touching this)
 
@@ -199,8 +214,8 @@ position loss.
 
 The grid caches under `fr_page_layout_*` — **boundaries only, integers, never content** (§1.4) —
 keyed by file + font + scale + viewport, LRU at ten. **Bump the stored version whenever anything
-changes what occupies vertical space** (v2 = paragraphs, v3 = headings) or a stale grid describes a
-layout that no longer exists. Page mode deliberately exposes no `hasCache()`.
+changes what occupies vertical space** (v2 = paragraphs, v3 = headings, v4 = a bare numeral is its
+own paragraph) or a stale grid describes a layout that no longer exists. Page mode deliberately exposes no `hasCache()`.
 
 ### 4.2 Reaching the end marks a book read
 
@@ -229,13 +244,47 @@ placeholders, builds `pageWordIndex[]`.
 every parser owes it: **TXT** the blank-line boundary (exact) · **DOCX** every line, since
 `extractRawText` emits one paragraph per newline (exact) · **PDF** inferred from geometry — a line
 indented past the body's left margin, or one following a line that stopped short of the right margin
-(`finishLine()` keeps `x0`/`x1`). **Books imported before this cannot be re-parsed** (only PDFs keep
+(`finishLine()` keeps `x0`/`x1`) · **OCR** the same two tests on ML Kit's own line boxes, normalised
+to 0..1000 of the page width because the hi-res fallback describes one layout in two pixel scales.
+The OCR path **reuses `measureParagraphGeometry` and `_isParagraphStart`** rather than restating
+them: one definition of a paragraph start, and the parser only owes `x0`/`x1`/`y`. **But two of
+those rules hold only for PDF geometry, and `fromOcr` is what separates them** — ML Kit reports the
+extent of a *block*, not of a line of type. (1) **"A line after one that ran the full measure is a
+continuation"** is PDF-only: it is what stops a *hanging* indent — a numbered list whose
+continuation lines align under the item text — from stranding a sentence's last word as its own
+paragraph, and on the English volume it took paragraph starts from 31% of lines to 18% (5.7 lines
+each, against a measured p50 = p80 right edge, i.e. justified). **Applied to OCR it suppressed all
+but 167 starts in 2715 lines**, so a chapter heading's range — which runs to the next paragraph
+start (§4.1 rule 5) — styled a book's opening pages whole. Tried, reverted, do not re-apply.
+(2) **A short predecessor needs a finished sentence on the OCR path only**, since a block ends
+wherever the recogniser grouped: 70% of starts followed a sentence on a 435-page book against 14%
+on an 86-page one. **A fragment of a line is told from a line by `lineGap`**, the median gap between
+consecutive lines, measured per document because the units are the PDF's own; under 0.7 of it, two
+lines are one line, which is what `groupIntoLines`' 3-unit baseline tolerance produces on a text
+layer whose words carry their own baselines. Boxes travel with the
+text that survives, so a merged two-script page and the embedded-image fallback leave their lines
+box-less and unable to start a paragraph. **An unmeasurable book must claim nothing at all** —
+`paragraphs.js` reads a single truthy `paraStart` anywhere as proof the parser recorded them all, so
+flagging only the first line would make the whole book one paragraph, worse than the inference it
+displaced. **Books imported before this cannot be re-parsed** (only PDFs keep
 raw bytes), so `paragraphs.js` infers from stored line lengths: short of the wrap width *and* ending
 a sentence ended the paragraph — 94.6% precision / 86.9% recall, carried by the sentence half (81%
 without). A missed break merges two paragraphs, no worse than before.
 
+**The OCR path owes the same cleaning the text-layer path does.** `ocr-pdf.js` ran none of it, so
+every scanned book carried its running heads, footers and page numbers in the reading text (Godaan:
+399 footer lines) and offered them to the chapter detector. OCR therefore builds the reader's arrays
+**once, after the last page** — "does this line recur across the book?" has no answer mid-run, which
+is also why the resume checkpoint stores recognised page text rather than built arrays. Two things
+it cannot borrow from `pdf.js`: the header/footer band is the first and last lines of a page in
+reading order, since the plugin returns text and no boxes; and a bare numeral is kept, because
+`isNoiseLine` strips every one of them and in a scanned book **a page number and a chapter marker
+are the same string**. Page numbers are told apart by arithmetic — a constant offset from the page
+they sit on, repeating ten times or more — and `normalizeLine` had to stop deleting Devanagari
+(`\w` is ASCII-only, so every Hindi footer normalised to `#` and no two of them ever matched).
+
 **Chapter detection classifies paragraphs, not lines** (notes §6.2). `detectChapters` groups through
-`ParagraphStructure`, so the index is built from the same boundaries Page mode renders. Four rules:
+`ParagraphStructure`, so the index is built from the same boundaries Page mode renders. Five rules:
 1. **A heading is a short, standalone paragraph** — not a line, not a fragment. Every rule passes
    that gate before any pattern is tried.
 2. **Anchored rules may be long; guessed ones may not.** Heading word *plus* an ordinal: up to 250
@@ -244,9 +293,28 @@ without). A missed break merges two paragraphs, no worse than before.
    numbers itself. Testing the stop alone rejects nearly every numbered heading there is.
 4. **Shape-based rules are dropped when numbered structure dominates** — but a book of tales or poems
    has nothing stronger and they are its whole index. Do not make either half unconditional.
+5. **A bare numeral is a chapter only as part of a sequence.** Godaan, and much Hindi publishing,
+   marks chapters with a number and no word; one `7` proves nothing, while `5`, `6`, `7` each a
+   chapter's worth of words apart is an index. Verified document-wide: ascending, steps of at most
+   3, 400+ words between markers, a run of at least 3 — and **rejected if the values track the page
+   number** at a constant offset, which is what page numbering looks like and which an 86-page book
+   turned into 61 "chapters". A run of 5+ is the book's structure, so the shape guesses go with it
+   (Godaan: 34 real markers against 149 short-Devanagari guesses). This is the **one rule that reads
+   `rawLines`**, deliberately: a bare numeral is standalone by construction, and paragraph inference
+   merges it into the chapter's first paragraph, where the detector cannot see it and Page mode's
+   heading range would style the whole paragraph. So `paragraphs.js` also makes a numeral line a
+   paragraph on both sides — which is what the v4 grid bump in §4.1 is for.
 
 **The detector has a second consumer:** Page mode styles headings from these ranges (§4.1 rule 5), so
 a false positive puts a heading mid-paragraph, not merely a bad index entry.
+
+**Script-aware scoring is not optional, and it was wrong in two places.** `pdf.js` scored "real
+text" as ASCII-with-a-vowel, so a clean Unicode Devanagari text layer scored `junkRatio` 1.00,
+`hasTextLayer` came back false, and **a perfectly readable Hindi PDF was declared scanned** — sent
+to OCR, which is slower than and worse than the text it discarded, or to the scanned-PDF modal for
+a user without OCR. `ocr.js` had the same rule, which made every Hindi page look like a failed
+recognition. A Devanagari word counts as real in both. Legacy KrutiDev is unaffected: it genuinely
+is ASCII and still scores as junk.
 
 **`\b` is ASCII-only in JavaScript** and never matches a Devanagari letter, so `/^(अध्याय|भाग)\b/` is
 dead code — use a lookahead. Holds for every Devanagari regex here, and it is invisible until a

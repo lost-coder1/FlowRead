@@ -534,6 +534,10 @@ async function handleFileSelect(file) {
     const arrayBufferForStorage = arrayBuffer.slice(0);
     const result = await parsePDF(arrayBuffer);
 
+    /* Derived before OCR, not after: it is the key an interrupted OCR run is
+       checkpointed under, so it has to exist before the first page is read. */
+    const fileId = generateFileId(file.name, file.size, file.lastModified || result.metadata.pageCount);
+
     if (!result.metadata.hasTextLayer) {
       const ocrAccess = await hasOcrAccess();
       if (!ocrAccess) {
@@ -549,13 +553,9 @@ async function handleFileSelect(file) {
       showLoading(t('loading.running_ocr'));
       showToast(t('toast.ocr_keep_open'));
       acquireWakeLock();
-      window._pdfParseProgress = function(current, total) {
-        const msg = qs('#loading-message');
-        if (msg) msg.textContent = t('loading.ocr_page', {current: current, total: total});
-      };
       let ocrResult;
       try {
-        ocrResult = await parseScannedPDF(result.pdfDoc, window._pdfParseProgress);
+        ocrResult = await ocrScannedPdf(result.pdfDoc, fileId);
       } catch (ocrErr) {
         hideLoading();
         releaseWakeLock();
@@ -578,7 +578,6 @@ async function handleFileSelect(file) {
       releaseWakeLock();
     }
 
-    const fileId = generateFileId(file.name, file.size, file.lastModified || result.metadata.pageCount);
     AppState.currentFile = {
       id: fileId,
       kind: 'pdf',
@@ -650,6 +649,9 @@ async function handlePdfFromIntent(arrayBuffer, fileName) {
     const arrayBufferForStorage = arrayBuffer.slice(0);
     const result = await parsePDF(arrayBuffer);
 
+    /* Before OCR — it keys the checkpoint (see handleFileSelect). */
+    const fileId = generateFileId(fileName, arrayBufferForStorage.byteLength, result.metadata.pageCount);
+
     if (!result.metadata.hasTextLayer) {
       const ocrAccess = await hasOcrAccess();
       if (!ocrAccess) {
@@ -664,13 +666,9 @@ async function handlePdfFromIntent(arrayBuffer, fileName) {
       showLoading(t('loading.running_ocr'));
       showToast(t('toast.ocr_keep_open'));
       acquireWakeLock();
-      window._pdfParseProgress = function(current, total) {
-        const msg = qs('#loading-message');
-        if (msg) msg.textContent = t('loading.ocr_page', {current: current, total: total});
-      };
       let ocrResult;
       try {
-        ocrResult = await parseScannedPDF(result.pdfDoc, window._pdfParseProgress);
+        ocrResult = await ocrScannedPdf(result.pdfDoc, fileId);
       } catch (ocrErr) {
         hideLoading();
         releaseWakeLock();
@@ -692,7 +690,6 @@ async function handlePdfFromIntent(arrayBuffer, fileName) {
       releaseWakeLock();
     }
 
-    const fileId = generateFileId(fileName, arrayBufferForStorage.byteLength, result.metadata.pageCount);
     AppState.currentFile = {
       id: fileId,
       kind: 'pdf',
@@ -1424,12 +1421,15 @@ async function handlePdfScanSelect(file) {
       return;
     }
 
+    /* Before OCR — it keys the checkpoint (see handleFileSelect). */
+    const fileId = generateFileId(file.name, file.size, file.lastModified || pdfDoc.numPages);
+
     showLoading(t('loading.running_ocr'));
     showToast(t('toast.ocr_keep_open'));
     acquireWakeLock();
     let ocrResult;
     try {
-      ocrResult = await parseScannedPDF(pdfDoc, window._pdfParseProgress);
+      ocrResult = await ocrScannedPdf(pdfDoc, fileId);
     } catch (ocrErr) {
       hideLoading();
       releaseWakeLock();
@@ -1446,7 +1446,6 @@ async function handlePdfScanSelect(file) {
       return;
     }
 
-    const fileId = generateFileId(file.name, file.size, file.lastModified || pdfDoc.numPages);
     AppState.currentFile = {
       id: fileId,
       kind: 'pdf',

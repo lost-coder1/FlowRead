@@ -58,13 +58,20 @@ function loadPosition(fileId) {
    measures nothing at all. The key carries the typography and the viewport as
    well as the file, so a rotation or a font change misses cleanly instead of
    restoring a grid that no longer fits the screen. */
+/* The stored version. Bumped whenever anything changes what occupies vertical
+   space, since a grid from before the change describes a layout that no longer
+   exists (§4.1): v2 paragraphs, v3 headings, v4 a bare numeral as its own
+   paragraph, v5 a split line no longer breaking a paragraph. The file id is
+   derived from content, so re-importing the same book lands on the same key --
+   the version is what keeps a stale grid out, not the key. */
+const PAGE_LAYOUT_VERSION = 5;
 const PAGE_LAYOUT_PREFIX = 'fr_page_layout_';
 const PAGE_LAYOUT_MAX = 10;
 
 function savePageLayout(key, starts, wordCount) {
   try {
     localStorage.setItem(PAGE_LAYOUT_PREFIX + key, JSON.stringify({
-      v: 3, starts: starts, words: wordCount, ts: Date.now(),
+      v: PAGE_LAYOUT_VERSION, starts: starts, words: wordCount, ts: Date.now(),
     }));
   } catch (e) {
     /* Quota, or storage blocked entirely. This is a cache: losing it costs one
@@ -91,8 +98,10 @@ function _readPageLayout(key, wordCount) {
     const entry = JSON.parse(raw);
     /* Each version changed what occupies vertical space, so every earlier grid
        describes a layout that no longer exists: v2 added paragraph breaks, v3
-       added chapter headings. Both move every page boundary in the book. */
-    if (!entry || entry.v !== 3 || !Array.isArray(entry.starts) || entry.starts.length === 0) return null;
+       added chapter headings, v4 made a bare numeral its own paragraph (which
+       moves an indent, and gives scanned books their chapter headings). Each
+       moves page boundaries through the book. */
+    if (!entry || entry.v !== PAGE_LAYOUT_VERSION || !Array.isArray(entry.starts) || entry.starts.length === 0) return null;
     /* A file re-imported under the same id can hold different text, and the
        stored boundaries would then point into the wrong words. */
     if (typeof wordCount === 'number' && entry.words !== wordCount) return null;
@@ -350,7 +359,103 @@ async function loadFileData(fileId) {
   return null;
 }
 
+/* ── OCR checkpoints ─────────────────────────────────────────
+   A scanned book is OCR'd a page at a time and nothing was written down until
+   the last page finished, so a phone call at page 300 of 355 discarded all of
+   it. The checkpoint holds the recognised lines of each finished page, boxes and
+   all, which the parser turns into the reader's arrays once the last page is in
+   (cleaning and paragraph geometry both need the whole book), plus the page the
+   next run should start from. It carries the
+   parser's format version, so a checkpoint from an older build is discarded
+   rather than misread.
+
+   It is deliberately NOT the file data itself and the book is not in the library
+   until OCR completes: a half-OCR'd book would report a word count that is a
+   fraction of the real one, which is what §4.2 derives "finished" from. */
+
+function _ocrCheckpointPath(fileId) {
+  return 'flowread/' + fileId + '.ocr.json';
+}
+
+async function saveOcrCheckpoint(fileId, state) {
+  if (!fileId || !state) return false;
+  const payload = JSON.stringify({
+    v: state.v,
+    pagesDone: state.pagesDone,
+    pageCount: state.pageCount,
+    lockedScript: state.lockedScript || null,
+    pageLines: state.pageLines,
+    savedAt: Date.now(),
+  });
+
+  const Filesystem = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
+  if (Filesystem && typeof Filesystem.writeFile === 'function') {
+    try {
+      await Filesystem.writeFile({
+        path: _ocrCheckpointPath(fileId),
+        data: payload,
+        directory: 'DATA',
+        encoding: 'utf8',
+        recursive: true,
+      });
+      return true;
+    } catch (e) {
+      console.warn('saveOcrCheckpoint failed:', e);
+      return false;
+    }
+  }
+
+  /* Browser fallback. A long book's words can exceed the localStorage quota, and
+     a failed checkpoint is not a failed import -- OCR simply starts over. */
+  try {
+    if (payload.length < 3 * 1024 * 1024) {
+      localStorage.setItem('fr_ocrckpt_' + fileId, payload);
+      return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
+async function loadOcrCheckpoint(fileId) {
+  if (!fileId) return null;
+  const Filesystem = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
+  if (Filesystem && typeof Filesystem.readFile === 'function') {
+    try {
+      const result = await Filesystem.readFile({
+        path: _ocrCheckpointPath(fileId),
+        directory: 'DATA',
+        encoding: 'utf8',
+      });
+      const parsed = JSON.parse(result.data);
+      if (parsed && Array.isArray(parsed.pageLines) && parsed.pagesDone > 0) return parsed;
+      return null;
+    } catch (_) {}
+  }
+  try {
+    const raw = localStorage.getItem('fr_ocrckpt_' + fileId);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.pageLines) && parsed.pagesDone > 0) return parsed;
+    }
+  } catch (_) {}
+  return null;
+}
+
+async function deleteOcrCheckpoint(fileId) {
+  if (!fileId) return;
+  const Filesystem = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
+  if (Filesystem && typeof Filesystem.deleteFile === 'function') {
+    try {
+      await Filesystem.deleteFile({ path: _ocrCheckpointPath(fileId), directory: 'DATA' });
+    } catch (_) {}
+  }
+  try { localStorage.removeItem('fr_ocrckpt_' + fileId); } catch (_) {}
+}
+
 async function deleteFileData(fileId) {
+  /* A deleted book must not leave a resumable OCR run behind it. */
+  await deleteOcrCheckpoint(fileId);
+
   const Filesystem = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
   if (Filesystem && typeof Filesystem.deleteFile === 'function') {
     try {

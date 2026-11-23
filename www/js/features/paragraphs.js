@@ -103,6 +103,14 @@ const ParagraphStructure = (function() {
     return lens[Math.floor(lens.length * 0.95)] || 0;
   }
 
+  /* A line that is nothing but a number is a paragraph on both sides. It is a
+     chapter marker (or a page number the parser kept), never part of the
+     sentence above or below it, and without this the number merges into the
+     chapter's first paragraph: the chapter detector cannot see it, and Page
+     mode's heading range then runs from the number to the end of that whole
+     paragraph and styles the lot (§4.1 rule 5). */
+  const BARE_NUMERAL = /^[\s.:—-]*([0-9]{1,4}|[\u0966-\u096F]{1,4})[.):]?[\s.:—-]*$/;
+
   function _inferFromWrapping(rawLines) {
     const shortEnough = _wrapWidth(rawLines) - WRAP_SLACK;
     const starts = new Set();
@@ -113,6 +121,8 @@ const ParagraphStructure = (function() {
       const line = rawLines[i];
       if (!line || typeof line.wordIndex !== 'number') continue;
       if (prev.length < shortEnough && SENTENCE_END.test(prev)) {
+        starts.add(line.wordIndex);
+      } else if (BARE_NUMERAL.test(line.text || '') || BARE_NUMERAL.test(prev)) {
         starts.add(line.wordIndex);
       }
     }

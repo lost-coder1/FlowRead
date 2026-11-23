@@ -34,6 +34,40 @@ function showLoading(message) {
 
 function hideLoading() {
   hide(qs('#loading-overlay'));
+  clearLoadingProgress();
+}
+
+/* Determinate progress for a long job on the loading overlay.
+   fraction 0..1; remainingMs 0 or absent leaves the time blank rather than
+   printing a figure nothing has measured yet (§1.5). */
+function setLoadingProgress(fraction, remainingMs) {
+  const wrap = qs('#loading-progress');
+  const fill = qs('.loading-progress-fill');
+  const eta = qs('#loading-progress-eta');
+  if (!wrap || !fill) return;
+  show(wrap);
+  const pct = Math.max(0, Math.min(1, fraction || 0)) * 100;
+  fill.style.width = pct.toFixed(1) + '%';
+  if (eta) eta.textContent = remainingMs > 0 ? '~' + formatRemaining(remainingMs) : '';
+}
+
+function clearLoadingProgress() {
+  const wrap = qs('#loading-progress');
+  const fill = qs('.loading-progress-fill');
+  const eta = qs('#loading-progress-eta');
+  if (fill) fill.style.width = '0';
+  if (eta) eta.textContent = '';
+  if (wrap) hide(wrap);
+}
+
+/* m:ss, or h:mm:ss past an hour. Digits only -- no words, so no translation. */
+function formatRemaining(ms) {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const pad = function(n) { return n < 10 ? '0' + n : String(n); };
+  return h > 0 ? h + ':' + pad(m) + ':' + pad(s) : m + ':' + pad(s);
 }
 
 /* Show a temporary toast message */
