@@ -37,8 +37,13 @@ const OCREngine = (function() {
       if (!lineText) continue;
       const entry = { text: lineText };
       if (width > 0 && typeof line.left === 'number' && typeof line.right === 'number') {
-        entry.x0 = (line.left / width) * 1000;
-        entry.x1 = (line.right / width) * 1000;
+        /* Rounded, because full double precision is 18 characters of digits per
+           coordinate for no gain: on this 0..1000 scale the indent test works
+           in units of an em, which is about 13. The saving is in what crosses
+           the bridge and what every checkpoint has to serialise, both of which
+           are main-thread work competing with the next page's render. */
+        entry.x0 = Math.round((line.left / width) * 1000);
+        entry.x1 = Math.round((line.right / width) * 1000);
       }
       lines.push(entry);
     }
