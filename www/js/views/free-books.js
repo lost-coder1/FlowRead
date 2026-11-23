@@ -417,6 +417,11 @@ var FreeBooksView = (function() {
     var storedBuffer = arrayBuffer.slice(0);
     var result = await parsePDF(arrayBuffer.slice(0));
 
+    /* Derived before OCR, not after: it is the key an interrupted OCR run is
+       checkpointed under, so it has to exist before the first page is read. */
+    var fileName = book.title + '.pdf';
+    var fileId = generateFileId('freebook', book.id, book.sourceUrl);
+
     /* Free Books OCR path: run OCR automatically when any of:
        (a) no text layer at all (scanned PDF),
        (b) text layer exists but uses legacy Indic font encoding detected by heuristics,
@@ -427,14 +432,9 @@ var FreeBooksView = (function() {
       showLoading(t('loading.running_ocr'));
       showToast(t('toast.ocr_keep_open'));
       acquireWakeLock();
-      window._pdfParseProgress = function(current, total) {
-        var msg = document.getElementById('loading-message');
-        if (msg) msg.textContent = t('loading.ocr_page', { current: current, total: total });
-      };
-
       var ocrResult;
       try {
-        ocrResult = await parseScannedPDF(result.pdfDoc, window._pdfParseProgress);
+        ocrResult = await ocrScannedPdf(result.pdfDoc, fileId);
       } catch (_) {
         hideLoading();
         releaseWakeLock();
@@ -467,9 +467,6 @@ var FreeBooksView = (function() {
       showToast(t('freebooks.error.download_failed', { title: book.title }));
       return;
     }
-
-    var fileName = book.title + '.pdf';
-    var fileId = generateFileId('freebook', book.id, book.sourceUrl);
 
     AppState.currentFile = {
       id: fileId,

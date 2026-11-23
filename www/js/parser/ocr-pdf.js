@@ -116,18 +116,44 @@ async function _renderForOcr(pdfDoc, pageNum, opts) {
   }
 }
 
-async function parseScannedPDF(pdfDoc, onProgress) {
+/* Pages between checkpoints. Low enough that an interruption costs seconds of
+   work, high enough that the writes are a rounding error against OCR itself. */
+const OCR_CHECKPOINT_PAGES = 20;
+
+/* opts.resume          a checkpoint from storage.loadOcrCheckpoint()
+   opts.onCheckpoint    called with the same shape every OCR_CHECKPOINT_PAGES
+   onProgress(page, total, info)  info carries { etaMs, msPerPage } once measured */
+async function parseScannedPDF(pdfDoc, onProgress, opts) {
   if (!OCREngine.isAvailable()) throw { type: 'ocr-unavailable', detail: 'OCR not available' };
 
+  const o = opts || {};
   const pageCount = pdfDoc.numPages;
-  const words = [];
-  const pageWordIndex = [];
-  const rawLines = [];
+  let words = [];
+  let pageWordIndex = [];
+  let rawLines = [];
+  let startPage = 1;
+
+  /* Resume a run that was interrupted. The three arrays are append-only, so a
+     prefix of them is exactly what the first N pages would have produced; the
+     checkpoint is trusted only if its page bookkeeping is self-consistent. */
+  const resume = o.resume;
+  if (resume && resume.pagesDone > 0 && resume.pagesDone < pageCount
+      && Array.isArray(resume.words) && Array.isArray(resume.pageWordIndex)
+      && Array.isArray(resume.rawLines)
+      && resume.pageWordIndex.length === resume.pagesDone
+      && resume.pageCount === pageCount) {
+    words = resume.words;
+    pageWordIndex = resume.pageWordIndex;
+    rawLines = resume.rawLines;
+    startPage = resume.pagesDone + 1;
+    console.log('[OCR] resuming at page ' + startPage + '/' + pageCount
+      + ' with ' + words.length + ' words already read');
+  }
 
   /* Per-document state. A scanned book is one script and one set of quirks all
      the way through, so each of these is learned once rather than re-tested on
      every page. */
-  let lockedScript = null;        /* 'latin' | 'devanagari' | 'both' */
+  let lockedScript = (resume && startPage > 1 && resume.lockedScript) || null;
   const scriptVotes = [];
   let xobjectHelped = false;      /* the embedded-image path has rescued a page */
   let xobjectAttempts = 0;
@@ -139,10 +165,20 @@ async function parseScannedPDF(pdfDoc, onProgress) {
   /* One render is kept in flight ahead of the loop: page N+1 rasterises and
      encodes while ML Kit is working on page N, which are different threads and
      were previously each idle waiting for the other. */
-  let pending = _renderForOcr(pdfDoc, 1, OCR_LORES);
+  let pending = _renderForOcr(pdfDoc, startPage, OCR_LORES);
 
-  for (let p = 1; p <= pageCount; p++) {
-    if (typeof onProgress === 'function') onProgress(p, pageCount);
+  for (let p = startPage; p <= pageCount; p++) {
+    /* ETA from this run's own measured rate, so it reflects this document's page
+       size and script rather than a guess. Blank until there is something to
+       measure -- a made-up figure is the §1.5 failure, not a missing one. */
+    const donePages = p - startPage;
+    const msPerPage = donePages > 0 ? (Date.now() - t0) / donePages : 0;
+    if (typeof onProgress === 'function') {
+      onProgress(p, pageCount, {
+        msPerPage: msPerPage,
+        etaMs: msPerPage > 0 ? msPerPage * (pageCount - p + 1) : 0,
+      });
+    }
 
     const rStart = Date.now();
     const rendered = await pending;
@@ -228,12 +264,32 @@ async function parseScannedPDF(pdfDoc, onProgress) {
         rawLines.push({ text: line.trim(), pageIndex: p - 1, wordIndex: lineWordStart });
       }
     });
+
+    if (typeof o.onCheckpoint === 'function'
+        && p < pageCount
+        && (p - startPage + 1) % OCR_CHECKPOINT_PAGES === 0) {
+      try {
+        await o.onCheckpoint({
+          pagesDone: p,
+          pageCount: pageCount,
+          lockedScript: lockedScript,
+          words: words,
+          pageWordIndex: pageWordIndex,
+          rawLines: rawLines,
+        });
+      } catch (e) {
+        /* A checkpoint that cannot be written is not a failed import. */
+        console.warn('[OCR] checkpoint failed:', e);
+      }
+    }
   }
 
   const wordCount = words.filter(function(w) { return typeof w === 'string'; }).length;
   const totalMs = Date.now() - t0;
-  console.log('[OCR] done: ' + pageCount + ' pages in ' + (totalMs / 1000).toFixed(1) + 's'
-    + ' (' + Math.round(totalMs / pageCount) + 'ms/page)'
+  const pagesThisRun = pageCount - startPage + 1;
+  console.log('[OCR] done: ' + pagesThisRun + ' pages in ' + (totalMs / 1000).toFixed(1) + 's'
+    + ' (' + Math.round(totalMs / Math.max(1, pagesThisRun)) + 'ms/page)'
+    + (startPage > 1 ? ' [resumed at ' + startPage + ' of ' + pageCount + ']' : '')
     + ' | words=' + wordCount
     + ' | script=' + (lockedScript || 'unlocked')
     + ' | render-wait=' + Math.round(renderMs / 1000) + 's ocr=' + Math.round(ocrMs / 1000) + 's'
@@ -248,7 +304,44 @@ async function parseScannedPDF(pdfDoc, onProgress) {
       wordCount: wordCount,
       hasTextLayer: true,
       sourceType: 'pdf-ocr',
+      /* The legacy-encoding flag describes the PDF's own text layer, which this
+         result has just replaced. Left true, it merges through into the imported
+         file and the reader shows a banner offering to fix the text with OCR --
+         the five minutes the user has just waited through. */
+      hasLegacyEncoding: false,
       title: '',
     },
   };
+}
+
+/* The import flow's single entry point for OCR'ing a scanned PDF.
+   Owns the four things every call site needs and none of them should repeat:
+   resuming an interrupted run, checkpointing, the overlay's page counter and
+   progress bar, and clearing the checkpoint once there is nothing to resume.
+   Failures propagate -- the checkpoint is deliberately LEFT behind, since the
+   whole point is that the next attempt does not start from page one. */
+async function ocrScannedPdf(pdfDoc, fileId) {
+  let resume = null;
+  if (fileId) {
+    try { resume = await loadOcrCheckpoint(fileId); } catch (_) { resume = null; }
+  }
+
+  const onProgress = function(current, total, info) {
+    const msg = qs('#loading-message');
+    if (msg) msg.textContent = t('loading.ocr_page', { current: current, total: total });
+    if (typeof setLoadingProgress === 'function') {
+      setLoadingProgress((current - 1) / Math.max(1, total), info && info.etaMs);
+    }
+  };
+
+  try {
+    const result = await parseScannedPDF(pdfDoc, onProgress, {
+      resume: resume,
+      onCheckpoint: fileId ? function(state) { return saveOcrCheckpoint(fileId, state); } : null,
+    });
+    if (fileId) await deleteOcrCheckpoint(fileId);
+    return result;
+  } finally {
+    if (typeof clearLoadingProgress === 'function') clearLoadingProgress();
+  }
 }

@@ -66,6 +66,12 @@
   <div id="loading-overlay" class="hidden">
     <div class="loading-spinner"></div>
     <p id="loading-message" data-i18n="loading.default">Loading...</p>
+    <!-- Determinate progress for long jobs (OCR). Hidden unless one is running;
+         the remaining time is shown as a bare ~m:ss so it needs no translation. -->
+    <div id="loading-progress" class="hidden">
+      <div class="loading-progress-track"><div class="loading-progress-fill"></div></div>
+      <p id="loading-progress-eta"></p>
+    </div>
   </div>
 
   <!-- Global toast container -->

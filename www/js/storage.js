@@ -350,7 +350,101 @@ async function loadFileData(fileId) {
   return null;
 }
 
+/* ── OCR checkpoints ─────────────────────────────────────────
+   A scanned book is OCR'd a page at a time and nothing was written down until
+   the last page finished, so a phone call at page 300 of 355 discarded all of
+   it. The checkpoint is the same shape as the file data -- words, pageWordIndex
+   and rawLines are append-only, so a prefix of them is a valid book -- plus the
+   page the next run should start from.
+
+   It is deliberately NOT the file data itself and the book is not in the library
+   until OCR completes: a half-OCR'd book would report a word count that is a
+   fraction of the real one, which is what §4.2 derives "finished" from. */
+
+function _ocrCheckpointPath(fileId) {
+  return 'flowread/' + fileId + '.ocr.json';
+}
+
+async function saveOcrCheckpoint(fileId, state) {
+  if (!fileId || !state) return false;
+  const payload = JSON.stringify({
+    pagesDone: state.pagesDone,
+    pageCount: state.pageCount,
+    lockedScript: state.lockedScript || null,
+    words: state.words,
+    pageWordIndex: state.pageWordIndex,
+    rawLines: state.rawLines,
+    savedAt: Date.now(),
+  });
+
+  const Filesystem = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
+  if (Filesystem && typeof Filesystem.writeFile === 'function') {
+    try {
+      await Filesystem.writeFile({
+        path: _ocrCheckpointPath(fileId),
+        data: payload,
+        directory: 'DATA',
+        encoding: 'utf8',
+        recursive: true,
+      });
+      return true;
+    } catch (e) {
+      console.warn('saveOcrCheckpoint failed:', e);
+      return false;
+    }
+  }
+
+  /* Browser fallback. A long book's words can exceed the localStorage quota, and
+     a failed checkpoint is not a failed import -- OCR simply starts over. */
+  try {
+    if (payload.length < 3 * 1024 * 1024) {
+      localStorage.setItem('fr_ocrckpt_' + fileId, payload);
+      return true;
+    }
+  } catch (_) {}
+  return false;
+}
+
+async function loadOcrCheckpoint(fileId) {
+  if (!fileId) return null;
+  const Filesystem = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
+  if (Filesystem && typeof Filesystem.readFile === 'function') {
+    try {
+      const result = await Filesystem.readFile({
+        path: _ocrCheckpointPath(fileId),
+        directory: 'DATA',
+        encoding: 'utf8',
+      });
+      const parsed = JSON.parse(result.data);
+      if (parsed && Array.isArray(parsed.words) && parsed.pagesDone > 0) return parsed;
+      return null;
+    } catch (_) {}
+  }
+  try {
+    const raw = localStorage.getItem('fr_ocrckpt_' + fileId);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.words) && parsed.pagesDone > 0) return parsed;
+    }
+  } catch (_) {}
+  return null;
+}
+
+async function deleteOcrCheckpoint(fileId) {
+  if (!fileId) return;
+  const Filesystem = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
+  if (Filesystem && typeof Filesystem.deleteFile === 'function') {
+    try {
+      await Filesystem.deleteFile({ path: _ocrCheckpointPath(fileId), directory: 'DATA' });
+    } catch (_) {}
+  }
+  try { localStorage.removeItem('fr_ocrckpt_' + fileId); } catch (_) {}
+}
+
 async function deleteFileData(fileId) {
+  /* A deleted book must not leave a resumable OCR run behind it. */
+  await deleteOcrCheckpoint(fileId);
+
   const Filesystem = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Filesystem;
   if (Filesystem && typeof Filesystem.deleteFile === 'function') {
     try {
