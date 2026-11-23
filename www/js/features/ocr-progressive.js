@@ -291,6 +291,35 @@ const OcrProgressive = (function() {
     return true;
   }
 
+  /* TEMPORARY, for the owner's report of the reader jumping a few pages on an
+     extension or a swap. Says whether the reader landed on the word they were
+     on and, when it does not, how far off it was and where the word actually
+     went -- so one reproduction settles it instead of another theory. Offline
+     measurement put the cleaning difference at six words, which is not what was
+     reported, so the cause is still unknown. Remove once it is found. */
+  function _diagnoseTranslation(fromWords, fromIndex, toWords, toIndex) {
+    try {
+      const was = fromWords && fromWords[fromIndex];
+      const now = toWords && toWords[toIndex];
+      console.log('[OCR-JUMP] index ' + fromIndex + ' of ' + (fromWords || []).length
+        + ' -> ' + toIndex + ' of ' + (toWords || []).length
+        + ' | word "' + was + '" -> "' + now + '"'
+        + (was === now ? ' | EXACT' : ' | MISMATCH'));
+      if (was === now) return;
+      /* Where did that word really go? Match a phrase, not a word, or a common
+         word matches in the wrong place and reports a nonsense distance. */
+      const phrase = fromWords.slice(fromIndex, fromIndex + 6).join(' ');
+      const hay = toWords.join(' ');
+      const at = hay.indexOf(phrase);
+      if (at === -1) { console.log('[OCR-JUMP] phrase not in the new build at all'); return; }
+      const trueIndex = hay.slice(0, at).split(' ').length - 1;
+      console.log('[OCR-JUMP] phrase actually at ' + trueIndex
+        + ', so the reader was put ' + (toIndex - trueIndex)
+        + ' words ' + (toIndex > trueIndex ? 'PAST' : 'BEFORE') + ' it'
+        + ' (~' + ((toIndex - trueIndex) / 260).toFixed(1) + ' pages at 260 words)');
+    } catch (err) { console.log('[OCR-JUMP] diagnostic failed', err); }
+  }
+
   async function _replaceArrays(fileId, built) {
     const file = AppState.currentFile;
     const oldPageWordIndex = file.pageWordIndex;
@@ -300,6 +329,7 @@ const OcrProgressive = (function() {
 
     const newIndex = _translate(oldIndex, oldPageWordIndex, built.pageWordIndex,
                                 built.words.length);
+    _diagnoseTranslation(file.words, oldIndex, built.words, newIndex);
     _translateHighlights(fileId, oldPageWordIndex, built);
     _applyToCurrent(built);
     savePosition(fileId, newIndex);
