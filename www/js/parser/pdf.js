@@ -70,19 +70,38 @@ async function parsePDF(arrayBuffer) {
     for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
       const line = lines[lineIdx];
 
+      /* The placeholder is added, and the lines are kept.
+
+         It used to `continue` over every line in the range, so a detected table
+         *replaced* its text. That is what made 16.33 a book-destroying defect
+         rather than a cosmetic one: 41 false ranges in one Hindi book deleted
+         whole pages, and the reader had no way to know the book had said
+         anything there — the silent failure §1.5 exists to forbid.
+
+         The detector is far stricter now, but strictness is the wrong thing to
+         rely on here, because the four outcomes are not symmetric. A false
+         positive that keeps the text costs one stray chip in the margin of the
+         reader's attention; a false positive that deletes the text costs the
+         page. A true positive that keeps the text costs a chip above some
+         run-together columns, which is exactly what the reader saw before this
+         feature existed. Only one of those four is unrecoverable, so the text
+         stays and the chip goes above it, still tappable into the original page.
+
+         Reverting this is one `continue`, if the owner would rather have the
+         clean placeholder back now that false positives are rare. */
       const tableRange = tableRanges[tableRangeCursor];
       if (tableRange && lineIdx >= tableRange.start && lineIdx <= tableRange.end) {
         if (lineIdx === tableRange.start) {
           words.push({
             type: 'placeholder',
-            label: '[Table detected — Tap to View]',
+            label: t('reader.placeholder.table'),
             page: i + 1,
           });
         }
         if (lineIdx === tableRange.end) {
           tableRangeCursor++;
         }
-        continue;
+        /* deliberately no `continue` — see above */
       }
 
       const normalized = normalizeLine(line.text);
@@ -460,6 +479,10 @@ function finishLine(items, y, pageHeight) {
     wideGapCount: lineMetrics.wideGapCount,
     alphaTokenCount: lineMetrics.alphaTokenCount,
     lineSpan: lineMetrics.lineSpan,
+    /* Where this line's cells begin — the x of every item that starts after a
+       wide gap. Table detection needs to know whether those positions recur
+       from row to row, which is the one thing prose cannot imitate (16.33). */
+    cellX: lineMetrics.cellX,
   };
 }
 
@@ -485,6 +508,7 @@ function buildLineMetrics(items) {
   const alphaTokenCount = tokens.filter(token => /[A-Za-z]/.test(token)).length;
 
   let wideGapCount = 0;
+  const cellX = [];
   for (let i = 1; i < items.length; i++) {
     const prev = items[i - 1];
     const current = items[i];
@@ -494,6 +518,7 @@ function buildLineMetrics(items) {
     const wideGapThreshold = Math.max(prevCharWidth, currentCharWidth) * 2.2;
     if (gap > wideGapThreshold) {
       wideGapCount++;
+      cellX.push(current.x);
     }
   }
 
@@ -507,6 +532,7 @@ function buildLineMetrics(items) {
     wideGapCount,
     alphaTokenCount,
     lineSpan,
+    cellX,
   };
 }
 
@@ -607,11 +633,45 @@ function insertImagePlaceholders(words, allPageData, pageWordIndex) {
   }
 }
 
+/* A table's columns line up; prose's do not. That is the whole rule (16.33).
+
+   `isTableLikeLine` below only *nominates* a line, and on its own it nominates
+   ordinary prose constantly. Measured against the catalogue: *भारत में जातिप्रथा*
+   had **41 runs** flagged, every one of them prose, including runs of 29 and 28
+   lines — whole pages of Ambedkar replaced by a `[Table]` chip. *Annihilation of
+   Caste* had two, both English prose. Two separate per-line rules are to blame
+   and neither can be rescued by a threshold: `isWideHorizontalRow &&
+   hasMixedHeaderAndValues` fires on any full-measure line containing a single
+   number ("on the 12th, I have been indisposed"), and `hasMultiColumnSpacing &&
+   hasShortCellLikeWords` fires on any line with three items and two wide gaps,
+   which is what justified Devanagari looks like in every line of every book.
+
+   So the gate moved to the *run*, where the evidence actually is.
+
+   Alignment had to be defined carefully, and the first definition was useless:
+   counting any recurring cell edge scored prose at 1.00, because justified text
+   shares its left and right margin on every single line. Interior edges only —
+   and then prose scores **zero** aligned columns across all 43 known false
+   positives, worst single share 0.67, against 1.00 for a real table whose cells
+   sit at fixed x by construction.
+
+   Gap *width* was measured too and rejected as the discriminator: justified
+   Devanagari runs a p50 of 3.0 char widths, p99 of 6.3 and a maximum of 10.1,
+   so there is no clean line between a stretched space and a column void. */
 function detectTableRanges(lines) {
   const ranges = [];
   let runStart = -1;
   let runCount = 0;
   let tableScore = 0;
+
+  /* Three rows, not two. Both English false positives were exactly two lines,
+     and a two-row table is indistinguishable from a coincidence — §5's chapter
+     rules reached the same conclusion about a bare numeral needing a sequence. */
+  function accept(start, end, count, score) {
+    if (count < 3 || score < 4) return;
+    if (countAlignedColumns(lines, start, end) < 2) return;
+    ranges.push({ start: start, end: end });
+  }
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -622,20 +682,56 @@ function detectTableRanges(lines) {
       runCount++;
       tableScore += getTableLineScore(line);
     } else if (runStart !== -1) {
-      if (runCount >= 2 && tableScore >= 4) {
-        ranges.push({ start: runStart, end: i - 1 });
-      }
+      accept(runStart, i - 1, runCount, tableScore);
       runStart = -1;
       runCount = 0;
       tableScore = 0;
     }
   }
 
-  if (runStart !== -1 && runCount >= 2 && tableScore >= 4) {
-    ranges.push({ start: runStart, end: lines.length - 1 });
+  if (runStart !== -1) {
+    accept(runStart, lines.length - 1, runCount, tableScore);
   }
 
   return ranges;
+}
+
+/* How many columns hold their position across this run of lines.
+
+   A cell edge within 20 units of either end of its own line is ignored: that is
+   the measure, shared by every justified line, and counting it is what made the
+   first version of this agree with prose. Tolerance is 2.5 units, tight enough
+   that a stretched space cannot land in the same bucket twice by accident, and a
+   column must appear in at least 80% of the run's rows — a table may have a
+   merged cell or a blank, but not in one row out of five. */
+function countAlignedColumns(lines, start, end) {
+  const rows = [];
+  for (let i = start; i <= end && i < lines.length; i++) {
+    const line = lines[i];
+    if (line && line.cellX) rows.push(line);
+  }
+  if (rows.length < 3) return 0;
+
+  const TOL = 2.5;
+  const MARGIN = 20;
+  const buckets = new Map();
+  for (let r = 0; r < rows.length; r++) {
+    const line = rows[r];
+    for (let c = 0; c < line.cellX.length; c++) {
+      const x = line.cellX[c];
+      if (x - line.x0 < MARGIN) continue;    /* the left margin */
+      if (line.x1 - x < MARGIN) continue;    /* hugging the right measure */
+      const key = Math.round(x / TOL);
+      if (!buckets.has(key)) buckets.set(key, new Set());
+      buckets.get(key).add(r);
+    }
+  }
+
+  let aligned = 0;
+  buckets.forEach(function(rowSet) {
+    if (rowSet.size / rows.length >= 0.8) aligned++;
+  });
+  return aligned;
 }
 
 function isTableLikeLine(line) {
