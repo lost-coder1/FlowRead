@@ -39,8 +39,9 @@ this is not a hard app-blocker.**
 
 1. **Offline-first, stated precisely.** No backend for reading, no cloud parsing, no analytics on
    reading behaviour. Internet is needed only for: the Pro URL reader (one labelled fetch), Free
-   Books downloads (one fetch, then offline forever), store billing, and §8.6's anonymous pings
-   (silent failure, never blocking).
+   Books downloads (one fetch, then offline forever), **the Free Books catalogue check** (one fetch
+   on opening the library, silent fallback to the bundled list, §12), store billing, and §8.6's
+   anonymous pings (silent failure, never blocking).
 2. **No accounts, ever.** Fully functional one second after first launch. Entitlements come from a
    store receipt only.
 3. **Lifetime *and* subscription** (§3). The lifetime product must never be removed or degraded to
@@ -580,6 +581,17 @@ existing Java plugin style and no new Compose dependency, but worth a quick eval
 category filters, auto-OCR, full i18n. **Entries must be `pdf` or `txt`** — `free-books.js` branches
 on exactly those two, and an `html` entry would hit the PDF parser and fail.
 
+**The remote catalogue lives at one URL that may never move:**
+`https://raw.githubusercontent.com/lost-coder1/flowread-privacy/main/catalog/v1/catalog.json`
+(owner, 2026-11-24 — the same public repo that hosts the privacy policy, chosen because it already
+exists, is already public and already publishes). The path is compiled into every build ever
+shipped, so an install from today must still find it years from now: **the `v1/` segment is the only
+escape hatch** — an incompatible shape change is a *new* file at `v2/`, never an edit to this one.
+**The bundled file stays in the app forever as the offline floor** (§1.1); the remote file only ever
+*adds*, and any failure is silent. A book's identity is its `sourceUrl` (`generateFileId()` hashes
+it), so **editing a live entry's `sourceUrl` orphans the saved position of everyone who has it** —
+add a new entry instead.
+
 ### 12.1 Legal sourcing — what may enter the catalogue
 **Two source types, nothing else:** (1) **public domain**, verified by the *edition's* status, not the
 work's age — a 1890 text in a 2015 translation is a 2015 copyright, so check the author's death date
@@ -853,9 +865,12 @@ is current.**
   rollout**, clearing builds 33–42. Privacy policy rewritten, version-controlled as
   `privacy_policy.html`, published. **Check whether the rollout has advanced past 20%.**
 - **Latest uploaded build: 1.5.6 / 44** (2026-11-17). **The first build in which §8.6's pings
-  actually send** (`ENDPOINT` is filled). **Both compliance items cleared 2026-11-21:** Play Data
-  safety re-filed as *Optional*, and the amended `privacy_policy.html` re-published to its hosted
-  URL. **Re-publishing is a manual step that committing the file does not perform** — §8.6's two
+  actually send** (`ENDPOINT` is filled). **Play Data safety was re-filed as *Optional* 2026-11-21.**
+  **The matching policy re-publish was recorded but never happened** — the hosted copy was still
+  the 2026-11-02 text when it was checked on 2026-11-24, so production has been pinging against an
+  understated policy since 1.5.6. Amended and re-dated 2026-11-24 (Phase C's catalogue fetch plus
+  the IP paragraph); **publishing it is owed.** **Record a publish against the hosted file, never
+  against the commit.** **Re-publishing is a manual step that committing the file does not perform** — §8.6's two
   allowlist copies and the published policy must keep changing together, so any future amendment
   owes it again.
 - **1.5.7 / 45 is built and signed, not yet uploaded** (2026-11-23, `master`). Carries tasks

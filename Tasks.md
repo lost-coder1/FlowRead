@@ -225,7 +225,8 @@ checklist passed on one device rather than a fleet.
    R8 active. All sixteen items, battery included. No longer a gate.
 2. **Store listing** must describe the subscription and the habit framing (Task 16.10). Hard gate
    on selling `flowread_plus`. The **privacy policy is done** — rewritten 2026-11-02, version-
-   controlled as `privacy_policy.html`, and **re-published to the hosted URL 2026-11-21**.
+   controlled as `privacy_policy.html`. ~~re-published to the hosted URL 2026-11-21~~ —
+   **this was recorded but never happened; see 2026-11-24 below.**
    **Play Console Data safety re-filed as *Optional* 2026-11-21** (a separate form; editing the
    policy does not touch it).
 3. **Production promotion.** Production is still on **1.4.5 / 32** — builds 33, 34, 36, 37, 38,
@@ -236,6 +237,35 @@ unlabelled category chips are fixed. The catalogue work is re-scoped into four p
 16.4): growth for free users, drops for subscribers, deliberately not the same job.
 **16.8 (home screen widget) is deferred by the owner until the app has traction.** Next product
 task: **16.10**'s remaining screenshots + feature graphic.
+
+**2026-11-24 — The published privacy policy was six weeks stale, and 16.4 Phase C's first part
+is done.** Checked the hosted copy before amending it, and
+`lost-coder1/flowread-privacy/index.html` was last changed **2026-11-02** — so the amendment this
+board and `Claude.md` §21 both recorded as "re-published 2026-11-21" **never reached the host**.
+The published text therefore omitted everything that landed with the pings actually switching on in
+1.5.6 / 44: the `tenure` buckets, the `first` flag, the IP-is-never-read guarantee, the
+totals-only storage, the opt-out, and six of the events (`book_opened`, `read_session_ended`,
+`import_completed`, `paywall_shown`, `book_finished`, plus the session detail). **Production users
+have been sending pings against a policy that understated them since 1.5.6 went up.** Nothing in
+the app was wrong; only the publish step was missed, which is exactly the manual-step failure
+`Claude.md` §21 warns about — **and the lesson is that "committed" was read as "published" by the
+board itself, so the record has to be made against the host, never against the repo.** Verify the
+hosted file, not the commit.
+
+- **`privacy_policy.html` amended** for 16.4 Phase C: a **Book catalogue** bullet under Network
+  requests (one fetch on opening the library, sends nothing, silent fallback to the bundled list),
+  and a new paragraph owning the thing none of the old bullets admitted — **that every outbound
+  request lets the far server see an IP address**, Google and GitHub and whoever hosts a book
+  included, while the one server this project runs does not read or log it (§9.6). The old
+  per-bullet "no data about you is sent" was true about payload and quietly wrong about IP; stating
+  it once for all five requests is both honest and consistent (§1.5). Dated **24 November 2026**,
+  since the Changes section promises a new date.
+- **Phase C's URL is decided (owner):**
+  `raw.githubusercontent.com/lost-coder1/flowread-privacy/main/catalog/v1/catalog.json` — the same
+  public repo that hosts the policy, which already exists and already publishes. Recorded in
+  `Claude.md` §12 as a path that **may never move**, with `v1/` as the only escape hatch.
+- **Owed before Phase C code ships: publish both files to that repo.** The policy amendment is a
+  prerequisite of the fetch existing, not a follow-up to it.
 
 **2026-11-16 — Paragraphs restored, and Page mode is now the default (Tasks 16.13, 16.14).**
 Page mode was rendering books as one unbroken wall of words with chapter titles run into
