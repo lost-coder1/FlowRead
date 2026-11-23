@@ -89,6 +89,14 @@ function renderReader(options) {
       <button class="engine-tab" data-engine="scroll">${t('reader.engine.scroll')}</button>
     </div>
 
+    <!-- A scan still being OCR'd (§16.32). Between the tabs and the stage, so
+         it reads as a statement about the book rather than a control of the
+         engine. A bar and not a modal: §20 allows one modal at a time and this
+         arrives while the reader is doing something else entirely. Empty and
+         hidden for every ordinary book, so it costs no vertical space -- which
+         matters, because anything that does changes what fits on a page. -->
+    <div id="reader-partial" class="reader-partial hidden"></div>
+
     <div id="rsvp-container" class="engine-container"></div>
     ${hasPdfBridge ? '<button class="reader-normal-toggle" id="btn-open-normal" title="' + t('reader.btn.pdf.title') + '">PDF</button>' : ''}
     ${hasPdfLazy ? '<button class="reader-normal-toggle" id="btn-open-normal-lazy" title="' + t('reader.btn.pdf.title') + '">PDF</button>' : ''}
@@ -196,6 +204,9 @@ function renderReader(options) {
   _renderIndexList('');
   _syncReaderPosition(startIndex, file.words.length);
   _applyEngineChrome(AppState.currentEngine);
+  /* Drawn on every render so it survives an engine switch and a swipe back
+     into the book, not only the open that created it (§16.32). */
+  if (typeof OcrProgressive !== 'undefined') OcrProgressive.syncReaderChrome();
   acquireWakeLock();
   /* Preload dictionary in background so first tap has no delay */
   if (AppState.isPro && typeof DictionaryFeature !== 'undefined') {

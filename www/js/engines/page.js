@@ -755,6 +755,19 @@ const PageEngine = (function() {
   }
 
   function _noteEndReached() {
+    /* A book still being OCR'd is twenty pages of four hundred, and its last
+       page is the last page *so far* (§16.32). _pagesExact cannot see that --
+       the prefix genuinely is a twenty-page book and its grid is genuinely
+       exact -- so the gate §4.1 rule 3 provides does not apply here and this
+       one is needed instead. Without it, arriving at prefix page 20 marks a
+       435-page book read and fires §8.6's book_finished, which is gated once
+       per book and sticky across Mark unread and re-reads: permanently wrong,
+       for a book the reader is 5% into. */
+    if (typeof OcrProgressive !== 'undefined' && OcrProgressive.isPartial(AppState.currentFile)) {
+      _endFloor = 0;
+      _removeFinishOffer();
+      return;
+    }
     if (!_atLastPage()) { _endFloor = 0; _removeFinishOffer(); return; }
     if (_endFloor) return;                /* already marked, don't re-toast */
     _endFloor = _words.length;

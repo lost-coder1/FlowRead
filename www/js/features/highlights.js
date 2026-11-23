@@ -138,6 +138,43 @@ const HighlightsFeature = (function() {
     return _write(fileId, kept) ? entry : null;
   }
 
+  /* Move every mark in a book onto a new word numbering (§16.32).
+
+     Lives here rather than in the caller because this module owns the store and
+     the record shape: `s`/`e` are not a detail anyone else should have to know,
+     and a remap written outside would be the second place that knowledge lives.
+
+     The stored text is deliberately *not* re-derived. It is the quote the reader
+     actually marked; if the new numbering is off by a word, re-deriving would
+     change the quote to match the drift, where keeping it preserves what they
+     chose. Re-sorted and re-merged on the way back in, because a map need not be
+     order-preserving and two marks can land adjacent. */
+  function remap(fileId, map) {
+    if (!fileId || typeof map !== 'function') return 0;
+    const list = _read(fileId);
+    if (!list.length) return 0;
+    const moved = [];
+    for (let i = 0; i < list.length; i++) {
+      const h = list[i];
+      let s = map(h.s), e = map(h.e);
+      if (typeof s !== 'number' || typeof e !== 'number') continue;
+      if (e < s) { const tmp = s; s = e; e = tmp; }
+      moved.push(Object.assign({}, h, { s: s, e: e }));
+    }
+    moved.sort(function(a, b) { return a.s - b.s; });
+    const merged = [];
+    for (let i = 0; i < moved.length; i++) {
+      const last = merged[merged.length - 1];
+      if (last && moved[i].s <= last.e + 1) {
+        last.e = Math.max(last.e, moved[i].e);
+        continue;
+      }
+      merged.push(moved[i]);
+    }
+    _write(fileId, merged);
+    return merged.length;
+  }
+
   /* Removal is by start index, which is unique after the merge above. */
   function remove(fileId, start) {
     const list = _read(fileId).filter(function(h) { return h.s !== start; });
@@ -458,7 +495,7 @@ const HighlightsFeature = (function() {
   }
 
   return {
-    forFile, count, add, remove, at, textOf,
+    forFile, count, add, remove, at, textOf, remap,
     begin, cancel, active, anchor, tapWord, undoLast,
     markSentence, allWithBooks, removeAllFor,
     allGrouped, totalCount, render, open,
