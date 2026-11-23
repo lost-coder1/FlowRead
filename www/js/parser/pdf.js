@@ -298,6 +298,21 @@ function measureParagraphGeometry(allPageData, headerFooterSet) {
   gaps.sort(function(a, b) { return a - b; });
   const lineGap = gaps.length >= 20 ? gaps[Math.floor(gaps.length / 2)] : 0;
 
+  /* How ragged the right edge is. The whole "a short line ended its paragraph"
+     rule assumes justified text, where an interior line reaches the margin and
+     only a paragraph's last line falls short. In ragged-right text an interior
+     line falls short by as much as the next word is wide, so the same rule
+     marks a paragraph every few lines. Logged to be read before it is acted
+     on: p50 close to p80 means justified, far from it means ragged. */
+  console.log('[pdf] right edge: p20=' + pct(rights, 0.2).toFixed(0)
+    + ' p50=' + pct(rights, 0.5).toFixed(0)
+    + ' p70=' + pct(rights, 0.7).toFixed(0)
+    + ' p80=' + bodyRight.toFixed(0)
+    + ' p95=' + pct(rights, 0.95).toFixed(0)
+    + ' | left edge: p20=' + bodyLeft.toFixed(0)
+    + ' p50=' + pct(lefts, 0.5).toFixed(0)
+    + ' p80=' + pct(lefts, 0.8).toFixed(0)
+    + ' | lines=' + rights.length);
   console.log('[pdf] paragraph geometry: lineGap=' + lineGap.toFixed(1) + ' bodyLeft=' + bodyLeft.toFixed(0)
     + ' bodyRight=' + bodyRight.toFixed(0) + ' em=' + em.toFixed(1)
     + ' indentFrom=' + (bodyLeft + em * 1.2).toFixed(0)
@@ -349,22 +364,34 @@ function _isParagraphStart(line, prevKept, paraGeom, isFirstLine) {
       && Math.abs(line.x0 - prevKept.x1) <= paraGeom.em * 2) {
     return false;
   }
-  /* This line is indented. */
+  /* A line following one that ran the full measure continues it: what wraps,
+     continues. Without this the indent test cannot tell a first-line indent
+     from a HANGING indent, where it is the continuation lines that are indented
+     so they align under the item's text -- which is how a numbered list set
+     this way strands a sentence's last word as its own paragraph:
+
+         (i) Sati or the burning of the widow on the funeral pyre of her deceased
+             husband.                     <- indented, but a continuation
+
+     Measured on a device: the line above runs the full measure, and the stranded
+     line sits a full line height below it, so neither the fragment test nor an
+     adjacency test can reach it. A genuine break is not lost, because a
+     paragraph's last line stopping within three characters of the right margin
+     is rare in justified text and merges two paragraphs when it happens -- the
+     failure §5 already accepts as the lesser one. */
+  if (prevKept && typeof prevKept.x1 === 'number' && prevKept.x1 >= paraGeom.shortBefore) {
+    return false;
+  }
+  /* Past that gate the previous line stopped short, so it ended its paragraph
+     rather than wrapping into this one -- whether or not this line is indented.
+     The indent is what tells the two apart in a book that does not space its
+     paragraphs, so it stays as the positive signal. */
+  if (paraGeom.requireSentenceEnd && prevKept
+      && !PARA_SENTENCE_END.test(prevKept.text || '')) {
+    return false;
+  }
   if (typeof line.x0 === 'number' && line.x0 > paraGeom.indentFrom) return true;
-  /* The line before it stopped well short of the right margin, so it ended its
-     paragraph rather than wrapping into this one. */
   if (prevKept && typeof prevKept.x1 === 'number' && prevKept.x1 < paraGeom.shortBefore) {
-    /* Not on its own where the line extents come from OCR. A PDF's text layer
-       reports where a line of type actually stopped, so a short line is real
-       evidence; ML Kit reports the extent of a block, and a block ends wherever
-       the recogniser chose to group -- routinely mid-paragraph. Measured: on a
-       435-page book 70% of the starts this produced followed a finished
-       sentence, on an 86-page one only 14%, a break every 1.8 lines. So on
-       that path the previous line must also have finished a sentence, which is
-       the pairing paragraphs.js's inference already relies on. The indent rule
-       above keeps standing alone: an indent is positive evidence, not an
-       absence of one. */
-    if (paraGeom.requireSentenceEnd && !PARA_SENTENCE_END.test(prevKept.text || '')) return false;
     return true;
   }
   return false;
