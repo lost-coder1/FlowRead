@@ -355,9 +355,10 @@ async function loadFileData(fileId) {
 /* ── OCR checkpoints ─────────────────────────────────────────
    A scanned book is OCR'd a page at a time and nothing was written down until
    the last page finished, so a phone call at page 300 of 355 discarded all of
-   it. The checkpoint holds the recognised text of each finished page, which the
-   parser turns into the reader's arrays once the last page is in (cleaning needs
-   the whole book), plus the page the next run should start from. It carries the
+   it. The checkpoint holds the recognised lines of each finished page, boxes and
+   all, which the parser turns into the reader's arrays once the last page is in
+   (cleaning and paragraph geometry both need the whole book), plus the page the
+   next run should start from. It carries the
    parser's format version, so a checkpoint from an older build is discarded
    rather than misread.
 
@@ -376,7 +377,7 @@ async function saveOcrCheckpoint(fileId, state) {
     pagesDone: state.pagesDone,
     pageCount: state.pageCount,
     lockedScript: state.lockedScript || null,
-    pageTexts: state.pageTexts,
+    pageLines: state.pageLines,
     savedAt: Date.now(),
   });
 
@@ -419,7 +420,7 @@ async function loadOcrCheckpoint(fileId) {
         encoding: 'utf8',
       });
       const parsed = JSON.parse(result.data);
-      if (parsed && Array.isArray(parsed.pageTexts) && parsed.pagesDone > 0) return parsed;
+      if (parsed && Array.isArray(parsed.pageLines) && parsed.pagesDone > 0) return parsed;
       return null;
     } catch (_) {}
   }
@@ -427,7 +428,7 @@ async function loadOcrCheckpoint(fileId) {
     const raw = localStorage.getItem('fr_ocrckpt_' + fileId);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (parsed && Array.isArray(parsed.pageTexts) && parsed.pagesDone > 0) return parsed;
+      if (parsed && Array.isArray(parsed.pageLines) && parsed.pagesDone > 0) return parsed;
     }
   } catch (_) {}
   return null;

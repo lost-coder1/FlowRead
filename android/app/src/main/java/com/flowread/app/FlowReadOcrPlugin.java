@@ -1,9 +1,11 @@
 package com.flowread.app;
 
 import android.graphics.Bitmap;
+import android.graphics.Rect;
 import android.graphics.BitmapFactory;
 import android.util.Base64;
 
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -19,7 +21,14 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 
 /**
  * Multi-script OCR plugin.
- * detectText({ base64Image, script?: 'latin'|'devanagari' }) -> { text, blocks: [...] }
+ * detectText({ base64Image, script?: 'latin'|'devanagari' })
+ *   -> { text, script, blockCount, width, height, lines: [{ text, left, top, right, bottom }] }
+ *
+ * The per-line boxes are what let the parser infer paragraph structure the way
+ * pdf.js does from PDF geometry: a line indented past the body margin starts a
+ * paragraph, and so does one following a line that stopped short of the right
+ * margin. ML Kit computes them anyway; returning only the concatenated text
+ * threw them away and left every scanned book with guessed paragraphs.
  *
  * Why custom: the only published Capacitor 6 ML Kit text plugin hardcodes the Latin
  * recognizer, which silently drops Devanagari (Hindi) characters. Real users on this
@@ -82,12 +91,42 @@ public class FlowReadOcrPlugin extends Plugin {
         InputImage image = InputImage.fromBitmap(bitmap, rotation);
         TextRecognizer recognizer = recognizerFor(script);
 
+        final int imageWidth = bitmap.getWidth();
+        final int imageHeight = bitmap.getHeight();
+
         recognizer.process(image)
             .addOnSuccessListener(visionText -> {
                 JSObject ret = new JSObject();
                 ret.put("text", visionText.getText());
                 ret.put("script", script);
                 ret.put("blockCount", visionText.getTextBlocks().size());
+                /* Pixel sizes travel with the boxes: a page re-rendered at the
+                   hi-res fallback has different coordinates for the same layout,
+                   so the parser normalises against these rather than assuming
+                   one scale for the document. */
+                ret.put("width", imageWidth);
+                ret.put("height", imageHeight);
+
+                /* Block order, which is the order getText() concatenates in --
+                   so lines joined by newline reproduce `text`. */
+                JSArray lines = new JSArray();
+                for (Text.TextBlock block : visionText.getTextBlocks()) {
+                    if (block == null || block.getLines() == null) continue;
+                    for (Text.Line line : block.getLines()) {
+                        if (line == null) continue;
+                        JSObject entry = new JSObject();
+                        entry.put("text", line.getText());
+                        Rect box = line.getBoundingBox();
+                        if (box != null) {
+                            entry.put("left", box.left);
+                            entry.put("top", box.top);
+                            entry.put("right", box.right);
+                            entry.put("bottom", box.bottom);
+                        }
+                        lines.put(entry);
+                    }
+                }
+                ret.put("lines", lines);
                 call.resolve(ret);
             })
             .addOnFailureListener(e -> call.reject("OCR failed: " + e.getMessage(), e));

@@ -16,10 +16,33 @@ const OCREngine = (function() {
   }
 
   async function _detect(base64Image, script) {
+    return (await _detectFull(base64Image, script)).text;
+  }
+
+  /* The plugin's whole answer: the text, and the per-line boxes the parser needs
+     to tell an indented first line from a wrapped one. Coordinates are
+     normalised to 0..1000 of the page width here, because a page re-rendered at
+     the hi-res fallback reports the same layout in different pixels. */
+  async function _detectFull(base64Image, script) {
     const plugin = _plugin();
     if (!plugin) throw new Error('OCR plugin not available on this platform.');
     const res = await plugin.detectText({ base64Image: base64Image, script: script });
-    return (res && res.text) ? res.text.trim() : '';
+    const text = (res && res.text) ? res.text.trim() : '';
+    const width = (res && res.width) || 0;
+    const lines = [];
+    const raw = (res && res.lines) || [];
+    for (let i = 0; i < raw.length; i++) {
+      const line = raw[i];
+      const lineText = (line && line.text) ? String(line.text).trim() : '';
+      if (!lineText) continue;
+      const entry = { text: lineText };
+      if (width > 0 && typeof line.left === 'number' && typeof line.right === 'number') {
+        entry.x0 = (line.left / width) * 1000;
+        entry.x1 = (line.right / width) * 1000;
+      }
+      lines.push(entry);
+    }
+    return { text: text, lines: lines };
   }
 
   /* Hindi books carry English -- page numbers, publisher pages, quoted titles --
@@ -49,17 +72,31 @@ const OCREngine = (function() {
   /* Both scripts on one image, with the scores, for the caller that has to
      decide what this *document* is rather than what this page says. */
   async function recogniseBoth(base64Image) {
-    const latinText = await _detect(base64Image, 'latin');
-    let devText = '';
-    try { devText = await _detect(base64Image, 'devanagari'); }
+    const latin = await _detectFull(base64Image, 'latin');
+    let dev = { text: '', lines: [] };
+    try { dev = await _detectFull(base64Image, 'devanagari'); }
     catch (e) { console.warn('[OCR] devanagari attempt failed:', e); }
+    const text = combine(dev.text, latin.text);
+    /* Whichever text was kept, its own lines come with it. A merge keeps the
+       Devanagari pass's boxes and appends the Latin lines without any, so a
+       line whose geometry is unknown simply cannot start a paragraph. */
+    let lines;
+    if (text === dev.text) lines = dev.lines;
+    else if (text === latin.text) lines = latin.lines;
+    else lines = dev.lines.concat(latin.lines.map(function(l) { return { text: l.text }; }));
     return {
-      latinText: latinText,
-      devText: devText,
-      text: combine(devText, latinText),
-      latin: _scoreText(latinText),
-      dev: _scoreText(devText),
+      latinText: latin.text,
+      devText: dev.text,
+      text: text,
+      lines: lines,
+      latin: _scoreText(latin.text),
+      dev: _scoreText(dev.text),
     };
+  }
+
+  /* One script, with its lines. */
+  async function recogniseLines(base64Image, script) {
+    return _detectFull(base64Image, script);
   }
 
   /* Recognise with both scripts and report which one won, so a caller processing a
@@ -203,6 +240,6 @@ const OCREngine = (function() {
     });
   }
 
-  return { isAvailable, recogniseBase64, recogniseAuto, recogniseBoth, combine,
+  return { isAvailable, recogniseBase64, recogniseAuto, recogniseBoth, recogniseLines, combine,
            scoreText: _scoreText, pdfPageToBase64, imageFileToBase64 };
 })();

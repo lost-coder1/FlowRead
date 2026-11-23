@@ -189,9 +189,10 @@ async function _renderForOcr(pdfDoc, pageNum, opts) {
 const OCR_CHECKPOINT_PAGES = 20;
 
 /* Bumped when the checkpoint's shape changes: v1 held the built word arrays,
-   v2 holds the recognised page texts, since cleaning now happens after the
-   last page. An older checkpoint is discarded, costing one interrupted run. */
-const OCR_CHECKPOINT_VERSION = 2;
+   v2 the recognised page texts (cleaning happens after the last page), v3 the
+   recognised lines with their boxes, which paragraph inference needs. An older
+   checkpoint is discarded, costing one interrupted run. */
+const OCR_CHECKPOINT_VERSION = 3;
 
 /* opts.resume          a checkpoint from storage.loadOcrCheckpoint()
    opts.onCheckpoint    called with the same shape every OCR_CHECKPOINT_PAGES
@@ -224,6 +225,15 @@ const OCR_BAND_MAX_WORDS = 12;
 const OCR_PAGENO_MIN_RUN = 10;
 const OCR_BARE_NUMERAL = /^[\s.:\u2014-]*([0-9]{1,4}|[\u0966-\u096F]{1,4})[.):]?[\s.:\u2014-]*$/;
 
+/* A page whose text arrived without boxes -- the embedded-image fallback, or a
+   merged second script. Such a line cannot start a paragraph by geometry, and
+   paragraphs.js's line-length inference is the backstop for the page. */
+function _ocrLinesFromText(text) {
+  return String(text || '').split('\n')
+    .map(function(l) { return { text: l.trim() }; })
+    .filter(function(l) { return l.text.length > 0; });
+}
+
 function _ocrNumeralValue(text) {
   const m = text.match(OCR_BARE_NUMERAL);
   if (!m) return null;
@@ -244,12 +254,13 @@ function _ocrRunningLines(pages) {
     for (let i = 0; i < lines.length; i++) {
       const inBand = i < OCR_BAND_LINES || i >= lines.length - OCR_BAND_LINES;
       if (!inBand) continue;
-      if (lines[i].split(/\s+/).length > OCR_BAND_MAX_WORDS) continue;
+      const text = lines[i].text;
+      if (text.split(/\s+/).length > OCR_BAND_MAX_WORDS) continue;
       /* A bare numeral normalises to '#', which recurs on every page that has
          one, so the frequency test would sweep up the chapter markers along
          with the page numbers. Numerals are decided by arithmetic below. */
-      if (_ocrNumeralValue(lines[i]) !== null) continue;
-      const norm = normalizeLine(lines[i]);
+      if (_ocrNumeralValue(text) !== null) continue;
+      const norm = normalizeLine(text);
       if (!norm) continue;
       freq[norm] = (freq[norm] || 0) + 1;
     }
@@ -269,7 +280,7 @@ function _ocrPageNumberLines(pages) {
   for (let p = 0; p < pages.length; p++) {
     const lines = pages[p];
     for (let i = 0; i < lines.length; i++) {
-      const value = _ocrNumeralValue(lines[i]);
+      const value = _ocrNumeralValue(lines[i].text);
       if (value === null) continue;
       const offset = value - (p + 1);
       found.push({ page: p, line: i, offset: offset });
@@ -292,32 +303,52 @@ function _ocrPageNumberLines(pages) {
 /* Build the reader's arrays from the recognised page texts. Done in one pass at
    the end rather than per page, because "does this line recur across the book?"
    cannot be answered while the book is still being read. */
-function _ocrBuild(pageTexts) {
-  /* A plain loop, not map: a sparse pageTexts (a hole from JSON, or a page whose
+function _ocrBuild(pageLines) {
+  /* A plain loop, not map: a sparse array (a hole from JSON, or a page whose
      render failed) keeps its holes through map and would crash the frequency
      pass. Every page must contribute an entry, even an empty one, because
      pageWordIndex is positional. */
   const pages = [];
-  for (let i = 0; i < pageTexts.length; i++) {
-    pages.push(String(pageTexts[i] || '').split('\n')
-      .map(function(l) { return l.trim(); })
-      .filter(function(l) { return l.length > 0; }));
+  for (let i = 0; i < pageLines.length; i++) {
+    const lines = Array.isArray(pageLines[i]) ? pageLines[i] : [];
+    const kept = [];
+    for (let j = 0; j < lines.length; j++) {
+      const line = lines[j];
+      const text = String((line && line.text) || '').trim();
+      if (!text) continue;
+      kept.push({ text: text, x0: line && line.x0, x1: line && line.x1 });
+    }
+    pages.push(kept);
   }
 
   const running = _ocrRunningLines(pages);
   const pageNumbers = _ocrPageNumberLines(pages);
   console.log('[OCR] running head/foot lines: ' + running.size + ' distinct');
 
+  /* The same two functions the text-layer parser uses, on boxes normalised to
+     0..1000 of the page width. One definition of what a paragraph start is
+     (§5) -- the OCR path only has to supply x0/x1 and the furniture set. */
+  const geom = measureParagraphGeometry(pages.map(function(lines) {
+    return { lines: lines };
+  }), running);
+  console.log('[OCR] paragraph geometry: ' + (geom
+    ? ('indent past ' + geom.indentFrom.toFixed(0) + ', short before ' + geom.shortBefore.toFixed(0))
+    : 'not measurable, paragraphs will be inferred from line lengths'));
+
   const words = [];
   const pageWordIndex = [];
   const rawLines = [];
   let dropped = 0;
+  let paraStarts = 0;
+  /* Carried across the page boundary: a paragraph does not end because a page did. */
+  let prevKept = null;
 
   for (let p = 0; p < pages.length; p++) {
     pageWordIndex.push(words.length);
     const lines = pages[p];
     for (let i = 0; i < lines.length; i++) {
-      const text = lines[i];
+      const line = lines[i];
+      const text = line.text;
       if (running.has(normalizeLine(text))) { dropped++; continue; }
       if (pageNumbers.has(p + ':' + i)) { dropped++; continue; }
       /* isNoiseLine strips every bare numeral, which here would take the
@@ -328,12 +359,25 @@ function _ocrBuild(pageTexts) {
       const lineWords = text.split(/\s+/).filter(Boolean);
       for (let w = 0; w < lineWords.length; w++) words.push(lineWords[w]);
       if (lineWords.length > 0) {
-        rawLines.push({ text: text, pageIndex: p, wordIndex: lineWordStart });
+        const entry = { text: text, pageIndex: p, wordIndex: lineWordStart };
+        /* Only claim paragraph structure when the geometry could be measured.
+           paragraphs.js treats a single truthy paraStart anywhere as proof the
+           parser recorded them all, so flagging just the first line of an
+           unmeasurable book would make the whole book one paragraph -- worse
+           than the line-length inference it would have used instead. */
+        if (geom) {
+          entry.paraStart = _isParagraphStart(line, prevKept, geom, rawLines.length === 0);
+          if (entry.paraStart) paraStarts++;
+        }
+        rawLines.push(entry);
+        prevKept = line;
       }
     }
   }
 
-  console.log('[OCR] cleaning dropped ' + dropped + ' lines of furniture');
+  console.log('[OCR] cleaning dropped ' + dropped + ' lines of furniture; '
+    + (geom ? (paraStarts + ' paragraph starts in ' + rawLines.length + ' lines')
+            : 'paragraphs left to line-length inference'));
   return { words: words, pageWordIndex: pageWordIndex, rawLines: rawLines };
 }
 
@@ -342,23 +386,25 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
 
   const o = opts || {};
   const pageCount = pdfDoc.numPages;
-  /* One recognised text per page, in page order. The reader's arrays are built
-     from these at the end, because the cleaning pass asks whether a line recurs
-     across the whole book -- a question that has no answer mid-run. */
-  let pageTexts = [];
+  /* One array of recognised lines per page, in page order, each line carrying
+     its box where the recogniser gave one. The reader's arrays are built from
+     these at the end, because the cleaning pass asks whether a line recurs
+     across the whole book -- a question that has no answer mid-run -- and the
+     paragraph geometry is measured over the whole book too. */
+  let pageLines = [];
   let startPage = 1;
 
-  /* Resume a run that was interrupted. A prefix of pageTexts is exactly what
+  /* Resume a run that was interrupted. A prefix of pageLines is exactly what
      the first N pages produced, and is trusted only if its own bookkeeping
-     agrees: the checkpoint format is versioned, so a checkpoint written before
-     the cleaning pass existed is discarded rather than misread. */
+     agrees: the checkpoint format is versioned, so one written by an older
+     parser is discarded rather than misread. */
   const resume = o.resume;
   if (resume && resume.v === OCR_CHECKPOINT_VERSION
       && resume.pagesDone > 0 && resume.pagesDone < pageCount
-      && Array.isArray(resume.pageTexts)
-      && resume.pageTexts.length === resume.pagesDone
+      && Array.isArray(resume.pageLines)
+      && resume.pageLines.length === resume.pagesDone
       && resume.pageCount === pageCount) {
-    pageTexts = resume.pageTexts;
+    pageLines = resume.pageLines;
     startPage = resume.pagesDone + 1;
     console.log('[OCR] resuming at page ' + startPage + '/' + pageCount);
   }
@@ -419,6 +465,9 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
     pending = (p < pageCount) ? _renderForOcr(pdfDoc, p + 1, OCR_LORES) : null;
 
     let pageText = '';
+    /* The recognised lines with their boxes, when the pass that produced the
+       surviving text also produced geometry. */
+    let pageLineObjs = null;
     const oStart = Date.now();
     try {
       if (rendered.base64) {
@@ -427,7 +476,9 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
           && p % OCR_RESAMPLE_EVERY === 0;
 
         if (lockedScript && lockedScript !== 'both' && !resampling) {
-          pageText = await OCREngine.recogniseBase64(rendered.base64, { script: lockedScript });
+          const single = await OCREngine.recogniseLines(rendered.base64, lockedScript);
+          pageText = single.text;
+          pageLineObjs = single.lines;
           /* A page the locked script could not read gets the other one, so
              locking can cost time but never a page. This catches a whole page
              in the other script -- the publisher page in a Hindi book, a page
@@ -437,15 +488,21 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
           if (_needsSecondOpinion(pageText, lockedScript)) {
             rescuePages++;
             const other = lockedScript === 'latin' ? 'devanagari' : 'latin';
-            const otherText = await OCREngine.recogniseBase64(rendered.base64, { script: other });
-            pageText = lockedScript === 'latin'
-              ? OCREngine.combine(otherText, pageText)
-              : OCREngine.combine(pageText, otherText);
+            const rescue = await OCREngine.recogniseLines(rendered.base64, other);
+            const merged = lockedScript === 'latin'
+              ? OCREngine.combine(rescue.text, pageText)
+              : OCREngine.combine(pageText, rescue.text);
+            /* Keep the boxes of whichever text survived whole; a merge of both
+               has no single geometry, so the page falls back to inference. */
+            if (merged === pageText) { /* unchanged */ }
+            else if (merged === rescue.text) { pageText = merged; pageLineObjs = rescue.lines; }
+            else { pageText = merged; pageLineObjs = null; }
           }
         } else {
           /* Unlocked, locked to 'both', or re-sampling: run both, keep both. */
           const both = await OCREngine.recogniseBoth(rendered.base64);
           pageText = both.text;
+          pageLineObjs = both.lines;
 
           if (resampling) {
             resamplePages++;
@@ -499,8 +556,11 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
           const hi = await _renderForOcr(pdfDoc, p, OCR_HIRES);
           if (hi.base64) {
             hiresPages++;
-            const hiText = (await OCREngine.recogniseAuto(hi.base64)).text;
-            if (hiText.length > pageText.length) pageText = hiText;
+            const hiRes = await OCREngine.recogniseBoth(hi.base64);
+            if (hiRes.text.length > pageText.length) {
+              pageText = hiRes.text;
+              pageLineObjs = hiRes.lines;
+            }
           }
         }
 
@@ -518,6 +578,9 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
             const altText = await OCREngine.recogniseBase64(imgBase64);
             if (altText.length > pageText.length) {
               pageText = altText;
+              /* A different image entirely, so its boxes would not line up with
+                 the rest of the document's geometry. */
+              pageLineObjs = null;
               if (!_ocrThin(altText)) { xobjectHelped = true; xobjectPages++; }
             }
           }
@@ -526,12 +589,15 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
     } catch (err) {
       console.error('OCR page', p, 'failed:', err);
       pageText = '';
+      pageLineObjs = null;
     }
     ocrMs += Date.now() - oStart;
     console.log('[OCR] page ' + p + '/' + pageCount + ' chars=' + pageText.length
       + ' in ' + (Date.now() - oStart) + 'ms');
 
-    pageTexts[p - 1] = pageText;
+    pageLines[p - 1] = (pageLineObjs && pageLineObjs.length)
+      ? pageLineObjs
+      : _ocrLinesFromText(pageText);
 
     /* Recorded before the checkpoint below, which is not part of the per-page
        cost and grows with the book -- counting it would make the estimate
@@ -551,7 +617,7 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
           pagesDone: p,
           pageCount: pageCount,
           lockedScript: lockedScript,
-          pageTexts: pageTexts,
+          pageLines: pageLines,
         });
       } catch (e) {
         /* A checkpoint that cannot be written is not a failed import. */
@@ -560,7 +626,7 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
     }
   }
 
-  const built = _ocrBuild(pageTexts);
+  const built = _ocrBuild(pageLines);
   const words = built.words;
   const wordCount = words.filter(function(w) { return typeof w === 'string'; }).length;
   const totalMs = Date.now() - t0;
