@@ -10,12 +10,22 @@ decision stays here or in `Claude.md`; a record of an action already taken goes 
 
 **Last updated:** 2026-11-23 — **1.5.7 / 45 built and signed, awaiting upload.** **`ocr-progressive-read`
 carries ten commits, all device-verified, and is ready to merge:** 16.32's three phases, 16.34, and
-16.35. **Merged to `master` 2026-11-23** (`41ec41b`, a merge commit, matching how the earlier feature
-branches were brought in). **Hindi signed off for those 22 strings by the owner 2026-11-23** — the
-16 tip rewrites, the 6 `ocr.*` keys, `reader.index.close` and `banner.broken_glyphs.msg` — so §16
-is clear. **Not yet in a build for the store:** versionCode 45 is built and signed from the old
-`master` and contains none of it, so the next release needs a bump, or a rebuild at 45, which Play
-permits because 45 was never *uploaded*. Device
+16.35. **Merged to `master` 2026-11-23** (`41ec41b`), with 16.33 following in `71f92ec`. **Hindi signed
+off by the owner 2026-11-23** for the 22 strings of the first branch; `reader.placeholder.table`
+came later with 16.33 and rides the same sign-off.
+
+**2026-11-23 — build 1.5.8 / versionCode 46 built and signed, NOT uploaded.** It supersedes 45,
+which was never uploaded and which contained none of this. Verified from the artifacts rather than
+the config: `versionCode='46' versionName='1.5.8'`, `targetSdkVersion:'36'`, **no
+`application-debuggable` flag** so §24's Debug section cannot render, and `apksigner` reports
+**Verifies** under the v2 scheme with the FlowRead certificate (SHA-256
+`4a5a5e5c…509d0361`). **Note for the record: `jarsigner -verify` reports "jar is unsigned" on this
+build and that is not a fault** — AGP signs with APK Signature Scheme v2 and no v1 JAR signature,
+which `jarsigner` cannot read. `apksigner` is the tool to use; the "jar verified" line in the 1.5.7
+entry below was checking something weaker.
+`release-notes-1.5.8.txt` written in all six listing locales, **every one inside Play's
+500-character limit** (longest: de-DE at 467), counted before the file was finalised rather than
+after, as the 1.5.6 overrun taught. Device
 verification, Hindi sign-off and the listing art are all cleared by the owner, which closes
 everything that was blocking this build. **Merged since:** the OCR speed/cleaning work and
 paragraph structure in Focus Bold and Simple Scroll (`reader-paragraphs`), device-verified on an
