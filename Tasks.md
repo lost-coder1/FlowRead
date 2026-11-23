@@ -8,19 +8,79 @@ decision taken. Completed work and resolved device findings live in
 **[Tasks-archive.md](Tasks-archive.md)**. The split rule: anything that would change a future
 decision stays here or in `Claude.md`; a record of an action already taken goes to the archive.
 
-**Last updated:** 2026-11-20 — **16.29 + 16.31: the investment phase, merged to `master`**
-(branch `investment-highlights`, two device passes, owner-verified). `features/highlights.js` holds the store, the mode and the range lookup; the engines tint,
-the reader owns the chrome and the list. Tap the first word, tap the last — no native selection,
-because the gesture conflict is three-way (global `user-select: none`, `word-tap.js` owns
-long-press, and in Page mode the horizontal drag *is* the page turn), and the §6 Normal view is
-canvas with no text layer at all. Swipe stays live during the mode, so a quote can straddle a page
-break. RSVP and Chunk mark the sentence instead. The list shares the index panel rather than taking
-a sixth chrome button; the count is on the library row; the share card gains a quote hero ranked
-under a named finished book. Three things testing caught: Page's capture listener died with its
-shell and had to be cleared in `_createShell`, the promised Undo was only a toast until the bar grew
-a second state, and the quote budget had to charge for the book title or a long one pushed the
-attribution off the card. **Nothing is browser-verified — device pass owed, plus Hindi sign-off on
-20 new keys.**
+**Last updated:** 2026-11-23 — **1.5.7 / 45 built and signed, awaiting upload.** Device
+verification, Hindi sign-off and the listing art are all cleared by the owner, which closes
+everything that was blocking this build.
+
+**2026-11-23 — build 1.5.7 / versionCode 45** (`master`, from `store-promo-video` merged in).
+Carries 16.21–16.31. Verified from the artifact rather than the config: versionCode 45,
+targetSdk 36, `jar verified`, and **no `application-debuggable` flag**, so §24's Debug section
+cannot render in it. `release-notes-1.5.7.txt` written in the listing's six locales, every one
+inside Play's **500-character** limit — the 1.5.6 notes ran 547–602 in all but Japanese, so they
+were truncated or hand-trimmed in the console. Two things worth keeping:
+- **45 was built once before, at `c5c7bc0`, and left to go stale** while the investment phase landed
+  on top of it. A versionCode that was built but never *uploaded* may be rebuilt at the same number;
+  Play only refuses one it has already received.
+- **The §24 check has a structural half and a literal half.** The structural half is provable from
+  the artifact and was: `Capacitor.DEBUG` comes from the native debuggable flag, `minifyEnabled true`
+  makes a release build non-debuggable, `settings.js:480` gates on `isDebugBuild()`, and `aapt2`
+  reports no debuggable flag. The literal half — opening Settings on the installed APK — still needs
+  a device.
+
+**2026-11-23 — cleared by the owner.** Device verification is current, including the four branches
+that had never had a pass (`nudge-book-selection-fix`, `reader-type-preset`,
+`feature-discovery-tips`, `paywall-placements`) plus the nudge gate's page counting and the session
+recorder. **Hindi is signed off**, all 38 investment keys and the 16.1 / 16.3 strings — provisionally,
+to be revisited on user feedback. **The listing art is uploaded**: 8 screenshots and the 1024×500
+feature graphic. The device's recording-session leftovers are fine as they are.
+
+**2026-11-22/23 — the store promo video** (`video/`, branch `store-promo-video`, merged). Four
+renders off two compositions: English and Hindi, landscape and vertical. New §27 in `Claude.md`
+holds the rules; the short version is that the edit is never duplicated (orientation is layout,
+locale is copy, every on-screen word lives in `strings.ts`) and nothing zooms the footage. Five
+things the work established that would otherwise be re-learned:
+- **A zoom inside a fixed phone crops the app's own chrome.** The engine tab row disappeared that
+  way. Where a screen must be bigger the camera scales the *whole device*.
+- **The push is capped by §8.1, not by taste.** At 1.40 it cut off "Continue to Instagram anyway"
+  while the next caption said *"Always your choice"*.
+- **Reels and Shorts own the bottom fifth.** Every call to action sat below the 1536px line until it
+  was measured; all three are above it now.
+- **The feed is drawn.** A live capture pulled in a stranger's account, their post about a divorce
+  and their engagement counts — not ours to publish, and drawing it avoids another company's marks.
+- **Encoding, not resolution, was what made the vertical look soft.** JPEG frames at quality 80 were
+  spending a lossy generation on small app text, and the default CRF gave the vertical cut *fewer*
+  bits while it carried 2.2× the fine detail. PNG frames at CRF 15; both cuts gained ~80% bitrate.
+
+**Owed on the video:** the Hindi end-card copy (tagline, three features, store line) is drafted, not
+signed — the script stopped at "FlowRead". The highlight beat wants re-shooting on a Hindi book,
+since the footage under the Hindi captions is English. Google asks for its own Play badge unaltered;
+ours is drawn, and swapping it is a one-line change once the official PNG is in `video/public/`.
+
+**2026-11-21 — two device-reported defects, fixed** (`95df08d`, merged). (1) A highlight opened its
+book at the *end*: `resumeFromLibrary` forwarded only `forceEngine`, so `renderReader` fell back to
+`loadPosition()`, and §4.2 makes a finished book's position its word count. The fix forwards
+`startIndex` **only when the caller supplied one** — carrying the completed-book reset through as
+well would open a finished book at word zero, and `pause()` saves on exit, so merely opening one and
+backing out would write position 0 and strip the book of its Read status. That remaining defect is
+documented in place and left alone: it is a product decision about re-reading, not part of this fix.
+(2) `computeStreak` returned 0 for anyone who had not read *yet today*, because the walk started at
+today and stopped on the first miss. It starts at yesterday when today is absent — a day in progress
+is not a broken streak. Device-verified: streak 0 → 2 on real data, and a highlight landing at word
+5,000 instead of 350,665.
+
+**2026-11-20 — 16.29 + 16.31: the investment phase, merged to `master`** (branch
+`investment-highlights`, two device passes, owner-verified). `features/highlights.js` holds the
+store, the mode and the range lookup; the engines tint, the reader owns the chrome and the list.
+Tap the first word, tap the last — no native selection, because the gesture conflict is three-way
+(global `user-select: none`, `word-tap.js` owns long-press, and in Page mode the horizontal drag
+*is* the page turn), and the §6 Normal view is canvas with no text layer at all. Swipe stays live
+during the mode, so a quote can straddle a page break. RSVP and Chunk mark the sentence instead.
+The list shares the index panel rather than taking a sixth chrome button; the count is on the
+library row; the share card gains a quote hero ranked under a named finished book. Three things
+testing caught: Page's capture listener died with its shell and had to be cleared in
+`_createShell`, the promised Undo was only a toast until the bar grew a second state, and the quote
+budget had to charge for the book title or a long one pushed the attribution off the card.
+**Device-verified and Hindi-signed-off 2026-11-23; shipping in 1.5.7 / 45.**
 
 **Device pass 1, 2026-11-20 — three findings, all fixed.** (1) The highlights section in the index
 panel was an uncapped flex item, and a flex item will not shrink below its content, so the search

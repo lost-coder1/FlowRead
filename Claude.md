@@ -90,6 +90,7 @@ www/
              celebration.js · dictionary.js · morphology.js · saved-words.js
              highlights.js · share-handler.js
 worker/            — §8.6's receiver (Worker + D1 + wrangler.toml). Not in the app bundle.
+video/             — §27's store promo (Remotion). Not in the app bundle; `out/` is gitignored.
 android/app/src/main/java/com/flowread/app/
   FlowReadIapPlugin.java · FlowReadOcrPlugin.java · FlowReadDeviceSyncPlugin.java
   MainActivity.java · FlowReadNudgePlugin.java · FlowReadWidgetProvider.java
@@ -704,7 +705,7 @@ stands***; completed detail is in `Tasks-archive.md`.
 | 16.7 | Offline-triggered reading notification | 10 |
 | 16.8 | Home screen widget | 11 |
 | 16.9 | Home screen reorder (in-progress first) | — |
-| 16.10 | Store listing rewrite onto the habit framing | 0 |
+| 16.10 | Store listing rewrite onto the habit framing; art and promo video | 0, 27 |
 | 16.12–16.17 | Page-mode pagination rewrite · paragraph structure + Page as default · chapter detection · styled headings · catalogue covers on the card · last-page completion | 4.1, 5, 14 |
 | 16.18–16.20 | Reading plans (daily page target) · streak freeze · reclaim a lost streak | 3 |
 | 16.21–16.22 | Nudge opened the wrong book + three miscounted pages · reading stats | 8.2, 8.5, 19 |
@@ -720,8 +721,8 @@ stands***; completed detail is in `Tasks-archive.md`.
   (§1.3).
 - **Reading-plan page targets** — 2 / 10 / 20 is the owner's sketch, not signed off (16.18).
 - Leaderboard backend (Q5) · widget classic vs Glance (Q7) · exact copy for the offline notification.
-- **Hindi copy sign-off** for the 16.1 and 16.3 strings — drafted rather than left as key names, since
-  §16 means a missing key renders raw.
+- ~~**Hindi copy sign-off** for the 16.1 and 16.3 strings~~ — signed off 2026-11-23, provisionally,
+  to be revisited on user feedback (§21). The §27 end-card copy is still drafted, not signed.
 
 ---
 
@@ -783,31 +784,41 @@ is current.**
 - **The pivot is released.** 1.5.4 / versionCode 42 went to production 2026-11-02 at a **20% staged
   rollout**, clearing builds 33–42. Privacy policy rewritten, version-controlled as
   `privacy_policy.html`, published. **Check whether the rollout has advanced past 20%.**
-- **Latest build: 1.5.6 / 44** (2026-11-17). **The first build in which §8.6's pings actually send**
-  (`ENDPOINT` is filled). **Both compliance items cleared 2026-11-21:** Play Data safety re-filed as
-  *Optional*, and the amended `privacy_policy.html` re-published to its hosted URL. **Re-publishing is
-  a manual step that committing the file does not perform** — §8.6's two allowlist copies and the
-  published policy must keep changing together, so any future amendment owes it again.
+- **Latest uploaded build: 1.5.6 / 44** (2026-11-17). **The first build in which §8.6's pings
+  actually send** (`ENDPOINT` is filled). **Both compliance items cleared 2026-11-21:** Play Data
+  safety re-filed as *Optional*, and the amended `privacy_policy.html` re-published to its hosted
+  URL. **Re-publishing is a manual step that committing the file does not perform** — §8.6's two
+  allowlist copies and the published policy must keep changing together, so any future amendment
+  owes it again.
+- **1.5.7 / 45 is built and signed, not yet uploaded** (2026-11-23, `master`). Carries tasks
+  16.21–16.31: the investment phase (highlights, saved words, dictionary morphology), the
+  celebration, discovery tips, paywall placements, the reader profile, and the two device-reported
+  defects — a highlight opening its book at the end instead of at the quote, and a streak reading
+  zero before the day's first page. Verified from the artifact, not the config: versionCode 45,
+  targetSdk 36, `jar verified`, **no `application-debuggable` flag**, so §24's Debug section cannot
+  render in it. Notes in `release-notes-1.5.7.txt`.
+  - **A versionCode that was built but never uploaded may be rebuilt at the same number.** 45 was
+    built once at `c5c7bc0` and left to go stale while the investment phase landed on top of it.
+    Play only refuses a versionCode it has already *received*.
+  - **Play's "What's new" is 500 characters per language.** The 1.5.6 notes ran 547–602 in every
+    locale but Japanese, so they were truncated or hand-trimmed in the console. Check the count
+    before writing the file, not after.
 - **1.5.5 / 43** carried the Page-mode rewrite, paragraph structure with **Page as the default
   engine**, chapter detection, styled headings, catalogue covers, last-page completion, and the
-  catalogue's growth to 150 books. **This is the build to watch, because Page mode stopped being
-  optional** — and two of those changes touch state that outlives a session: the layout grid went
-  v2 → v3 (every book re-measures once), and `_savePos` decides whether a book counts as **read**, so
-  a defect there moves books into the library's Read section and fires §14's completion milestone.
-  **Device-verify both before advancing the rollout.**
-- **Unreleased on top of 44:** tasks 16.21–16.31, all now on `master`. 16.29 and 16.31 (the
-  investment phase — highlights, saved words, dictionary morphology) merged 2026-11-20 after two
-  device passes; the earlier branches `nudge-book-selection-fix`, `reader-type-preset`,
-  `feature-discovery-tips` and `paywall-placements` are still **not device-verified**. A device run
-  should look directly at the nudge gate's page counting (a backward swipe used to unlock the app
-  outright) and the session recorder (a backward jump used to discard a streak day), plus the
-  onboarding Hindi on a narrow screen.
-- **Hindi sign-off owed on 38 keys** from the investment work, on top of the 16.1 and 16.3 strings
-  §18 already lists. §16 means an unsigned key is not a cosmetic debt: a missing one renders raw.
-- **Still owed on the listing:** 8 screenshots and the 1024×500 feature graphic (16.10). Never a
-  release gate, and they can only honestly be captured from the build being shipped.
-- **Immediate priority:** device-verify 1.5.5/43, then **16.4 Phase C → D** (remote catalogue, then
-  the drops), which closes §3's stated gap. **16.8 (widget) is deferred by the owner** until there is
+  catalogue's growth to 150 books. Two of those changes touch state that outlives a session: the
+  layout grid went v2 → v3 (every book re-measures once), and `_savePos` decides whether a book
+  counts as **read**. Device-verified by the owner; no longer a watch item.
+- **Device verification is current as of 2026-11-23** (owner). The branches that were outstanding —
+  `nudge-book-selection-fix`, `reader-type-preset`, `feature-discovery-tips`, `paywall-placements` —
+  are verified, along with the nudge gate's page counting and the session recorder.
+- **Hindi is signed off as of 2026-11-23** (owner), including the 38 investment keys and the 16.1 /
+  16.3 strings. Signed off **provisionally — revisit on user feedback**, which is a copy judgement
+  and not a licence to let a key go missing: §16 still means an absent key renders raw.
+- **The listing's art is uploaded** (16.10): 8 screenshots and the 1024×500 feature graphic, built
+  by `scripts/store-art/build.py`. The promo video is four cuts, English and Hindi in both
+  orientations (§27).
+- **Immediate priority:** upload 1.5.7 / 45, then **16.4 Phase C → D** (remote catalogue, then the
+  drops), which closes §3's stated gap. **16.8 (widget) is deferred by the owner** until there is
   traction; **16.5 (leaderboard)** needs Q5 and a backend.
 - **Platforms:** Android first. iOS store setup not started; no iOS path planned for the nudge system
   or the widget.
@@ -1207,6 +1218,45 @@ collected somewhere and retires on the first visit. They are separate because §
 tap do what its sentence describes, and sending "tap the highlighter" to a list is a non-sequitur. And a highlight is the one thing here that gives a
 notification something true and specific to say, which is exactly how it becomes nagging: §10's
 discipline applies, and "revisit your highlights" must never fire on a book touched an hour ago.
+
+---
+
+## 27. The store promo video
+
+`video/` is a Remotion project, outside the app bundle. **Four renders come off two compositions:**
+orientation is layout, locale is copy, and the edit is not duplicated. Beats, timings, clips and the
+bed live in `Promo.tsx`; `PromoVertical.tsx` imports them and changes only position; **every word on
+screen lives in `strings.ts`.** A caption changed in one place must not need changing in four.
+
+1. **Nothing zooms or pans the footage.** A screen recording already moves, and a zoom inside a
+   fixed phone crops the app's own chrome — the engine tab row went missing that way. Where a screen
+   needs to be bigger, the camera **scales the whole device**, so the layout is never cropped and
+   never reflows, and it holds still for the beat rather than drifting through it.
+2. **The push stops where the escape hatch does.** At 1.40 landscape it cut off "Continue to
+   Instagram anyway" while the next caption claimed *"Always your choice"*. §8.1 is a product rule
+   and a promo whose footage contradicts its caption is worse than one with small text.
+3. **The vertical cut's bottom fifth belongs to the platform.** Reels and Shorts cover it with
+   captions, the handle and the audio bar. **No call to action may sit below 1536px.** Every one of
+   them did, once.
+4. **The feed is drawn, never recorded.** A real capture put a stranger's account, their post and
+   their engagement counts into a store listing, which is not ours to publish, and drawing it keeps
+   the video clear of another company's marks.
+5. **The bed is normalised in `public/audio`, not attenuated in the composition**, and fades are in
+   frames against `durationInFrames` so a runtime change cannot strand them.
+6. **Frames render as PNG at CRF 15.** JPEG frames spent a lossy generation on small app text before
+   the encoder saw it, and the default CRF handed the vertical cut fewer bits than the landscape one
+   while it carried 2.2× the fine detail.
+7. **Noto Sans Devanagari is bundled, not fetched** — appended to the font stack as a per-glyph
+   fallback the way `css/base.css` does it, so Latin words keep the Latin face inside a Hindi line.
+8. **Caption staggers scale to the time available.** Fixed per-word offsets put a long line's exit
+   after its own end; Hindi found it first only because the same sentence takes more words.
+
+**Remotion is not MIT.** Free for companies of three people or fewer, including commercial use; four
+or more needs a paid licence, and the terms change in 5.0. The plugin is MIT; the library is not.
+
+**Owed:** the Hindi end-card copy (tagline, the three features, the store line) is **drafted, not
+signed off** — the script stopped at "FlowRead". The highlight beat should be re-shot on a Hindi
+book, since the footage under the Hindi captions is still English.
 
 ---
 
