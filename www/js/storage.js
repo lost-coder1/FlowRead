@@ -58,13 +58,20 @@ function loadPosition(fileId) {
    measures nothing at all. The key carries the typography and the viewport as
    well as the file, so a rotation or a font change misses cleanly instead of
    restoring a grid that no longer fits the screen. */
+/* The stored version. Bumped whenever anything changes what occupies vertical
+   space, since a grid from before the change describes a layout that no longer
+   exists (§4.1): v2 paragraphs, v3 headings, v4 a bare numeral as its own
+   paragraph, v5 a split line no longer breaking a paragraph. The file id is
+   derived from content, so re-importing the same book lands on the same key --
+   the version is what keeps a stale grid out, not the key. */
+const PAGE_LAYOUT_VERSION = 5;
 const PAGE_LAYOUT_PREFIX = 'fr_page_layout_';
 const PAGE_LAYOUT_MAX = 10;
 
 function savePageLayout(key, starts, wordCount) {
   try {
     localStorage.setItem(PAGE_LAYOUT_PREFIX + key, JSON.stringify({
-      v: 4, starts: starts, words: wordCount, ts: Date.now(),
+      v: PAGE_LAYOUT_VERSION, starts: starts, words: wordCount, ts: Date.now(),
     }));
   } catch (e) {
     /* Quota, or storage blocked entirely. This is a cache: losing it costs one
@@ -94,7 +101,7 @@ function _readPageLayout(key, wordCount) {
        added chapter headings, v4 made a bare numeral its own paragraph (which
        moves an indent, and gives scanned books their chapter headings). Each
        moves page boundaries through the book. */
-    if (!entry || entry.v !== 4 || !Array.isArray(entry.starts) || entry.starts.length === 0) return null;
+    if (!entry || entry.v !== PAGE_LAYOUT_VERSION || !Array.isArray(entry.starts) || entry.starts.length === 0) return null;
     /* A file re-imported under the same id can hold different text, and the
        stored boundaries would then point into the wrong words. */
     if (typeof wordCount === 'number' && entry.words !== wordCount) return null;

@@ -255,6 +255,7 @@ function measureParagraphGeometry(allPageData, headerFooterSet) {
   const em = Math.max(4, width / 60);
 
   return {
+    em: em,
     indentFrom: bodyLeft + em * 1.2,
     shortBefore: bodyRight - em * 3,
   };
@@ -263,6 +264,22 @@ function measureParagraphGeometry(allPageData, headerFooterSet) {
 function _isParagraphStart(line, prevKept, paraGeom, isFirstLine) {
   if (isFirstLine) return true;
   if (!paraGeom) return false;
+  /* A line beginning where the previous one ended is the same visual line split
+     in two, not a new paragraph. groupIntoLines separates on a 3-unit baseline
+     difference, so a word sitting fractionally off its baseline -- which a PDF
+     does routinely for the last word before a full stop -- becomes a line of
+     its own. That leaves the line before it short of the right margin and the
+     fragment itself looking indented, so both tests below fire and a paragraph
+     appears to begin on the last word of a sentence. Catches the split either
+     way round, since the stray word may lead the line as easily as end it.
+     Cost: a real indented paragraph whose predecessor ended within two ems of
+     the left margin -- a last line of one short word -- is missed, merging two
+     paragraphs, which is the failure §5 already accepts as the lesser one. */
+  if (prevKept && typeof line.x0 === 'number' && typeof prevKept.x1 === 'number'
+      && line.x0 > paraGeom.indentFrom
+      && Math.abs(line.x0 - prevKept.x1) <= paraGeom.em * 2) {
+    return false;
+  }
   /* This line is indented. */
   if (typeof line.x0 === 'number' && line.x0 > paraGeom.indentFrom) return true;
   /* The line before it stopped well short of the right margin, so it ended its
