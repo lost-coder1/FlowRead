@@ -167,6 +167,7 @@
   "error_modal.no_internet.title": "No internet connection",
   "error_modal.no_internet.msg": "URL Reader requires internet for the initial fetch. Connect to the internet and try again.",
   "error_modal.invalid_url.title": "Invalid URL",
+  "banner.broken_glyphs.msg": "Some letters in this PDF came through wrong. Reading it with OCR fixes them.",
   "banner.legacy_encoding.msg": "Text looks wrong? This PDF may need OCR to read correctly.",
   "banner.legacy_encoding.btn.fix": "Fix with OCR",
   "banner.legacy_encoding.btn.dismiss": "✕",

@@ -434,6 +434,7 @@ function buildOcrPrefix(pageLines, pages, fullPageCount) {
       hasTextLayer: true,
       sourceType: 'pdf-ocr',
       hasLegacyEncoding: false,
+      hasBrokenGlyphs: false,
       title: '',
       /* The flag every other system keys off. Its presence is what suppresses
          the completion floor (§4.2), keeps book_finished unfired (§8.6) and
@@ -767,6 +768,7 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
          file and the reader shows a banner offering to fix the text with OCR --
          the five minutes the user has just waited through. */
       hasLegacyEncoding: false,
+      hasBrokenGlyphs: false,
       title: '',
     },
   };

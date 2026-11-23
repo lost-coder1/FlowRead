@@ -426,9 +426,14 @@ var FreeBooksView = (function() {
        (a) no text layer at all (scanned PDF),
        (b) text layer exists but uses legacy Indic font encoding detected by heuristics,
        (c) catalog entry explicitly marks requiresOcr:true — for PDFs whose encoding
-           evades the heuristics but are known to produce garbage text.
+           evades the heuristics but are known to produce garbage text,
+       (d) the text layer is Unicode but a measurable share of it is outside the
+           scripts this catalogue is written in — वीजा का इंतजार emits a raw glyph
+           code for every conjunct, so the page reads `मु摯戠ण` for `मुद्रण` (16.35).
+           OCR reads the printed glyphs, which are correct.
        No paid-access check: OCR add-on gates user-uploaded documents, not curated catalog books. */
-    if (!result.metadata.hasTextLayer || result.metadata.hasLegacyEncoding || book.requiresOcr) {
+    if (!result.metadata.hasTextLayer || result.metadata.hasLegacyEncoding
+        || result.metadata.hasBrokenGlyphs || book.requiresOcr) {
       showLoading(t('loading.running_ocr'));
       showToast(t('toast.ocr_keep_open'));
       acquireWakeLock();

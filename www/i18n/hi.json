@@ -167,6 +167,7 @@
   "error_modal.no_internet.title": "Internet connection नहीं है",
   "error_modal.no_internet.msg": "URL Reader को article पहली बार लाने के लिए internet चाहिए। Internet connect करके फिर try करें।",
   "error_modal.invalid_url.title": "URL सही नहीं है",
+  "banner.broken_glyphs.msg": "इस PDF के कुछ अक्षर गलत आए हैं। OCR से पढ़ने पर वे ठीक हो जाते हैं।",
   "banner.legacy_encoding.msg": "टेक्स्ट गलत दिख रहा है? इस PDF को सही पढ़ने के लिए OCR चाहिए हो सकता है।",
   "banner.legacy_encoding.btn.fix": "OCR से ठीक करें",
   "banner.legacy_encoding.btn.dismiss": "✕",

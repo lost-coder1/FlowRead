@@ -15,9 +15,13 @@ paragraph structure in Focus Bold and Simple Scroll (`reader-paragraphs`), devic
 English PDF and two Hindi books. **Opened by the owner from that run:** 16.32 (read a scan while it
 is still being OCR'd) and 16.33 (table detection firing on single words).
 **Opened 2026-11-23 from a later device run:** 16.34 (the index panel has no close
-affordance) and 16.35 (OCR of *वीजा का इंतजार* emits CJK characters between the Hindi words).
-**16.32 is in progress on `ocr-progressive-read`**, split into a wait-screen phase and a
-prefix-read phase; see the task for why.
+affordance) — **built and device-verified the same day** — and 16.35, whose report has since been
+corrected by the owner: *वीजा का इंतजार* is **not** an OCR book at all. It is a normal text-layer
+PDF, so the stray characters come from `pdf.js` extraction, not from ML Kit. Diagnosed and fixed
+2026-11-23; see the task.
+**16.32 is on `ocr-progressive-read`, all three phases built and device-verified** — the wait
+screen, the 20-page prefix read, and the progressive extension the owner asked for after testing
+Phase 2.
 
 **2026-11-23 — build 1.5.7 / versionCode 45** (`master`, from `store-promo-video` merged in).
 Carries 16.21–16.31. Verified from the artifact rather than the config: versionCode 45,
@@ -437,8 +441,8 @@ The **2026-08-31** deadline had already passed when this work started, leaving t
 
 ## Task 16.32 — Read a scanned book while it is still being OCR'd
 
-**Split into two phases 2026-11-23, on `ocr-progressive-read`. Phase 1 is built; Phase 2 is the
-task as written below.** The split is not bookkeeping: Phase 1 touches no word index and is
+**Split into phases 2026-11-23, on `ocr-progressive-read`. All three are built and device-verified
+(Phase 3 was added by the owner after testing Phase 2).** The split is not bookkeeping: Phase 1 touches no word index and is
 shippable on its own, while Phase 2 changes six systems that all key off one, and holding the
 cheap half hostage to the device round the expensive half needs would be a choice to ship
 neither.
@@ -481,9 +485,9 @@ renders, wraps to three lines without truncation, rotates, and samples at exactl
 (`--text-muted`) — the same value as the page counter above it, so §15 holds. It reads brighter
 only because it is 14px Roboto against 13px DM Mono at weight 300.
 
-### Phase 2 — the 20-page prefix read
+### Phase 2 — the 20-page prefix read. ✅ built 2026-11-23, device-verified
 
-**Open. Asked for by the owner 2026-11-23**, and the original question behind the whole OCR speed
+**Asked for by the owner 2026-11-23**, and the original question behind the whole OCR speed
 branch: *"say I have a scanned PDF of 100 pages, it first converts every page 100/100 then only we
 can read them."* Speed work took a 435-page Hindi scan from ~4.1 min to ~3.1 min and made the wait
 legible (a real progress bar, a smoothed `~m:ss`, resumable checkpoints every 20 pages), **but the
@@ -552,6 +556,53 @@ already exists.
 minutes of actual reading for 20 pages. **OCR almost always finishes first** — reaching the prefix
 end is the skimmer and the 1,000-page scan, not the common path. It still has to be right.
 
+### Phase 3 — the prefix grows, and running out of pages says so. ✅ built 2026-11-23, device-verified
+
+**Asked for by the owner after testing Phase 2**, on a point the design had missed: the first
+twenty pages of a scan are mostly title, acknowledgements, contents and foreword, so they are
+skimmed in a minute and the reader is back to waiting for the whole book. The prediction above —
+that reaching the prefix end is the skimmer and not the common path — was **wrong for exactly that
+reason**, and it was wrong in the design, not in the measurement.
+
+- **The offer is a live handle, not a one-shot thunk.** `pagesDone()` reports where the run has
+  reached and `build(n)` takes any prefix of it; each is a whole book to `_ocrBuild` exactly as the
+  first was, which is the same property Phase 2 rests on.
+- **An extension keeps `ocrPartial`, with a new `pagesDone`.** A longer partial book is still
+  partial. Clearing the flag there would re-enable completion, `book_finished` and Normal view's
+  full page range over forty pages of four hundred — the defect Phase 2 exists to prevent,
+  reintroduced by the feature that extends it.
+- **Arriving at the end of the batch and trying to move past it are two different moments.** They
+  were one call at first. Arriving only *opens* the offer; a forward turn, swipe or playback end is
+  what adds pages. Merged, the offer sat in the reader's peripheral vision mid-chapter.
+- **Nothing is added under a reader who did not ask.** Adding reflows the book, and the two builds
+  disagree about furniture, page numbers, paragraph starts and headings.
+- **Progress is recorded and never drawn** (owner, after seeing it on device). A counter climbing
+  at the top of the page is movement in the reader's peripheral vision, about a background job they
+  had already chosen to ignore. The bar changes state when the *reader* arrives somewhere, not when
+  the run does; mid-book it is one static line.
+
+**Two defects found by the work rather than reported:**
+- **The four playback engines marked a partial book Read.** `_handleEnd` writes
+  `savePosition(id, _words.length)`, which *is* the threshold `isFileFullyRead()` tests, so playing
+  a partial book to the end of its twenty pages marked a 400-page book finished in the library.
+  Page mode's floor was guarded in Phase 2; these four were the same defect behind four more doors.
+  Fixed via `OcrProgressive.interceptEnd()`.
+- **The background run kept writing to the shared loading overlay.** That label has **seven
+  writers** — the OCR counter, free-books' download percentage and page-parse counter, and four in
+  `upload.js` — and before Phase 2 only one could ever run at a time. The owner saw "page 19",
+  "page 235", "page 20" alternating and reported it as a Hindi page-numbering bug; it was neither
+  Hindi nor page numbering, just two counters in one label. The run now reports to the reader's own
+  bar once the prefix is taken.
+
+**One report investigated and closed without a fix:** the reader appearing to jump a few pages on
+an extension or swap. Two suspects were measured and both cleared — the builds' cleaning difference
+is **six words** (reproduced offline against the real `_ocrBuild`), and Page mode's in-memory layout
+grid cannot be reused on `init` because `_buildComplete` is set false before the check that reads
+it, while the *stored* grid is already word-count guarded. A temporary `[OCR-JUMP]` diagnostic was
+shipped to the device, the owner accepted the behaviour, and it was removed (405d909, aaa72af). The
+likely explanation is benign: a larger build detects more chapter headings, each an `em`-sized block,
+so the same word legitimately sits on a different page *number*.
+
 ---
 
 ## Task 16.33 — Table detection fires on single words
@@ -578,9 +629,9 @@ rather than guessing a threshold.
 
 ---
 
-## Task 16.34 — The index panel has no way to close itself
+## Task 16.34 — The index panel has no way to close itself. ✅ built 2026-11-23
 
-**Open. Reported by the owner 2026-11-23:** tapping the index button opens the right-hand panel,
+**Reported by the owner 2026-11-23:** tapping the index button opens the right-hand panel,
 but the panel carries no close control — the only way out is to find the index button again and
 tap it a second time. The button *is* a toggle, so nothing is broken; what is missing is any sign
 that it is one.
@@ -597,43 +648,90 @@ Two constraints it inherits:
   sits wrong at small sizes and no string may name the character. Inline SVG that inherits
   `currentColor`, so the open/`.active` state needs no extra colour rule.
 
-Worth checking in the same pass whether the panel closes on a tap outside itself and on hardware
-back (§18 lists hardware back handling as shipped); if it does, this is purely a discoverability
-defect and the cross is the whole fix.
+**Built as specified.** `reader.index.close` in both locales; Hindi follows the file's existing
+register, which already keeps "Index" in English next to "Chapters खोजें". Two things the
+implementation turned up:
+
+- **The label is hidden, never removed.** It is what gives the button its width, and since the
+  reader header does not wrap, a button that resized on a tap would shift the filename and the
+  highlighter beside it on every open. The cross is absolutely positioned *over* the label, so the
+  box is identical in both states — the same constraint the task anticipated, but it bites on the
+  swap too, not only on a new button.
+- **The sync belongs in `_toggleIndexPanel`, not the click handler.** Every open and close already
+  funnels through that function, including the two callers that close the panel on a chapter or
+  highlight jump. In the click handler, those two would have left a cross on a closed panel.
 
 ---
 
-## Task 16.35 — OCR of *वीजा का इंतजार* puts CJK characters between the Hindi words
+## Task 16.35 — *वीजा का इंतजार* shows CJK characters between the Hindi words. ✅ fixed 2026-11-23
 
-**Open. Reported on device by the owner 2026-11-23.** The catalogue PDF *वीजा का इंतजार* ("Waiting
-for a Visa", one of the 23 off-site Ambedkar entries) OCRs with Chinese-looking characters
-scattered between correctly recognised Devanagari words.
+**Reported on device by the owner 2026-11-23, and the report was corrected by them the next
+message: the book does *not* go through OCR.** It is a normal text-layer PDF in the catalogue, read
+by `pdf.js` on the ordinary parsing path. That correction is what made the task tractable — the
+original note reasoned about ML Kit recognizers, and ML Kit is not involved at all.
 
-**What makes this worth a task rather than a threshold tweak:** `FlowReadOcrPlugin.java` builds
-exactly two recognizers — `DevanagariTextRecognizerOptions` and Latin `TextRecognizerOptions.DEFAULT_OPTIONS`
-— and ships no CJK model at all. So nothing in the pipeline has a Chinese vocabulary to draw on,
-and the characters cannot be a recognizer picking the wrong language. Two candidates remain, and
-they belong to different owners:
+**The distinguishing test the task demanded was run first, and it answered in one go.** Logging
+codepoints rather than glyphs over all 15 pages:
 
-1. **The ML Kit Devanagari model really is emitting those codepoints** as misreadings of dense
-   glyph clusters — a parser-side problem, and the only honest answer would be to drop characters
-   outside the scripts the recognizer was asked for.
-2. **The codepoints are not CJK at all** and the WebView is font-falling-back to a CJK face for
-   some Devanagari or punctuation codepoint the bundled Noto Sans Devanagari does not cover — a
-   §15 font-stack problem in `css/base.css`, with the OCR text entirely correct.
+| block | count | sample |
+|---|---|---|
+| Devanagari | 26,994 | correct |
+| ASCII | 25,518 | correct |
+| **CJK Unified** | **3,883** | 摯 U+646F · 戠 U+6220 · 摡 U+6461 |
+| arrows, Kana, U+FFFF, U+10000 | ~1,000 | ⤧ U+2927 · え U+3048 |
 
-**The distinguishing test is cheap and must come first: log the codepoints, not the glyphs.**
-`[...str].map(c => c.codePointAt(0).toString(16))` over an affected line says which of the two it
-is in one run, and the answer decides who fixes it. Guessing a filter first would silently delete
-real text if the truth is (2).
+**It is not a font fallback, and the codepoints say which.** U+646F is the two bytes `0x64 0x6F`;
+U+6220 is `0x62 0x20`; U+3048 is `0x30 0x48`. Every stray value is **two bytes glued into one
+UTF-16 unit** — the signature of a glyph with no `ToUnicode` entry, whose raw code `pdf.js` emits
+as-is. So candidate (2) in the original note is dead: the text layer genuinely holds these
+codepoints, and no font stack can rescue it.
 
-**Reproducible without a device file** — the book is in `www/data/free-books.json`, so the PDF can
-be fetched and run through the same path in a browser.
+**What is actually broken is one glyph class: the conjuncts.** `मुद्रण` extracts as `मु摯戠ण` — the
+`द्र` ligature is the missing mapping. Hindi conjuncts are everywhere, which is why ~12% of the
+Devanagari is destroyed while the surrounding letters are perfect.
 
-**If it is (1):** a script-aware filter belongs next to §6's existing script scoring rather than as
-a new rule of its own, and it must be written as an allowlist of the scripts requested (Devanagari,
-Latin, digits, punctuation) — never a blocklist of CJK, which would leave every other stray block
-in the text.
+**Why nothing already in the parser caught it:** `junkRatio` counts a token as a real word when it
+holds two or more Devanagari letters, and `मु摯戠ण` holds three. That rule is *correct* — it is what
+stopped clean Hindi PDFs being declared scanned (§5) — and loosening it to catch this would undo
+that fix. `hasLegacyEncoding` is also right to say no: the encoding is Unicode, not KrutiDev.
+
+**Recovery was considered and rejected.** The two-byte values are glyph codes in the font's own
+encoding (`0x64 0x6F` = `do` for `द्र`), which differs per PDF, so there is nothing general to map
+back through.
+
+**The fix:** a `strayGlyphRatio` next to the existing scoring in `pdf.js`, as an **allowlist** of
+the scripts this catalogue is written in — Devanagari and its extension, printable ASCII, Latin-1
+and Latin Extended A/B, common punctuation, a few currency marks, zero-width joiners. Never a CJK
+blocklist: this one book also emits Kana, arrows and U+FFFF, and a blocklist would leave all of it.
+
+**The threshold is 2%, chosen from measurement across six catalogue PDFs, not from taste:**
+
+| book | stray ratio | `hasBrokenGlyphs` |
+|---|---|---|
+| वीजा का इंतजार | **14.83%** | **true** |
+| भारत में जातिप्रथा (clean Hindi text layer) | 0.0000% | false |
+| *Annihilation of Caste* (English) | 0.0000% | false |
+| three Hindi scans with no text layer | 0.0000% | false |
+
+The separation is total, so 2% sits an order of magnitude below the defect with room for a book
+carrying a few legitimate stray symbols. **Whole-document, not worst-page:** one corrupt page in
+five hundred is not worth re-OCR'ing a book over.
+
+**Where it routes:** `free-books.js` already auto-OCRs on `hasLegacyEncoding`, with no paid-access
+check, so the new flag joins that condition and this book now reads through OCR — which recognises
+the *printed* glyphs, and those are correct. For a self-imported PDF it raises the existing
+dismissible banner with its own message, following the decision recorded in `pdf.js` that a flag
+like this must **not** force `hasTextLayer` false: a 500-page English PDF should not be re-OCR'd
+behind the user's back. `showLegacyEncodingBanner()` became `showGarbledTextBanner(msgKey)` — two
+faults, one remedy, one banner, and the message says which fault you have.
+
+**Verified against the shipping `parsePDF`**, not a reimplementation of the rule: `strayGlyphRatio
+=0.1483 hasBrokenGlyphs=true` for the book, `0.0000`/`false` for the other five.
+
+**Worth knowing for the catalogue:** `free-books.json` has a `requiresOcr` flag for exactly this
+situation — "PDFs whose encoding evades the heuristics". It was not used here because the heuristic
+now catches the book generically, which is better, but any future book with a *different*
+extraction fault can be pinned with that flag without code.
 
 ---
 

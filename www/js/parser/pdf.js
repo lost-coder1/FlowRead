@@ -188,6 +188,54 @@ async function parsePDF(arrayBuffer) {
 
   const hasLegacyEncoding = hasIndicSpecialChars || hasLegacyFontName;
 
+  /* Stray-script detection — a *different* failure from legacy encoding, and the
+     one behind task 16.35.
+
+     The catalogue's वीजा का इंतजार has a genuine Unicode Devanagari text layer,
+     so it is not legacy-encoded and none of the rules above see anything wrong.
+     But its conjunct glyphs -- द्र, ण्ड, every half-form -- carry no ToUnicode
+     entry, so pdf.js emits the raw two-byte glyph code as a single UTF-16 unit
+     and the reader gets `मु摯戠ण` where the page says `मुद्रण`. Codepoints, not
+     glyphs, is what identifies it: U+646F is the bytes 0x64 0x6F, not a Chinese
+     character the WebView font-fell-back to, so this is the text layer being
+     wrong rather than §15's font stack.
+
+     junkRatio cannot catch it, correctly: `मु摯戠ण` holds three Devanagari
+     letters, so it counts as a real word, which is the rule that stopped clean
+     Hindi PDFs being sent to OCR and must not be loosened to catch this.
+
+     An ALLOWLIST of the scripts a book here is written in, never a CJK
+     blocklist -- a blocklist leaves every other stray block in the text, and
+     this book alone also emits Kana, arrows and U+FFFF. */
+  function _isExpectedCodepoint(cp) {
+    if (cp === 0x09 || cp === 0x0a || cp === 0x0d || cp === 0x20) return true;
+    if (cp >= 0x21 && cp <= 0x7e) return true;            /* printable ASCII */
+    if (cp >= 0x0900 && cp <= 0x097f) return true;        /* Devanagari */
+    if (cp >= 0xa8e0 && cp <= 0xa8ff) return true;        /* Devanagari Extended */
+    if (cp >= 0x00a0 && cp <= 0x024f) return true;        /* Latin-1, Latin Ext A/B */
+    if (cp >= 0x2010 && cp <= 0x2027) return true;        /* dashes, quotes, ellipsis */
+    if (cp >= 0x2030 && cp <= 0x205e) return true;        /* ‰ † ‡ and friends */
+    if (cp === 0x20b9 || cp === 0x20ac || cp === 0x00a3) return true;  /* ₹ € £ */
+    if (cp === 0xfeff || cp === 0x200b || cp === 0x200c || cp === 0x200d) return true;
+    return false;
+  }
+  let strayChars = 0, countedChars = 0;
+  for (const ch of fullText) {
+    const cp = ch.codePointAt(0);
+    if (cp === 0x20 || cp === 0x09 || cp === 0x0a || cp === 0x0d) continue;
+    countedChars++;
+    if (!_isExpectedCodepoint(cp)) strayChars++;
+  }
+  /* Measured across six catalogue PDFs: वीजा का इंतजार 15.714% (worst page
+     18.1%), and 0.000% for every other one -- a clean Hindi text layer, an
+     English one, and three scans with no text layer at all. The separation is
+     total, so 2% sits an order of magnitude below the defect and leaves room
+     for a book carrying a few legitimate stray symbols. Whole-document, not
+     worst-page: one corrupt page in five hundred is not worth re-OCR'ing a
+     book over. */
+  const strayGlyphRatio = countedChars > 500 ? strayChars / countedChars : 0;
+  const hasBrokenGlyphs = strayGlyphRatio > 0.02;
+
   /* hasLegacyEncoding intentionally does NOT affect hasTextLayer — forcing OCR
      on a 500-page English PDF is worse UX than showing a banner after the fact.
      Instead, upload.js shows a dismissible banner when hasLegacyEncoding is true. */
@@ -198,6 +246,8 @@ async function parsePDF(arrayBuffer) {
     + ' specialInWordRatio=' + specialInWordRatio.toFixed(2)
     + ' hasIndicSpecialChars=' + hasIndicSpecialChars
     + ' hasLegacyFontName=' + hasLegacyFontName
+    + ' strayGlyphRatio=' + strayGlyphRatio.toFixed(4)
+    + ' hasBrokenGlyphs=' + hasBrokenGlyphs
     + ' hasTextLayer=' + hasTextLayer);
 
   /* ── 6. Detect image-like gaps and insert placeholders ────── */
@@ -213,6 +263,7 @@ async function parsePDF(arrayBuffer) {
       wordCount: words.filter(w => typeof w === 'string').length,
       hasTextLayer,
       hasLegacyEncoding,
+      hasBrokenGlyphs,
       title: '',
     },
     pdfDoc,
