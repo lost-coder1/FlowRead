@@ -29,6 +29,7 @@ const OCREngine = (function() {
     const res = await plugin.detectText({ base64Image: base64Image, script: script });
     const text = (res && res.text) ? res.text.trim() : '';
     const width = (res && res.width) || 0;
+    const height = (res && res.height) || 0;
     const lines = [];
     const raw = (res && res.lines) || [];
     for (let i = 0; i < raw.length; i++) {
@@ -36,6 +37,13 @@ const OCREngine = (function() {
       const lineText = (line && line.text) ? String(line.text).trim() : '';
       if (!lineText) continue;
       const entry = { text: lineText };
+      /* The line's vertical centre, so the parser can tell a fragment of a line
+         from a line: a block boundary can split one the way a PDF's baseline
+         noise does. Normalised against the page's own height, which is what
+         makes it comparable across a hi-res retry. */
+      if (height > 0 && typeof line.top === 'number' && typeof line.bottom === 'number') {
+        entry.y = Math.round(((line.top + line.bottom) / 2 / height) * 1000);
+      }
       if (width > 0 && typeof line.left === 'number' && typeof line.right === 'number') {
         /* Rounded, because full double precision is 18 characters of digits per
            coordinate for no gain: on this 0..1000 scale the indent test works

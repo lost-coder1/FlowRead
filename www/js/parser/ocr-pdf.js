@@ -320,7 +320,7 @@ function _ocrBuild(pageLines) {
       const line = lines[j];
       const text = String((line && line.text) || '').trim();
       if (!text) continue;
-      kept.push({ text: text, x0: line && line.x0, x1: line && line.x1 });
+      kept.push({ text: text, x0: line && line.x0, x1: line && line.x1, y: line && line.y });
     }
     pages.push(kept);
   }
@@ -335,6 +335,9 @@ function _ocrBuild(pageLines) {
   const geom = measureParagraphGeometry(pages.map(function(lines) {
     return { lines: lines };
   }), running);
+  /* See _isParagraphStart: a block's extent is not a line of type's extent, so
+     a short predecessor is only evidence here if it also ended a sentence. */
+  if (geom) geom.requireSentenceEnd = true;
   console.log('[OCR] paragraph geometry: ' + (geom
     ? ('indent past ' + geom.indentFrom.toFixed(0) + ', short before ' + geom.shortBefore.toFixed(0))
     : 'not measurable, paragraphs will be inferred from line lengths'));
@@ -344,6 +347,7 @@ function _ocrBuild(pageLines) {
   const rawLines = [];
   let dropped = 0;
   let paraStarts = 0;
+  let withoutRule = 0;
   /* Carried across the page boundary: a paragraph does not end because a page did. */
   let prevKept = null;
 
@@ -372,6 +376,12 @@ function _ocrBuild(pageLines) {
         if (geom) {
           entry.paraStart = _isParagraphStart(line, prevKept, geom, rawLines.length === 0);
           if (entry.paraStart) paraStarts++;
+          else {
+            /* What the sentence requirement is costing, in one number. */
+            geom.requireSentenceEnd = false;
+            if (_isParagraphStart(line, prevKept, geom, rawLines.length === 0)) withoutRule++;
+            geom.requireSentenceEnd = true;
+          }
         }
         rawLines.push(entry);
         prevKept = line;
@@ -382,6 +392,10 @@ function _ocrBuild(pageLines) {
   console.log('[OCR] cleaning dropped ' + dropped + ' lines of furniture; '
     + (geom ? (paraStarts + ' paragraph starts in ' + rawLines.length + ' lines')
             : 'paragraphs left to line-length inference'));
+  if (geom && withoutRule) {
+    console.log('[OCR] the sentence requirement refused ' + withoutRule
+      + ' further starts (' + (paraStarts + withoutRule) + ' without it)');
+  }
 
   /* Whether the geometry is finding real paragraphs or block boundaries. ML Kit
      returns lines grouped into blocks, and a block's last line stops short of

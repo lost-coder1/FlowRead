@@ -89,11 +89,31 @@ async function parsePDF(arrayBuffer) {
       if (headerFooterSet.has(normalized)) continue;
       if (isNoiseLine(line.text)) continue;
 
+      const isParaStart = _isParagraphStart(line, prevKept, paraGeom, rawLines.length === 0);
+      /* Diagnostic: a paragraph that starts on a short line whose predecessor
+         ran the full measure is the symptom reported on English PDFs -- a
+         sentence's last word stranded as its own paragraph. Collect the
+         geometry of the first few so the cause can be read rather than
+         guessed; _paraOddities is logged once at the end of the parse. */
+      if (isParaStart && paraGeom && prevKept && _paraOddities.length < 12
+          && line.text.split(/\s+/).length <= 3
+          && typeof prevKept.x1 === 'number' && prevKept.x1 >= paraGeom.shortBefore) {
+        _paraOddities.push({
+          text: line.text.slice(0, 30),
+          x0: typeof line.x0 === 'number' ? Math.round(line.x0) : null,
+          x1: typeof line.x1 === 'number' ? Math.round(line.x1) : null,
+          prevX0: typeof prevKept.x0 === 'number' ? Math.round(prevKept.x0) : null,
+          prevX1: Math.round(prevKept.x1),
+          dy: (typeof line.y === 'number' && typeof prevKept.y === 'number')
+            ? Math.round(Math.abs(prevKept.y - line.y) * 10) / 10 : null,
+          gap: Math.round(paraGeom.lineGap * 10) / 10,
+        });
+      }
       rawLines.push({
         text: line.text,
         pageIndex: i,
         wordIndex: words.length,
-        paraStart: _isParagraphStart(line, prevKept, paraGeom, rawLines.length === 0),
+        paraStart: isParaStart,
       });
       prevKept = line;
 
@@ -203,6 +223,13 @@ async function parsePDF(arrayBuffer) {
   /* ── 6. Detect image-like gaps and insert placeholders ────── */
   insertImagePlaceholders(words, allPageData, pageWordIndex);
 
+  console.log('[pdf] paragraph starts: ' + rawLines.filter(function(l) { return l.paraStart; }).length
+    + ' in ' + rawLines.length + ' lines');
+  if (_paraOddities.length) {
+    console.log('[pdf] short paragraph starts after a full-width line: '
+      + JSON.stringify(_paraOddities));
+  }
+
   return {
     words,
     pageWordIndex,
@@ -223,11 +250,17 @@ async function parsePDF(arrayBuffer) {
    are relative to those margins, so they have to be measured from the book
    rather than assumed — margins vary wildly between publishers. */
 function measureParagraphGeometry(allPageData, headerFooterSet) {
+  _paraOddities = [];
   const lefts = [];
   const rights = [];
+  /* Vertical distances between consecutive lines on a page. Most pairs are
+     genuine lines, so the median is the document's real line height -- which is
+     what tells a line apart from a fragment of one. */
+  const gaps = [];
 
   for (let i = 0; i < allPageData.length; i++) {
     const lines = allPageData[i].lines;
+    let prevY = null;
     for (let j = 0; j < lines.length; j++) {
       const line = lines[j];
       if (typeof line.x0 !== 'number' || typeof line.x1 !== 'number') continue;
@@ -235,6 +268,14 @@ function measureParagraphGeometry(allPageData, headerFooterSet) {
       if (isNoiseLine(line.text)) continue;
       lefts.push(line.x0);
       rights.push(line.x1);
+      if (typeof line.y === 'number') {
+        if (prevY !== null) {
+          const dy = Math.abs(prevY - line.y);
+          /* A page boundary is not a line gap. */
+          if (dy > 0 && dy < 200) gaps.push(dy);
+        }
+        prevY = line.y;
+      }
     }
   }
   /* Too little text to tell a margin from an indent; better no paragraphs than
@@ -254,28 +295,56 @@ function measureParagraphGeometry(allPageData, headerFooterSet) {
   /* Roughly one character, assuming a 60-ish character measure. */
   const em = Math.max(4, width / 60);
 
+  gaps.sort(function(a, b) { return a - b; });
+  const lineGap = gaps.length >= 20 ? gaps[Math.floor(gaps.length / 2)] : 0;
+
+  console.log('[pdf] paragraph geometry: lineGap=' + lineGap.toFixed(1) + ' bodyLeft=' + bodyLeft.toFixed(0)
+    + ' bodyRight=' + bodyRight.toFixed(0) + ' em=' + em.toFixed(1)
+    + ' indentFrom=' + (bodyLeft + em * 1.2).toFixed(0)
+    + ' shortBefore=' + (bodyRight - em * 3).toFixed(0));
   return {
     em: em,
+    lineGap: lineGap,
     indentFrom: bodyLeft + em * 1.2,
     shortBefore: bodyRight - em * 3,
   };
 }
 
+/* See the diagnostic in the parse loop. Module-level and reset by
+   measureParagraphGeometry, which runs once per document. */
+let _paraOddities = [];
+
+/* The same test paragraphs.js's line-length inference uses, for the same
+   reason: in prose a paragraph ends where a sentence does. */
+const PARA_SENTENCE_END = /[.!?।॥:;"'’”]\s*$/;
+
 function _isParagraphStart(line, prevKept, paraGeom, isFirstLine) {
   if (isFirstLine) return true;
   if (!paraGeom) return false;
-  /* A line beginning where the previous one ended is the same visual line split
-     in two, not a new paragraph. groupIntoLines separates on a 3-unit baseline
-     difference, so a word sitting fractionally off its baseline -- which a PDF
-     does routinely for the last word before a full stop -- becomes a line of
-     its own. That leaves the line before it short of the right margin and the
-     fragment itself looking indented, so both tests below fire and a paragraph
-     appears to begin on the last word of a sentence. Catches the split either
-     way round, since the stray word may lead the line as easily as end it.
-     Cost: a real indented paragraph whose predecessor ended within two ems of
-     the left margin -- a last line of one short word -- is missed, merging two
-     paragraphs, which is the failure §5 already accepts as the lesser one. */
-  if (prevKept && typeof line.x0 === 'number' && typeof prevKept.x1 === 'number'
+  /* A line sharing the previous line's baseline is a fragment of it, not a new
+     paragraph. groupIntoLines separates lines on a 3-unit baseline difference,
+     which is tight for a text layer whose words carry their own slightly
+     different baselines -- as an OCR-produced layer does -- so a single word
+     gets lifted out of the middle of its line and becomes a "line" of its own.
+     It then sits well right of the margin, the indent test fires, and a
+     paragraph appears to begin on one word of a sentence. Measured against the
+     document's own line height rather than a fixed figure, because the units
+     here are whatever the PDF uses; at well under a line apart, two lines are
+     one line. Either half of the split may come first, so the distance is
+     absolute, which also makes a page boundary -- a jump of most of a page --
+     fall outside it. Cost: a genuine paragraph break between two lines set
+     closer than 0.7 of the document's line height is missed, merging two
+     paragraphs, the failure §5 already accepts as the lesser one. */
+  if (paraGeom.lineGap > 0 && prevKept
+      && typeof line.y === 'number' && typeof prevKept.y === 'number'
+      && Math.abs(prevKept.y - line.y) < paraGeom.lineGap * 0.7) {
+    return false;
+  }
+  /* The same defect where no baseline is recorded -- the OCR path, whose lines
+     come from ML Kit blocks: there a fragment is adjacent to where the previous
+     line stopped, since a block splits at a line end rather than mid-line. */
+  if (prevKept && typeof line.y !== 'number'
+      && typeof line.x0 === 'number' && typeof prevKept.x1 === 'number'
       && line.x0 > paraGeom.indentFrom
       && Math.abs(line.x0 - prevKept.x1) <= paraGeom.em * 2) {
     return false;
@@ -284,7 +353,20 @@ function _isParagraphStart(line, prevKept, paraGeom, isFirstLine) {
   if (typeof line.x0 === 'number' && line.x0 > paraGeom.indentFrom) return true;
   /* The line before it stopped well short of the right margin, so it ended its
      paragraph rather than wrapping into this one. */
-  if (prevKept && typeof prevKept.x1 === 'number' && prevKept.x1 < paraGeom.shortBefore) return true;
+  if (prevKept && typeof prevKept.x1 === 'number' && prevKept.x1 < paraGeom.shortBefore) {
+    /* Not on its own where the line extents come from OCR. A PDF's text layer
+       reports where a line of type actually stopped, so a short line is real
+       evidence; ML Kit reports the extent of a block, and a block ends wherever
+       the recogniser chose to group -- routinely mid-paragraph. Measured: on a
+       435-page book 70% of the starts this produced followed a finished
+       sentence, on an 86-page one only 14%, a break every 1.8 lines. So on
+       that path the previous line must also have finished a sentence, which is
+       the pairing paragraphs.js's inference already relies on. The indent rule
+       above keeps standing alone: an indent is positive evidence, not an
+       absence of one. */
+    if (paraGeom.requireSentenceEnd && !PARA_SENTENCE_END.test(prevKept.text || '')) return false;
+    return true;
+  }
   return false;
 }
 
