@@ -437,6 +437,52 @@ The **2026-08-31** deadline had already passed when this work started, leaving t
 
 ## Task 16.32 — Read a scanned book while it is still being OCR'd
 
+**Split into two phases 2026-11-23, on `ocr-progressive-read`. Phase 1 is built; Phase 2 is the
+task as written below.** The split is not bookkeeping: Phase 1 touches no word index and is
+shippable on its own, while Phase 2 changes six systems that all key off one, and holding the
+cheap half hostage to the device round the expensive half needs would be a choice to ship
+neither.
+
+**Why the wait is worth attacking at all, which the task did not record:** `free-books.js` runs
+OCR with **no paid-access check** — "the OCR add-on gates user-uploaded documents, not curated
+catalog books". So all **23 catalogue PDFs** OCR for every free user, and those 23 are the
+flagship half of the library: *Annihilation of Caste*, *Riddles in Hinduism*, *The Buddha and His
+Dhamma*, Phule's *Gulamgiri*, Gandhi's *Hind Swaraj* and the autobiography, Nehru, the
+*Dhammapada*, and nine Hindi translations. This is a first-run experience on the main free path,
+not an edge case, in a product §21 says is bottlenecked on distribution.
+
+### Phase 1 — rotating tips on the wait screen. ✅ built 2026-11-23, device-verified
+
+`features/ocr-wait.js` owns the rotation; `TipsFeature.poolForWait()` owns which tip comes next,
+per §22's split. The reasoning that matters later:
+
+- **It is the one caller allowed past `MAX_SHOWS`, and it spends no cap.** A three-minute wait
+  rotates fifteen or more tips; charged against the three-show limit, a single import would retire
+  most of the pool and silently empty the home strip for a user who had merely imported a book.
+  The cap exists to stop a tip returning *after it was understood and declined* on a surface seen
+  daily — which this is not. `isDone` and `when` still hold; §22.5's bar on teaching a locked
+  feature is not negotiable for a surface's convenience.
+- **Its cursor advances past the tip actually shown, not past the slot it started from.** Stepping
+  the raw index by one looks equivalent and is not: when the next slot is ineligible both waits
+  fall through to the same first eligible tip, and two imports in a row open on the same sentence.
+  Caught by the harness, not on device.
+- **Inert, like the unlock modal** (§22.3) — the one thing that screen is for is the import
+  finishing, and a tap that navigated away would abandon it.
+- **A latent copy defect fell out of the rewrite:** `tip.words` and `tip.highlights_screen` ended
+  in "Tap to see them", and both already appear in the inert unlock modal. An instruction to tap
+  something that will not answer is §1.5's silent failure, and it was shipped. The sentences now
+  teach without commanding a tap, so they read correctly on all three surfaces.
+- **The copy is wittier in both languages** (owner, 2026-11-23). No new keys, so nothing can render
+  raw — but ⚠️ **the Hindi tip strings have changed and the 2026-11-23 sign-off no longer covers
+  them.** They want re-reading before the next build.
+
+**Device-verified 2026-11-23** on a Galaxy S23 FE against a real 322-page Hindi scan: the tip
+renders, wraps to three lines without truncation, rotates, and samples at exactly `#6b6660`
+(`--text-muted`) — the same value as the page counter above it, so §15 holds. It reads brighter
+only because it is 14px Roboto against 13px DM Mono at weight 300.
+
+### Phase 2 — the 20-page prefix read
+
 **Open. Asked for by the owner 2026-11-23**, and the original question behind the whole OCR speed
 branch: *"say I have a scanned PDF of 100 pages, it first converts every page 100/100 then only we
 can read them."* Speed work took a 435-page Hindi scan from ~4.1 min to ~3.1 min and made the wait
@@ -459,11 +505,52 @@ contain.
 - **Position is sacred (§20).** A position saved against the partial build must still mean the same
   word after the final build replaces the arrays.
 
-**Open question for the owner before it is built:** is the right shape a *reader* that grows
-(complex, and text changes under the reader as cleaning lands), or a **"start reading" affordance
-that opens the first N pages as a stable, already-cleaned prefix** while the rest continues behind
-it? The second is less impressive and much more honest, and it is what the resume checkpoint
-already stores. §1.5 governs either way: nothing may silently change under the reader.
+~~**Open question for the owner:** a reader that grows, or a stable prefix?~~ — **answered
+2026-11-23: the stable 20-page prefix, with OCR continuing behind the reader.**
+
+**The prefix shape dissolves the cleaning objection above, which is why it wins.** `_ocrBuild` is
+already a pure function of a page array, so pages 1..20 are a valid *whole book* to it — cleaned,
+paragraphed and chapter-detected, not raw. And both cleaning passes genuinely work at that size:
+the running-head threshold is `max(3, pages × 0.12)` = **3** over 20 pages, and
+`OCR_PAGENO_MIN_RUN` is 10 against the ~20 numerals a numbered 20-page stretch yields.
+
+**What it cannot dissolve: a 20-page build and a 435-page build disagree, in four places.** All
+four resolve at the swap, which is why the swap must be a deliberate tap and never silent (§1.5):
+1. **Furniture.** A line recurring 3–5 times in the first 20 pages is furniture at threshold 3 and
+   is *kept* by the full build at 52. Front matter is exactly where near-repeating lines cluster.
+2. **Page numbers.** Scanned books usually begin numbering after front matter, so the first 20
+   pages may hold only 6–9 numerals at a constant offset — below the run. Page numbers then
+   survive into the prefix and vanish on the swap. **Do not lower `OCR_PAGENO_MIN_RUN` for the
+   prefix to patch this**: §5 records that loosening numeral rules turned an 86-page book into 61
+   chapters.
+3. **Paragraph geometry**, if the opening pages are title and contents rather than body type.
+4. **Chapter headings** — §5 rule 5 needs a run of 3+ markers, and rule 4's "drop the shape
+   guesses when numbered structure dominates" *flips* with more evidence. Since §4.1 rule 5 styles
+   text from these ranges, a heading can appear or disappear on the swap.
+
+**The six systems that key off a word index or `wordCount`, and what each needs:**
+| System | What breaks | Fix |
+|---|---|---|
+| §4.2 completion + §8.6 `book_finished` | Reaching prefix page 20 trips `_savePos`'s end floor — `_pagesExact` is *true*, the book genuinely is 20 pages — marking a 435-page book read and firing an event §8.6 gates **once per book, sticky forever**. Permanent and unwalkable-back | `metadata.ocrPartial` suppresses the floor, which is sufficient on its own: the last word's index is `wordCount - 1`, so ordinary paging can never reach the threshold. Guard the event too, and **hide Mark read while partial** |
+| §4.1 layout grid | `fr_page_layout_*` keys on file + font + scale + viewport, **not length** — so the 20-page grid is reused for the 435-page book | Add the word count to the key. Self-healing, LRU evicts the prefix's, and **no version bump is owed**: nothing about what occupies vertical space changes |
+| §26.3 highlights | Two word indices, pointing at the wrong words after the swap | Translate by page, as position is |
+| §19 session stats | One session straddling two numbering schemes breaks `wpm × time ≠ words` | `_flushSessionIfActive()` before the arrays are replaced |
+| §6 bridge / Normal view | Normal view reads `pdfDoc.numPages` (435) while the bridge reads `pageWordIndex.length` (20) and clamps — so "▶ Read from here" on page 300 **drops you at page 20 with no explanation** (§1.5) | While partial, Normal view takes its count from `metadata.pageCount` |
+| §7 wake lock | `_wakeLockActive` is a boolean, not a refcount, so whichever of OCR and the reader releases first kills the other's. **Worse: `startIdleReleaseTimer()` releases after 5 min of `!AppState.isPlaying`, and Page mode has no playing state (§19)** — the screen sleeps five minutes into a prefix read while OCR runs behind it | Refcount it, and exempt the OCR holder from the idle release. Pre-existing latent bug that this task turns into a real one |
+
+**Position travels by page, never by word index**, because the two builds disagree on indices but
+`pageWordIndex` is stable — page 7 is page 7 in both. Map `page + offset-within-page`, clamped.
+Residual error is the furniture lines cleaning changed its mind about on that one page: usually
+zero, and always the right page.
+
+**A killed process must not leave a 20-page book claiming to be whole.** `ocrPartial`
+`{ pagesDone, pageCount }` rides in the saved metadata; a book carrying it plus a live checkpoint
+offers "20 of 435 pages · finish reading this book", which resumes OCR through the machinery that
+already exists.
+
+**Who wins the race, for scoping:** ~430ms/page measured, so 435 pages is ~3.1 min against 15–20
+minutes of actual reading for 20 pages. **OCR almost always finishes first** — reaching the prefix
+end is the skimmer and the 1,000-page scan, not the common path. It still has to be right.
 
 ---
 
