@@ -14,6 +14,10 @@ everything that was blocking this build. **Merged since:** the OCR speed/cleanin
 paragraph structure in Focus Bold and Simple Scroll (`reader-paragraphs`), device-verified on an
 English PDF and two Hindi books. **Opened by the owner from that run:** 16.32 (read a scan while it
 is still being OCR'd) and 16.33 (table detection firing on single words).
+**Opened 2026-11-23 from a later device run:** 16.34 (the index panel has no close
+affordance) and 16.35 (OCR of *वीजा का इंतजार* emits CJK characters between the Hindi words).
+**16.32 is in progress on `ocr-progressive-read`**, split into a wait-screen phase and a
+prefix-read phase; see the task for why.
 
 **2026-11-23 — build 1.5.7 / versionCode 45** (`master`, from `store-promo-video` merged in).
 Carries 16.21–16.31. Verified from the artifact rather than the config: versionCode 45,
@@ -484,6 +488,65 @@ one line can never be one.**
 **Needs a device-sourced example first.** Collect the offending lines the way the paragraph
 investigation did (pull the parsed JSON off the device and read the placeholders' neighbours),
 rather than guessing a threshold.
+
+---
+
+## Task 16.34 — The index panel has no way to close itself
+
+**Open. Reported by the owner 2026-11-23:** tapping the index button opens the right-hand panel,
+but the panel carries no close control — the only way out is to find the index button again and
+tap it a second time. The button *is* a toggle, so nothing is broken; what is missing is any sign
+that it is one.
+
+**The fix the owner asked for:** when the panel is open, the index button becomes a cross, so the
+control that opened it visibly becomes the control that closes it. Cheaper than a second button
+and it teaches the toggle rather than working around it.
+
+Two constraints it inherits:
+- **The reader header does not wrap and its filename truncates** (§26.3). A *new* close button in
+  that row costs filename width; swapping the existing glyph costs nothing, which is the reason to
+  prefer it over adding an X inside the panel.
+- **The glyph is drawn, not a font character** — same rule as the highlighter (§26.3): `×` as text
+  sits wrong at small sizes and no string may name the character. Inline SVG that inherits
+  `currentColor`, so the open/`.active` state needs no extra colour rule.
+
+Worth checking in the same pass whether the panel closes on a tap outside itself and on hardware
+back (§18 lists hardware back handling as shipped); if it does, this is purely a discoverability
+defect and the cross is the whole fix.
+
+---
+
+## Task 16.35 — OCR of *वीजा का इंतजार* puts CJK characters between the Hindi words
+
+**Open. Reported on device by the owner 2026-11-23.** The catalogue PDF *वीजा का इंतजार* ("Waiting
+for a Visa", one of the 23 off-site Ambedkar entries) OCRs with Chinese-looking characters
+scattered between correctly recognised Devanagari words.
+
+**What makes this worth a task rather than a threshold tweak:** `FlowReadOcrPlugin.java` builds
+exactly two recognizers — `DevanagariTextRecognizerOptions` and Latin `TextRecognizerOptions.DEFAULT_OPTIONS`
+— and ships no CJK model at all. So nothing in the pipeline has a Chinese vocabulary to draw on,
+and the characters cannot be a recognizer picking the wrong language. Two candidates remain, and
+they belong to different owners:
+
+1. **The ML Kit Devanagari model really is emitting those codepoints** as misreadings of dense
+   glyph clusters — a parser-side problem, and the only honest answer would be to drop characters
+   outside the scripts the recognizer was asked for.
+2. **The codepoints are not CJK at all** and the WebView is font-falling-back to a CJK face for
+   some Devanagari or punctuation codepoint the bundled Noto Sans Devanagari does not cover — a
+   §15 font-stack problem in `css/base.css`, with the OCR text entirely correct.
+
+**The distinguishing test is cheap and must come first: log the codepoints, not the glyphs.**
+`[...str].map(c => c.codePointAt(0).toString(16))` over an affected line says which of the two it
+is in one run, and the answer decides who fixes it. Guessing a filter first would silently delete
+real text if the truth is (2).
+
+**Reproducible without a device file** — the book is in `www/data/free-books.json`, so the PDF can
+be fetched and run through the same path in a browser.
+
+**If it is (1):** a script-aware filter belongs next to §6's existing script scoring rather than as
+a new rule of its own, and it must be written as an allowlist of the scripts requested (Devanagari,
+Latin, digits, punctuation) — never a blocklist of CJK, which would leave every other stray block
+in the text.
 
 ---
 
