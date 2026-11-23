@@ -10,9 +10,12 @@ decision stays here or in `Claude.md`; a record of an action already taken goes 
 
 **Last updated:** 2026-11-23 — **1.5.7 / 45 built and signed, awaiting upload.** **`ocr-progressive-read`
 carries ten commits, all device-verified, and is ready to merge:** 16.32's three phases, 16.34, and
-16.35. Not yet in a build for the store — 45 predates all of it, so whatever ships next needs a
-versionCode bump and a fresh Hindi pass over the 22 new strings (16 tip rewrites, 6 `ocr.*` keys,
-`reader.index.close`, `banner.broken_glyphs.msg`), which the 2026-11-23 sign-off predates. Device
+16.35. **Merged to `master` 2026-11-23** (`41ec41b`, a merge commit, matching how the earlier feature
+branches were brought in). **Hindi signed off for those 22 strings by the owner 2026-11-23** — the
+16 tip rewrites, the 6 `ocr.*` keys, `reader.index.close` and `banner.broken_glyphs.msg` — so §16
+is clear. **Not yet in a build for the store:** versionCode 45 is built and signed from the old
+`master` and contains none of it, so the next release needs a bump, or a rebuild at 45, which Play
+permits because 45 was never *uploaded*. Device
 verification, Hindi sign-off and the listing art are all cleared by the owner, which closes
 everything that was blocking this build. **Merged since:** the OCR speed/cleaning work and
 paragraph structure in Focus Bold and Simple Scroll (`reader-paragraphs`), device-verified on an
