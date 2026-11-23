@@ -517,6 +517,11 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
      resumed run may already be past the mark on its first iteration, which is
      why this is tested in the loop rather than counted up to. */
   let prefixOffered = pageCount <= OCR_PREFIX_PAGES;   /* nothing to offer on a short book */
+  /* Contiguous pages from the front. Equal to the loop counter in an ordinary
+     run and to the resume point in a resumed one, which is why it is tracked
+     rather than inferred from pageLines.length -- that array is positional and
+     a resumed run fills it from the checkpoint, holes and all. */
+  let pagesRecognised = startPage - 1;
 
   function _maybeOfferPrefix(pagesDone) {
     if (prefixOffered || typeof o.onPrefixReady !== 'function') return;
@@ -524,11 +529,21 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
     prefixOffered = true;
     try {
       o.onPrefixReady({
-        pages: OCR_PREFIX_PAGES,
+        firstPages: OCR_PREFIX_PAGES,
         pageCount: pageCount,
-        /* Handed as a thunk, not a built result: building costs a cleaning pass
-           over twenty pages and most users never tap the offer. */
-        build: function() { return buildOcrPrefix(pageLines, OCR_PREFIX_PAGES, pageCount); },
+        /* A live handle on the run, not a one-shot thunk. The reader can come
+           back for more: the owner's point is that the first twenty pages of a
+           scan are mostly title, acknowledgements, contents and foreword, so a
+           reader skims them in a minute and is back to waiting. `pagesDone`
+           reports what the run has reached *now*, and `build` takes any prefix
+           of it -- each one a whole book to _ocrBuild, exactly as the first was.
+           Nothing is built until it is asked for: a cleaning pass over the
+           pages costs real time and most runs are never extended. */
+        pagesDone: function() { return pagesRecognised; },
+        build: function(n) {
+          const upTo = Math.max(1, Math.min(n || OCR_PREFIX_PAGES, pagesRecognised));
+          return buildOcrPrefix(pageLines, upTo, pageCount);
+        },
       });
     } catch (e) {
       /* An offer that cannot be drawn is not a failed import. */
@@ -703,6 +718,7 @@ async function parseScannedPDF(pdfDoc, onProgress, opts) {
       if (recentPageMs.length > ETA_WINDOW) recentPageMs.shift();
     }
 
+    pagesRecognised = p;
     _maybeOfferPrefix(p);
 
     if (typeof o.onCheckpoint === 'function'
@@ -769,7 +785,27 @@ async function ocrScannedPdf(pdfDoc, fileId) {
     try { resume = await loadOcrCheckpoint(fileId); } catch (_) { resume = null; }
   }
 
+  /* Set the moment the reader takes the prefix. After that this run no longer
+     owns the loading overlay and must stop writing to it.
+
+     It is a shared, global surface with seven writers -- the OCR counter here,
+     free-books.js's download percentage and its page-parse counter, and four in
+     upload.js -- and before Phase 2 only one of them could ever be running. A
+     background run that keeps painting into it produces two counters
+     alternating in one label a few times a second: "page 19", "page 235",
+     "page 20". Reported on device against a Hindi book, which is simply where
+     scanned books are; nothing about it is Hindi, and nothing about it is the
+     page numbering. From here the run reports to the reader's own bar instead,
+     which is where a background job's progress belongs. */
+  let handedOff = false;
+
   const onProgress = function(current, total, info) {
+    if (handedOff) {
+      if (typeof OcrProgressive !== 'undefined') {
+        OcrProgressive.onBackgroundProgress(current, total, info);
+      }
+      return;
+    }
     const msg = qs('#loading-message');
     if (msg) msg.textContent = t('loading.ocr_page', { current: current, total: total });
     if (typeof setLoadingProgress === 'function') {
@@ -826,6 +862,8 @@ async function ocrScannedPdf(pdfDoc, fileId) {
     ]);
 
     if (outcome.prefix) {
+      /* Before anything else: the overlay stops being this run's to write to. */
+      handedOff = true;
       /* The checkpoint stays: the run that is still going is the one using it,
          and OcrProgressive deletes it when that run lands. */
       OcrProgressive.watch(fileId, fullSettled, function() { return fullFailed; });

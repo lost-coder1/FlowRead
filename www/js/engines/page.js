@@ -766,6 +766,10 @@ const PageEngine = (function() {
     if (typeof OcrProgressive !== 'undefined' && OcrProgressive.isPartial(AppState.currentFile)) {
       _endFloor = 0;
       _removeFinishOffer();
+      /* Arriving at the last page there is, rather than being blocked at it.
+         Same answer either way: say where the run has got to, or add the pages
+         it has already reached. */
+      if (_atLastPage()) OcrProgressive.atEndOfAvailable();
       return;
     }
     if (!_atLastPage()) { _endFloor = 0; _removeFinishOffer(); return; }
@@ -838,6 +842,14 @@ const PageEngine = (function() {
 
   function _gotoPage(newIdx, animate) {
     if (newIdx < 0 || newIdx >= _pages.length || newIdx === _pageIndex) {
+      /* Forward, past the last page there is, on a book still being OCR'd:
+         before this, next and swipe did nothing whatsoever and the reader had
+         no way to tell a book that had ended from one that had not caught up
+         (§1.5). Only on a *forward* move -- swiping back off page one is an
+         ordinary edge. */
+      if (newIdx >= _pages.length && typeof OcrProgressive !== 'undefined') {
+        OcrProgressive.atEndOfAvailable();
+      }
       /* Still snap back into place if a swipe was cancelled */
       _animateLayout(animate !== false);
       return;

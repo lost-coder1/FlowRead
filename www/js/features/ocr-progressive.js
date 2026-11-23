@@ -40,6 +40,12 @@ const OcrProgressive = (function() {
   let _run = null;        /* { fileId, promise, getErr } */
   /* The offer on the loading overlay, while one is pending. */
   let _offer = null;      /* { build, pages, pageCount, settle } */
+  /* The live handle on the run: what it has reached, and a build of any prefix
+     of it. Outlives the offer, because extending uses the same handle. */
+  let _api = null;
+  /* Where the background run has got to, for the bar. */
+  let _progress = null;   /* { done, total, etaMs } */
+  let _barTick = 0;
   /* The full result, once it has landed under a reader that has not swapped. */
   let _ready = null;      /* { fileId, result } */
 
@@ -60,10 +66,11 @@ const OcrProgressive = (function() {
   /* ── The offer on the wait screen ────────────────────────────────────── */
 
   function offer(o, settle) {
-    _offer = { build: o.build, pages: o.pages, pageCount: o.pageCount, settle: settle };
+    _api = o;
+    _offer = { build: o.build, pages: o.firstPages, pageCount: o.pageCount, settle: settle };
     const btn = qs('#loading-prefix');
     if (!btn) return;
-    btn.textContent = _t('ocr.read_first_pages', { n: o.pages });
+    btn.textContent = _t('ocr.read_first_pages', { n: o.firstPages });
     btn.onclick = _takeOffer;
     show(btn);
   }
@@ -80,7 +87,7 @@ const OcrProgressive = (function() {
     hideOffer();
     let built = null;
     try {
-      built = pending.build();
+      built = pending.build(pending.pages);
     } catch (e) {
       /* The prefix is an offer, not the import. If it cannot be built the run
          carries on and the user waits as they did before — which is why this
@@ -160,6 +167,29 @@ const OcrProgressive = (function() {
     await _persist(fileId, result, live);
   }
 
+  /* Called many times a second's worth of pages; the bar is redrawn at most
+     once a second, because a counter that changes under a reader's eye is
+     exactly the fidget this screen should not have. */
+  function onBackgroundProgress(current, total, info) {
+    _progress = { done: current, total: total, etaMs: (info && info.etaMs) || 0 };
+    const now = Date.now();
+    if (now - _barTick < 1000) return;
+    _barTick = now;
+    _renderPartialBar();
+  }
+
+  /* How many more pages could be added right now. */
+  function _extraReady() {
+    const file = AppState.currentFile;
+    if (!_api || !isPartial(file)) return 0;
+    const have = (partialInfo(file) || {}).pagesDone || 0;
+    let done = 0;
+    try { done = _api.pagesDone() || 0; } catch (_) { done = 0; }
+    /* The page the run is on is not finished until the loop stores it, and the
+       last page is the full run's business, not an extension's. */
+    return Math.max(0, Math.min(done, _api.pageCount - 1) - have);
+  }
+
   /* ── Translation between the two numberings ──────────────────────────── */
 
   /* A word index in the prefix, expressed as a word index in the full build.
@@ -186,6 +216,88 @@ const OcrProgressive = (function() {
 
   /* ── The swap ────────────────────────────────────────────────────────── */
 
+  /* Add the pages the run has reached since the prefix was taken, without
+     waiting for the whole book.
+
+     Shares everything with swap() but the ending: the arrays are replaced, the
+     position and the highlights are translated, the reader is redrawn. The one
+     difference is that ocrPartial survives, with a new pagesDone -- this is a
+     longer partial book, not a finished one, so completion and book_finished
+     stay suppressed and Normal view stays bounded. */
+  async function extend() {
+    const file = AppState.currentFile;
+    if (!_api || !isPartial(file)) return false;
+    const extra = _extraReady();
+    if (extra <= 0) return false;
+
+    const upTo = (partialInfo(file).pagesDone || 0) + extra;
+    let built = null;
+    try { built = _api.build(upTo); } catch (e) {
+      console.warn('[OCR] extend failed:', e);
+      return false;
+    }
+    if (!built || !built.metadata || !built.metadata.wordCount) return false;
+
+    await _replaceArrays(file.id, built);
+    showToast(_t('ocr.extended', { n: extra }));
+    return true;
+  }
+
+  /* The reader has run out of pages. Called from Page mode's blocked forward
+     turn and from the four playback engines' end, which is the owner's point:
+     before this, pressing next at page 20 did nothing at all and playing to the
+     end said the book was finished.
+
+     If pages are ready, this *is* the consent to add them -- the reader asked
+     for the next page, and that is what arrives. If none are ready yet it says
+     where the run has got to, which is the honest answer and the one §1.5
+     requires over silence. */
+  function atEndOfAvailable() {
+    const file = AppState.currentFile;
+    if (!isPartial(file)) return false;
+    if (_ready && _ready.fileId === file.id) {
+      showToast(_t('ocr.full_ready_hint', { n: _ready.result.metadata.pageCount }));
+      _renderPartialBar();
+      return true;
+    }
+    if (_extraReady() > 0) { extend(); return true; }
+    const info = partialInfo(file);
+    const at = _progress ? _progress.done : info.pagesDone;
+    showToast(_t('ocr.end_of_available', { done: at, total: info.pageCount }), 4000);
+    _renderPartialBar();
+    return true;
+  }
+
+  /* The four playback engines write savePosition(id, words.length) at the end
+     of a run, which is the completion threshold itself -- so playing a partial
+     book to the end of its twenty pages marked it Read in the library. Page
+     mode's floor was guarded in Phase 2 and these were not; same defect, four
+     more doors. Returning true means the engine must not treat this as the end
+     of a book. */
+  function interceptEnd(file) {
+    if (!isPartial(file)) return false;
+    atEndOfAvailable();
+    return true;
+  }
+
+  async function _replaceArrays(fileId, built) {
+    const file = AppState.currentFile;
+    const oldPageWordIndex = file.pageWordIndex;
+    const oldIndex = (_activeEngineIndex() !== null) ? _activeEngineIndex() : loadPosition(fileId);
+
+    if (typeof _flushSessionIfActive === 'function') _flushSessionIfActive();
+
+    const newIndex = _translate(oldIndex, oldPageWordIndex, built.pageWordIndex,
+                                built.words.length);
+    _translateHighlights(fileId, oldPageWordIndex, built);
+    _applyToCurrent(built);
+    savePosition(fileId, newIndex);
+    await _persist(fileId, built, AppState.currentFile);
+
+    AppState.chapters = detectChapters(AppState.currentFile);
+    renderReader({ startIndex: newIndex, silentResume: true, bridgeReturn: true });
+  }
+
   async function swap() {
     if (!_ready) return;
     const full = _ready.result;
@@ -193,30 +305,8 @@ const OcrProgressive = (function() {
     const file = AppState.currentFile;
     if (!file || file.id !== fileId) { _ready = null; return; }
 
-    const oldPageWordIndex = file.pageWordIndex;
-    const oldIndex = (_activeEngineIndex() !== null) ? _activeEngineIndex() : loadPosition(fileId);
-
-    /* §19: the session recorder tracks the furthest word reached, so a session
-       that straddles two numberings produces a figure where wpm x time no longer
-       equals words. Bank the prefix read in its own numbering first. */
-    if (typeof _flushSessionIfActive === 'function') _flushSessionIfActive();
-
-    const newIndex = _translate(oldIndex, oldPageWordIndex, full.pageWordIndex,
-                                full.words.length);
-
-    /* §26.3: a highlight is two word indices, so it points at the wrong words
-       after the arrays change. Same page-and-offset map as the position. */
-    _translateHighlights(fileId, oldPageWordIndex, full);
-
-    _applyToCurrent(full);
-    savePosition(fileId, newIndex);
-    await _persist(fileId, full, AppState.currentFile);
-
     _ready = null;
-    AppState.chapters = detectChapters(AppState.currentFile);
-    /* bridgeReturn suppresses a second `book_opened` — this is the same book in
-       the same sitting, and counting it would inflate opens (§8.6). */
-    renderReader({ startIndex: newIndex, silentResume: true, bridgeReturn: true });
+    await _replaceArrays(fileId, full);
     showToast(_t('ocr.swapped', { n: full.metadata.pageCount }));
   }
 
@@ -249,10 +339,13 @@ const OcrProgressive = (function() {
     file.words = full.words;
     file.pageWordIndex = full.pageWordIndex;
     file.rawLines = full.rawLines;
-    /* ocrPartial is dropped by this merge, which is what re-enables completion,
-       book_finished and the full page range in Normal view. */
     file.metadata = Object.assign({}, file.metadata, full.metadata);
-    delete file.metadata.ocrPartial;
+    /* Only a build that is itself whole clears the flag. An *extension* is a
+       longer partial book, and clearing it there would re-enable completion,
+       book_finished and Normal view's full range over forty pages of four
+       hundred -- the exact defect Phase 2 exists to prevent, reintroduced by
+       the feature that extends it. */
+    if (!full.metadata.ocrPartial) delete file.metadata.ocrPartial;
   }
 
   async function _persist(fileId, full, liveFile) {
@@ -264,7 +357,7 @@ const OcrProgressive = (function() {
       data.pageWordIndex = full.pageWordIndex;
       data.rawLines = full.rawLines;
       data.metadata = Object.assign({}, data.metadata || {}, full.metadata);
-      delete data.metadata.ocrPartial;
+      if (!full.metadata.ocrPartial) delete data.metadata.ocrPartial;
       /* The saved position was taken against the prefix. Translate it before it
          is read back by an open that will see the full arrays. */
       const pos = loadPosition(fileId);
@@ -302,24 +395,39 @@ const OcrProgressive = (function() {
     if (!isPartial(file)) { hide(host); host.innerHTML = ''; return; }
 
     const info = partialInfo(file);
+    let text = '';
+    let action = '';
+
     if (_ready && _ready.fileId === file.id) {
-      host.innerHTML = '<span class="reader-partial-text">'
-        + escapeHtml(_t('ocr.full_ready', { n: info.pageCount })) + '</span>'
-        + '<button class="reader-partial-action" id="reader-partial-swap">'
-        + escapeHtml(_t('ocr.open_full')) + '</button>';
-      const btn = qs('#reader-partial-swap');
-      if (btn) btn.onclick = function() { swap(); };
+      text = _t('ocr.full_ready', { n: _ready.result.metadata.pageCount });
+      action = _t('ocr.open_full');
+    } else if (_extraReady() > 0) {
+      /* Offered rather than taken: adding pages reflows the book, and §1.5 does
+         not allow that to happen under a reader who did not ask. Reaching the
+         end *is* asking, which is what atEndOfAvailable() acts on. */
+      text = _t('ocr.more_ready', { n: _extraReady() });
+      action = _t('ocr.add_pages');
     } else if (_run && _run.fileId === file.id) {
-      host.innerHTML = '<span class="reader-partial-text">'
-        + escapeHtml(_t('ocr.partial_reading', { done: info.pagesDone, total: info.pageCount }))
-        + '</span>';
+      const at = _progress ? _progress.done : info.pagesDone;
+      const eta = (_progress && _progress.etaMs > 0 && typeof formatRemaining === 'function')
+        ? ' \u00b7 ~' + formatRemaining(_progress.etaMs) : '';
+      text = _t('ocr.partial_reading', { done: info.pagesDone, total: info.pageCount })
+        + ' ' + _t('ocr.recognising_at', { at: at }) + eta;
     } else {
-      /* No run in flight and nothing ready: an interrupted import. The
-         checkpoint is still on disk, so saying so is actionable rather than an
-         apology — but resuming is the import flow's job, not this bar's. */
-      host.innerHTML = '<span class="reader-partial-text">'
-        + escapeHtml(_t('ocr.partial_paused', { done: info.pagesDone, total: info.pageCount }))
-        + '</span>';
+      /* No run and nothing ready: an interrupted import. The checkpoint is
+         still on disk, so saying so is actionable rather than an apology --
+         but resuming is the import flow's job, not this bar's. */
+      text = _t('ocr.partial_paused', { done: info.pagesDone, total: info.pageCount });
+    }
+
+    host.innerHTML = '<span class="reader-partial-text">' + escapeHtml(text) + '</span>'
+      + (action ? '<button class="reader-partial-action" id="reader-partial-act">'
+                  + escapeHtml(action) + '</button>' : '');
+    const btn = qs('#reader-partial-act');
+    if (btn) {
+      btn.onclick = (_ready && _ready.fileId === file.id)
+        ? function() { swap(); }
+        : function() { extend(); };
     }
     show(host);
   }
@@ -337,6 +445,10 @@ const OcrProgressive = (function() {
     hideOffer: hideOffer,
     watch: watch,
     swap: swap,
+    extend: extend,
+    atEndOfAvailable: atEndOfAvailable,
+    interceptEnd: interceptEnd,
+    onBackgroundProgress: onBackgroundProgress,
     syncReaderChrome: syncReaderChrome,
     /* Exported for the harness: the one piece of arithmetic here. */
     _translate: _translate,
