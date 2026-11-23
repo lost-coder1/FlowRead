@@ -612,27 +612,72 @@ so the same word legitimately sits on a different page *number*.
 
 ---
 
-## Task 16.33 — Table detection fires on single words
+## Task 16.33 — Table detection destroys prose. ✅ fixed 2026-11-23, awaiting device check
 
-**Open. Reported on device by the owner 2026-11-23:** the cleaning engine "is detecting simple
-words as tables sometimes", so ordinary prose is replaced by a tappable `[Table]` placeholder — the
-reader loses the text and is offered a placeholder for something that was never a table.
+**Reported on device by the owner 2026-11-23** as "detecting simple words as tables sometimes".
+**Measurement found it far worse than the report.** Hooking the shipping `detectTableRanges`
+inside the shipping `parsePDF` over the catalogue's own PDFs:
 
-Worse than a cosmetic defect, for two reasons: a placeholder **removes words from the reading
-stream**, so it also shifts every word index after it, and a `[Table]` where a sentence should be is
-precisely the silent failure §1.5 forbids — the reader cannot tell whether the book said something
-there or not.
+| book | ranges flagged | what they were |
+|---|---|---|
+| *भारत में जातिप्रथा* (Hindi) | **41** | every one prose, including runs of **29 and 28 lines** |
+| *Annihilation of Caste* (English) | 2 | both prose, two lines each |
 
-**Where to look:** the table detector in `www/js/parser/pdf.js`, which infers a table from column
-alignment and intra-line gaps. The likely cause is that evidence being satisfied by **one short
-line**: a heading, a signature, a lone numeral or a two-word line has gaps and alignment by
-accident, and nothing requires a table to have more than one row. The same class of mistake as §5's
-chapter rules, and the fix is likely the same shape — **a table is a structure of several rows, so
-one line can never be one.**
+Because every line in a range was `continue`d, the text was **replaced** by the chip, not annotated
+with it. *भारत में जातिप्रथा* parsed to **1,524 words where the book holds 9,132 — 83% of it
+deleted**, whole pages of Ambedkar gone with nothing to tell the reader anything had been there.
 
-**Needs a device-sourced example first.** Collect the offending lines the way the paragraph
-investigation did (pull the parsed JSON off the device and read the placeholders' neighbours),
-rather than guessing a threshold.
+**The task's hypothesis was wrong, and in a useful way.** It guessed a single line was being taken
+for a table; `runCount >= 2` was already required. The real cause is two per-line rules that fire on
+ordinary prose and cannot be rescued by a threshold:
+- `isWideHorizontalRow && hasMixedHeaderAndValues` — any full-measure line containing **one**
+  number. *"Since my arrival from Bombay, on the 12th, I have been indisposed"*.
+- `hasMultiColumnSpacing && hasShortCellLikeWords` — any line with three items and two wide gaps,
+  which is what justified Devanagari looks like in **every line of every book**.
+
+`tableScore >= 4` could not save it either, being a sum across rows: a long prose run clears it
+trivially.
+
+**The fix: a table's columns line up, and prose's do not.** The per-line rules now only *nominate*;
+the gate moved to the run, where the evidence is. `finishLine` carries `cellX` (the x of every item
+starting after a wide gap) and `countAlignedColumns()` asks how many of those positions hold across
+the run.
+
+**Two measurements decided the definition, and the first attempt failed.** Counting *any* recurring
+cell edge scored prose at **1.00** — justified text shares its left and right margin on every line,
+so the measure itself satisfied the test. Restricted to **interior** edges (ignoring anything within
+20 units of a line's own `x0`/`x1`), tolerance 2.5, a column needing 80% of rows:
+
+| | aligned interior columns |
+|---|---|
+| all 43 known-prose runs | **0** (worst single column share 0.67) |
+| a real table | 1.00 by construction |
+
+**Gap width was measured and rejected as the discriminator:** justified Devanagari runs p50 = 3.0
+char widths, p99 = 6.3, max = 10.1, so there is no clean line between a stretched space and a column
+void. Also now **three rows minimum** — both English false positives were exactly two, and a two-row
+table is indistinguishable from a coincidence, the same conclusion §5's chapter rules reached about a
+bare numeral needing a sequence.
+
+**Second half of the fix, and a judgement call the owner can reverse in one line:** the lines are
+**kept** and the chip is added above them, rather than replacing them. The four outcomes are not
+symmetric — a false positive that keeps the text costs a stray chip, one that deletes it costs the
+page, and a true positive that keeps the text costs a chip above some run-together columns, which is
+exactly what the reader saw before this feature existed. Only one of the four is unrecoverable.
+Reverting is restoring one `continue`, now that false positives are rare.
+
+The label was also hardcoded English (`[Table detected — Tap to View]`), a §16 violation hiding in a
+parser; it is now `reader.placeholder.table` in both locales.
+
+**Verified:** 11 checks — a real five-row table still detected, a two-row one refused, eight rows of
+deliberately ragged columns refused, and both catalogue books flagging **zero** ranges while keeping
+their text (1,524 → 9,132 words, and 37,512 → 37,579). Run against the shipping `parsePDF`, with the
+before/after word counts taken by stashing the fix rather than trusting an earlier run.
+
+**Owed:** a device check, and a real table in a real PDF. The positive case is verified against
+synthetic line objects — the detector's actual input type — because no catalogue PDF to hand contains
+a table. `free-books.json`'s `requiresOcr` has no equivalent here, so if a book's table is missed
+there is no per-book escape hatch.
 
 ---
 

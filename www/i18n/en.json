@@ -207,6 +207,7 @@
   "engine_loading.title.page": "Creating Pages",
   "engine_loading.subtitle.page": "Laying out reflowed pages at your font size",
   "reader.page.finished": "Finished — marked as read",
+  "reader.placeholder.table": "[Table — tap to see the original page]",
   "reader.index.close": "Close the index",
   "reader.index.title": "Index",
   "reader.index.search.placeholder": "Search chapters",
