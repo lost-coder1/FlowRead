@@ -15,25 +15,27 @@ const OCREngine = (function() {
     return !!_plugin();
   }
 
-  /* Recognise text from a base64 image. Tries Latin first; if the result is
-     thin or looks like junk, tries Devanagari (Hindi) and keeps the better one. */
-  async function recogniseBase64(base64Image) {
+  async function _detect(base64Image, script) {
     const plugin = _plugin();
     if (!plugin) throw new Error('OCR plugin not available on this platform.');
+    const res = await plugin.detectText({ base64Image: base64Image, script: script });
+    return (res && res.text) ? res.text.trim() : '';
+  }
 
-    const latin = await plugin.detectText({ base64Image: base64Image, script: 'latin' });
-    const latinText = (latin && latin.text) ? latin.text.trim() : '';
+  /* Recognise with both scripts and report which one won, so a caller processing a
+     whole document can stop paying for two passes per page (see ocr-pdf.js). */
+  async function recogniseAuto(base64Image) {
+    const latinText = await _detect(base64Image, 'latin');
     const latinScore = _scoreText(latinText);
 
     /* Skip Devanagari attempt if Latin produced clearly good output */
     if (latinScore.realWords >= 15 && latinScore.junkRatio < 0.3) {
-      return latinText;
+      return { text: latinText, script: 'latin' };
     }
 
     let devText = '';
     try {
-      const dev = await plugin.detectText({ base64Image: base64Image, script: 'devanagari' });
-      devText = (dev && dev.text) ? dev.text.trim() : '';
+      devText = await _detect(base64Image, 'devanagari');
     } catch (e) {
       console.warn('[OCR] devanagari attempt failed:', e);
     }
@@ -45,11 +47,30 @@ const OCREngine = (function() {
     if (devText.length > latinText.length || devScore.devanagariChars > 0) {
       /* Merge both — Hindi docs sometimes have English headers/page numbers */
       if (latinScore.realWords >= 3 && devScore.devanagariChars > 0) {
-        return (devText + '\n' + latinText).trim();
+        return { text: (devText + '\n' + latinText).trim(), script: 'both' };
       }
-      return devText;
+      return { text: devText, script: 'devanagari' };
     }
-    return latinText;
+    return { text: latinText, script: 'latin' };
+  }
+
+  /* Recognise text from a base64 image.
+     With no opts: tries Latin first and falls back to Devanagari (the original
+     behaviour — image.js and the per-page rescue path rely on it).
+     opts.script pins the pass(es) to run: 'latin', 'devanagari' or 'both'. */
+  async function recogniseBase64(base64Image, opts) {
+    const script = opts && opts.script;
+    if (script === 'latin' || script === 'devanagari') return _detect(base64Image, script);
+    if (script === 'both') {
+      const latinText = await _detect(base64Image, 'latin');
+      let devText = '';
+      try { devText = await _detect(base64Image, 'devanagari'); }
+      catch (e) { console.warn('[OCR] devanagari attempt failed:', e); }
+      if (!devText) return latinText;
+      if (!latinText) return devText;
+      return (devText + '\n' + latinText).trim();
+    }
+    return (await recogniseAuto(base64Image)).text;
   }
 
   /* Cheap text quality heuristic — used to decide whether to retry with another script. */
@@ -76,19 +97,23 @@ const OCREngine = (function() {
   }
 
   /* Render a pdf.js page to a canvas and return a base64 JPEG string.
-     scale=3 gives ~288 DPI on a 96 DPI screen — enough for ML Kit on dense text.
-     Max side capped at 3000px to avoid WebView OOM on very large page sizes.
+     scale=2 / 2000px long edge is ~190 DPI, which ML Kit reads book text from
+     reliably, and it is the cheapest lever there is: the JPEG encode here is
+     synchronous on the main thread, the base64 crosses the bridge as JSON, and
+     native decodes it back to a bitmap — all three scale with pixel count, so
+     3000px cost 2.25x of each. ocr-pdf.js re-renders a page at HIRES when the
+     text comes back thin, so dense scans are not left on the cheap setting.
 
      opts exists for the cover thumbnails (book-cover.js), which want the same
      render at a fraction of the size and none of the OCR diagnostics. Defaults
      are the OCR values, so callers that pass nothing are unaffected. */
   async function pdfPageToBase64(pdfPage, opts) {
     const o = opts || {};
-    const targetScale = typeof o.scale === 'number' ? o.scale : 3.0;
-    const quality = typeof o.quality === 'number' ? o.quality : 0.92;
+    const targetScale = typeof o.scale === 'number' ? o.scale : 2.0;
+    const quality = typeof o.quality === 'number' ? o.quality : 0.85;
     const diagnostics = o.diagnostics !== false;
     const baseViewport = pdfPage.getViewport({ scale: 1.0 });
-    const MAX_SIDE = typeof o.maxSide === 'number' ? o.maxSide : 3000;
+    const MAX_SIDE = typeof o.maxSide === 'number' ? o.maxSide : 2000;
     const rawMax = Math.max(baseViewport.width, baseViewport.height) * targetScale;
     const scale = rawMax > MAX_SIDE
       ? (MAX_SIDE / Math.max(baseViewport.width, baseViewport.height))
@@ -104,6 +129,14 @@ const OCREngine = (function() {
     await pdfPage.render({ canvasContext: ctx, viewport: viewport }).promise;
     const dataUrl = canvas.toDataURL('image/jpeg', quality);
     const base64 = dataUrl.split(',')[1];
+    /* Bytes per megapixel is how ocr-pdf.js tells "pdf.js drew nothing" (a JBIG2/JP2
+       scan renders white) from "this page is genuinely blank or sparse". */
+    if (o.info && typeof o.info === 'object') {
+      o.info.width = canvas.width;
+      o.info.height = canvas.height;
+      o.info.bytes = base64.length;
+      o.info.bytesPerMP = base64.length / Math.max(0.01, (canvas.width * canvas.height) / 1e6);
+    }
     if (diagnostics) {
       /* Diagnostic: tiny payload means pdf.js failed to draw the embedded image (e.g. JBIG2/JP2 not decoded) */
       console.log('[OCR] rendered page ' + canvas.width + 'x' + canvas.height + ', jpeg bytes=' + base64.length);
@@ -130,5 +163,5 @@ const OCREngine = (function() {
     });
   }
 
-  return { isAvailable, recogniseBase64, pdfPageToBase64, imageFileToBase64 };
+  return { isAvailable, recogniseBase64, recogniseAuto, pdfPageToBase64, imageFileToBase64 };
 })();

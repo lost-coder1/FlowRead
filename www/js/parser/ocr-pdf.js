@@ -83,6 +83,39 @@ async function _extractLargestImage(page) {
   }
 }
 
+/* Render settings. LORES is the default pass; a page whose text comes back thin
+   is re-rendered at HIRES and tried again, so the cheap setting costs accuracy
+   only on pages where it demonstrably did not work. */
+const OCR_LORES = { scale: 2.0, maxSide: 2000, quality: 0.85 };
+const OCR_HIRES = { scale: 3.0, maxSide: 3000, quality: 0.92 };
+
+/* Under this many non-space characters, a page is treated as "nothing came back"
+   and the rescue paths are considered. */
+const OCR_THIN_CHARS = 20;
+
+/* A JPEG this lean for its pixel count means pdf.js drew a white page — the
+   signature of an image format it cannot decode (JBIG2/JP2). It separates
+   "rendering failed, try the embedded image" from "this page really is blank",
+   which is what stops a 100-page scan paying for the XObject path on every
+   chapter divider. */
+const OCR_BLANK_BYTES_PER_MP = 30000;
+
+function _ocrThin(text) {
+  return (text || '').replace(/\s+/g, '').length < OCR_THIN_CHARS;
+}
+
+async function _renderForOcr(pdfDoc, pageNum, opts) {
+  try {
+    const page = await pdfDoc.getPage(pageNum);
+    const info = {};
+    const base64 = await OCREngine.pdfPageToBase64(page, Object.assign({}, opts, { info: info }));
+    return { page: page, base64: base64, info: info };
+  } catch (err) {
+    console.error('[OCR] render failed for page', pageNum, err);
+    return { page: null, base64: null, info: {}, error: err };
+  }
+}
+
 async function parseScannedPDF(pdfDoc, onProgress) {
   if (!OCREngine.isAvailable()) throw { type: 'ocr-unavailable', detail: 'OCR not available' };
 
@@ -91,32 +124,98 @@ async function parseScannedPDF(pdfDoc, onProgress) {
   const pageWordIndex = [];
   const rawLines = [];
 
+  /* Per-document state. A scanned book is one script and one set of quirks all
+     the way through, so each of these is learned once rather than re-tested on
+     every page. */
+  let lockedScript = null;        /* 'latin' | 'devanagari' | 'both' */
+  const scriptVotes = [];
+  let xobjectHelped = false;      /* the embedded-image path has rescued a page */
+  let xobjectAttempts = 0;
+  let hiresPages = 0, rescuePages = 0, xobjectPages = 0;
+
+  const t0 = Date.now();
+  let renderMs = 0, ocrMs = 0;
+
+  /* One render is kept in flight ahead of the loop: page N+1 rasterises and
+     encodes while ML Kit is working on page N, which are different threads and
+     were previously each idle waiting for the other. */
+  let pending = _renderForOcr(pdfDoc, 1, OCR_LORES);
+
   for (let p = 1; p <= pageCount; p++) {
     if (typeof onProgress === 'function') onProgress(p, pageCount);
 
-    let pageText = '';
-    try {
-      const page = await pdfDoc.getPage(p);
-      /* Primary path: render full page via pdf.js */
-      const base64 = await OCREngine.pdfPageToBase64(page);
-      pageText = await OCREngine.recogniseBase64(base64);
-      console.log('[OCR] page ' + p + ' primary result chars=' + pageText.length);
+    const rStart = Date.now();
+    const rendered = await pending;
+    renderMs += Date.now() - rStart;
+    pending = (p < pageCount) ? _renderForOcr(pdfDoc, p + 1, OCR_LORES) : null;
 
-      /* Fallback: if primary returned almost nothing, try extracting embedded image XObjects
-         directly. Many scanner PDFs (JBIG2/JP2-encoded) render blank via pdf.js but the
-         underlying ImageBitmap on page.objs is still decodable by canvas drawImage. */
-      if (pageText.replace(/\s+/g, '').length < 20) {
-        const imgBase64 = await _extractLargestImage(page);
-        if (imgBase64) {
-          const altText = await OCREngine.recogniseBase64(imgBase64);
-          console.log('[OCR] page ' + p + ' fallback image result chars=' + altText.length);
-          if (altText.length > pageText.length) pageText = altText;
+    let pageText = '';
+    const oStart = Date.now();
+    try {
+      if (rendered.base64) {
+        if (lockedScript) {
+          pageText = await OCREngine.recogniseBase64(rendered.base64, { script: lockedScript });
+          /* Rescue: a page the locked script cannot read gets the full two-script
+             treatment, so locking can only ever cost time, never text. */
+          if (_ocrThin(pageText)) {
+            rescuePages++;
+            const auto = await OCREngine.recogniseAuto(rendered.base64);
+            if (auto.text.length > pageText.length) pageText = auto.text;
+          }
+        } else {
+          const auto = await OCREngine.recogniseAuto(rendered.base64);
+          pageText = auto.text;
+          if (!_ocrThin(pageText)) {
+            scriptVotes.push(auto.script);
+            /* Two pages agreeing is enough; three pages is the cap either way. */
+            if (scriptVotes.length >= 2 && scriptVotes[scriptVotes.length - 1] === scriptVotes[scriptVotes.length - 2]) {
+              lockedScript = auto.script;
+            } else if (scriptVotes.length >= 3) {
+              lockedScript = scriptVotes.indexOf('both') !== -1 ? 'both' : auto.script;
+            }
+            if (lockedScript) console.log('[OCR] script locked to ' + lockedScript + ' at page ' + p);
+          }
+        }
+
+        /* Thin and the page is not blank — the cheap render may simply be too
+           small for this scan's print size. Re-render it properly. */
+        const looksBlank = typeof rendered.info.bytesPerMP === 'number'
+          && rendered.info.bytesPerMP < OCR_BLANK_BYTES_PER_MP;
+        if (_ocrThin(pageText) && !looksBlank) {
+          const hi = await _renderForOcr(pdfDoc, p, OCR_HIRES);
+          if (hi.base64) {
+            hiresPages++;
+            const hiText = (await OCREngine.recogniseAuto(hi.base64)).text;
+            if (hiText.length > pageText.length) pageText = hiText;
+          }
+        }
+
+        /* Last resort: pull the embedded image off the page. Many scanner PDFs
+           (JBIG2/JP2) render blank through pdf.js but the decoded bitmap on
+           page.objs is still drawable. Gated, because it is the most expensive
+           path in here: tried on the first couple of thin pages so a document
+           with this defect is spotted early, and afterwards only when it has
+           already worked or the render looks blank. */
+        if (_ocrThin(pageText) && rendered.page &&
+            (xobjectHelped || looksBlank || xobjectAttempts < 2)) {
+          xobjectAttempts++;
+          const imgBase64 = await _extractLargestImage(rendered.page);
+          if (imgBase64) {
+            const altText = await OCREngine.recogniseBase64(imgBase64);
+            if (altText.length > pageText.length) {
+              pageText = altText;
+              if (!_ocrThin(altText)) { xobjectHelped = true; xobjectPages++; }
+            }
+          }
         }
       }
     } catch (err) {
       console.error('OCR page', p, 'failed:', err);
       pageText = '';
     }
+    ocrMs += Date.now() - oStart;
+    console.log('[OCR] page ' + p + '/' + pageCount + ' chars=' + pageText.length
+      + ' in ' + (Date.now() - oStart) + 'ms');
 
     pageWordIndex.push(words.length);
 
@@ -132,7 +231,13 @@ async function parseScannedPDF(pdfDoc, onProgress) {
   }
 
   const wordCount = words.filter(function(w) { return typeof w === 'string'; }).length;
-  console.log('[OCR] total wordCount after OCR=' + wordCount);
+  const totalMs = Date.now() - t0;
+  console.log('[OCR] done: ' + pageCount + ' pages in ' + (totalMs / 1000).toFixed(1) + 's'
+    + ' (' + Math.round(totalMs / pageCount) + 'ms/page)'
+    + ' | words=' + wordCount
+    + ' | script=' + (lockedScript || 'unlocked')
+    + ' | render-wait=' + Math.round(renderMs / 1000) + 's ocr=' + Math.round(ocrMs / 1000) + 's'
+    + ' | hires-retries=' + hiresPages + ' script-rescues=' + rescuePages + ' xobject-rescues=' + xobjectPages);
 
   return {
     words: words,

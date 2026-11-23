@@ -14,7 +14,6 @@ import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.text.Text;
 import com.google.mlkit.vision.text.TextRecognition;
 import com.google.mlkit.vision.text.TextRecognizer;
-import com.google.mlkit.vision.text.TextRecognizerOptionsInterface;
 import com.google.mlkit.vision.text.devanagari.DevanagariTextRecognizerOptions;
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 
@@ -29,6 +28,33 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
  */
 @CapacitorPlugin(name = "FlowReadOcr")
 public class FlowReadOcrPlugin extends Plugin {
+
+    /* One recognizer per script, built once and kept.
+       TextRecognition.getClient() is not free — it resolves the model pipeline on
+       every call — and a 100-page scan was building (and leaking) one per page per
+       script. process() is safe to call repeatedly on a single client. */
+    private TextRecognizer latinRecognizer;
+    private TextRecognizer devanagariRecognizer;
+
+    private synchronized TextRecognizer recognizerFor(String script) {
+        if ("devanagari".equalsIgnoreCase(script)) {
+            if (devanagariRecognizer == null) {
+                devanagariRecognizer = TextRecognition.getClient(
+                        new DevanagariTextRecognizerOptions.Builder().build());
+            }
+            return devanagariRecognizer;
+        }
+        if (latinRecognizer == null) {
+            latinRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
+        }
+        return latinRecognizer;
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        if (latinRecognizer != null) { latinRecognizer.close(); latinRecognizer = null; }
+        if (devanagariRecognizer != null) { devanagariRecognizer.close(); devanagariRecognizer = null; }
+    }
 
     @PluginMethod
     public void detectText(PluginCall call) {
@@ -53,15 +79,8 @@ public class FlowReadOcrPlugin extends Plugin {
             return;
         }
 
-        TextRecognizerOptionsInterface options;
-        if ("devanagari".equalsIgnoreCase(script)) {
-            options = new DevanagariTextRecognizerOptions.Builder().build();
-        } else {
-            options = TextRecognizerOptions.DEFAULT_OPTIONS;
-        }
-
         InputImage image = InputImage.fromBitmap(bitmap, rotation);
-        TextRecognizer recognizer = TextRecognition.getClient(options);
+        TextRecognizer recognizer = recognizerFor(script);
 
         recognizer.process(image)
             .addOnSuccessListener(visionText -> {
