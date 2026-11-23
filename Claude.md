@@ -199,8 +199,8 @@ position loss.
 
 The grid caches under `fr_page_layout_*` — **boundaries only, integers, never content** (§1.4) —
 keyed by file + font + scale + viewport, LRU at ten. **Bump the stored version whenever anything
-changes what occupies vertical space** (v2 = paragraphs, v3 = headings) or a stale grid describes a
-layout that no longer exists. Page mode deliberately exposes no `hasCache()`.
+changes what occupies vertical space** (v2 = paragraphs, v3 = headings, v4 = a bare numeral is its
+own paragraph) or a stale grid describes a layout that no longer exists. Page mode deliberately exposes no `hasCache()`.
 
 ### 4.2 Reaching the end marks a book read
 
@@ -234,8 +234,20 @@ raw bytes), so `paragraphs.js` infers from stored line lengths: short of the wra
 a sentence ended the paragraph — 94.6% precision / 86.9% recall, carried by the sentence half (81%
 without). A missed break merges two paragraphs, no worse than before.
 
+**The OCR path owes the same cleaning the text-layer path does.** `ocr-pdf.js` ran none of it, so
+every scanned book carried its running heads, footers and page numbers in the reading text (Godaan:
+399 footer lines) and offered them to the chapter detector. OCR therefore builds the reader's arrays
+**once, after the last page** — "does this line recur across the book?" has no answer mid-run, which
+is also why the resume checkpoint stores recognised page text rather than built arrays. Two things
+it cannot borrow from `pdf.js`: the header/footer band is the first and last lines of a page in
+reading order, since the plugin returns text and no boxes; and a bare numeral is kept, because
+`isNoiseLine` strips every one of them and in a scanned book **a page number and a chapter marker
+are the same string**. Page numbers are told apart by arithmetic — a constant offset from the page
+they sit on, repeating ten times or more — and `normalizeLine` had to stop deleting Devanagari
+(`\w` is ASCII-only, so every Hindi footer normalised to `#` and no two of them ever matched).
+
 **Chapter detection classifies paragraphs, not lines** (notes §6.2). `detectChapters` groups through
-`ParagraphStructure`, so the index is built from the same boundaries Page mode renders. Four rules:
+`ParagraphStructure`, so the index is built from the same boundaries Page mode renders. Five rules:
 1. **A heading is a short, standalone paragraph** — not a line, not a fragment. Every rule passes
    that gate before any pattern is tried.
 2. **Anchored rules may be long; guessed ones may not.** Heading word *plus* an ordinal: up to 250
@@ -244,9 +256,28 @@ without). A missed break merges two paragraphs, no worse than before.
    numbers itself. Testing the stop alone rejects nearly every numbered heading there is.
 4. **Shape-based rules are dropped when numbered structure dominates** — but a book of tales or poems
    has nothing stronger and they are its whole index. Do not make either half unconditional.
+5. **A bare numeral is a chapter only as part of a sequence.** Godaan, and much Hindi publishing,
+   marks chapters with a number and no word; one `7` proves nothing, while `5`, `6`, `7` each a
+   chapter's worth of words apart is an index. Verified document-wide: ascending, steps of at most
+   3, 400+ words between markers, a run of at least 3 — and **rejected if the values track the page
+   number** at a constant offset, which is what page numbering looks like and which an 86-page book
+   turned into 61 "chapters". A run of 5+ is the book's structure, so the shape guesses go with it
+   (Godaan: 34 real markers against 149 short-Devanagari guesses). This is the **one rule that reads
+   `rawLines`**, deliberately: a bare numeral is standalone by construction, and paragraph inference
+   merges it into the chapter's first paragraph, where the detector cannot see it and Page mode's
+   heading range would style the whole paragraph. So `paragraphs.js` also makes a numeral line a
+   paragraph on both sides — which is what the v4 grid bump in §4.1 is for.
 
 **The detector has a second consumer:** Page mode styles headings from these ranges (§4.1 rule 5), so
 a false positive puts a heading mid-paragraph, not merely a bad index entry.
+
+**Script-aware scoring is not optional, and it was wrong in two places.** `pdf.js` scored "real
+text" as ASCII-with-a-vowel, so a clean Unicode Devanagari text layer scored `junkRatio` 1.00,
+`hasTextLayer` came back false, and **a perfectly readable Hindi PDF was declared scanned** — sent
+to OCR, which is slower than and worse than the text it discarded, or to the scanned-PDF modal for
+a user without OCR. `ocr.js` had the same rule, which made every Hindi page look like a failed
+recognition. A Devanagari word counts as real in both. Legacy KrutiDev is unaffected: it genuinely
+is ASCII and still scores as junk.
 
 **`\b` is ASCII-only in JavaScript** and never matches a Devanagari letter, so `/^(अध्याय|भाग)\b/` is
 dead code — use a lookahead. Holds for every Devanagari regex here, and it is invisible until a
