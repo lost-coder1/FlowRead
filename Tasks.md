@@ -10,7 +10,10 @@ decision stays here or in `Claude.md`; a record of an action already taken goes 
 
 **Last updated:** 2026-11-23 — **1.5.7 / 45 built and signed, awaiting upload.** Device
 verification, Hindi sign-off and the listing art are all cleared by the owner, which closes
-everything that was blocking this build.
+everything that was blocking this build. **Merged since:** the OCR speed/cleaning work and
+paragraph structure in Focus Bold and Simple Scroll (`reader-paragraphs`), device-verified on an
+English PDF and two Hindi books. **Opened by the owner from that run:** 16.32 (read a scan while it
+is still being OCR'd) and 16.33 (table detection firing on single words).
 
 **2026-11-23 — build 1.5.7 / versionCode 45** (`master`, from `store-promo-video` merged in).
 Carries 16.21–16.31. Verified from the artifact rather than the config: versionCode 45,
@@ -425,6 +428,62 @@ Describes the pre-1.4.5 state. **Every version in it is out of date by design** 
 # Block A — Compliance ✅ shipped (16.1 code complete 2026-11-01)
 
 The **2026-08-31** deadline had already passed when this work started, leaving the app unable to publish any update. A Play Console extension (valid to 2026-11-01) covered the gap, and 1.4.5 cleared both notices on 2026-09-16. 16.1 (Subscription IAP) remains open but gates nothing.
+
+---
+
+## Task 16.32 — Read a scanned book while it is still being OCR'd
+
+**Open. Asked for by the owner 2026-11-23**, and the original question behind the whole OCR speed
+branch: *"say I have a scanned PDF of 100 pages, it first converts every page 100/100 then only we
+can read them."* Speed work took a 435-page Hindi scan from ~4.1 min to ~3.1 min and made the wait
+legible (a real progress bar, a smoothed `~m:ss`, resumable checkpoints every 20 pages), **but the
+reader still cannot open the book until the last page is recognised.** For a 435-page book that is
+three minutes of spinner before a single word can be read.
+
+**What makes it possible:** the reader's arrays are append-only, so a prefix of them is a valid
+book. `words[]`, `pageWordIndex[]` and `rawLines[]` for pages 1..N describe exactly what pages 1..N
+contain.
+
+**What makes it awkward, and must be designed before any code:**
+- **Cleaning is a whole-book question.** §5: "does this line recur across the book?" has no answer
+  mid-run, which is why `_ocrBuild` deliberately runs once after the last page. A progressively
+  opened book would be read *uncleaned* — running heads, footers and page numbers in the reading
+  text — and would then have to change under the reader when the real build lands.
+- **So would chapter detection and paragraph geometry**, both measured document-wide.
+- **Page-mode pagination renumbers** as the book grows, which §4.1 rule 3 already handles with the
+  tilde estimate — the same mechanism, over a book whose length is genuinely still changing.
+- **Position is sacred (§20).** A position saved against the partial build must still mean the same
+  word after the final build replaces the arrays.
+
+**Open question for the owner before it is built:** is the right shape a *reader* that grows
+(complex, and text changes under the reader as cleaning lands), or a **"start reading" affordance
+that opens the first N pages as a stable, already-cleaned prefix** while the rest continues behind
+it? The second is less impressive and much more honest, and it is what the resume checkpoint
+already stores. §1.5 governs either way: nothing may silently change under the reader.
+
+---
+
+## Task 16.33 — Table detection fires on single words
+
+**Open. Reported on device by the owner 2026-11-23:** the cleaning engine "is detecting simple
+words as tables sometimes", so ordinary prose is replaced by a tappable `[Table]` placeholder — the
+reader loses the text and is offered a placeholder for something that was never a table.
+
+Worse than a cosmetic defect, for two reasons: a placeholder **removes words from the reading
+stream**, so it also shifts every word index after it, and a `[Table]` where a sentence should be is
+precisely the silent failure §1.5 forbids — the reader cannot tell whether the book said something
+there or not.
+
+**Where to look:** the table detector in `www/js/parser/pdf.js`, which infers a table from column
+alignment and intra-line gaps. The likely cause is that evidence being satisfied by **one short
+line**: a heading, a signature, a lone numeral or a two-word line has gaps and alignment by
+accident, and nothing requires a table to have more than one row. The same class of mistake as §5's
+chapter rules, and the fix is likely the same shape — **a table is a structure of several rows, so
+one line can never be one.**
+
+**Needs a device-sourced example first.** Collect the offending lines the way the paragraph
+investigation did (pull the parsed JSON off the device and read the placeholders' neighbours),
+rather than guessing a threshold.
 
 ---
 

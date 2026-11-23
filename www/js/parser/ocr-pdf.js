@@ -223,10 +223,6 @@ const OCR_BAND_MAX_WORDS = 12;
    page numbering. Chapter numbers cannot reach it, because pages advance faster
    than chapters do, so every chapter marker sits at its own offset. */
 const OCR_PAGENO_MIN_RUN = 10;
-/* A finished sentence: Latin stops, the Devanagari danda, and a closing quote
-   after any of them. Diagnostic only -- see _ocrBuild. */
-const OCR_SENTENCE_END = /[.!?\u0964\u0965][\s"'\u2019\u201d]*$/;
-
 const OCR_BARE_NUMERAL = /^[\s.:\u2014-]*([0-9]{1,4}|[\u0966-\u096F]{1,4})[.):]?[\s.:\u2014-]*$/;
 
 /* A page whose text arrived without boxes -- the embedded-image fallback, or a
@@ -375,7 +371,6 @@ function _ocrBuild(pageLines) {
         if (geom) {
           entry.paraStart = _isParagraphStart(line, prevKept, geom, rawLines.length === 0);
           if (entry.paraStart) paraStarts++;
-
         }
         rawLines.push(entry);
         prevKept = line;
@@ -387,25 +382,6 @@ function _ocrBuild(pageLines) {
     + (geom ? (paraStarts + ' paragraph starts in ' + rawLines.length + ' lines')
             : 'paragraphs left to line-length inference'));
 
-
-  /* Whether the geometry is finding real paragraphs or block boundaries. ML Kit
-     returns lines grouped into blocks, and a block's last line stops short of
-     the right margin because the block ended -- not necessarily because the
-     paragraph did. A real break in prose almost always follows a finished
-     sentence, so the share of starts that do is the evidence for trusting
-     these over paragraphs.js's line-length inference. Reported, not acted on:
-     a threshold invented before the figure is known would be a guess (§1.5). */
-  if (geom && paraStarts > 1) {
-    let afterSentence = 0;
-    for (let i = 1; i < rawLines.length; i++) {
-      if (!rawLines[i].paraStart) continue;
-      if (OCR_SENTENCE_END.test(rawLines[i - 1].text)) afterSentence++;
-    }
-    console.log('[OCR] paragraph starts following a finished sentence: '
-      + Math.round((afterSentence / (paraStarts - 1)) * 100) + '%'
-      + ' (' + afterSentence + ' of ' + (paraStarts - 1) + ')'
-      + ', mean ' + (rawLines.length / paraStarts).toFixed(1) + ' lines per paragraph');
-  }
   return { words: words, pageWordIndex: pageWordIndex, rawLines: rawLines };
 }
 

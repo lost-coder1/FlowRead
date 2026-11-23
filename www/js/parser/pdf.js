@@ -89,31 +89,11 @@ async function parsePDF(arrayBuffer) {
       if (headerFooterSet.has(normalized)) continue;
       if (isNoiseLine(line.text)) continue;
 
-      const isParaStart = _isParagraphStart(line, prevKept, paraGeom, rawLines.length === 0);
-      /* Diagnostic: a paragraph that starts on a short line whose predecessor
-         ran the full measure is the symptom reported on English PDFs -- a
-         sentence's last word stranded as its own paragraph. Collect the
-         geometry of the first few so the cause can be read rather than
-         guessed; _paraOddities is logged once at the end of the parse. */
-      if (isParaStart && paraGeom && prevKept && _paraOddities.length < 12
-          && line.text.split(/\s+/).length <= 3
-          && typeof prevKept.x1 === 'number' && prevKept.x1 >= paraGeom.shortBefore) {
-        _paraOddities.push({
-          text: line.text.slice(0, 30),
-          x0: typeof line.x0 === 'number' ? Math.round(line.x0) : null,
-          x1: typeof line.x1 === 'number' ? Math.round(line.x1) : null,
-          prevX0: typeof prevKept.x0 === 'number' ? Math.round(prevKept.x0) : null,
-          prevX1: Math.round(prevKept.x1),
-          dy: (typeof line.y === 'number' && typeof prevKept.y === 'number')
-            ? Math.round(Math.abs(prevKept.y - line.y) * 10) / 10 : null,
-          gap: Math.round(paraGeom.lineGap * 10) / 10,
-        });
-      }
       rawLines.push({
         text: line.text,
         pageIndex: i,
         wordIndex: words.length,
-        paraStart: isParaStart,
+        paraStart: _isParagraphStart(line, prevKept, paraGeom, rawLines.length === 0),
       });
       prevKept = line;
 
@@ -223,12 +203,6 @@ async function parsePDF(arrayBuffer) {
   /* ── 6. Detect image-like gaps and insert placeholders ────── */
   insertImagePlaceholders(words, allPageData, pageWordIndex);
 
-  console.log('[pdf] paragraph starts: ' + rawLines.filter(function(l) { return l.paraStart; }).length
-    + ' in ' + rawLines.length + ' lines');
-  if (_paraOddities.length) {
-    console.log('[pdf] short paragraph starts after a full-width line: '
-      + JSON.stringify(_paraOddities));
-  }
 
   return {
     words,
@@ -250,7 +224,6 @@ async function parsePDF(arrayBuffer) {
    are relative to those margins, so they have to be measured from the book
    rather than assumed — margins vary wildly between publishers. */
 function measureParagraphGeometry(allPageData, headerFooterSet) {
-  _paraOddities = [];
   const lefts = [];
   const rights = [];
   /* Vertical distances between consecutive lines on a page. Most pairs are
@@ -298,25 +271,6 @@ function measureParagraphGeometry(allPageData, headerFooterSet) {
   gaps.sort(function(a, b) { return a - b; });
   const lineGap = gaps.length >= 20 ? gaps[Math.floor(gaps.length / 2)] : 0;
 
-  /* How ragged the right edge is. The whole "a short line ended its paragraph"
-     rule assumes justified text, where an interior line reaches the margin and
-     only a paragraph's last line falls short. In ragged-right text an interior
-     line falls short by as much as the next word is wide, so the same rule
-     marks a paragraph every few lines. Logged to be read before it is acted
-     on: p50 close to p80 means justified, far from it means ragged. */
-  console.log('[pdf] right edge: p20=' + pct(rights, 0.2).toFixed(0)
-    + ' p50=' + pct(rights, 0.5).toFixed(0)
-    + ' p70=' + pct(rights, 0.7).toFixed(0)
-    + ' p80=' + bodyRight.toFixed(0)
-    + ' p95=' + pct(rights, 0.95).toFixed(0)
-    + ' | left edge: p20=' + bodyLeft.toFixed(0)
-    + ' p50=' + pct(lefts, 0.5).toFixed(0)
-    + ' p80=' + pct(lefts, 0.8).toFixed(0)
-    + ' | lines=' + rights.length);
-  console.log('[pdf] paragraph geometry: lineGap=' + lineGap.toFixed(1) + ' bodyLeft=' + bodyLeft.toFixed(0)
-    + ' bodyRight=' + bodyRight.toFixed(0) + ' em=' + em.toFixed(1)
-    + ' indentFrom=' + (bodyLeft + em * 1.2).toFixed(0)
-    + ' shortBefore=' + (bodyRight - em * 3).toFixed(0));
   return {
     em: em,
     lineGap: lineGap,
@@ -324,10 +278,6 @@ function measureParagraphGeometry(allPageData, headerFooterSet) {
     shortBefore: bodyRight - em * 3,
   };
 }
-
-/* See the diagnostic in the parse loop. Module-level and reset by
-   measureParagraphGeometry, which runs once per document. */
-let _paraOddities = [];
 
 /* The same test paragraphs.js's line-length inference uses, for the same
    reason: in prose a paragraph ends where a sentence does. */
