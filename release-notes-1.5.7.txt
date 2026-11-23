@@ -1,0 +1,48 @@
+<en-US>
+• Highlights — tap a line's first and last word to keep it, all in one place, grouped by book.
+• Saved words — every word you look up is kept, with the book you met it in.
+• The dictionary now understands word endings, so "books", "went" and "children" work — and it's free for everyone.
+• A highlight opens its book at the line, not at the end.
+• Your streak no longer reads zero in the morning.
+• Finishing a nudge read is celebrated, and home tips show what's easy to miss.
+</en-US>
+<de-DE>
+• Markierungen — tippe auf das erste und letzte Wort einer Zeile. Alles an einem Ort, nach Buch gruppiert.
+• Gespeicherte Wörter — jedes nachgeschlagene Wort bleibt erhalten, samt Buch.
+• Das Wörterbuch versteht jetzt Wortformen wie "books" oder "children" — und ist für alle kostenlos.
+• Eine Markierung öffnet das Buch an der Zeile, nicht am Ende.
+• Deine Serie zeigt morgens nicht mehr null an.
+• Ein abgeschlossener Lese-Impuls wird gefeiert, und Tipps zeigen Übersehenes.
+</de-DE>
+<es-419>
+• Resaltados: toca la primera y la última palabra de una línea. Todo en un solo lugar, por libro.
+• Palabras guardadas: cada palabra que consultas queda guardada, con su libro.
+• El diccionario ahora entiende formas derivadas como "books" o "children", y es gratis para todos.
+• Un resaltado abre el libro en la línea, no al final.
+• Tu racha ya no aparece en cero por la mañana.
+• Terminar una lectura sugerida se celebra, y los consejos muestran lo que pasa desapercibido.
+</es-419>
+<es-ES>
+• Resaltados: toca la primera y la última palabra de una línea. Todo en un solo sitio, por libro.
+• Palabras guardadas: cada palabra que consultas queda guardada, con su libro.
+• El diccionario ya entiende formas derivadas como "books" o "children", y es gratis para todos.
+• Un resaltado abre el libro en la línea, no al final.
+• Tu racha ya no aparece a cero por la mañana.
+• Terminar una lectura sugerida se celebra, y los consejos muestran lo que pasa desapercibido.
+</es-ES>
+<ja-JP>
+• ハイライト — 行の最初と最後の単語をタップして保存。本ごとに一か所でまとまります。
+• 保存した単語 — 調べた単語が、出会った本とともに残ります。
+• 辞書が語形変化に対応しました（books、children など）。全員が無料で使えます。
+• ハイライトを開くと、本の最後ではなくその行に移動します。
+• 朝に連続日数が0と表示されることがなくなりました。
+• ナッジからの読書を終えると祝福され、ヒントが見落としがちな機能を案内します。
+</ja-JP>
+<pt-BR>
+• Destaques — toque na primeira e na última palavra de uma linha. Tudo em um só lugar, por livro.
+• Palavras salvas — cada palavra consultada fica guardada, com o livro.
+• O dicionário agora entende flexões como "books" ou "children", e é gratuito para todos.
+• Um destaque abre o livro na linha, não no final.
+• Sua sequência não aparece mais zerada de manhã.
+• Terminar uma leitura sugerida é comemorado, e as dicas mostram o que passa despercebido.
+</pt-BR>
