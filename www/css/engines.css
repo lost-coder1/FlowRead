@@ -229,6 +229,30 @@
 
 .reader-index-toggle {
   min-width: 60px;
+  position: relative;
+}
+
+/* The label is never removed, only hidden, so the button keeps the width the
+   text gave it and the header row cannot shift when the panel opens. */
+.reader-index-toggle .reader-index-x {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.reader-index-toggle.open .reader-index-label {
+  visibility: hidden;
+}
+
+.reader-index-toggle.open .reader-index-x {
+  display: flex;
+}
+
+.reader-index-toggle.open {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .reader-calm-toggle {

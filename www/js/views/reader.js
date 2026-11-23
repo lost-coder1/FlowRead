@@ -78,7 +78,13 @@ function renderReader(options) {
            the .active accent state costs no extra CSS. The band beneath the
            nib is what separates "highlighter" from "pen" at this size. -->
       <button class="btn btn-ghost reader-hl-toggle" id="btn-reader-highlight" title="${t('reader.hl.title')}" aria-label="${t('reader.hl.title')}"><svg class="reader-hl-glyph" viewBox="0 0 18 18" width="18" height="18" aria-hidden="true" focusable="false"><line x1="3.2" y1="16" x2="14.8" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.55"/><polygon points="6.06,9.26 8.74,11.94 6.72,13.32 4.68,11.28" fill="currentColor"/><polygon points="13.66,1.66 16.34,4.34 8.74,11.94 6.06,9.26" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
-      <button class="btn btn-ghost reader-index-toggle" id="btn-reader-index">${t('reader.btn.index')}</button>
+      <!-- The cross is drawn, not a font glyph, for §26.3's reasons, and the
+           label stays in the DOM beneath it rather than being swapped out: it
+           is what gives this button its width, and the reader header does not
+           wrap, so a button that changes size on a tap shifts the filename and
+           the highlighter beside it. The cross overlays the label instead, so
+           the box is identical in both states. -->
+      <button class="btn btn-ghost reader-index-toggle" id="btn-reader-index" aria-expanded="false" aria-label="${t('reader.btn.index')}" title="${t('reader.btn.index')}"><span class="reader-index-label">${t('reader.btn.index')}</span><span class="reader-index-x"><svg viewBox="0 0 18 18" width="14" height="14" aria-hidden="true" focusable="false"><line x1="4" y1="4" x2="14" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="14" y1="4" x2="4" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span></button>
     </div>
 
     <div class="engine-tabs" id="engine-tabs">
@@ -728,6 +734,19 @@ function _renderHighlightList() {
 function _toggleIndexPanel() {
   AppState.isIndexOpen = !AppState.isIndexOpen;
   qs('#reader-index-panel').classList.toggle('hidden', !AppState.isIndexOpen);
+  /* The same control closes the panel, and nothing said so -- the owner was
+     tapping "Index" again on a hunch rather than on an affordance (§1.5: a
+     control whose state is invisible is a silent failure). Every open and close
+     funnels through here, including the two callers that close it on a chapter
+     or highlight jump, so this is the one place that needs to know. */
+  const btn = qs('#btn-reader-index');
+  if (btn) {
+    const label = AppState.isIndexOpen ? t('reader.index.close') : t('reader.btn.index');
+    btn.classList.toggle('open', AppState.isIndexOpen);
+    btn.setAttribute('aria-expanded', AppState.isIndexOpen ? 'true' : 'false');
+    btn.setAttribute('aria-label', label);
+    btn.setAttribute('title', label);
+  }
   if (AppState.isIndexOpen) _renderHighlightList();
 }
 
