@@ -697,7 +697,7 @@
   "paywall.plan.monthly.label": "मासिक",
   "paywall.plan.monthly.note": "जब चाहें रद्द करें।",
   "paywall.plan.sub.label": "FlowRead Plus",
-  "paywall.plan.sub_extra": "Plus में इसके साथ मासिक किताबें भी मिलती हैं। लाइफटाइम से ऐप के सभी टूल खुलते हैं, लेकिन बाद में जुड़ने वाली किताबें नहीं।",
+  "paywall.plan.sub_extra": "मासिक और वार्षिक प्लान वही सब खोलते हैं — एक साथ के बजाय थोड़ा-थोड़ा भुगतान करें।",
   "paywall.period.year": "{price} / साल",
   "paywall.period.month": "{price} / महीना",
   "nudge.toast.apps_trimmed": "फ़्री प्लान में एक ऐप के लिए नज़ मिलती है, इसलिए FlowRead अब {apps} पर नज़र नहीं रख रहा है। ज़्यादा चुनने के लिए अनलॉक करें।",
@@ -783,16 +783,14 @@
   "highlights.no_text": "(चिह्नित अंश)",
   "tip.highlights_screen": "आपकी हाइलाइट होम स्क्रीन पर किताब-दर-किताब इकट्ठी होती हैं — बाक़ी 400 पेज के बिना, बस काम की बातें।",
   "freebooks.drops.heading": "इस महीने की किताबें",
-  "freebooks.drops.tag_plus": "Plus",
   "freebooks.drops.tag_new": "नया",
-  "freebooks.drops.benefit_free": "FlowRead Plus के साथ हर महीने एक किताब चुनें — हमेशा के लिए आपकी।",
+  "freebooks.drops.benefit_free": "हर महीने तीन चुनी हुई किताबें। FlowRead Pro के साथ एक चुनें — हमेशा के लिए आपकी।",
   "freebooks.drops.benefit_sub": "इस महीने {count} में से एक चुनें। वह हमेशा आपकी रहेगी।",
   "freebooks.drops.claim": "यह किताब लें",
   "freebooks.drops.confirm": "क्या “{title}” लेनी है? इस महीने आपको एक किताब मिलती है।",
   "freebooks.drops.spent": "इस महीने की किताब आप ले चुके हैं।",
   "paywall.drops.title": "इस महीने की किताबें",
-  "paywall.drops.subtitle": "मासिक किताबें FlowRead Plus के साथ मिलती हैं। हर महीने एक किताब चुनें — सदस्यता खत्म होने पर भी वह आपकी रहती है।",
-  "paywall.drops.owned_subtitle": "आपकी लाइफटाइम खरीद में FlowRead के सभी टूल हमेशा के लिए शामिल हैं। मासिक किताबें उसके बाद जुड़ने वाली नई किताबें हैं, इसलिए वे FlowRead Plus — सदस्यता — के साथ मिलती हैं।",
+  "paywall.drops.subtitle": "हर महीने तीन चुनी हुई किताबें। एक चुनें और वह हमेशा के लिए आपकी रहेगी।",
   "paywall.drops.feature": "हर महीने तीन चुनी हुई किताबें — एक चुनें, वह हमेशा के लिए आपकी",
-  "paywall.drops.unavailable": "FlowRead Plus अभी खरीदा नहीं जा सकता। कृपया बाद में प्रयास करें।"
+  "freebooks.drops.tag_locked": "Pro"
 }

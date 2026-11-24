@@ -2533,6 +2533,31 @@ word and is translated. Both benefit lines now say the book is kept, which decis
 
 **Built 2026-11-24.** The section renders above the 150 and outside their grid (§23).
 
+**Gate reversed the same day (owner): the drops come with *either* paid tier.** Built first as
+subscriber-only, which is what §3 said. The owner's reasoning is cash — lifetime is what funds the
+project now, so it must be the better-looking purchase, and the offer is expected to narrow later.
+Four code consequences, and one rule that is not code:
+- `AppState.isSubscriber` → `AppState.isPro` at every gate in the section.
+- The locked tag cannot say `Plus` any more, since Plus is no longer what unlocks it. It says
+  `Pro`, and §12's rule that it must *never* say `Pro` inverted with the gate it was reasoning
+  about. `freebooks.drops.tag_plus` was replaced by `tag_locked` rather than re-worded, so no
+  string survives saying a thing the product no longer does.
+- **The lifetime-owner paywall branch was removed again, hours after being added.** It existed
+  because a lifetime owner tapping a locked drop was offered the lifetime row, preselected — the
+  one product that could not unlock what they tapped. The gate change deletes that case entirely:
+  a lifetime owner never reaches that paywall. Noted in §12 so it comes back if the drops are ever
+  narrowed to subscribers again.
+- `paywall.plan.sub_extra` is back to its original wording. It said the tiers unlock the same
+  things, which was false for exactly as long as the drops were exclusive, and is true again.
+- **Not code: existing lifetime owners are grandfathered permanently.** "Changing the offer later"
+  may only narrow it for new buyers — withdrawing the drops from someone who already bought
+  lifetime degrades what they paid for, which §1.3 forbids. Recorded in §3 because it binds a
+  future pricing change, and the decision that created it will be long out of view by then.
+
+**The cost, stated rather than discovered later:** the drops were the one line separating the
+tiers, so the subscription now has no exclusive at all and ₹2,999 dominates ₹999/yr outright.
+§3's "accepted gap" is total rather than partial until a recurring exclusive exists.
+
 - **`drop: true` lives on the entry, not on `dropChoices` membership.** The two answer different
   questions: `drop` says a book is never part of the free 150, `dropChoices` says which drop books
   are on offer this month. Derived from the month's list alone, last month's titles would fall into

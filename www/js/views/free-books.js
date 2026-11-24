@@ -736,12 +736,15 @@ var FreeBooksView = (function() {
   }
 
   /* ── The monthly drop section (§12, §23) ─────────────────────
-     Three states, and the difference between them is `AppState.isSubscriber`,
-     never `isPro`: §3 gives a lifetime owner everything *today* and explicitly
-     not future drops, so a `Pro` tag here would promise ₹2,999 customers the
-     one thing their tier excludes. The tag says `Plus`.
+     Three states, and the difference between them is `AppState.isPro` —
+     *either* paid tier (owner, 2026-11-24, reversing the original
+     subscriber-only gate). A lifetime purchase is the cash that funds the
+     project now, so it buys the monthly books too; the subscription keeps no
+     exclusive of its own, which §3 records as a deliberate, temporary cost.
+     The tag therefore says `Pro`, not `Plus` — the old rule said the exact
+     opposite, for the opposite gate.
 
-     Free        — real cards, muted, tagged `Plus`, tap opens the paywall.
+     Free        — real cards, muted, tagged `Pro`, tap opens the paywall.
                    Nothing blurred and nothing invented (§23 rule 2); a muted
                    card that does nothing is the silent failure rule 1 exists
                    to stop.
@@ -755,8 +758,8 @@ var FreeBooksView = (function() {
      something else reads as a result. */
 
   function _dropTagHtml(book, claimedId) {
-    if (!AppState.isSubscriber) {
-      return '<span class="fb-drop-tag fb-drop-tag-plus">' + t('freebooks.drops.tag_plus') + '</span>';
+    if (!AppState.isPro) {
+      return '<span class="fb-drop-tag fb-drop-tag-plus">' + t('freebooks.drops.tag_locked') + '</span>';
     }
     /* §12: the `New` tag retires on download, and on the month rolling over —
        which `_claimedThisMonth` already encodes, since a claim from an older
@@ -766,7 +769,7 @@ var FreeBooksView = (function() {
   }
 
   function _dropActionHtml(book, claimedId) {
-    if (!AppState.isSubscriber) {
+    if (!AppState.isPro) {
       return '<span class="fb-dl-state fb-dl-idle">' + t('freebooks.drops.claim') + '</span>';
     }
     if (claimedId === book.id) return _actionHtml(_getState(book), book.id);
@@ -775,7 +778,7 @@ var FreeBooksView = (function() {
   }
 
   function _dropCardHtml(book, claimedId) {
-    var muted = !AppState.isSubscriber || (claimedId && claimedId !== book.id);
+    var muted = !AppState.isPro || (claimedId && claimedId !== book.id);
     var html = _cardHtml(book);
     /* Built from the ordinary card so the cover, title, author and language
        tag have exactly one implementation — these are real catalogue entries
@@ -819,7 +822,7 @@ var FreeBooksView = (function() {
         ].join('');
       }
     }
-    if (!AppState.isSubscriber) {
+    if (!AppState.isPro) {
       return '<p class="fb-drop-benefit">' + t('freebooks.drops.benefit_free') + '</p>';
     }
     if (claimedId) return '<p class="fb-drop-benefit">' + t('freebooks.drops.spent') + '</p>';
@@ -919,7 +922,7 @@ var FreeBooksView = (function() {
      the best-timed paywall in the app thrown away — the user has just pointed
      at exactly what they would be buying. */
   async function _handleDropTap(book) {
-    if (!AppState.isSubscriber) {
+    if (!AppState.isPro) {
       showPaywall('book-drop');
       return;
     }
@@ -940,7 +943,7 @@ var FreeBooksView = (function() {
   }
 
   async function _claimBook(book) {
-    if (!_drop || !AppState.isSubscriber || _claimedThisMonth()) return;
+    if (!_drop || !AppState.isPro || _claimedThisMonth()) return;
 
     /* Recorded before the download, not after. A download can fail or be
        interrupted; the claim is the entitlement and the card must come back as

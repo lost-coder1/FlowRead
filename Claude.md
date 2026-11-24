@@ -136,7 +136,7 @@ Prices decided 2026-10-30.
 | Tier | Price | Unlocks |
 |---|---|---|
 | **Free** | ₹0 | Unlimited PDFs, all 5 engines, the **entire** library, bridge, dictionary, calm mode, basic dashboard, nudge on **1** app, leaderboard view-only |
-| **Lifetime** (`pro_lifetime`) | **₹2,999** once | Everything today: Pro *and* OCR *and* unlimited nudge apps. **Not** future book drops — which is why a drop is tagged `Plus` and never `Pro` (§12). |
+| **Lifetime** (`pro_lifetime`) | **₹2,999** once | Everything today: Pro *and* OCR *and* unlimited nudge apps — **and the monthly book drops** (owner, 2026-11-24, reversing the original exclusion). |
 | **Subscription** (`flowread_plus`) | **₹149/mo · ₹999/yr** | Everything lifetime has, **plus** what is recurring: monthly curated drops, nudge scheduling, strict mode, leaderboard badges |
 | **OCR add-on** (`ocr_vision`) | retired from sale | Folded into lifetime. **Must keep resolving forever** for anyone who bought it (§1.3). |
 
@@ -153,10 +153,21 @@ Prices decided 2026-10-30.
   **Revisit when the drops ship.**
 
 **Subscription value stack (closed — do not add scope without asking):** unlimited nudge apps ·
-nudge scheduling · nudge strict mode · **monthly drops: three curated books, of which the
-subscriber claims one** (owner, 2026-11-24 — revised down from ten, which only ever worked by
-carrying titles forward; three fresh each month is the same ~36 §12.1 licence checks a year, and
-it makes "one of three" a figure the app can state without carrying a pool) · leaderboard badges. **Design intent:** the free tier stays genuinely generous, and subscription
+nudge scheduling · nudge strict mode · leaderboard badges. **The monthly drops are no longer in
+this stack** — three curated books a month, one claimed, now come with *either* paid tier.
+
+**The drops moved to both tiers — owner, 2026-11-24.** The reasoning is cash, stated plainly:
+lifetime is what funds the project now, so it must be the better-looking purchase, and the offer
+is expected to change later. Two consequences, both binding:
+- **§3's accepted gap is now total, not partial.** The drops were the single line separating the
+  tiers; without them the subscription has **no** exclusive of its own and ₹2,999 dominates
+  ₹999/yr outright. Deliberate and temporary. **The subscription needs a real recurring exclusive
+  before it can be sold honestly as a tier rather than as instalments** — until then, store copy
+  must describe it as a way to pay over time, which is what it is.
+- **Existing lifetime owners are grandfathered, permanently.** "Changing the offer later" may only
+  narrow it for **new** buyers. Withdrawing the drops from someone who already bought lifetime is
+  degrading the product they paid for, which §1.3 forbids outright — the same rule that keeps
+  `ocr_vision` resolving forever. **Design intent:** the free tier stays genuinely generous, and subscription
 value must be *recurring* value, never a relabeling of static value.
 
 **Explicitly rejected, do not build:** priority book-request fulfilment, early access to catalogue
@@ -634,14 +645,20 @@ strings never had to be), and the chip row is now rebuilt on refresh because a c
 that was not on screen a moment ago.
 
 **How the drops present in that section** (owner, 2026-11-24):
-- **Free users see the real cards, muted, tagged `Plus`.** Real title, real author, real cover —
+- **Free users see the real cards, muted, tagged `Pro`.** Real title, real author, real cover —
   nothing blurred, nothing invented (§23 rule 2). Tapping one opens `showPaywall()` with
   `source: 'book-drop'`; a muted card that does nothing is the silent failure §23 rule 1 exists to
   stop.
-- **The tag says `Plus`, never `Pro`.** §3 gives `pro_lifetime` everything *today* and explicitly
-  **not** future drops, so a lifetime owner is "Pro" and still cannot claim one. A `Pro` tag would
-  promise them the one thing their tier does not include. The gate is `AppState.isSubscriber`, not
-  `isPro`, for the same reason.
+- **The tag says `Pro`, and the gate is `AppState.isPro` — either paid tier** (owner,
+  2026-11-24). **This rule previously said the exact opposite**, for the opposite gate: while the
+  drops were subscription-only, a `Pro` tag would have promised a lifetime owner the one thing
+  their tier excluded. It no longer excludes it, so the reasoning inverts with the gate. A
+  subscriber and a lifetime owner see the identical section.
+- **The drop paywall is an ordinary paywall.** It briefly could not be: a lifetime owner tapping a
+  locked drop was shown the lifetime row, first and preselected per §23, which answered their tap
+  with the one product that could not unlock it. The gate change removed that case — a lifetime
+  owner never reaches this paywall now — so lifetime leads again, as §23 asks everywhere else.
+  **If the drops are ever narrowed to subscribers again, this comes back with them.**
 - **One line states the benefit, and it still may not *hardcode* a count.** §3 now fixes the
   month's set at three, so the figure is sayable — but it is sayable because `dropChoices.length`
   says it. A number written into `en.json`/`hi.json` is a confident wrong number (§1.5) the first
@@ -652,7 +669,7 @@ that was not on screen a moment ago.
   so revoking it means deleting a book out from under someone mid-read, which is the dark pattern
   §1.3 forbids. What lapsing stops is claiming the *next* one. The benefit copy may therefore say
   the book is theirs to keep.
-- **Subscribers see the same section with a `New` tag, sorted first, and the tag retires** — on
+- **Paid users of either tier see the same section with a `New` tag, sorted first, and the tag retires** — on
   download or when `dropMonth` rolls over. A permanent tag is noise within a week, and last
   month's carried titles wearing "New" is simply false.
 

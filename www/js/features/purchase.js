@@ -506,49 +506,38 @@ function showPaywall(source) {
      actually arrived — otherwise a store that never answers redraws forever. */
   const _prices_had_lifetime = !!_prices[PRODUCT_LIFETIME];
 
-  /* §12's drops are the one thing a lifetime purchase does not include, so
-     this is the one paywall where the lifetime row is wrong. Offering it to
-     someone who already owns it — preselected, at the top, as §23 asks
-     everywhere else — answers a tap on a drop card with the product that
-     cannot unlock it. That is a confident wrong offer (§1.5) and reads as not
-     knowing what they already paid for.
-
-     `AppState.ownsLifetime`, not `isPro`: a subscriber is `isPro` too and must
-     never land here at all. `debugForcedFree()` first, because §24's flag can
-     only ever withhold — simulating the free tier must show the ordinary
-     paywall, or the free-tier surfaces it exists to test cannot be seen. */
+  /* A drop card's paywall is an ordinary paywall again. It briefly was not:
+     while the drops were subscription-only, offering a lifetime owner the
+     lifetime row answered their tap with the one product that could not
+     unlock it. The owner reversed that gate on 2026-11-24 — either paid tier
+     claims a book — so lifetime is once more the right thing to lead with
+     here, exactly as §23 asks everywhere else. */
   const fromDrop = source === 'book-drop';
-  const ownsLifetime = !debugForcedFree() && AppState.ownsLifetime;
 
-  const defaultPlan = !ownsLifetime ? 'lifetime'
-                    : annual ? 'year'
-                    : monthly ? 'month' : null;
-
-  let plans = '';
-  if (!ownsLifetime) {
-    plans += _planRow('lifetime', t('paywall.plan.lifetime.label'),
-                      _prices[PRODUCT_LIFETIME] || '',
-                      t('paywall.plan.lifetime.note'), defaultPlan === 'lifetime');
-  }
+  let plans = _planRow('lifetime', t('paywall.plan.lifetime.label'),
+                       _prices[PRODUCT_LIFETIME] || '',
+                       t('paywall.plan.lifetime.note'), true);
   if (annual) {
     plans += _planRow('year', t('paywall.plan.annual.label'),
                       t('paywall.period.year', { price: annual.price }),
-                      t('paywall.plan.annual.note'), defaultPlan === 'year');
+                      t('paywall.plan.annual.note'), false);
   }
   if (monthly) {
     plans += _planRow('month', t('paywall.plan.monthly.label'),
                       t('paywall.period.month', { price: monthly.price }),
-                      t('paywall.plan.monthly.note'), defaultPlan === 'month');
+                      t('paywall.plan.monthly.note'), false);
   }
 
   /* Said only when there is a subscription row to say it about, and it names
      the one thing the subscription actually adds over lifetime (§3).
 
-     It used to read "the monthly and annual plans unlock the same tools" —
-     true when written, false from the moment the drops existed, and the
-     comment above it claimed the opposite of what the string said. Withheld
-     from a lifetime owner, for whom the comparison is no longer a choice. */
-  const subNote = (annual || monthly) && !ownsLifetime
+     It briefly had to say more than that: while the drops were
+     subscription-only they were the one thing the subscription added, and
+     this string still claimed the tiers unlocked the same set. Both halves
+     were reversed on 2026-11-24 — the drops come with either tier — so the
+     string is true as originally written, and the tiers differ only in how
+     the money is paid. §3 records that as deliberate and temporary. */
+  const subNote = (annual || monthly)
     ? '<p class="paywall-sub-note">' + escapeHtml(t('paywall.plan.sub_extra')) + '</p>'
     : '';
 
@@ -556,23 +545,18 @@ function showPaywall(source) {
      being sold "DOCX import" answers a different question than the one they
      asked. A lifetime owner is shown only the drops line, because the other
      four are things they bought long ago. */
-  const features = ownsLifetime
-    ? [t('paywall.drops.feature')]
-    : (fromDrop ? [t('paywall.drops.feature')] : []).concat([
-        t('paywall.unified.feature1'),
-        t('paywall.unified.feature2'),
-        t('paywall.unified.feature3'),
-        t('paywall.unified.feature4'),
-      ]);
+  /* §23: name the thing the user is looking at. Arriving from a drop card and
+     being sold "DOCX import" answers a different question than the one they
+     asked, so the books lead. */
+  const features = (fromDrop ? [t('paywall.drops.feature')] : []).concat([
+    t('paywall.unified.feature1'),
+    t('paywall.unified.feature2'),
+    t('paywall.unified.feature3'),
+    t('paywall.unified.feature4'),
+  ]);
 
   const title = fromDrop ? t('paywall.drops.title') : t('paywall.unified.title');
-  const subtitle = ownsLifetime ? t('paywall.drops.owned_subtitle')
-                 : fromDrop    ? t('paywall.drops.subtitle')
-                 : t('paywall.unified.subtitle');
-
-  /* Nothing to sell: Play returned no subscription offer at all. Said plainly
-     rather than drawing an empty radio group with a live Continue (§1.5). */
-  const nothingToSell = !plans;
+  const subtitle = fromDrop ? t('paywall.drops.subtitle') : t('paywall.unified.subtitle');
 
   root.innerHTML = `
     <div class="modal-backdrop" id="modal-backdrop">
@@ -585,17 +569,17 @@ function showPaywall(source) {
         </ul>
         <div class="paywall-plans" role="radiogroup"
              aria-label="${escapeHtml(t('paywall.unified.plans_label'))}">${plans}</div>
-        ${nothingToSell ? '<p class="paywall-sub-note">' + escapeHtml(t('paywall.drops.unavailable')) + '</p>' : subNote}
+        ${subNote}
         <div class="modal-actions">
           <button class="btn btn-ghost" id="btn-modal-close">${t('btn.not_now')}</button>
-          ${nothingToSell ? '' : `<button class="btn btn-primary" id="btn-paywall-continue">${t('btn.continue')}</button>`}
+          <button class="btn btn-primary" id="btn-paywall-continue">${t('btn.continue')}</button>
         </div>
         <button class="btn btn-link modal-restore-btn" id="btn-modal-restore">${t('btn.restore_purchases')}</button>
       </div>
     </div>
   `;
 
-  let selected = defaultPlan;
+  let selected = 'lifetime';
 
   qsa('.paywall-plan', root).forEach(function(row) {
     row.addEventListener('click', function() {
@@ -610,16 +594,10 @@ function showPaywall(source) {
 
   qs('#btn-modal-close').addEventListener('click', closeActiveModal);
   qs('#btn-modal-restore').addEventListener('click', restorePurchases);
-  /* Absent when there is nothing to sell — a lifetime owner on a drop card
-     while Play returns no subscription offer. */
-  const continueBtn = qs('#btn-paywall-continue');
-  if (continueBtn) {
-    continueBtn.addEventListener('click', function() {
-      if (!selected) return;
-      if (selected === 'lifetime') buyLifetime();
-      else buySubscription(selected);
-    });
-  }
+  qs('#btn-paywall-continue').addEventListener('click', function() {
+    if (selected === 'lifetime') buyLifetime();
+    else buySubscription(selected);
+  });
   qs('#modal-backdrop').addEventListener('click', function(event) {
     if (event.target.id === 'modal-backdrop') closeActiveModal();
   });
