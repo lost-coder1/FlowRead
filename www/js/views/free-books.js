@@ -872,13 +872,11 @@ var FreeBooksView = (function() {
       return;
     }
     if (head) {
-      /* Counted off what is actually on screen, so it stays true under a
-         filter or a search rather than promising 150 and showing twelve. The
-         remote catalogue can also push the figure past 150 at any time, so it
-         may never be written into a string (§12). Through `tn`, because a
-         search for one rare title would otherwise render "1 books". */
-      head.textContent = tn('freebooks.free_heading', books.length,
-        { count: String(books.length) });
+      /* No count (owner, 2026-11-25). It carried a figure off the books on
+         screen, which was honest under a filter but made the heading a readout
+         rather than a label — and the label is the whole job: saying, on the
+         one screen that proves it, that none of this is gated (§3). */
+      head.textContent = t('freebooks.free_heading');
       head.hidden = false;
     }
     grid.innerHTML = books.map(_cardHtml).join('');

@@ -4,6 +4,7 @@
 • Scanned books open after the first 20 pages, so you can read while the rest is recognised.
 • Fixed: some books lost whole pages of text to a table that was never there.
 • Fixed: stray characters between the words in some Hindi books.
+• Fixed: the buttons in Reading Nudge settings were hard to see.
 </en-US>
 <de-DE>
 • Neue Bücher erscheinen jetzt von selbst in der Bibliothek — ohne App-Update.
@@ -11,6 +12,7 @@
 • Gescannte Bücher öffnen sich nach den ersten 20 Seiten — lies, während der Rest erkannt wird.
 • Behoben: In manchen Büchern fehlten ganze Seiten wegen einer Tabelle, die es nie gab.
 • Behoben: fremde Zeichen zwischen den Wörtern in einigen Hindi-Büchern.
+• Behoben: Nudge-Schaltflächen waren kaum zu sehen.
 </de-DE>
 <es-ES>
 • Los libros nuevos llegan solos a la biblioteca, sin actualizar la app.
@@ -18,6 +20,7 @@
 • Los libros escaneados se abren tras las primeras 20 páginas; lee mientras se reconoce el resto.
 • Corregido: algunos libros perdían páginas enteras por una tabla que no existía.
 • Corregido: caracteres extraños entre las palabras en algunos libros en hindi.
+• Corregido: los botones de ajustes apenas se veían.
 </es-ES>
 <pt-BR>
 • Novos livros chegam sozinhos à biblioteca, sem atualizar o app.
@@ -25,6 +28,7 @@
 • Livros digitalizados abrem após as primeiras 20 páginas; leia enquanto o resto é reconhecido.
 • Corrigido: alguns livros perdiam páginas inteiras por causa de uma tabela que não existia.
 • Corrigido: caracteres estranhos entre as palavras em alguns livros em híndi.
+• Corrigido: os botões dos ajustes quase não apareciam.
 </pt-BR>
 <ja-JP>
 •　新しい本がアプリの更新なしでライブラリに届くようになりました。
@@ -32,4 +36,5 @@
 •　スキャンした本は最初の20ページで開きます。残りの認識中も読めます。
 •　修正: 存在しない表のせいで本文が丸ごと抜け落ちることがありました。
 •　修正: 一部のヒンディー語の本で単語の間に文字が混ざる問題。
+• 修正: 設定のボタンが見えにくい問題。
 </ja-JP>
