@@ -1,0 +1,40 @@
+<en-US>
+• Highlights: tap the first word and the last to keep a line, and find them all in one place.
+• Every word you look up is saved, grouped by the book you met it in.
+• The dictionary now understands plurals and tenses.
+• New books arrive in the library on their own — no app update needed.
+• Monthly picks: choose one book a month with Pro, and it stays yours.
+• Clearer wording on the reading nudge and its milestones.
+</en-US>
+<de-DE>
+• Markierungen: erstes und letztes Wort antippen — und alle an einem Ort wiederfinden.
+• Jedes nachgeschlagene Wort wird gespeichert, nach Buch geordnet.
+• Das Wörterbuch versteht jetzt Plural und Zeitformen.
+• Neue Bücher erscheinen von selbst in der Bibliothek — ohne App-Update.
+• Monatsauswahl: mit Pro jeden Monat ein Buch wählen, und es bleibt deins.
+• Klarere Texte beim Lese-Nudge und seinen Meilensteinen.
+</de-DE>
+<es-ES>
+• Subrayados: toca la primera palabra y la última, y encuéntralos todos en un sitio.
+• Cada palabra que consultas se guarda, agrupada por libro.
+• El diccionario ya entiende plurales y tiempos verbales.
+• Los libros nuevos llegan solos a la biblioteca, sin actualizar la app.
+• Selección mensual: elige un libro al mes con Pro y se queda contigo.
+• Textos más claros en el aviso de lectura y sus logros.
+</es-ES>
+<pt-BR>
+• Destaques: toque na primeira palavra e na última, e encontre todos num só lugar.
+• Cada palavra consultada fica salva, agrupada por livro.
+• O dicionário agora entende plurais e tempos verbais.
+• Novos livros chegam sozinhos à biblioteca, sem atualizar o app.
+• Seleção mensal: escolha um livro por mês com o Pro, e ele fica seu.
+• Textos mais claros no aviso de leitura e nas conquistas.
+</pt-BR>
+<ja-JP>
+• ハイライト: 最初と最後の単語をタップするだけ。すべて1か所にまとまります。
+• 調べた単語は本ごとに整理して保存されます。
+• 辞書が複数形と時制を理解するようになりました。
+• 新しい本がアプリの更新なしでライブラリに届きます。
+• 毎月の選書: Pro で毎月1冊を選べます。選んだ本はずっと手元に残ります。
+• 読書ナッジとその達成表示の文言を分かりやすくしました。
+</ja-JP>
