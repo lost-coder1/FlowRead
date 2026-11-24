@@ -189,7 +189,7 @@ async function stats(request, env) {
 
   const q = (sql, ...bind) => env.DB.prepare(sql).bind(...bind).all();
 
-  const [totals, byDay, shares, finishes, funnel, engines, tenure] = await Promise.all([
+  const [totals, byDay, shares, finishes, funnel, engines, tenure, shelves, drops] = await Promise.all([
     q(`SELECT event, SUM(n) AS n,
               SUM(sum_minutes) AS minutes, SUM(sum_pages) AS pages
          FROM daily WHERE day >= ?1 GROUP BY event ORDER BY n DESC`, from),
@@ -216,7 +216,7 @@ async function stats(request, env) {
            ('nudge_shown','nudge_read_started','nudge_read_completed','nudge_skipped',
             'paywall_shown','pro_purchased','subscription_started',
             'free_book_downloaded','book_opened','book_finished','onboarding_completed',
-            'nudge_permission_granted')
+            'nudge_permission_granted','drop_claimed')
          GROUP BY event`, from),
     q(`SELECT engine, SUM(n) AS sessions,
               SUM(sum_minutes) AS minutes, SUM(sum_pages) AS pages
@@ -226,6 +226,32 @@ async function stats(request, env) {
      * after install they happened (§9.6, tenure buckets). */
     q(`SELECT tenure, SUM(n) AS opens FROM daily
          WHERE event = 'app_opened' AND day >= ?1 GROUP BY tenure ORDER BY tenure`, from),
+    /* Which shelves get taken, and which get read (§8.6's `category`). Two
+     * figures rather than one, because they answer different questions and
+     * routinely disagree: a shelf can be downloaded far more often than it is
+     * opened, which is the case for curating less of it, not more.
+     *
+     * Rows with no category are excluded rather than bucketed as "other".
+     * They are a book the reader imported themselves, or any event recorded
+     * before the dimension existed, and §1.4 turns on the app never
+     * describing the first of those — showing them under a label would put a
+     * number on exactly what is not collected. */
+    q(`SELECT category,
+              SUM(CASE WHEN event = 'free_book_downloaded' THEN n ELSE 0 END) AS downloads,
+              SUM(CASE WHEN event = 'book_opened'          THEN n ELSE 0 END) AS opens,
+              SUM(CASE WHEN event = 'drop_claimed'         THEN n ELSE 0 END) AS claims
+         FROM daily
+        WHERE day >= ?1 AND category <> ''
+          AND event IN ('free_book_downloaded','book_opened','drop_claimed')
+        GROUP BY category
+        ORDER BY downloads + opens DESC`, from),
+    /* The drops' own line: claims per day, and how many of them were a
+     * device's first ever claim — the §3 question of whether the one
+     * recurring benefit is used once out of curiosity or every month. */
+    q(`SELECT day, SUM(n) AS claims,
+              SUM(CASE WHEN is_first = 1 THEN n ELSE 0 END) AS first_time_claimers
+         FROM daily WHERE event = 'drop_claimed' AND day >= ?1
+        GROUP BY day ORDER BY day DESC`, from),
   ]);
 
   return Response.json({
@@ -238,6 +264,8 @@ async function stats(request, env) {
     funnel: funnel.results,
     engines: engines.results,
     tenure: tenure.results,
+    shelves: shelves.results,
+    drops: drops.results,
   });
 }
 
