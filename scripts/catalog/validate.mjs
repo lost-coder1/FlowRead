@@ -18,6 +18,8 @@
  * Usage:
  *   node scripts/catalog/validate.mjs <path>     # a file you are about to commit
  *   node scripts/catalog/validate.mjs --live     # what is published right now
+ *   node scripts/catalog/validate.mjs <url>      # any URL; a github.com /blob/
+ *                                                # page is rewritten to the raw file
  *
  * Top-level keys it understands: "books" (required), "categories" (optional,
  * so a new genre needs no app release), and Phase D's "dropMonth"/"dropChoices".
@@ -97,6 +99,44 @@ function readJson(path, label) {
 
 /* ── Load the file under test ─────────────────────────────────────────────── */
 
+/* Where the JSON broke, in line/column, because "Unexpected token ]" on one
+   line of 4,000 is not a location.
+
+   Node only reports a character position for *short* input. Over about 60
+   characters — i.e. every real catalogue — it switches to a context-snippet
+   message with no position at all, so the regex that looked for one never
+   matched on the files this script exists to check. Three strategies, cheapest
+   first, and a trailing comma is called out by name because it is the usual
+   cause and the one the snippet form hides. */
+function locate(text, message) {
+  const lineCol = (idx) => {
+    const upto = text.slice(0, idx);
+    return `line ${upto.split('\n').length}, column ${upto.length - upto.lastIndexOf('\n')}`;
+  };
+
+  /* A trailing comma: a comma, then only whitespace, then a close. Deterministic
+     and the most actionable thing we can say, so it wins when present. */
+  const trailing = /,(\s*)([\]}])/.exec(text);
+  if (trailing) {
+    return ` — there is a trailing comma at ${lineCol(trailing.index)}, `
+      + `just before the ${trailing[2] === ']' ? ']' : '}'} that closes the list`;
+  }
+
+  /* Node's short form still carries a position. */
+  const pos = /position (\d+)/.exec(message);
+  if (pos) return ` — ${lineCol(Number(pos[1]))}`;
+
+  /* The snippet form: find the quoted context back in the file. */
+  const snip = /"((?:[^"\\]|\\.){4,})" is not valid JSON/.exec(message);
+  if (snip) {
+    const needle = snip[1].replace(/^\.\.\./, '');
+    const idx = text.indexOf(needle);
+    if (idx !== -1) return ` — around ${lineCol(idx + needle.length)}`;
+  }
+
+  return '';
+}
+
 async function loadTarget(args) {
   const live = args.includes('--live');
   const flagValues = new Set();
@@ -120,10 +160,42 @@ async function loadTarget(args) {
       return { origin, text: null, books: [] };
     }
     text = await res.text();
+  } else if (/^https?:/i.test(path)) {
+    /* A URL where a path was expected. `readFileSync` reported ENOENT with the
+       URL as the filename, which reads as "your file is missing" rather than
+       "that is not a file" — and because the load then failed, every published
+       book looked deleted (see `loaded`). Both errors were this script's, not
+       the catalogue's, and the real one was the second line of three.
+
+       A github.com /blob/ link is what the browser's address bar gives you, and
+       it serves an HTML page: fetched verbatim it fails JSON parsing with
+       "Unexpected token <", which is a third wrong answer. So rewrite it to the
+       raw host the app itself reads — and say so, rather than quietly checking
+       a different URL than the one that was typed. */
+    origin = path
+      .replace(/^https?:\/\/github\.com\//i, 'https://raw.githubusercontent.com/')
+      .replace(/\/blob\//, '/');
+    if (origin !== path) {
+      console.log(`\nNote:       that is the web page, not the file. Reading instead:\n            ${origin}`);
+    }
+    try {
+      const res = await fetch(`${origin}?v=${Date.now()}`, { cache: 'no-store' });
+      if (!res.ok) {
+        err(`${origin} answered HTTP ${res.status}, so there is nothing to check.`);
+        return { origin, text: null, books: [] };
+      }
+      text = await res.text();
+    } catch (e) {
+      err(`Could not fetch ${origin}: ${e.message}`);
+      return { origin, text: null, books: [] };
+    }
   } else {
     origin = path;
     try { text = readFileSync(path, 'utf8'); }
-    catch (e) { err(`${path}: ${e.message}`); return { origin, text: null, books: [] }; }
+    catch (e) {
+      err(`${path}: ${e.message}`);
+      return { origin, text: null, books: [] };
+    }
   }
 
   const bytes = Buffer.byteLength(text, 'utf8');
@@ -138,13 +210,7 @@ async function loadTarget(args) {
     /* The single most likely failure, and the one the app cannot report. Point
        at the line, because "Unexpected token }" on one line of 4,000 is not a
        location. */
-    const at = /position (\d+)/.exec(e.message);
-    let where = '';
-    if (at) {
-      const upto = text.slice(0, Number(at[1]));
-      where = ` — line ${upto.split('\n').length}, column ${upto.length - upto.lastIndexOf('\n')}`;
-    }
-    err(`Not valid JSON: ${e.message}${where}. On device this means the whole file is ignored and the library silently shows the bundled books only. A trailing comma after the last entry is the usual cause.`);
+    err(`Not valid JSON: ${e.message}${locate(text, e.message)}. On device this means the whole file is ignored and the library silently shows the bundled books only.`);
     return { origin, text, books: [] };
   }
 
@@ -160,7 +226,7 @@ async function loadTarget(args) {
     err(`${data.books.length} books, but the app stops reading at ${MAX_BOOKS}. Everything past that is silently invisible.`);
   }
 
-  return { origin, text, books: data.books, data };
+  return { origin, text, books: data.books, data, loaded: true };
 }
 
 /* ── Categories the file declares for itself ─────────────────────────────── */
@@ -577,11 +643,18 @@ const declared = checkCategories(target.data, cats);
 const ids = checkEntries(target.books, cats, en, hi, bundled, declared);
 const dropIds = new Set(target.books.filter(b => b && b.drop === true).map(b => b.id));
 checkDrop(target.data, ids, dropIds);
-if (!noNet) {
+if (noNet) {
+  console.log('Skipping URL and deletion checks (--no-net).\n');
+} else if (!target.loaded) {
+  /* The file never parsed, so books[] is empty because nothing was read — not
+     because anything was removed. Comparing it to the published file reported
+     every live title as deleted, which buried the one error that mattered under
+     a louder one that was false. A check whose precondition failed must say so,
+     not answer anyway (§1.5). */
+  console.log('Skipping URL and deletion checks — the file could not be read, so there is nothing to compare.\n');
+} else {
   await checkNoDeletions(target.books, target.origin, baseline, args.includes('--allow-removals'));
   await checkUrls(target.books);
-} else {
-  console.log('Skipping URL and deletion checks (--no-net).\n');
 }
 
 if (warnings.length) {
