@@ -277,6 +277,40 @@ function checkCategories(data, builtin) {
   return ok;
 }
 
+/* The scheme test is `indexOf('https://') === 0` — exact, in the app and here.
+   Saying only "must be https" sent the owner looking for an http:// or a
+   relative path on a URL that was neither: it read `hhttps://`, a doubled
+   first letter that the eye corrects automatically. A near-miss is the likeliest
+   way this check fires, and the one case where the value has to be quoted back
+   rather than described, so the difference is visible. */
+function whyNotHttps(v) {
+  if (typeof v !== 'string') return `must be a string, but it is ${v === null ? 'null' : typeof v}.`;
+  if (!v) return 'is empty.';
+  const head = v.slice(0, 14);
+  const shown = `"${head}${v.length > 14 ? '…' : ''}"`;
+  if (/^http:\/\//i.test(v)) {
+    return `starts ${shown} — plain http. The app requires https and drops the entry.`;
+  }
+  if (/^https:\/\//i.test(v)) {
+    /* Right scheme, wrong case: the test is case-sensitive. */
+    return `starts ${shown} — the scheme must be lower-case "https://" exactly.`;
+  }
+  const sep = v.indexOf('://');
+  const scheme = sep === -1 ? '' : v.slice(0, sep);
+  if (scheme && /^[htps]+$/i.test(scheme)) {
+    /* Only the letters of "https", in the wrong number or order — a doubled or
+       dropped character, which the eye corrects on its own. */
+    return `starts ${shown}, and the scheme reads "${scheme}" rather than `
+      + `"https" — a doubled or missing letter here is almost invisible. `
+      + `The app drops the entry.`;
+  }
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(v)) {
+    return `starts ${shown} — that is a relative path, not a URL. The app has no `
+      + `base to resolve it against and drops the entry.`;
+  }
+  return `starts ${shown} — it must begin with "https://". The app drops the entry.`;
+}
+
 /* ── Entry rules — the same ones _cleanEntry() applies ───────────────────── */
 
 const REQUIRED = ['id', 'title', 'author', 'language', 'category', 'sourceUrl', 'fileType'];
@@ -332,11 +366,11 @@ function checkEntries(books, cats, en, hi, bundled, declared) {
       }
     }
 
-    if (raw.sourceUrl && !isHttps(raw.sourceUrl)) {
-      err(`${at}: sourceUrl must be https. The app drops a plaintext or relative URL.`);
+    if (typeof raw.sourceUrl === 'string' && raw.sourceUrl && !isHttps(raw.sourceUrl)) {
+      err(`${at}: sourceUrl ${whyNotHttps(raw.sourceUrl)}`);
     }
     if (raw.coverImage !== undefined && !isHttps(raw.coverImage)) {
-      warn(`${at}: coverImage is not an https URL, so it is ignored and the card shows the title's initials instead.`);
+      warn(`${at}: coverImage ${whyNotHttps(raw.coverImage)} It is ignored, and the card shows the title's initials instead.`);
     }
     /* Collected rather than reported per book. These two are cosmetic, and one
        line each per entry buries the errors underneath them — which is the
