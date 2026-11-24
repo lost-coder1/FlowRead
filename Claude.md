@@ -577,8 +577,14 @@ native storage on every position save — **event-driven, never polled** (§20).
 classic `AppWidgetProvider`/`RemoteViews` vs Jetpack Glance — default classic for consistency with the
 existing Java plugin style and no new Compose dependency, but worth a quick evaluation first.
 
-**Free Books.** 150 curated books in `www/data/free-books.json`, region-aware sorting, language tabs,
-category filters, auto-OCR, full i18n. **Entries must be `pdf` or `txt`** — `free-books.js` branches
+**Free Books.** 150 curated books in `www/data/free-books.json`, language tabs, category filters,
+auto-OCR, full i18n. **One global ordering, `_CATEGORY_ORDER`** (owner, 2026-11-24) — the shelf is
+not weighted by subject for anyone. India used to get social_justice, constitution_law and every
+Hindi title first, which opened the library on nine caste titles in ten cards; those books have
+their own chip, which is where a subject belongs when it is asked for rather than assumed. **Region
+decides one thing, and it is language, not subject:** outside India Hindi titles sort after English
+(141 of 150 are English and the tab defaults to English there), inside India they are mixed in.
+Nothing is ranked *down* on subject either. **Entries must be `pdf` or `txt`** — `free-books.js` branches
 on exactly those two, and an `html` entry would hit the PDF parser and fail.
 
 **The remote catalogue lives at one URL that may never move:**

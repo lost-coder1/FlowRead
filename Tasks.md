@@ -2407,6 +2407,22 @@ that frustration was false; it now states the real behaviour. **An edit takes up
 reach a device and nothing in the client can shorten it** — the rule is human: after editing, wait
 five minutes before concluding anything.
 
+**One global ordering — 2026-11-24 (owner).** The region-aware sort was promo-era weighting: an
+India locale scored `social_justice`, `constitution_law` and every Hindi title first, so the
+library's **first ten cards were nine caste titles**. Replaced with a single `_CATEGORY_ORDER` array
+for everyone. Both locales now open on classics (Tagore's *The Home and the World* leads, which the
+order arrived at rather than was told to).
+- **Region decides one thing now, and it is language rather than subject:** outside India, Hindi
+  titles sort after English — 141 of 150 are English and that tab defaults to English anyway —
+  while inside India they are mixed in, since the tab defaults to All.
+- **Nothing is ranked down on subject either.** The old non-India branch put `social_justice` and
+  `constitution_law` 10th and 11th of twelve, which was the same editorial thumb pressing the other
+  way. They sit mid-table.
+- **Mid-table by category is not mid-table by position**, and that is worth knowing before anyone
+  calls it a bug: `classics` alone is 41 of the 150, so the first social-justice card is **#89**.
+  The chip keeps them one tap away, and the array is the single lever if they should come sooner.
+- A remotely-declared category (§12) is not in the array and sorts after everything named in it.
+
 **Still open in C:** the local editor form, and a device run — the fallback path needs a deliberate
 test, since an empty remote file and a missing one are indistinguishable from a passing one.
 

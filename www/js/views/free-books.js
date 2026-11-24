@@ -345,38 +345,42 @@ var FreeBooksView = (function() {
     return lang.startsWith('hi') || lang.indexOf('-in') !== -1;
   }
 
-  /* Region-aware sort.
-     India locale → Ambedkar / social-justice / constitution / Hindi entries first.
-     Non-India → world classics + philosophy + biography + poetry first; push
-     social_justice / constitution_law and Hindi entries to the bottom. */
+  /* One ordering for everyone (owner, 2026-11-24). An India locale used to get
+     social_justice, constitution_law and every Hindi title first — a promo-era
+     weighting that opened a global library on nine caste titles in its first
+     ten cards. Those books already have their own chip for anyone who wants
+     them, which is the right place for a subject to be surfaced on request
+     rather than by default.
+
+     Region now decides exactly one thing, and it is about language, not
+     subject: outside India, Hindi titles sort after English, because 141 of the
+     150 are English and the tab defaults to English there anyway. Inside India
+     they are mixed in, since the tab defaults to All.
+
+     Nothing is ranked *down* on subject either — social_justice and
+     constitution_law sit mid-table, so the shelf is neutral rather than
+     inverted (the old non-India branch put them 10th and 11th of twelve, which
+     was the same editorial thumb pressing the other way).
+
+     This array is the whole ordering. Edit it to re-weight the shelf; a
+     remotely-declared category (§12) is not in it and sorts after everything
+     named here. */
+  var _CATEGORY_ORDER = [
+    'classics', 'philosophy', 'poetry', 'biography_history',
+    'history_politics', 'social_justice', 'constitution_law', 'drama',
+    'essays', 'science_fiction', 'buddhism', 'strategy',
+  ];
+
+  function _categoryRank(cat) {
+    var i = _CATEGORY_ORDER.indexOf(cat);
+    return i === -1 ? _CATEGORY_ORDER.length : i;
+  }
+
   function _sorted(books) {
-    if (_isIndiaLocale()) {
-      return books.slice().sort(function(a, b) {
-        var aScore = (a.category === 'social_justice' || a.category === 'constitution_law' || a.language === 'hi') ? 0 : 1;
-        var bScore = (b.category === 'social_justice' || b.category === 'constitution_law' || b.language === 'hi') ? 0 : 1;
-        return aScore - bScore;
-      });
-    }
-    var priority = {
-      'classics': 0,
-      'philosophy': 1,
-      'biography_history': 2,
-      'poetry': 3,
-      'history_politics': 4,
-      'drama': 5,
-      'essays': 6,
-      'science_fiction': 7,
-      'buddhism': 8,
-      'strategy': 9,
-      'social_justice': 10,
-      'constitution_law': 11,
-    };
+    var mixHindi = _isIndiaLocale();
     return books.slice().sort(function(a, b) {
-      /* Hindi entries always after English for non-India users */
-      if (a.language !== b.language) return a.language === 'hi' ? 1 : -1;
-      var ap = priority[a.category]; if (ap === undefined) ap = 99;
-      var bp = priority[b.category]; if (bp === undefined) bp = 99;
-      return ap - bp;
+      if (!mixHindi && a.language !== b.language) return a.language === 'hi' ? 1 : -1;
+      return _categoryRank(a.category) - _categoryRank(b.category);
     });
   }
 
@@ -390,8 +394,8 @@ var FreeBooksView = (function() {
   }
 
   /* The categories the app can actually render. One list, because three things
-     have to agree about it: this label lookup, `_sorted()`'s priority map, and
-     the `freebooks.cat.*` keys in en.json and hi.json. It was two lists once
+     have to agree about it: this label lookup, `_CATEGORY_ORDER`, and the
+     `freebooks.cat.*` keys in en.json and hi.json. It was two lists once
      and six of the twelve chips rendered as raw slugs (Phase A).
 
      It is also why a category cannot be introduced remotely: a book in an
