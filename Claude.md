@@ -947,7 +947,8 @@ is current.**
 - **The pivot is released.** 1.5.4 / versionCode 42 went to production 2026-11-02 at a **20% staged
   rollout**, clearing builds 33–42. Privacy policy rewritten, version-controlled as
   `privacy_policy.html`, published. **Check whether the rollout has advanced past 20%.**
-- **Latest uploaded build: 1.5.6 / 44** (2026-11-17). **The first build in which §8.6's pings
+- **Play has received at least up to versionCode 46**, which is further than this section tracked — 45 and 46 are both spent, and what reached which track is only knowable in the Console. **Verify there before trusting anything below.** 1.5.8 now ships as **47**.
+- **Latest build this document can vouch for: 1.5.6 / 44** (2026-11-17). **The first build in which §8.6's pings
   actually send** (`ENDPOINT` is filled). **Play Data safety was re-filed as *Optional* 2026-11-21.**
   **The matching policy re-publish was recorded but never happened** — the hosted copy was still
   the 2026-11-02 text when it was checked on 2026-11-24, so production had been pinging against an
@@ -964,9 +965,19 @@ is current.**
   zero before the day's first page. Verified from the artifact, not the config: versionCode 45,
   targetSdk 36, `jar verified`, **no `application-debuggable` flag**, so §24's Debug section cannot
   render in it. Notes in `release-notes-1.5.7.txt`.
-  - **A versionCode that was built but never uploaded may be rebuilt at the same number.** 45 was
-    built once at `c5c7bc0` and left to go stale while the investment phase landed on top of it.
-    Play only refuses a versionCode it has already *received*.
+  - **⚠️ Never reuse a versionCode. Always bump.** This bullet used to say the opposite — that a
+    number built but never uploaded may be rebuilt at the same one, because Play only refuses a
+    versionCode it has already received. The second half is true and the rule built on it is still
+    wrong, because **the repo cannot tell you whether Play received one.** Play reserves a
+    versionCode permanently on *any* upload to *any* track, including an internal or closed test
+    and a draft release that was later discarded, and none of that leaves a trace here. 1.5.8 was
+    rebuilt at 46 on this reasoning and rejected with *"Version code 46 has already been used"*,
+    against a document that recorded 44 as the latest upload. **A number is free only if Play says
+    so, and the cost of bumping is nothing.**
+  - **A rejected upload can leave the release draft with no artifact**, which Play reports as
+    *"You cannot remove all production APKs and Android App Bundles"* — a second, confusing error
+    about the draft's state rather than about the build. Discard the draft release and start it
+    again with the new bundle; nothing is wrong with the artifact.
   - **Play's "What's new" is 500 characters per language.** The 1.5.6 notes ran 547–602 in every
     locale but Japanese, so they were truncated or hand-trimmed in the console. Check the count
     before writing the file, not after.
