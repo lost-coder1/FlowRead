@@ -43,3 +43,18 @@ export const PHONE = {
 };
 
 export const sec = (s: number) => Math.round(s * FPS);
+
+/* Devanagari does not fit a Latin line box. Every caption in this film rises
+   out of a clip mask, and the mask height was a fixed multiple of the font
+   size chosen against Latin -- which has nothing above the cap height and
+   little below the baseline. Devanagari stacks matras on both sides of the
+   shirorekha, so at 1.18x the top of "फैसला" and the bottom of "आपका।" were
+   simply cut off, and the Hindi end-card tagline lost its whole upper half.
+
+   The text decides, not the locale: a mixed line carries the taller box, and
+   a caption that happens to be Latin inside the Hindi cut keeps the tight
+   one. Section 27 rule 8 is the same lesson about time; this is the vertical
+   half of it. */
+export const hasDevanagari = (s: string) => /[ऀ-ॿ]/.test(s);
+export const lineBox = (size: number, text: string) =>
+  Math.round(size * (hasDevanagari(text) ? 1.46 : 1.18));

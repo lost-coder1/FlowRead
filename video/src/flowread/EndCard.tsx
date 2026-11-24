@@ -1,6 +1,6 @@
 import React from "react";
 import { Img, staticFile, useCurrentFrame, useVideoConfig, interpolate, spring } from "remotion";
-import { COLORS, FONT } from "./theme";
+import { COLORS, FONT, hasDevanagari } from "./theme";
 import { STRINGS, Locale } from "./strings";
 import { Plate } from "./Plate";
 
@@ -64,20 +64,28 @@ export const EndCard: React.FC<{ portrait?: boolean; locale?: Locale }> = ({
           </div>
         </div>
 
-        <div style={{ height: 76, overflow: "hidden" }}>
-          <div
-            style={{
-              fontFamily: FONT,
-              fontWeight: 600,
-              fontSize: 58,
-              lineHeight: "76px",
-              color: COLORS.cream,
-              translate: `0px ${interpolate(line, [0, 1], [76, 0])}px`,
-            }}
-          >
-            {S.tagline}
-          </div>
-        </div>
+        {(() => {
+          /* 76 is the Latin box this card shipped with -- looser than the
+             caption's 1.18 and deliberately so. Only the Devanagari case is
+             computed, so the English card is byte-for-byte what it was. */
+          const tagBox = hasDevanagari(S.tagline) ? Math.round(58 * 1.46) : 76;
+          return (
+            <div style={{ height: tagBox, overflow: "hidden" }}>
+              <div
+                style={{
+                  fontFamily: FONT,
+                  fontWeight: 600,
+                  fontSize: 58,
+                  lineHeight: `${tagBox}px`,
+                  color: COLORS.cream,
+                  translate: `0px ${interpolate(line, [0, 1], [tagBox, 0])}px`,
+                }}
+              >
+                {S.tagline}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* The closing claim was set at 30px in muted grey and read as a
             footnote, when it is in fact the whole objection-handling: no

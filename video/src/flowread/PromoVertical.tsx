@@ -8,7 +8,7 @@ import { Caption } from "./Caption";
 import { ClockReadout } from "./Clock";
 import { TileWall } from "./Opener";
 import { EndCard } from "./EndCard";
-import { sec, FONT } from "./theme";
+import { sec, FONT, hasDevanagari } from "./theme";
 import { TILES, FEED, PRODUCT, END, BLEND, BEATS, DETAILS, RAMP, capCuts, clipSrc, stillSrc } from "./Promo";
 import { STRINGS, Locale } from "./strings";
 
@@ -112,10 +112,13 @@ const SubLine: React.FC<{ locale: Locale }> = ({ locale }) => {
   const frame = useCurrentFrame();
   const { apps, appsPrefix } = STRINGS[locale];
   const o = interpolate(frame, [14, 32], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  /* Same reason as the landscape cut: beat one's Hindi caption takes two
+     lines and a taller line box, and this row is what it lands on. */
+  const drop = hasDevanagari(STRINGS[locale].beats["01_nudge.mp4"].cap) ? 36 : 0;
   return (
     <div
       style={{
-        position: "absolute", left: 0, width: "100%", top: SUB_TOP,
+        position: "absolute", left: 0, width: "100%", top: SUB_TOP + drop,
         display: "flex", alignItems: "center", justifyContent: "center", gap: 11,
         opacity: o, translate: `0px ${interpolate(o, [0, 1], [10, 0])}px`,
       }}

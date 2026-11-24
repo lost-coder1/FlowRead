@@ -8,7 +8,7 @@ import { Caption } from "./Caption";
 import { ClockReadout } from "./Clock";
 import { TileWall } from "./Opener";
 import { EndCard } from "./EndCard";
-import { sec, PHONE, WIDTH, HEIGHT, FONT } from "./theme";
+import { sec, PHONE, WIDTH, HEIGHT, FONT, hasDevanagari } from "./theme";
 import { STRINGS, Locale } from "./strings";
 
 /* The nudge has to be on screen inside five seconds: that is where people
@@ -182,12 +182,19 @@ const SubLine: React.FC<{ locale?: Locale }> = ({ locale = "en" }) => {
   const frame = useCurrentFrame();
   const { apps, appsPrefix } = STRINGS[locale];
   const o = interpolate(frame, [14, 32], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  /* This row sits under beat one's caption, and that caption is the one place
+     a line of Hindi runs to two lines where the English runs to one. Taller
+     line boxes (see lineBox) then bring the second line down onto "Instagram".
+     The row moves rather than the type shrinking: the caption is the message
+     and this is the footnote to it. Keyed off the caption's own script, so a
+     rewrite that fits on one line takes the space back automatically. */
+  const drop = hasDevanagari(STRINGS[locale].beats["01_nudge.mp4"].cap) ? 46 : 0;
   return (
     <div
       style={{
         position: "absolute",
         left: 132,
-        top: 612,
+        top: 612 + drop,
         display: "flex",
         alignItems: "center",
         gap: 13,
