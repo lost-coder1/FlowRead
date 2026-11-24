@@ -31,8 +31,18 @@ export const STRINGS: Record<Locale, Strings> = {
       "03_unlock.mp4": { cap: "You traded scrolling for *reading*." },
       "04_highlight.mp4": { cap: "Keep the lines that *stay with you*." },
       "05_dictionary.mp4": { cap: "And every *word* you learn." },
+      /* 16.37: the beat now shows the monthly picks section, so the caption
+         carries the cadence instead of the shelf. It may not name a count --
+         the month's set is whatever `dropChoices` holds, and a figure written
+         into a render cannot be corrected the way a string in the app can.
+
+         It also may not put "free" and "every month" in one breath: the
+         monthly book comes with a paid tier, and "free books, and a new one
+         every month" promises a free book a month, which is not the product.
+         The free shelf is still stated -- by the app's own "Free to read"
+         heading inside the shot, and by the end card. */
       "06_freebooks.mp4": {
-        cap: "Start with the *free books*.",
+        cap: "A new book every *month*.",
         cap2: "Or bring your *own*.",
       },
     },
@@ -64,7 +74,7 @@ export const STRINGS: Record<Locale, Strings> = {
       "04_highlight.mp4": { cap: "जो लाइनें *साथ रह जाएं*, उन्हें सेव करें।" },
       "05_dictionary.mp4": { cap: "और हर *नया शब्द*, जो आप सीखें।" },
       "06_freebooks.mp4": {
-        cap: "शुरुआत करें *फ़्री किताबों* से।",
+        cap: "हर महीने *एक नई किताब*।",
         cap2: "या *अपनी खुद की* लाएं।",
       },
     },
