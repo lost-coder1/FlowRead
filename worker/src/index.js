@@ -44,6 +44,8 @@ const ALLOWED = new Set([
   'nudge_read_completed',
   'nudge_skipped',
   'free_book_downloaded',
+  /* §12's monthly drops, added 2026-11-24 (product-owner approved). */
+  'drop_claimed',
   'pro_purchased',
   'subscription_started',
   'subscription_cancelled',
@@ -59,7 +61,13 @@ const ALLOWED = new Set([
 ]);
 
 /* String dimensions, each capped and lower-cased into a column. */
-const DIMS = ['engine', 'lang', 'tier', 'source', 'tenure'];
+/* `category` added 2026-11-24: which shelf a free book came from. A catalogue
+   slug only — never a title, an id or a file name, and never present for a
+   book the user imported themselves (the client omits it; see §1.4). It is a
+   column like every other dimension, so it is enumerable by construction and
+   cannot smuggle free text into a counter row. Receiver rule 3 is unaffected:
+   no dimension may carry a package name, and a shelf label is not one. */
+const DIMS = ['engine', 'lang', 'tier', 'source', 'tenure', 'category'];
 /* Numeric meta, summed rather than dimensioned (schema.sql). */
 const SUMS = ['minutes', 'pages', 'count'];
 
@@ -146,19 +154,19 @@ async function ingest(request, env) {
   /* One statement: insert the counter or increment the existing one. */
   await env.DB.prepare(
     `INSERT INTO daily
-       (day, event, platform, engine, lang, tier, source, tenure, is_first,
-        n, sum_minutes, sum_pages, sum_count)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, 1, ?10, ?11, ?12)
-     ON CONFLICT (day, event, platform, engine, lang, tier, source, tenure, is_first)
+       (day, event, platform, engine, lang, tier, source, tenure, category,
+        is_first, n, sum_minutes, sum_pages, sum_count)
+     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 1, ?11, ?12, ?13)
+     ON CONFLICT (day, event, platform, engine, lang, tier, source, tenure, category, is_first)
      DO UPDATE SET
        n           = n + 1,
-       sum_minutes = sum_minutes + ?10,
-       sum_pages   = sum_pages   + ?11,
-       sum_count   = sum_count   + ?12`
+       sum_minutes = sum_minutes + ?11,
+       sum_pages   = sum_pages   + ?12,
+       sum_count   = sum_count   + ?13`
   ).bind(
     day, event, platform,
-    cols.engine, cols.lang, cols.tier, cols.source, cols.tenure, isFirst,
-    sums.minutes, sums.pages, sums.count
+    cols.engine, cols.lang, cols.tier, cols.source, cols.tenure, cols.category,
+    isFirst, sums.minutes, sums.pages, sums.count
   ).run();
 
   return noContent();

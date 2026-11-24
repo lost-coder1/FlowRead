@@ -107,11 +107,15 @@ var FreeBooksView = (function() {
   var _REMOTE_TIMEOUT_MS  = 8000;
   var _REMOTE_MAX_BOOKS   = 500;
   var _REMOTE_MAX_CATEGORIES = 24;
+  var _DROP_MAX_CHOICES = 12;   /* §3 ships three; the cap is a quota guard. */
   var _REMOTE_MAX_BYTES   = 512 * 1024;
 
   var _bundled   = null;   /* the floor, kept so a refresh can re-merge */
   var _remoteSig = null;   /* what the last applied remote list looked like */
   var _refreshed = false;  /* one fetch per app session, not per render */
+  var _drop  = null;       /* this month's offer, or null for no section */
+  var _claim = null;       /* { month, bookId } — what has been claimed */
+  var _pendingClaimId = null;  /* a claim awaiting its inline confirmation */
 
   function _isHttpsUrl(url) {
     return typeof url === 'string' && url.indexOf('https://') === 0;
@@ -160,6 +164,15 @@ var FreeBooksView = (function() {
        both lists have to be extended together. */
     if (raw.requiresOcr === true) out.requiresOcr = true;
 
+    /* Subscription content (§3). Marked on the *entry*, not derived from
+       membership of `dropChoices`, because the two answer different questions:
+       `drop` says this book is never part of the free 150, and `dropChoices`
+       says which drop books are on offer *this month*. Derived from the
+       month's list alone, last month's titles would fall into the free grid
+       the moment the month rolled over — §3's one paid differentiator giving
+       itself away on a timer. */
+    if (raw.drop === true) out.drop = true;
+
     return out;
   }
 
@@ -176,6 +189,80 @@ var FreeBooksView = (function() {
   /* Only the categories a surviving book actually uses. A declared category
      with nothing in it would otherwise put an empty chip on the row, which
      filters to "no books found" — a dead control (§1.5). */
+  /* The month's offer. Returns null — never a partial drop — because every
+     failure here lands on §1.1's silent fallback: no section at all is correct
+     and quiet, where half a section is a subscriber staring at two cards
+     wondering where the third went.
+
+     A choice must name an entry that survived `_cleanEntry` *and* carries
+     `drop: true`. An id matching a free catalogue book is ignored rather than
+     promoted, or a hand-edit on a public repo could pull any of the 150 behind
+     the paywall §23 says may never touch them. */
+  function _cleanDrop(raw, books) {
+    if (!raw || typeof raw !== 'object') return null;
+    var month = raw.dropMonth;
+    if (typeof month !== 'string' || !/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) return null;
+    if (!Array.isArray(raw.dropChoices) || !raw.dropChoices.length) return null;
+
+    var byId = {};
+    for (var i = 0; i < books.length; i++) byId[books[i].id] = books[i];
+
+    var ids = [];
+    for (var j = 0; j < raw.dropChoices.length && ids.length < _DROP_MAX_CHOICES; j++) {
+      var id = raw.dropChoices[j];
+      if (typeof id !== 'string') continue;
+      var book = byId[id];
+      if (!book || !book.drop) continue;
+      if (ids.indexOf(id) === -1) ids.push(id);
+    }
+    return ids.length ? { month: month, choices: ids } : null;
+  }
+
+  /* ── The claim ───────────────────────────────────────────────
+     In Capacitor Preferences, not localStorage. §20 reserves Preferences for
+     purchase state, and a claim is downstream of one: it is the thing the
+     subscription actually bought this month. In localStorage it would also be
+     cleared by the same "clear site data" that costs a user nothing else,
+     handing back a claim they had already spent.
+
+     One key, `month:bookId`, so the month the claim belongs to travels with
+     it. A claim from a previous month is not migrated or cleared — it simply
+     does not match, which is what makes the rollover free. */
+  var _CLAIM_KEY = 'drop_claim';
+
+  async function _loadClaim() {
+    _claim = null;
+    try {
+      var raw = await loadPurchaseState(_CLAIM_KEY);
+      if (typeof raw !== 'string') return;
+      var cut = raw.indexOf(':');
+      if (cut === -1) return;
+      var month = raw.slice(0, cut), bookId = raw.slice(cut + 1);
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month) || !bookId) return;
+      _claim = { month: month, bookId: bookId };
+    } catch (_) { _claim = null; }
+  }
+
+  async function _saveClaim(month, bookId) {
+    _claim = { month: month, bookId: bookId };
+    try { await savePurchaseState(_CLAIM_KEY, month + ':' + bookId); } catch (_) {}
+  }
+
+  /* Claimed *this* month. A claim for an older month is spent history. */
+  function _claimedThisMonth() {
+    if (!_drop || !_claim) return null;
+    return _claim.month === _drop.month ? _claim.bookId : null;
+  }
+
+  /* The month's books, in the order the catalogue lists them. */
+  function _dropBooks() {
+    if (!_drop || !_catalog) return [];
+    var byId = {};
+    _catalog.books.forEach(function(b) { byId[b.id] = b; });
+    return _drop.choices.map(function(id) { return byId[id]; })
+                        .filter(function(b) { return !!b; });
+  }
+
   function _usedCategories(books, declared) {
     var out = {};
     for (var i = 0; i < books.length; i++) {
@@ -225,18 +312,29 @@ var FreeBooksView = (function() {
   function _readRemoteCache() {
     try {
       var raw = localStorage.getItem(_REMOTE_CACHE_KEY);
-      if (!raw) return { books: [], categories: {} };
+      if (!raw) return { books: [], categories: {}, drop: null };
       var data = JSON.parse(raw);
       var cats = _cleanCategories(data && data.categories);
       var books = _cleanList(data && data.books, cats);
-      return { books: books, categories: _usedCategories(books, cats) };
-    } catch (_) { return { books: [], categories: {} }; }
+      return {
+        books: books,
+        categories: _usedCategories(books, cats),
+        /* Re-validated on the way out, like everything else here: the rules can
+           tighten in a later build while an older build's cache survives. */
+        drop: _cleanDrop(data && data.drop, books),
+      };
+    } catch (_) { return { books: [], categories: {}, drop: null }; }
   }
 
   function _writeRemoteCache(result) {
     try {
       localStorage.setItem(_REMOTE_CACHE_KEY, JSON.stringify({
         books: result.books, categories: result.categories, at: Date.now(),
+        /* Stored under the same key names the remote file uses, so the cache
+           and the network answer to one validator. */
+        drop: result.drop
+          ? { dropMonth: result.drop.month, dropChoices: result.drop.choices }
+          : null,
       }));
     } catch (_) {}   /* a full quota costs freshness, nothing else */
   }
@@ -274,7 +372,11 @@ var FreeBooksView = (function() {
       /* Categories first: a book's category is validated against them. */
       var cats  = _cleanCategories(data.categories);
       var books = _cleanList(data.books, cats);
-      return { books: books, categories: _usedCategories(books, cats) };
+      return {
+        books: books,
+        categories: _usedCategories(books, cats),
+        drop: _cleanDrop(data, books),
+      };
     } finally {
       if (timer) clearTimeout(timer);
     }
@@ -296,6 +398,7 @@ var FreeBooksView = (function() {
 
     if (!_bundled) return;
     _remoteCategories = fresh.categories;
+    _drop = fresh.drop;
     _catalog = { books: _merge(_bundled, fresh.books) };
 
     /* Not a full render(): that would clear the search box and the scroll
@@ -324,7 +427,15 @@ var FreeBooksView = (function() {
     var cached = _readRemoteCache();
     _remoteSig = JSON.stringify(cached);
     _remoteCategories = cached.categories;
+    _drop = cached.drop;
     _catalog = { books: _merge(bundled, cached.books) };
+
+    /* Awaited, unlike the refresh: the claim decides whether the section draws
+       a claim button or a spent state, and a section that renders unclaimed
+       and corrects itself a tick later tells a subscriber they have a claim
+       they have already spent (§1.5). It is a Preferences read with no
+       network, so it cannot hang the way the catalogue fetch could. */
+    await _loadClaim();
 
     _refreshRemote();   /* deliberately not awaited */
     return _catalog;
@@ -364,6 +475,12 @@ var FreeBooksView = (function() {
 
   function _filtered(books) {
     return books.filter(function(book) {
+      /* §23: a drop card may never be mixed into the catalogue grid, or §3's
+         "the **entire** library is free" stops being true on the one screen
+         that proves it. Excluded by the entry's own `drop` flag rather than by
+         this month's `dropChoices`, so a title stays out of the free grid
+         after its month ends (see `_cleanEntry`). */
+      if (book.drop) return false;
       if (_langFilter !== 'all' && book.language !== _langFilter) return false;
       if (_catFilter !== 'all' && book.category !== _catFilter) return false;
       if (_searchQuery) {
@@ -618,13 +735,125 @@ var FreeBooksView = (function() {
     ].join('');
   }
 
+  /* ── The monthly drop section (§12, §23) ─────────────────────
+     Three states, and the difference between them is `AppState.isSubscriber`,
+     never `isPro`: §3 gives a lifetime owner everything *today* and explicitly
+     not future drops, so a `Pro` tag here would promise ₹2,999 customers the
+     one thing their tier excludes. The tag says `Plus`.
+
+     Free        — real cards, muted, tagged `Plus`, tap opens the paywall.
+                   Nothing blurred and nothing invented (§23 rule 2); a muted
+                   card that does nothing is the silent failure rule 1 exists
+                   to stop.
+     Subscriber  — the same cards tagged `New`, one claimable.
+     Claimed     — the claimed card behaves like any catalogue card (download,
+                   open, re-download); the others state the claim is spent
+                   rather than going dead.
+
+     The section hides itself whenever a filter or search is active: it is not
+     part of the grid being filtered, and leaving it pinned above a search for
+     something else reads as a result. */
+
+  function _dropTagHtml(book, claimedId) {
+    if (!AppState.isSubscriber) {
+      return '<span class="fb-drop-tag fb-drop-tag-plus">' + t('freebooks.drops.tag_plus') + '</span>';
+    }
+    /* §12: the `New` tag retires on download, and on the month rolling over —
+       which `_claimedThisMonth` already encodes, since a claim from an older
+       month does not match. A permanent tag is noise within a week. */
+    if (claimedId === book.id || _getSavedFileId(book.id)) return '';
+    return '<span class="fb-drop-tag fb-drop-tag-new">' + t('freebooks.drops.tag_new') + '</span>';
+  }
+
+  function _dropActionHtml(book, claimedId) {
+    if (!AppState.isSubscriber) {
+      return '<span class="fb-dl-state fb-dl-idle">' + t('freebooks.drops.claim') + '</span>';
+    }
+    if (claimedId === book.id) return _actionHtml(_getState(book), book.id);
+    if (claimedId) return '<span class="fb-dl-state fb-dl-spent">' + t('freebooks.drops.spent') + '</span>';
+    return '<span class="fb-dl-state fb-dl-idle">' + t('freebooks.drops.claim') + '</span>';
+  }
+
+  function _dropCardHtml(book, claimedId) {
+    var muted = !AppState.isSubscriber || (claimedId && claimedId !== book.id);
+    var html = _cardHtml(book);
+    /* Built from the ordinary card so the cover, title, author and language
+       tag have exactly one implementation — these are real catalogue entries
+       and must look like them. Only the wrapper class, the tag and the action
+       differ. */
+    html = html.replace('class="fb-card"', 'class="fb-card fb-drop-card' + (muted ? ' fb-drop-card-muted' : '') + '"');
+    html = html.replace('<div class="fb-card-info">',
+                        _dropTagHtml(book, claimedId) + '<div class="fb-card-info">');
+    var actionOpen = '<div class="fb-card-action" data-action-for="' + escapeHtml(book.id) + '">';
+    var cut = html.indexOf(actionOpen);
+    if (cut !== -1) {
+      html = html.slice(0, cut) + actionOpen + _dropActionHtml(book, claimedId) + '</div></div>';
+    }
+    return html;
+  }
+
+  /* The benefit line. §12 forbids a hardcoded count — `3` written into
+     `en.json` is a confident wrong number (§1.5) the first month a drop ships
+     short, and a translated one cannot be corrected without a release. The
+     figure comes from what is actually on offer, or the line omits it. */
+  function _dropBenefitHtml(books, claimedId) {
+    /* The claim confirms here rather than in a modal. §20 allows one modal at
+       a time and this screen already opens one for the paywall; more to the
+       point, a claim is a card-level act and the benefit line is the only
+       full-width space the section owns, so the question can be asked in full
+       without truncating the title (§22 rule 4's reasoning). Cancel leaves no
+       trace, which is what makes a single tap safe to commit from. */
+    if (_pendingClaimId) {
+      var pending = books.find(function(b) { return b.id === _pendingClaimId; });
+      if (pending) {
+        return [
+          '<div class="fb-drop-confirm">',
+          '<p class="fb-drop-benefit">',
+          escapeHtml(t('freebooks.drops.confirm').replace('{title}', pending.title)),
+          '</p>',
+          '<div class="fb-drop-confirm-actions">',
+          '<button class="btn btn-primary fb-drop-yes" type="button">' + t('freebooks.drops.claim') + '</button>',
+          '<button class="btn btn-ghost fb-drop-no" type="button">' + t('btn.cancel') + '</button>',
+          '</div>',
+          '</div>',
+        ].join('');
+      }
+    }
+    if (!AppState.isSubscriber) {
+      return '<p class="fb-drop-benefit">' + t('freebooks.drops.benefit_free') + '</p>';
+    }
+    if (claimedId) return '<p class="fb-drop-benefit">' + t('freebooks.drops.spent') + '</p>';
+    return '<p class="fb-drop-benefit">' +
+      t('freebooks.drops.benefit_sub').replace('{count}', String(books.length)) + '</p>';
+  }
+
+  function _renderDrops() {
+    var host = document.getElementById('fb-drops');
+    if (!host) return;
+
+    var books = _dropBooks();
+    var filtering = _searchQuery || _catFilter !== 'all' || _langFilter !== 'all';
+    if (!books.length || filtering) { host.innerHTML = ''; return; }
+
+    var claimedId = _claimedThisMonth();
+    host.innerHTML = [
+      '<h2 class="fb-drop-heading">' + t('freebooks.drops.heading') + '</h2>',
+      _dropBenefitHtml(books, claimedId),
+      '<div class="fb-books-grid fb-drop-grid">',
+      books.map(function(b) { return _dropCardHtml(b, claimedId); }).join(''),
+      '</div>',
+    ].join('');
+  }
+
   /* ── Partial re-renders ──────────────────────────────────────── */
 
   function _refreshAction(bookId) {
     var book = _catalog && _catalog.books.find(function(b) { return b.id === bookId; });
     if (!book) return;
     var el = document.querySelector('[data-action-for="' + bookId + '"]');
-    if (el) el.innerHTML = _actionHtml(_getState(book), bookId);
+    if (el) el.innerHTML = book.drop
+      ? _dropActionHtml(book, _claimedThisMonth())
+      : _actionHtml(_getState(book), bookId);
   }
 
   function _renderGrid() {
@@ -683,6 +912,49 @@ var FreeBooksView = (function() {
   function _clearStaleEntry(bookId, fileId) {
     localStorage.removeItem('fr_freebook_' + bookId);
     if (fileId) removeFileFromLibrary(fileId);
+  }
+
+  /* A tap on a drop card. Four outcomes, and the first is the one §23 rule 1
+     exists for: a muted card that does nothing is both a silent failure and
+     the best-timed paywall in the app thrown away — the user has just pointed
+     at exactly what they would be buying. */
+  async function _handleDropTap(book) {
+    if (!AppState.isSubscriber) {
+      showPaywall('book-drop');
+      return;
+    }
+
+    var claimedId = _claimedThisMonth();
+
+    /* Already theirs: an ordinary catalogue card from here on — download,
+       open, re-download. A claimed book is kept for good (§12), so nothing
+       about this path checks the subscription again. */
+    if (claimedId === book.id) { _handleCardTap(book); return; }
+
+    /* Spent on something else this month. Said plainly rather than left as a
+       dead card (§1.5); the section already says so in the benefit line. */
+    if (claimedId) { showToast(t('freebooks.drops.spent')); return; }
+
+    _pendingClaimId = book.id;
+    _renderDrops();
+  }
+
+  async function _claimBook(book) {
+    if (!_drop || !AppState.isSubscriber || _claimedThisMonth()) return;
+
+    /* Recorded before the download, not after. A download can fail or be
+       interrupted; the claim is the entitlement and the card must come back as
+       theirs either way, with the ordinary re-download path to retry. The
+       reverse order loses the claim to a dropped connection. */
+    await _saveClaim(_drop.month, book.id);
+    _renderDrops();
+
+    logEvent('drop_claimed', {
+      lang: book.language || '',
+      category: book.category || '',
+    });
+
+    _handleCardTap(book);   /* downloads it, with the usual progress states */
   }
 
   async function _handleCardTap(book) {
@@ -865,6 +1137,12 @@ var FreeBooksView = (function() {
          page to render one from, so the catalogue's author line is the only
          thing that makes the placeholder look like a book rather than a box. */
       author: book.author || '',
+      /* The catalogue's shelf label, carried onto the library entry so
+         `book_opened` can report which *kind* of free book gets read without
+         loading the catalogue (§8.6). Only a catalogue download writes it, so
+         a self-imported file has no `category` at all — absent, not blank,
+         which is the §1.4 line. */
+      category: book.category || '',
       wordCount: result.metadata.wordCount,
       pageCount: result.metadata.pageCount,
       lastOpened: Date.now(),
@@ -876,7 +1154,13 @@ var FreeBooksView = (function() {
     _setSavedFileId(book.id, fileId);
     _keepCover(book, fileId);
     _downloading[book.id] = false;
-    logEvent('free_book_downloaded', { lang: book.language || '' });
+    /* `category` added 2026-11-24 (owner): which *kinds* of free book get
+       taken. A catalogue slug is public — it is printed on a chip in a library
+       anyone can open — and never a title or an id (§8.6). */
+    logEvent('free_book_downloaded', {
+      lang: book.language || '',
+      category: book.category || '',
+    });
 
     hideLoading();
     AppState.readerSource = 'free-books';
@@ -943,6 +1227,12 @@ var FreeBooksView = (function() {
          page to render one from, so the catalogue's author line is the only
          thing that makes the placeholder look like a book rather than a box. */
       author: book.author || '',
+      /* The catalogue's shelf label, carried onto the library entry so
+         `book_opened` can report which *kind* of free book gets read without
+         loading the catalogue (§8.6). Only a catalogue download writes it, so
+         a self-imported file has no `category` at all — absent, not blank,
+         which is the §1.4 line. */
+      category: book.category || '',
       wordCount: result.metadata.wordCount,
       pageCount: result.metadata.pageCount,
       lastOpened: Date.now(),
@@ -973,6 +1263,7 @@ var FreeBooksView = (function() {
       tab.addEventListener('click', function() {
         _langFilter = this.dataset.lang;
         _renderLangTabs();
+        _renderDrops();
         _renderGrid();
       });
     });
@@ -982,12 +1273,50 @@ var FreeBooksView = (function() {
       if (!chip) return;
       _catFilter = chip.dataset.cat;
       _renderCatChips();
+      _renderDrops();
       _renderGrid();
     });
 
     document.getElementById('fb-search').addEventListener('input', function() {
       _searchQuery = this.value.trim();
+      _renderDrops();   /* the section hides while a search is active */
       _renderGrid();
+    });
+
+    /* The drop section is its own delegated surface. It sits outside
+       `fb-books-grid` deliberately (§23: never mixed into the catalogue grid),
+       so it needs its own listener rather than a wider selector that would
+       quietly re-admit drop cards to the grid's handler. */
+    document.getElementById('fb-drops').addEventListener('click', function(e) {
+      if (e.target.closest('.fb-drop-yes')) {
+        var book = _dropBooks().find(function(b) { return b.id === _pendingClaimId; });
+        _pendingClaimId = null;
+        if (book) _claimBook(book);
+        else _renderDrops();
+        return;
+      }
+      if (e.target.closest('.fb-drop-no')) {
+        _pendingClaimId = null;
+        _renderDrops();
+        return;
+      }
+
+      var redl = e.target.closest('.fb-redl-btn');
+      if (redl) {
+        e.stopPropagation();
+        var rid = redl.dataset.redlId;
+        var rbook = _catalog && _catalog.books.find(function(b) { return b.id === rid; });
+        if (!rbook) return;
+        _clearStaleEntry(rid, _getSavedFileId(rid));
+        _renderDrops();
+        _handleCardTap(rbook);
+        return;
+      }
+
+      var dcard = e.target.closest('.fb-drop-card');
+      if (!dcard) return;
+      var dbook = _dropBooks().find(function(b) { return b.id === dcard.dataset.bookId; });
+      if (dbook) _handleDropTap(dbook);
     });
 
     /* Event delegation — distinguish ↺ re-download from main card tap */
@@ -1047,6 +1376,9 @@ var FreeBooksView = (function() {
 
       '</div>',
 
+      /* Above the 150 and outside their grid (§23). */
+      '<div class="fb-drops" id="fb-drops"></div>',
+
       '<div class="fb-books-grid" id="fb-books-grid"></div>',
 
       '<p class="fb-legal">' + t('freebooks.legal') + '</p>',
@@ -1055,6 +1387,7 @@ var FreeBooksView = (function() {
     ].join('');
 
     _rebuildCatChips();
+    _renderDrops();
     _renderGrid();
     _bindEvents(view);
     _backfillCovers(catalog.books);

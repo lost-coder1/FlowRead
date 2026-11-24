@@ -22,6 +22,11 @@ CREATE TABLE IF NOT EXISTS daily (
   tier        TEXT    NOT NULL DEFAULT '',
   source      TEXT    NOT NULL DEFAULT '',
   tenure      TEXT    NOT NULL DEFAULT '',
+  -- Which catalogue shelf a free book came from (§8.6, added 2026-11-24).
+  -- A slug from the library's own chip row, never a title or an id, and empty
+  -- for a book the user imported themselves — the client omits it, and §1.4
+  -- turns on it staying omitted.
+  category    TEXT    NOT NULL DEFAULT '',
   is_first    INTEGER NOT NULL DEFAULT 0, -- 1 = the sender's first ever such event
 
   n           INTEGER NOT NULL DEFAULT 0,
@@ -29,7 +34,7 @@ CREATE TABLE IF NOT EXISTS daily (
   sum_pages   REAL    NOT NULL DEFAULT 0,
   sum_count   REAL    NOT NULL DEFAULT 0,
 
-  PRIMARY KEY (day, event, platform, engine, lang, tier, source, tenure, is_first)
+  PRIMARY KEY (day, event, platform, engine, lang, tier, source, tenure, category, is_first)
 );
 
 CREATE INDEX IF NOT EXISTS daily_event_day ON daily (event, day);

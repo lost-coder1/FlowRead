@@ -781,5 +781,13 @@
   "highlights.empty.title": "अभी कोई हाइलाइट नहीं",
   "highlights.empty.body": "पढ़ते समय हेडर में हाइलाइटर बटन दबाएँ, फिर जिस पंक्ति को सहेजना है उसके पहले और आखिरी शब्द पर टैप करें।",
   "highlights.no_text": "(चिह्नित अंश)",
-  "tip.highlights_screen": "आपकी हाइलाइट होम स्क्रीन पर किताब-दर-किताब इकट्ठी होती हैं — बाक़ी 400 पेज के बिना, बस काम की बातें।"
+  "tip.highlights_screen": "आपकी हाइलाइट होम स्क्रीन पर किताब-दर-किताब इकट्ठी होती हैं — बाक़ी 400 पेज के बिना, बस काम की बातें।",
+  "freebooks.drops.heading": "इस महीने की किताबें",
+  "freebooks.drops.tag_plus": "Plus",
+  "freebooks.drops.tag_new": "नया",
+  "freebooks.drops.benefit_free": "FlowRead Plus के साथ हर महीने एक किताब चुनें — हमेशा के लिए आपकी।",
+  "freebooks.drops.benefit_sub": "इस महीने {count} में से एक चुनें। वह हमेशा आपकी रहेगी।",
+  "freebooks.drops.claim": "यह किताब लें",
+  "freebooks.drops.confirm": "क्या “{title}” लेनी है? इस महीने आपको एक किताब मिलती है।",
+  "freebooks.drops.spent": "इस महीने की किताब आप ले चुके हैं।"
 }

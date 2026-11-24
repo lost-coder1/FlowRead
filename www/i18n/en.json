@@ -781,5 +781,13 @@
   "highlights.empty.title": "No highlights yet",
   "highlights.empty.body": "While reading, tap the highlighter button in the header, then tap the first and last word of the line you want to keep.",
   "highlights.no_text": "(marked passage)",
-  "tip.highlights_screen": "Your highlights are collected book by book on the home screen — the good bits, without the other 400 pages."
+  "tip.highlights_screen": "Your highlights are collected book by book on the home screen — the good bits, without the other 400 pages.",
+  "freebooks.drops.heading": "This month's picks",
+  "freebooks.drops.tag_plus": "Plus",
+  "freebooks.drops.tag_new": "New",
+  "freebooks.drops.benefit_free": "Choose one book every month with FlowRead Plus — yours to keep.",
+  "freebooks.drops.benefit_sub": "Choose one of {count} this month. It stays yours.",
+  "freebooks.drops.claim": "Claim this book",
+  "freebooks.drops.confirm": "Claim “{title}”? You get one book this month.",
+  "freebooks.drops.spent": "You've claimed this month's book."
 }

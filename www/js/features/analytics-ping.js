@@ -49,6 +49,12 @@ const AnalyticsPing = (function() {
     'nudge_read_completed',
     'nudge_skipped',
     'free_book_downloaded',
+    /* Added 2026-11-24 (product-owner approved) for §12's monthly drops: the
+     * only count of how often the subscription's one recurring benefit is
+     * actually used. Carries `lang` and `category` — never the book's id or
+     * title. A claim is also a download, so `free_book_downloaded` still
+     * fires; the two answer different questions and must not be conflated. */
+    'drop_claimed',
     'pro_purchased',
     'subscription_started',
     'subscription_cancelled',
@@ -113,6 +119,17 @@ const AnalyticsPing = (function() {
    * `firstTag` below. Lets an aggregate count of events answer "how many
    * people", which bare counts cannot. */
   'tenure', 'first',
+  /* category — added 2026-11-24 (product-owner approved). Which shelf a free
+   * book came from, on `free_book_downloaded`, `drop_claimed` and
+   * `book_opened`. It is a catalogue slug and nothing else: public already,
+   * printed on a chip in a library anyone can open, and never a title, an id
+   * or a file name. §1.1 was amended for it, because before it a ping could
+   * say *that* someone read and never *what*.
+   *
+   * §1.4's hard edge is enforced one line down, not here: a self-imported
+   * file contributes no category at all, and `_clean` drops an empty string
+   * rather than sending a blank dimension, so "absent" really is absent. */
+  'category',
 ];
 
   /* One-shot local flags, for `firstTag` (see logEvent). Consumed only when a
@@ -168,7 +185,10 @@ const AnalyticsPing = (function() {
       const k = ALLOWED_META[i];
       const v = meta[k];
       if (typeof v === 'number' && isFinite(v)) out[k] = v;
-      else if (typeof v === 'string' && v.length <= 32) out[k] = v;
+      /* An empty string is dropped, not sent. A blank dimension still makes a
+       * counter row, and §1.4 requires a self-imported book to contribute
+       * nothing — absent, not blank, not "other". */
+      else if (typeof v === 'string' && v && v.length <= 32) out[k] = v;
       else if (typeof v === 'boolean') out[k] = v;
     }
     return out;

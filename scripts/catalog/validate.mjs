@@ -217,7 +217,7 @@ const REQUIRED = ['id', 'title', 'author', 'language', 'category', 'sourceUrl', 
 /* Every key the app actually reads. `_cleanEntry()` copies only these, so a key
    outside the list is dropped on the way in — silently, which is why an unknown
    one is worth a warning rather than nothing. */
-const KNOWN    = [...REQUIRED, 'coverImage', 'approxLength', 'requiresOcr', 'addedAt'];
+const KNOWN    = [...REQUIRED, 'coverImage', 'approxLength', 'requiresOcr', 'addedAt', 'drop'];
 /* Past this many entries, arrivals without an addedAt start to crowd the top of
    the grid, because nothing can age them out. */
 const ARRIVAL_CROWD = 8;
@@ -344,7 +344,7 @@ function checkEntries(books, cats, en, hi, bundled, declared) {
 
 /* ── Phase D fields, checked if present ──────────────────────────────────── */
 
-function checkDrop(data, ids) {
+function checkDrop(data, ids, dropIds) {
   if (!data) return;
   const hasMonth   = data.dropMonth !== undefined;
   const hasChoices = data.dropChoices !== undefined;
@@ -361,8 +361,8 @@ function checkDrop(data, ids) {
       err('dropChoices must be an array of book ids.');
       return;
     }
-    if (data.dropChoices.length !== 10) {
-      warn(`dropChoices has ${data.dropChoices.length} ids; the mechanic is ten to choose one from.`);
+    if (data.dropChoices.length !== 3) {
+      warn(`dropChoices has ${data.dropChoices.length} ids; §3 settled the mechanic at three to choose one from (owner, 2026-11-24, revised down from ten). The app derives the figure it shows from this length, so a different count is displayed honestly — it is the curation load that is being flagged, not a bug.`);
     }
     const seen = new Set();
     data.dropChoices.forEach((id, i) => {
@@ -371,6 +371,8 @@ function checkDrop(data, ids) {
       seen.add(id);
       if (!ids.has(id)) {
         err(`dropChoices[${i}]: "${id}" is not in this file's books[]. A choice the app cannot resolve is a dead row in the picker.`);
+      } else if (!dropIds.has(id)) {
+        err(`dropChoices[${i}]: "${id}" is not marked "drop": true. The loader ignores it, deliberately — without that flag a hand-edit here could pull any of the free 150 behind the paywall, which §23 forbids outright.`);
       }
     });
   }
@@ -573,7 +575,8 @@ console.log(`Categories: ${cats.length} built into the app` +
 
 const declared = checkCategories(target.data, cats);
 const ids = checkEntries(target.books, cats, en, hi, bundled, declared);
-checkDrop(target.data, ids);
+const dropIds = new Set(target.books.filter(b => b && b.drop === true).map(b => b.id));
+checkDrop(target.data, ids, dropIds);
 if (!noNet) {
   await checkNoDeletions(target.books, target.origin, baseline, args.includes('--allow-removals'));
   await checkUrls(target.books);

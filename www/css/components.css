@@ -3671,3 +3671,93 @@
 .hl-quote:active {
   border-left-color: var(--accent);
 }
+
+/* ── Monthly drops (§12, §23) ────────────────────────────────────
+   Its own section above the 150, never mixed into their grid. Palette and
+   radii are §15's — a paid section that introduced its own colour would read
+   as an advert bolted onto the library rather than part of it. */
+
+.fb-drops {
+  width: 100%;
+  max-width: 680px;
+  align-self: center;
+}
+
+.fb-drop-heading {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  padding: 0 var(--space-md);
+  margin: var(--space-md) 0 2px;
+}
+
+.fb-drop-benefit {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  padding: 0 var(--space-md);
+  margin: 0 0 var(--space-sm);
+}
+
+.fb-drop-grid {
+  padding-bottom: var(--space-md);
+}
+
+/* The claim's confirmation, inline rather than a modal (§20). */
+.fb-drop-confirm {
+  padding: 0 var(--space-md) var(--space-sm);
+}
+
+.fb-drop-confirm .fb-drop-benefit {
+  padding: 0;
+  color: var(--text);
+  margin-bottom: var(--space-sm);
+}
+
+.fb-drop-confirm-actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+/* Muted, not blurred and not faked (§23 rule 2): a real cover at reduced
+   contrast. The card stays fully tappable — a muted card that does nothing is
+   the silent failure rule 1 exists to stop — so the cursor and the hit area
+   are untouched and only the paint changes. */
+.fb-drop-card-muted .fb-card-cover,
+.fb-drop-card-muted .fb-card-info {
+  opacity: 0.55;
+}
+
+.fb-drop-card {
+  position: relative;
+}
+
+.fb-drop-tag {
+  position: absolute;
+  top: var(--space-sm);
+  right: var(--space-sm);
+  z-index: 1;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+
+.fb-drop-tag-plus {
+  color: var(--accent-2);
+  border-color: var(--accent-2);
+}
+
+.fb-drop-tag-new {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.fb-dl-state.fb-dl-spent {
+  color: var(--text-dim);
+}

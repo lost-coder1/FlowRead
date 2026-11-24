@@ -2531,6 +2531,51 @@ word and is translated. Both benefit lines now say the book is kept, which decis
 
 **D — Monthly drops. Mechanic revised 2026-11-24: a choice of one from three, subscribers only.**
 
+**Built 2026-11-24.** The section renders above the 150 and outside their grid (§23).
+
+- **`drop: true` lives on the entry, not on `dropChoices` membership.** The two answer different
+  questions: `drop` says a book is never part of the free 150, `dropChoices` says which drop books
+  are on offer this month. Derived from the month's list alone, last month's titles would fall into
+  the free grid the moment the month rolled over — §3's one paid differentiator giving itself away
+  on a timer. `_cleanDrop` therefore refuses a choice that names an unflagged book, which is also
+  what stops a hand-edit on a public repo pulling any of the free 150 behind the paywall. Covered
+  by a test, because it is the failure that would be invisible and expensive.
+- **A partial drop is never shown** — `_cleanDrop` returns the whole month or null. Half a section
+  is a subscriber counting two cards and wondering where the third went.
+- **The claim is in Capacitor Preferences, not localStorage** (§20). It is downstream of purchase
+  state and is what the subscription actually bought this month; in localStorage a routine "clear
+  site data" would hand back a spent claim. Stored as `month:bookId`, so a claim from an older
+  month simply does not match and the rollover needs no migration or cleanup.
+- **The claim is written before the download, not after.** A download can fail or be interrupted;
+  the claim is the entitlement, and the card must come back as theirs either way with the ordinary
+  re-download path to retry.
+- **It confirms inline, in the benefit line, not in a modal** — §20 allows one modal and this
+  screen already opens one for the paywall. The benefit line is also the only full-width space the
+  section owns, so the title fits without truncation.
+- **The section hides itself while a search or filter is active.** It is not part of what is being
+  filtered, and left pinned above a search for something else it reads as a result.
+- **`_dropCardHtml` builds on `_cardHtml`** rather than restating it: these are real catalogue
+  entries and must look like them (§23 rule 2). Only the wrapper class, the tag and the action
+  differ. Muting is opacity on the cover and info — the card stays fully tappable, because a muted
+  card that does nothing is the silent failure rule 1 exists to stop.
+- **Three public-domain titles are published as November's drop** (Aesop, More, Aristotle), each
+  net-new. The first three chosen were already in the bundled 150 and **the validator caught it** —
+  a drop must be net-new or the library shows one book twice, sharing a position.
+
+**Analytics, four files in step (§8.6).** `drop_claimed` in both allowlists; `category` in
+`ALLOWED_META`, the Worker's `DIMS`, and `schema.sql`. Two things found while wiring it: the client
+would have **silently stripped** `category` for want of an `ALLOWED_META` entry, and `_clean` sent
+an empty string as a blank dimension — now dropped, so §1.4's "absent, not blank" is true at the
+seam rather than by the caller's good manners. The category rides on the library entry, written at
+download, so `book_opened` needs no catalogue load and a self-imported file has nothing to report.
+
+**`worker/migrations/001_add_category.sql` rebuilds the table**, because `category` joins the
+PRIMARY KEY and SQLite cannot alter one. **Not yet run, and the Worker is not yet deployed** — the
+live Worker has the old code, ignores the new dimension, and is unaffected by the app build. Both
+are owed before 1.5.8 is uploaded, in this order: policy (**done, published and verified
+2026-11-24**) → D1 migration → Worker deploy → Play upload.
+
+
 **What changed and why.** Q4 answered "3 books per month, rotating". The owner's revision is that
 a subscriber is shown **ten curated books each month and claims one of them**. Free users get
 **nothing new** — they already have the whole 150-book catalogue (§4), and the drops stay the one

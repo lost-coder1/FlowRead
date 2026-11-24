@@ -50,10 +50,21 @@ function renderReader(options) {
      the same book in the same sitting, and counting it would inflate opens by
      however often someone used the bridge. */
   if (!opts.bridgeReturn && typeof logEvent === 'function') {
-    logEvent('book_opened', {
+    var opened = {
       source: AppState.readerSource || 'upload',
       engine: savedEngine,
-    });
+    };
+    /* `category` only for a book that came from the catalogue, and omitted
+       entirely otherwise (§1.4) — not blank, not "other". A category for a
+       file off the user's own device is the thing privacy by architecture
+       forbids outright, and an empty string would still make a counter row
+       for it. Pre-existing library entries have none and simply do not
+       report one. */
+    var libEntry = null;
+    try { libEntry = loadLibrary().find(function(e) { return e.id === file.id; }); } catch (_) {}
+    var category = (libEntry && libEntry.category) || file.category;
+    if (category) opened.category = category;
+    logEvent('book_opened', opened);
   }
 
   view.innerHTML = `
