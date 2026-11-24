@@ -9,7 +9,7 @@ import { ClockReadout } from "./Clock";
 import { TileWall } from "./Opener";
 import { EndCard } from "./EndCard";
 import { sec, FONT } from "./theme";
-import { TILES, FEED, PRODUCT, END, BLEND, BEATS, DETAILS, RAMP } from "./Promo";
+import { TILES, FEED, PRODUCT, END, BLEND, BEATS, DETAILS, RAMP, capCuts } from "./Promo";
 import { STRINGS, Locale } from "./strings";
 
 /* The Shorts cut: 1080x1920, same film, same beats, same bed.
@@ -212,18 +212,17 @@ export const PromoVertical: React.FC<{ locale?: Locale }> = ({ locale = "en" }) 
           <Sequence key={b.clip} from={sec(b.at)} durationInFrames={sec(b.len)}>
             <Rule />
             {b.at === 0 ? <SubLine locale={locale} /> : null}
-            {S.beats[b.clip].cap2 ? (
-              <>
-                <Sequence durationInFrames={sec(b.split!)}>
-                  <Caption text={S.beats[b.clip].cap} align="center" top={CAP_TOP} size={CAP_SIZE} exitAt={12} />
-                </Sequence>
-                <Sequence from={sec(b.split!)}>
-                  <Caption text={S.beats[b.clip].cap2!} align="center" top={CAP_TOP} size={b.cap2Size ? CAP_SIZE - 6 : CAP_SIZE} />
-                </Sequence>
-              </>
-            ) : (
-              <Caption text={S.beats[b.clip].cap} align="center" top={CAP_TOP} size={CAP_SIZE} />
-            )}
+            {capCuts(b, S.beats[b.clip]).map((c) => (
+              <Sequence key={c.idx} from={sec(c.from)} durationInFrames={sec(c.len)}>
+                <Caption
+                  text={c.text}
+                  align="center"
+                  top={CAP_TOP}
+                  size={c.idx === 1 && b.cap2Size ? CAP_SIZE - 6 : CAP_SIZE}
+                  exitAt={c.exit ? 12 : undefined}
+                />
+              </Sequence>
+            ))}
           </Sequence>
         ))}
       </FadeIn>

@@ -15,7 +15,7 @@ import { STRINGS, Locale } from "./strings";
    leave. The two drawn beats state the problem and get out of the way. */
 export const TILES = 2.0;
 export const FEED = 2.3;
-export const PRODUCT = 25.5;
+export const PRODUCT = 27.0;
 export const END = 3.2;
 export const BLEND = 14;
 
@@ -30,8 +30,15 @@ export type Beat = {
   len: number;
   clip: string;
   rate: number;
-  /* A beat that makes two statements owes two screens and two captions. */
+  /* A beat that makes two statements owes two screens and two captions.
+     `split` is where the still takes over the screen. `capSplit` is where the
+     caption changes *inside* the clip, for a beat that says two things over
+     one piece of footage -- beat 6 shows the free shelf, scrolls up to the
+     month's picks, and then cuts to the import screen, which is three
+     statements over two screens. Without capSplit the caption change and the
+     screen change are the same instant, which is what the other beats want. */
   split?: number;
+  capSplit?: number;
   cap2Size?: number;
   still?: string;
 };
@@ -47,9 +54,13 @@ export const BEATS: Beat[] = [
      study. That is the right trade for a feature nobody installs for. */
   { at: 13.5, len: 3.5, clip: "04_highlight.mp4",  rate: 2.2 },
   { at: 17.0, len: 3.0, clip: "05_dictionary.mp4", rate: 2.4 },
+  /* 16.37. The footage starts on the free shelf and scrolls up into the
+     month's picks, so the captions read in the order the screen does. Longer
+     than the 5.5 it was: three statements at the old length gave the middle
+     one 1.4s, which is under what a staggered line needs to land (rule 8). */
   {
-    at: 20.0, len: 5.5, clip: "06_freebooks.mp4", rate: 1.75,
-    split: 2.8, still: "shots/FlowReadOwnbookNewSS.jpeg",
+    at: 20.0, len: 7.0, clip: "06_freebooks.mp4", rate: 1.37,
+    split: 4.6, capSplit: 2.6, still: "shots/FlowReadOwnbookNewSS.jpeg",
   },
 ];
 
@@ -74,8 +85,28 @@ export const RAMP = 0.5;
 export const DETAILS: [number, number][] = [
   [FEED + 0, FEED + 5.0],        /* the nudge */
   [FEED + 9.5, FEED + 13.5],     /* the completion card */
-  [FEED + 22.8, FEED + 25.5],    /* the import screen */
+  [FEED + 24.6, FEED + 27.0],    /* the import screen */
 ];
+
+/* One place that decides when each of a beat's captions is up, because both
+   orientations have to agree and they draw the caption differently. The cut
+   list is beat-relative seconds; the compositions supply the type scale. */
+export type CapCut = { from: number; len: number; text: string; idx: number; exit: boolean };
+
+export const capCuts = (
+  b: Beat,
+  s: { cap: string; cap2?: string; cap3?: string },
+): CapCut[] => {
+  const marks: number[] = [0];
+  if (s.cap2) marks.push(b.capSplit ?? b.split!);
+  if (s.cap3) marks.push(b.split!);
+  const texts = [s.cap, s.cap2, s.cap3].filter(Boolean) as string[];
+  return texts.map((text, i) => {
+    const from = marks[i];
+    const to = i + 1 < marks.length ? marks[i + 1] : b.len;
+    return { from, len: to - from, text, idx: i, exit: i + 1 < marks.length };
+  });
+};
 
 const Push: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const frame = useCurrentFrame();
@@ -280,18 +311,15 @@ export const Promo: React.FC<{ locale?: Locale }> = ({ locale = "en" }) => {
           <Sequence key={b.clip} from={sec(b.at)} durationInFrames={sec(b.len)}>
             <Rule />
             {b.at === 0 ? <SubLine locale={locale} /> : null}
-            {S.beats[b.clip].cap2 ? (
-              <>
-                <Sequence durationInFrames={sec(b.split!)}>
-                  <Caption text={S.beats[b.clip].cap} exitAt={12} />
-                </Sequence>
-                <Sequence from={sec(b.split!)}>
-                  <Caption text={S.beats[b.clip].cap2!} size={b.cap2Size ?? 84} />
-                </Sequence>
-              </>
-            ) : (
-              <Caption text={S.beats[b.clip].cap} />
-            )}
+            {capCuts(b, S.beats[b.clip]).map((c) => (
+              <Sequence key={c.idx} from={sec(c.from)} durationInFrames={sec(c.len)}>
+                <Caption
+                  text={c.text}
+                  size={c.idx === 0 ? undefined : c.idx === 1 ? b.cap2Size ?? 84 : 84}
+                  exitAt={c.exit ? 12 : undefined}
+                />
+              </Sequence>
+            ))}
           </Sequence>
         ))}
       </FadeIn>

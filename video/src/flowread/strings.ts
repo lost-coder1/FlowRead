@@ -10,7 +10,7 @@ export type Strings = {
   clock: string;
   appsPrefix: string | null;
   apps: string[];
-  beats: Record<string, { cap: string; cap2?: string }>;
+  beats: Record<string, { cap: string; cap2?: string; cap3?: string }>;
   tagline: string;
   features: string[];
   store: string;
@@ -31,19 +31,18 @@ export const STRINGS: Record<Locale, Strings> = {
       "03_unlock.mp4": { cap: "You traded scrolling for *reading*." },
       "04_highlight.mp4": { cap: "Keep the lines that *stay with you*." },
       "05_dictionary.mp4": { cap: "And every *word* you learn." },
-      /* 16.37: the beat now shows the monthly picks section, so the caption
-         carries the cadence instead of the shelf. It may not name a count --
-         the month's set is whatever `dropChoices` holds, and a figure written
-         into a render cannot be corrected the way a string in the app can.
+      /* 16.37. Three statements over two screens: the free shelf, the
+         month's pick, then your own file. The footage scrolls from the shelf
+         up into the picks so the captions read in the order the screen does.
 
-         It also may not put "free" and "every month" in one breath: the
-         monthly book comes with a paid tier, and "free books, and a new one
-         every month" promises a free book a month, which is not the product.
-         The free shelf is still stated -- by the app's own "Free to read"
-         heading inside the shot, and by the end card. */
+         "1 new book" is the *claim* -- one book a month, which is the fixed
+         half of the mechanic. The number section 12 forbids is the size of
+         the month's set, which is whatever `dropChoices` holds and cannot be
+         written into a render. */
       "06_freebooks.mp4": {
-        cap: "A new book every *month*.",
-        cap2: "Or bring your *own*.",
+        cap: "Start with a *free book*.",
+        cap2: "Get *1 new book* every month.",
+        cap3: "Or bring your *own*.",
       },
     },
     tagline: "Read more. Scroll less.",
@@ -73,9 +72,13 @@ export const STRINGS: Record<Locale, Strings> = {
       "03_unlock.mp4": { cap: "आपने स्क्रॉलिंग छोड़, *पढ़ना चुना*।" },
       "04_highlight.mp4": { cap: "जो लाइनें *साथ रह जाएं*, उन्हें सेव करें।" },
       "05_dictionary.mp4": { cap: "और हर *नया शब्द*, जो आप सीखें।" },
+      /* NOT SIGNED OFF -- drafted here so the Hindi cut has three captions
+         where the English one does, rather than rendering a gap. The owner
+         supplies Hindi (section 16). */
       "06_freebooks.mp4": {
-        cap: "हर महीने *एक नई किताब*।",
-        cap2: "या *अपनी खुद की* लाएं।",
+        cap: "शुरुआत करें एक *फ़्री किताब* से।",
+        cap2: "हर महीने पाएं *1 नई किताब*।",
+        cap3: "या *अपनी खुद की* लाएं।",
       },
     },
     /* NOT SIGNED OFF. The script ends at "FlowRead" and gives no Hindi for
