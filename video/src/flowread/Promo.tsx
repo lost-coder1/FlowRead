@@ -60,7 +60,7 @@ export const BEATS: Beat[] = [
      one 1.4s, which is under what a staggered line needs to land (rule 8). */
   {
     at: 20.0, len: 7.0, clip: "06_freebooks.mp4", rate: 1.37,
-    split: 4.6, capSplit: 2.6, still: "shots/FlowReadOwnbookNewSS.jpeg",
+    split: 4.6, capSplit: 2.6, still: "FlowReadOwnbookNewSS.jpeg",
   },
 ];
 
@@ -87,6 +87,23 @@ export const DETAILS: [number, number][] = [
   [FEED + 9.5, FEED + 13.5],     /* the completion card */
   [FEED + 24.6, FEED + 27.0],    /* the import screen */
 ];
+
+/* 16.36. The footage is locale-scoped, not just the copy.
+
+   It used to be `clips/<name>`, one file for both cuts, which is why the
+   Hindi film ran Hindi captions over an English device: there was nowhere to
+   put a Hindi recording. A Hindi viewer was being told the app speaks Hindi
+   by the caption and told otherwise by the screen underneath it, which is
+   worse than an honest English cut.
+
+   So section 27's rule grows one clause: orientation is layout, locale is
+   copy *and footage*. The beat list still holds one name per beat and both
+   orientations still share it -- only the directory changes. A locale whose
+   recording has not been shot yet carries a copy of the English one, so the
+   cut always renders and what is still owed is visible as a duplicate file
+   rather than as a broken render. */
+export const clipSrc = (locale: Locale, clip: string) => `clips/${locale}/${clip}`;
+export const stillSrc = (locale: Locale, still: string) => `shots/${locale}/${still}`;
 
 /* One place that decides when each of a beat's captions is up, because both
    orientations have to agree and they draw the caption differently. The cut
@@ -275,7 +292,7 @@ export const Promo: React.FC<{ locale?: Locale }> = ({ locale = "en" }) => {
                 <Sequence durationInFrames={clipLen}>
                   <Screen>
                     <Video
-                      src={staticFile(`clips/${b.clip}`)}
+                      src={staticFile(clipSrc(locale, b.clip))}
                       muted
                       playbackRate={b.rate}
                       style={{ position: "absolute", inset: 0, width: "100%" }}
@@ -288,7 +305,7 @@ export const Promo: React.FC<{ locale?: Locale }> = ({ locale = "en" }) => {
                      box the recordings are placed in. */
                   <Sequence from={sec(b.split!)} durationInFrames={sec(b.len - b.split!)}>
                     <DrawnScreen>
-                      <Img src={staticFile(b.still)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      <Img src={staticFile(stillSrc(locale, b.still))} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     </DrawnScreen>
                   </Sequence>
                 ) : null}

@@ -9,7 +9,7 @@ import { ClockReadout } from "./Clock";
 import { TileWall } from "./Opener";
 import { EndCard } from "./EndCard";
 import { sec, FONT } from "./theme";
-import { TILES, FEED, PRODUCT, END, BLEND, BEATS, DETAILS, RAMP, capCuts } from "./Promo";
+import { TILES, FEED, PRODUCT, END, BLEND, BEATS, DETAILS, RAMP, capCuts, clipSrc, stillSrc } from "./Promo";
 import { STRINGS, Locale } from "./strings";
 
 /* The Shorts cut: 1080x1920, same film, same beats, same bed.
@@ -183,13 +183,13 @@ export const PromoVertical: React.FC<{ locale?: Locale }> = ({ locale = "en" }) 
                 <Sequence key={b.clip} from={sec(FEED + b.at)}>
                   <Sequence durationInFrames={clipLen}>
                     <Screen>
-                      <Video src={staticFile(`clips/${b.clip}`)} muted playbackRate={b.rate} style={{ position: "absolute", inset: 0, width: "100%" }} />
+                      <Video src={staticFile(clipSrc(locale, b.clip))} muted playbackRate={b.rate} style={{ position: "absolute", inset: 0, width: "100%" }} />
                     </Screen>
                   </Sequence>
                   {b.still ? (
                     <Sequence from={sec(b.split!)} durationInFrames={sec(b.len - b.split!)}>
                       <DrawnScreen k={K}>
-                        <Img src={staticFile(b.still)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        <Img src={staticFile(stillSrc(locale, b.still))} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                       </DrawnScreen>
                     </Sequence>
                   ) : null}
