@@ -874,6 +874,8 @@ stands***; completed detail is in `Tasks-archive.md`.
 | 16.29 | Highlights — the investment phase | 26.3 |
 | 16.30 | Engine order — Page first | 4 |
 | 16.31 | Saved words + dictionary morphology; the dead `HighlightEngine` removed | 26.1, 26.2 |
+| 16.36 | Hindi promo video — Hindi screen recording and screenshots, both orientations | 27 |
+| 16.37 | English promo — re-shoot the library beat for the drops; caption the book-a-month | 27, 12 |
 
 **Open items needing product-owner input:**
 - **Streak freeze — when is it granted, and is it a subscription perk?** (16.19.) §3's value stack is
@@ -1425,9 +1427,25 @@ screen lives in `strings.ts`.** A caption changed in one place must not need cha
 **Remotion is not MIT.** Free for companies of three people or fewer, including commercial use; four
 or more needs a paid licence, and the terms change in 5.0. The plugin is MIT; the library is not.
 
-**Owed:** the Hindi end-card copy (tagline, the three features, the store line) is **drafted, not
-signed off** — the script stopped at "FlowRead". The highlight beat should be re-shot on a Hindi
-book, since the footage under the Hindi captions is still English.
+**Owed, and both are *footage* debts rather than edit debts** (owner, 2026-11-24 — tracked as
+16.36 and 16.37 in `Tasks.md`):
+
+1. **The Hindi cut needs Hindi footage.** Every word on screen is already Hindi, but the recording
+   underneath is an English device — so a Hindi viewer is read Hindi captions over English chrome,
+   which is worse than an honest English cut. Needs a device in Hindi, re-recorded for **both**
+   orientations, and the screenshots re-taken the same way. The Hindi end-card copy (tagline, the
+   three features, the store line) is still **drafted, not signed off** — the script stopped at
+   "FlowRead".
+2. **The English cut's library beat is now wrong.** It was shot before §12's remote catalogue and
+   the monthly drops, so it shows a library that never changes and says nothing about a book a
+   month. The beat must show the drops section and new arrivals, and its caption must carry the
+   one-book-a-month promise. **The caption may not name a count** — §12 binds the video exactly as
+   it binds the app, because a promo is the one place a wrong number cannot be corrected without a
+   re-render.
+
+**A footage change is not a re-edit** (§27): beats, timings and `strings.ts` are shared, so new
+clips drop into the existing compositions and four renders come off two of them. Re-recording is
+the work; re-cutting is not.
 
 ---
 

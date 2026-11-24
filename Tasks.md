@@ -841,6 +841,76 @@ extraction fault can be pinned with that flag without code.
 
 ---
 
+## Build 1.5.8 / versionCode 46 — rebuilt 2026-11-24, signed, **not uploaded**
+
+`catalog-remote-privacy` merged to `master` as a fast-forward (14 commits) and rebuilt at the
+**same versionCode**. 46 was built once before and never uploaded, and §21's rule is that Play only
+refuses a versionCode it has already *received* — so this is a rebuild, not a bump.
+
+**Now carries, on top of what 46 held before** (OCR streaming, the table-detection fix, the Hindi
+stray-character fix, the index close button): 16.4 Phase C and D — the remote catalogue, declared
+categories, new-first ordering, one global ordering, the monthly drops with both paid tiers
+claiming — plus §8.6's `category` dimension, and the modal overflow and paywall footer fixes.
+
+**Verified from the artifact, not the config** (§24): versionCode 46, versionName 1.5.8,
+targetSdk 36, **no `application-debuggable` flag**, so the Debug section cannot render in it. The
+AAB is `jar verified`; the APK verifies under v2 only, which is why `jarsigner` calls it unsigned
+and `apksigner` calls it Verified — **check the AAB with `jarsigner` and the APK with `apksigner`,
+or the right answer looks like a failure.**
+
+**Release notes rewritten and re-counted** (§21's 500-character limit, per language): en-US 393,
+de-DE 425, es-ES 414, pt-BR 412, ja-JP 190. The library and the book-a-month lead; the smaller
+fixes were cut to make room, because the notes had to describe two batches of work in one budget.
+**The non-English notes are Claude's drafts and have not been signed off.**
+
+**Owed before upload:** nothing technical — D1 is migrated, the Worker is deployed, the policy is
+published and verified, the catalogue is live. Upload is the owner's call (§20).
+
+---
+
+## Task 16.36 — Hindi promo video needs Hindi footage — **open, owner 2026-11-24**
+
+Every word on screen in the Hindi cut is already Hindi; the **recording underneath is an English
+device**. So a Hindi viewer is read Hindi captions over English chrome, which is worse than an
+honest English cut — the captions say the app speaks Hindi and the footage says it does not.
+
+**Owed:** screen recordings on a device set to Hindi, in **both** orientations, and the store
+screenshots re-taken the same way. The **Hindi end-card copy is still drafted, not signed off**
+(tagline, the three features, the store line) — the script stopped at "FlowRead".
+
+**Not a re-edit.** §27 keeps beats, timings and every on-screen word in `Promo.tsx` / `strings.ts`,
+with `PromoVertical.tsx` changing only position, so new clips drop into the compositions already
+built and four renders come off two of them. The work is the re-recording.
+
+**Carry §27's own rules into the new footage**, since they were learned from the first cut: the
+camera scales the whole device and never zooms into it (rule 1), and the nudge beat must keep
+"Continue to Instagram anyway" fully in frame (rule 2) — a promo whose footage contradicts its
+caption is worse than one with small text. The vertical cut's bottom fifth stays clear (rule 3).
+
+---
+
+## Task 16.37 — English promo's library beat predates the drops — **open, owner 2026-11-24**
+
+The library beat was shot before §12's remote catalogue and the monthly drops, so it shows a
+library that never changes and says nothing about a book a month — the single clearest reason to
+pay, absent from the one asset whose job is to say why.
+
+**Owed:** re-shoot the beat to show the drops section and new arrivals, and rewrite its caption to
+carry the one-book-a-month promise.
+
+**The caption may not name a count.** §12 binds the video exactly as it binds the app: the month's
+set is whatever `dropChoices` holds (five in November, three by §3's settled mechanic), and a
+hardcoded "one of three" is a confident wrong number (§1.5) the first month it ships otherwise.
+In the app the figure is derived at render time; a video cannot derive anything, so it must phrase
+the promise **without a number** — "a new book every month", never "one of three". A wrong number
+in a promo cannot be corrected without a re-render, which is a harder fix than a release.
+
+**Also now stale in the same footage:** the library opens on classics rather than the promo-era
+caste titles (`_CATEGORY_ORDER`, 2026-11-24), so any shot of the first screen of the shelf shows an
+ordering that no longer exists.
+
+---
+
 ## Task 16.0a — API 36 target bump + toolchain upgrade
 
 **Status:** ✅ Shipped in 1.4.5 / versionCode 32 (2026-09-16).

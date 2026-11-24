@@ -1,42 +1,35 @@
 <en-US>
-• Scanned books now open after the first 20 pages. Read while the rest is still being recognised, and add more pages as they arrive.
-• Something to read on the waiting screen instead of a bare progress bar.
+• New books now arrive in the library on their own — no app update needed.
+• Monthly book picks: choose one each month with FlowRead Pro, and it stays yours.
+• Scanned books open after the first 20 pages, so you can read while the rest is recognised.
 • Fixed: some books lost whole pages of text to a table that was never there.
-• Fixed: stray characters appearing between the words in some Hindi books.
-• The index button now shows a cross while the panel is open.
+• Fixed: stray characters between the words in some Hindi books.
 </en-US>
 <de-DE>
-• Gescannte Bücher öffnen sich jetzt nach den ersten 20 Seiten. Lies weiter, während der Rest erkannt wird, und füge Seiten hinzu, sobald sie fertig sind.
-• Auf dem Wartebildschirm gibt es jetzt etwas zu lesen statt nur eines Balkens.
-• Behoben: In manchen Büchern fehlten ganze Seiten Text wegen einer Tabelle, die es nie gab.
+• Neue Bücher erscheinen jetzt von selbst in der Bibliothek — ohne App-Update.
+• Monatliche Buchauswahl: mit FlowRead Pro jeden Monat eines wählen, und es bleibt deins.
+• Gescannte Bücher öffnen sich nach den ersten 20 Seiten — lies, während der Rest erkannt wird.
+• Behoben: In manchen Büchern fehlten ganze Seiten wegen einer Tabelle, die es nie gab.
 • Behoben: fremde Zeichen zwischen den Wörtern in einigen Hindi-Büchern.
-• Die Index-Taste zeigt jetzt ein Kreuz, wenn das Panel offen ist.
 </de-DE>
-<es-419>
-• Los libros escaneados ahora se abren tras las primeras 20 páginas. Lee mientras se reconoce el resto y agrega páginas a medida que llegan.
-• Algo que leer en la pantalla de espera, en lugar de solo una barra.
-• Corregido: algunos libros perdían páginas enteras de texto por una tabla que no existía.
-• Corregido: caracteres extraños entre las palabras en algunos libros en hindi.
-• El botón de índice ahora muestra una cruz cuando el panel está abierto.
-</es-419>
 <es-ES>
-• Los libros escaneados ahora se abren tras las primeras 20 páginas. Lee mientras se reconoce el resto y añade páginas a medida que llegan.
-• Algo que leer en la pantalla de espera, en vez de solo una barra.
-• Corregido: algunos libros perdían páginas enteras de texto por una tabla que no existía.
+• Los libros nuevos llegan solos a la biblioteca, sin actualizar la app.
+• Selección mensual: elige un libro cada mes con FlowRead Pro y se queda contigo.
+• Los libros escaneados se abren tras las primeras 20 páginas; lee mientras se reconoce el resto.
+• Corregido: algunos libros perdían páginas enteras por una tabla que no existía.
 • Corregido: caracteres extraños entre las palabras en algunos libros en hindi.
-• El botón de índice ahora muestra una cruz cuando el panel está abierto.
 </es-ES>
-<ja-JP>
-• スキャンした本が最初の20ページで開けるようになりました。残りを認識している間も読み進められ、できたページを追加できます。
-• 待ち時間の画面に、進行バーだけでなく読みものを用意しました。
-• 修正: 一部の本で、存在しない表と誤判定されてページ分の本文が失われていました。
-• 修正: 一部のヒンディー語の本で、単語の間に別の文字が現れる問題。
-• 目次ボタンは、パネルを開いている間は×印になります。
-</ja-JP>
 <pt-BR>
-• Livros digitalizados agora abrem após as primeiras 20 páginas. Leia enquanto o resto é reconhecido e acrescente páginas conforme ficam prontas.
-• Algo para ler na tela de espera, em vez de apenas uma barra.
-• Corrigido: alguns livros perdiam páginas inteiras de texto por causa de uma tabela que nunca existiu.
+• Novos livros chegam sozinhos à biblioteca, sem atualizar o app.
+• Seleção mensal: escolha um livro por mês com o FlowRead Pro, e ele fica seu.
+• Livros digitalizados abrem após as primeiras 20 páginas; leia enquanto o resto é reconhecido.
+• Corrigido: alguns livros perdiam páginas inteiras por causa de uma tabela que não existia.
 • Corrigido: caracteres estranhos entre as palavras em alguns livros em híndi.
-• O botão de índice agora mostra um X enquanto o painel está aberto.
 </pt-BR>
+<ja-JP>
+•　新しい本がアプリの更新なしでライブラリに届くようになりました。
+•　毎月の選書: FlowRead Pro で毎月1冊を選べます。選んだ本はずっと手元に残ります。
+•　スキャンした本は最初の20ページで開きます。残りの認識中も読めます。
+•　修正: 存在しない表のせいで本文が丸ごと抜け落ちることがありました。
+•　修正: 一部のヒンディー語の本で単語の間に文字が混ざる問題。
+</ja-JP>
