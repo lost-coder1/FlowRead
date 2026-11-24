@@ -460,41 +460,50 @@ function render() {
      reader imported themselves, or an event from before the dimension
      existed, and §1.4 turns on the first never being described — a bar
      labelled "(unset)" would put a number on exactly what is not collected. */
+  /* Rendered even with nothing in them, saying why. A section that hides
+     itself when empty is indistinguishable from a deploy that did not land —
+     which is exactly how this one was first read. §1.5 on a dashboard means
+     "no data yet" has to be a visible state, not an absent one. */
   const shelves = (DATA.shelves || []);
-  if (shelves.length) {
-    html += '<div class="grid">';
-    html += '<section><h2>Shelves taken</h2><p class="sub">Free-library downloads by subject. The shelf label only &mdash; never which book.</p>' +
-      barsH(shelves.map(r => ({ k: r.category, v: n(r.downloads) })),
-            { label: 'Free book downloads by subject' }) +
-      (SHOW_TABLES ? table(['Shelf', 'Downloads', 'Opens', 'Claims'],
-        shelves.map(r => [r.category, fmt(r.downloads), fmt(r.opens), fmt(r.claims)])) : '') +
-      '</section>';
-    html += '<section><h2>Shelves read</h2><p class="sub">Opens of a catalogue book by subject. Books imported from the device carry no subject and are absent.</p>' +
-      barsH(shelves.slice().sort((a, b) => n(b.opens) - n(a.opens))
-                   .map(r => ({ k: r.category, v: n(r.opens) })),
-            { label: 'Catalogue book opens by subject' }) +
-      '</section>';
-    html += '</div>';
-  }
+  const waiting = '<p class="note">Nothing yet. The <code>category</code> dimension ships in the first build after 1.5.7, ' +
+                  'so this fills from the day that build reaches devices &mdash; not retroactively.</p>';
+
+  html += '<div class="grid">';
+  html += '<section><h2>Shelves taken</h2><p class="sub">Free-library downloads by subject. The shelf label only &mdash; never which book.</p>' +
+    (shelves.length
+      ? barsH(shelves.map(r => ({ k: r.category, v: n(r.downloads) })),
+              { label: 'Free book downloads by subject' }) +
+        (SHOW_TABLES ? table(['Shelf', 'Downloads', 'Opens', 'Claims'],
+          shelves.map(r => [r.category, fmt(r.downloads), fmt(r.opens), fmt(r.claims)])) : '')
+      : waiting) +
+    '</section>';
+  html += '<section><h2>Shelves read</h2><p class="sub">Opens of a catalogue book by subject. Books imported from the device carry no subject and are absent by design.</p>' +
+    (shelves.length
+      ? barsH(shelves.slice().sort((a, b) => n(b.opens) - n(a.opens))
+                     .map(r => ({ k: r.category, v: n(r.opens) })),
+              { label: 'Catalogue book opens by subject' })
+      : waiting) +
+    '</section>';
+  html += '</div>';
 
   /* The drops (§3). `first_time_claimers` is the question that matters: a
      claim is monthly, so one burst of curiosity and a habit look identical in
      a plain total and nothing else here can tell them apart. */
   const drops = (DATA.drops || []);
   const claimsTotal = drops.reduce((a, r) => a + n(r.claims), 0);
-  if (claimsTotal) {
-    const firstClaimers = drops.reduce((a, r) => a + n(r.first_time_claimers), 0);
-    html += '<section><h2>Monthly book drops</h2>' +
-      '<p class="sub">A claim is one subscriber or lifetime owner taking that month&rsquo;s book. Repeat claims are the signal; first-ever claims are curiosity.</p>' +
-      '<div class="tiles">' +
-        tile(fmt(claimsTotal), 'books claimed', '') +
-        tile(fmt(firstClaimers), 'first-ever claimers', 'devices claiming for the first time') +
-        tile(fmt(claimsTotal - firstClaimers), 'repeat claims', 'a claim from a device that had claimed before') +
-      '</div>' +
-      barsH(drops.slice().reverse().map(r => ({ k: r.day, v: n(r.claims) })),
-            { label: 'Book claims per day' }) +
-      '</section>';
-  }
+  const firstClaimers = drops.reduce((a, r) => a + n(r.first_time_claimers), 0);
+  html += '<section><h2>Monthly book drops</h2>' +
+    '<p class="sub">A claim is one paid reader taking that month&rsquo;s book. Repeat claims are the signal; first-ever claims are curiosity.</p>' +
+    '<div class="tiles">' +
+      tile(fmt(claimsTotal), 'books claimed', '') +
+      tile(fmt(firstClaimers), 'first-ever claimers', 'devices claiming for the first time') +
+      tile(fmt(claimsTotal - firstClaimers), 'repeat claims', 'a claim from a device that had claimed before') +
+    '</div>' +
+    (claimsTotal
+      ? barsH(drops.slice().reverse().map(r => ({ k: r.day, v: n(r.claims) })),
+              { label: 'Book claims per day' })
+      : waiting) +
+    '</section>';
 
   /* Two measures of different scale -> two charts. Never a second y-axis. */
   const dayMap = {};
