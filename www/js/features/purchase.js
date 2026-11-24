@@ -570,11 +570,13 @@ function showPaywall(source) {
         <div class="paywall-plans" role="radiogroup"
              aria-label="${escapeHtml(t('paywall.unified.plans_label'))}">${plans}</div>
         ${subNote}
-        <div class="modal-actions">
-          <button class="btn btn-ghost" id="btn-modal-close">${t('btn.not_now')}</button>
-          <button class="btn btn-primary" id="btn-paywall-continue">${t('btn.continue')}</button>
+        <div class="paywall-footer">
+          <div class="modal-actions">
+            <button class="btn btn-ghost" id="btn-modal-close">${t('btn.not_now')}</button>
+            <button class="btn btn-primary" id="btn-paywall-continue">${t('btn.continue')}</button>
+          </div>
+          <button class="btn btn-link modal-restore-btn" id="btn-modal-restore">${t('btn.restore_purchases')}</button>
         </div>
-        <button class="btn btn-link modal-restore-btn" id="btn-modal-restore">${t('btn.restore_purchases')}</button>
       </div>
     </div>
   `;

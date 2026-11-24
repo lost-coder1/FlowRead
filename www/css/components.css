@@ -1197,6 +1197,34 @@
   color: var(--accent);
 }
 
+/* The price rows may scroll; Continue may not. Making the whole card
+   scrollable stopped the heading hiding behind the status bar, but it left
+   the one button this screen exists for below the fold — on the single
+   surface where a thing you have to go looking for is a thing you do not
+   tap. So the card scrolls and its footer is pinned to the bottom of the
+   scrollport.
+
+   The card gives up its bottom padding to the footer, which bleeds to the
+   card's edges with negative side margins. Without that the footer would
+   stick one padding-width above the true bottom and show scrolled content
+   sliding through the gap underneath it. */
+.paywall-card {
+  padding-bottom: 0;
+}
+
+.paywall-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  margin: 0 calc(-1 * var(--space-lg));
+  padding: var(--space-md) var(--space-lg) var(--space-lg);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
 /* ── Paywall plan picker (§4 pricing, §16 palette) ──────────── */
 .paywall-plans {
   display: flex;
