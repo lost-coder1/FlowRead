@@ -129,7 +129,7 @@ Prices decided 2026-10-30.
 | Tier | Price | Unlocks |
 |---|---|---|
 | **Free** | ₹0 | Unlimited PDFs, all 5 engines, the **entire** library, bridge, dictionary, calm mode, basic dashboard, nudge on **1** app, leaderboard view-only |
-| **Lifetime** (`pro_lifetime`) | **₹2,999** once | Everything today: Pro *and* OCR *and* unlimited nudge apps. **Not** future book drops. |
+| **Lifetime** (`pro_lifetime`) | **₹2,999** once | Everything today: Pro *and* OCR *and* unlimited nudge apps. **Not** future book drops — which is why a drop is tagged `Plus` and never `Pro` (§12). |
 | **Subscription** (`flowread_plus`) | **₹149/mo · ₹999/yr** | Everything lifetime has, **plus** what is recurring: monthly curated drops, nudge scheduling, strict mode, leaderboard badges |
 | **OCR add-on** (`ocr_vision`) | retired from sale | Folded into lifetime. **Must keep resolving forever** for anyone who bought it (§1.3). |
 
@@ -605,6 +605,24 @@ chip row rather than filtering to nothing, a label reaching `innerHTML` **must b
 strings never had to be), and the chip row is now rebuilt on refresh because a category can appear
 that was not on screen a moment ago.
 
+**How the drops present in that section** (owner, 2026-11-24):
+- **Free users see the real cards, muted, tagged `Plus`.** Real title, real author, real cover —
+  nothing blurred, nothing invented (§23 rule 2). Tapping one opens `showPaywall()` with
+  `source: 'book-drop'`; a muted card that does nothing is the silent failure §23 rule 1 exists to
+  stop.
+- **The tag says `Plus`, never `Pro`.** §3 gives `pro_lifetime` everything *today* and explicitly
+  **not** future drops, so a lifetime owner is "Pro" and still cannot claim one. A `Pro` tag would
+  promise them the one thing their tier does not include. The gate is `AppState.isSubscriber`, not
+  `isPro`, for the same reason.
+- **One line states the benefit, and it may not name a count.** The month's set is whatever
+  `dropChoices` holds — three in a launch month with nothing carried, ten once `books[]` has a pool
+  (§3) — so a hardcoded "1 of 3" is a confident wrong number (§1.5) and a translated one cannot be
+  corrected without a release. **Derive the figure from `dropChoices.length` at render time, or
+  omit it.**
+- **Subscribers see the same section with a `New` tag, sorted first, and the tag retires** — on
+  download or when `dropMonth` rolls over. A permanent tag is noise within a week, and last
+  month's carried titles wearing "New" is simply false.
+
 ### 12.1 Legal sourcing — what may enter the catalogue
 **Two source types, nothing else:** (1) **public domain**, verified by the *edition's* status, not the
 work's age — a 1890 text in a 2015 translation is a 2015 copyright, so check the author's death date
@@ -1011,7 +1029,13 @@ itself and gets out of the way. The pitch belongs in the paywall, once.**
 - **Book completion and streak milestones** — the emotional peak, and §14 already owns it with the
   share prompt, the distribution play in a distribution-bound product. Do not trade a share for a
   paywall impression.
-- **The Free Books library** — §3 gives the whole catalogue away, and the drops are unbuilt.
+- **The Free Books library** — the 150-book catalogue is free by §3 and **no part of it may ever
+  be gated**. **The monthly drops are the one exception** (owner, 2026-11-24), because they are not
+  the catalogue: net-new, subscription-only content in its own labelled section, where rule 1 above
+  applies in full — the cards are real, tappable, and name the price. The exception is **that
+  section only**; it does not reach the 150 below it, and a drop card may never be mixed into the
+  catalogue grid, or §3's "the **entire** library" stops being true on the one screen that proves
+  it. See §12.
 - **Reading itself** — engines, Page mode, the bridge, the dictionary, own-PDF import. Free by §3, and
   not to be gated later.
 

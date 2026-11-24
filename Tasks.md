@@ -2410,6 +2410,32 @@ five minutes before concluding anything.
 **Still open in C:** the local editor form, and a device run — the fallback path needs a deliberate
 test, since an empty remote file and a missing one are indistinguishable from a passing one.
 
+**Placement decided 2026-11-24 (owner), and §23 amended for it.** The drops live in the Free Books
+screen, in their own labelled section above the catalogue. Free users see the real cards **muted
+with a `Plus` tag**; tapping one opens the paywall with `source: 'book-drop'`. Subscribers see the
+same section with a `New` tag, sorted first.
+
+- **§23 forbade a paywall in the Free Books library in writing**, with "the drops are unbuilt" as
+  its stated reason — a reason that expires when they ship. Amended rather than quietly
+  contradicted, and scoped to *that section only*: a drop card may never be mixed into the
+  catalogue grid, or §4's "the **entire** library" stops being true on the one screen that proves
+  it.
+- **No standing banner.** §23's own words are "not a banner, nothing that follows them". The locked
+  cards are reactive — the user navigated there and tapped — where a banner on every visit is the
+  advert §4 rules out. The benefit line is the section heading instead, which is copy and cannot
+  become wallpaper.
+- **Two corrections to the brief, both of which would have shipped wrong:**
+  1. **The tag must read `Plus`, not `Pro`.** §4 gives `pro_lifetime` everything *today* and
+     explicitly **not** future drops, so a lifetime owner is "Pro" and still cannot claim one — a
+     `Pro` tag would promise ₹2,999 customers the single thing their tier excludes, on the screen
+     where they would go to collect it. Same reason the gate is `isSubscriber`, not `isPro`.
+  2. **The benefit line may not name a count.** "One of 3" was the sketch, but the mechanic is
+     ten-choose-one (§4) and a launch month with nothing carried genuinely offers three — so any
+     fixed number is wrong in some month, and a translated one cannot be fixed without a release
+     (§1.5, §17). Derive from `dropChoices.length` or omit the figure.
+- **Still owed before this can be built:** Hindi copy for the section heading, the `Plus` tag, the
+  benefit line and the claim confirm; and the `drop_claimed` decision below.
+
 **D — Monthly drops. Mechanic revised 2026-11-17: a choice of one from ten, subscribers only.**
 
 **What changed and why.** Q4 answered "3 books per month, rotating". The owner's revision is that
