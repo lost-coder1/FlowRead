@@ -479,6 +479,8 @@
   "freebooks.error.download_server": "Could not download '{title}'. The book's server is not responding — this is not your connection. Try again later.",
   "freebooks.empty": "No books match your filters.",
   "freebooks.legal": "All titles are public domain or officially free. Downloaded files are saved on your device.",
+  "freebooks.free_heading.one": "Free to read — 1 book",
+  "freebooks.free_heading.other": "Free to read — {count} books",
   "btn.done": "Done",
   "nudge.screen.kicker": "A moment",
   "nudge.screen.title": "Read a bit before {app}?",

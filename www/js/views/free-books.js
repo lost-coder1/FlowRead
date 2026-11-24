@@ -863,9 +863,23 @@ var FreeBooksView = (function() {
     var grid = document.getElementById('fb-books-grid');
     if (!grid || !_catalog) return;
     var books = _sorted(_filtered(_catalog.books));
+    var head = document.getElementById('fb-free-heading');
     if (books.length === 0) {
       grid.innerHTML = '<p class="fb-empty">' + t('freebooks.empty') + '</p>';
+      /* No heading over an empty grid: "0 books, free to read" is a worse
+         answer than the empty-state sentence (§1.5). */
+      if (head) head.hidden = true;
       return;
+    }
+    if (head) {
+      /* Counted off what is actually on screen, so it stays true under a
+         filter or a search rather than promising 150 and showing twelve. The
+         remote catalogue can also push the figure past 150 at any time, so it
+         may never be written into a string (§12). Through `tn`, because a
+         search for one rare title would otherwise render "1 books". */
+      head.textContent = tn('freebooks.free_heading', books.length,
+        { count: String(books.length) });
+      head.hidden = false;
     }
     grid.innerHTML = books.map(_cardHtml).join('');
   }
@@ -1382,6 +1396,14 @@ var FreeBooksView = (function() {
       /* Above the 150 and outside their grid (§23). */
       '<div class="fb-drops" id="fb-drops"></div>',
 
+      /* The 150 had no label at all, while the Pro picks above them carried a
+         heading — so the one screen that proves §3's "the entire library is
+         free" said so nowhere, and the muted cards were the only thing on it
+         that named a tier. Asked for as a "free" filter chip; a chip would
+         have had to sit in the row of *subject* chips, where it implies the
+         other twelve are something else. A heading states it once, for
+         everyone, and cannot be left switched on. */
+      '<h2 class="fb-free-heading" id="fb-free-heading" hidden></h2>',
       '<div class="fb-books-grid" id="fb-books-grid"></div>',
 
       '<p class="fb-legal">' + t('freebooks.legal') + '</p>',

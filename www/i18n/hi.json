@@ -458,6 +458,8 @@
   "freebooks.error.download_server": "'{title}' download नहीं हो पाई। किताब का server जवाब नहीं दे रहा — आपका इंटरनेट ठीक है। बाद में कोशिश करें।",
   "freebooks.empty": "कोई किताब नहीं मिली।",
   "freebooks.legal": "सभी किताबें public domain या officially free हैं। Download की गई फाइलें आपके फोन पर ही रहती हैं।",
+  "freebooks.free_heading.one": "मुफ़्त पढ़ें — 1 किताब",
+  "freebooks.free_heading.other": "मुफ़्त पढ़ें — {count} किताबें",
   "btn.done": "हो गया",
   "nudge.screen.kicker": "एक पल",
   "nudge.screen.title": "{app} से पहले थोड़ा पढ़ लें?",

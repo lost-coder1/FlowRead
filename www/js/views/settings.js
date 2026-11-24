@@ -405,7 +405,7 @@ function renderSettings() {
         <div id="settings-nudge-detail">
           <div class="settings-row">
             <span class="settings-row-label">${t('settings.nudge.apps_label')}</span>
-            <button class="btn btn-ghost settings-inline-btn" id="btn-settings-nudge-apps">${t('settings.nudge.apps_choose')}</button>
+            <button class="btn btn-ghost settings-inline-btn settings-inline-btn--cta" id="btn-settings-nudge-apps">${t('settings.nudge.apps_choose')}</button>
           </div>
           <p class="settings-copy text-muted" id="settings-nudge-apps-summary"></p>
           <div id="settings-nudge-permissions"></div>
@@ -1151,7 +1151,7 @@ async function syncNudgePermissions() {
   host.innerHTML = rows.map(function(r) {
     const status = r.granted
       ? '<span class="nudge-perm-ok">' + t('settings.nudge.perm_on') + '</span>'
-      : '<button class="btn btn-ghost settings-inline-btn" data-perm="' + r.id + '">' +
+      : '<button class="btn btn-primary settings-inline-btn" data-perm="' + r.id + '">' +
           t('settings.nudge.perm_grant') + '</button>';
     const optional = r.required ? '' : ' <span class="nudge-perm-optional">' +
       t('settings.nudge.perm_optional') + '</span>';

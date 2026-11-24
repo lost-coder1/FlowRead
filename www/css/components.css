@@ -2956,10 +2956,29 @@
    Back button on its own card, but in a settings row it renders as muted text
    with no edge, so Reset/Grant/Change did not read as pressable at all. Give
    inline row actions a real edge and face. Scoped here rather than changed on
-   .btn-ghost, which modals and onboarding rely on being invisible. */
+   .btn-ghost, which modals and onboarding rely on being invisible.
+
+   The first pass at that was still not enough, and a tester asked where the
+   button was. Measured against the --surface card these rows sit on, the face
+   (--surface-2) came to 1.08:1 and the edge (--border) to 1.28:1 — so the
+   shape was invisible, and the label was --text, *the same colour as the row
+   label beside it*. There was nothing to tell a button from a word. --border is
+   for dividing two filled surfaces, not for drawing an edge against one.
+
+   Three tiers now, because these rows do not hold one kind of action:
+     · base          — a real edge (--text-muted, 3.24:1). Reset lives here: it
+                       must read as pressable without competing.
+     · --cta         — accent edge (10.97:1), for the action a section needs to
+                       work at all but which stays on screen forever (Choose,
+                       Change).
+     · .btn-primary  — accent face (10.97:1, label 11.58:1), for the permission
+                       grants. Those gate the whole feature, and §9 hangs grant
+                       rate on them; the button also replaces itself with "On"
+                       once granted, so the loudness is temporary by
+                       construction. */
 .settings-inline-btn.btn-ghost {
   background: var(--surface-2);
-  border-color: var(--border);
+  border-color: var(--text-muted);
   color: var(--text);
 }
 
@@ -2968,6 +2987,19 @@
   background: var(--surface);
   border-color: var(--accent);
   color: var(--accent);
+}
+
+/* The action a section needs, that never goes away. */
+.settings-inline-btn--cta.btn-ghost {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.settings-inline-btn--cta.btn-ghost:hover,
+.settings-inline-btn--cta.btn-ghost:active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
 }
 
 .nudge-perm-row {
@@ -3748,6 +3780,16 @@
   color: var(--text);
   padding: 0 var(--space-md);
   margin: var(--space-md) 0 2px;
+}
+
+/* The same scale as .fb-drop-heading: these are two peer sections of one
+   screen, and §15 does not get a second heading size for the second one. */
+.fb-free-heading {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  padding: 0 var(--space-md);
+  margin: var(--space-lg) 0 2px;
 }
 
 .fb-drop-benefit {

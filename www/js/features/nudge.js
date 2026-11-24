@@ -390,7 +390,7 @@ const NudgeFeature = (function() {
           rows.map(function(r) {
             return '<div class="settings-row nudge-perm-row">' +
                 '<span class="settings-row-label">' + r.label + '</span>' +
-                '<button class="btn btn-ghost settings-inline-btn" data-grant="' + r.id + '">' +
+                '<button class="btn btn-primary settings-inline-btn" data-grant="' + r.id + '">' +
                   t('settings.nudge.perm_grant') + '</button>' +
               '</div>' +
               '<p class="settings-copy text-muted nudge-perm-note">' + r.note + '</p>';

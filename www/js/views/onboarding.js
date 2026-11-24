@@ -146,7 +146,7 @@ const OnboardingFlow = (function() {
     const chosen = pkg
       ? `<div class="onboarding-chosen">
            <span class="onboarding-chosen-label">${escapeHtml(t('onboarding.nudge.chosen', { app: label }))}</span>
-           <button class="btn btn-ghost settings-inline-btn" id="btn-onb-pick">${escapeHtml(t('onboarding.nudge.change_btn'))}</button>
+           <button class="btn btn-ghost settings-inline-btn settings-inline-btn--cta" id="btn-onb-pick">${escapeHtml(t('onboarding.nudge.change_btn'))}</button>
          </div>`
       : `<div class="onboarding-actions-inline">
            <button class="btn btn-ghost" id="btn-onb-pick">${escapeHtml(t('onboarding.nudge.pick_btn'))}</button>
@@ -292,7 +292,7 @@ const OnboardingFlow = (function() {
                       escapeHtml(t('settings.nudge.perm_optional')) + '</span>'}</span>
                   ${r.granted
                     ? `<span class="onboarding-perm-on">${escapeHtml(t('settings.nudge.perm_on'))}</span>`
-                    : `<button class="btn btn-ghost settings-inline-btn" data-grant="${r.id}">${
+                    : `<button class="btn btn-primary settings-inline-btn" data-grant="${r.id}">${
                         escapeHtml(t('settings.nudge.perm_grant'))}</button>`}
                 </div>
                 <p class="settings-copy text-muted nudge-perm-note">${escapeHtml(r.note)}</p>`;
