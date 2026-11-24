@@ -37,8 +37,12 @@ this is not a hard app-blocker.**
 
 ## 1. Core Principles (non-negotiable)
 
-1. **Offline-first, stated precisely.** No backend for reading, no cloud parsing, no analytics on
-   reading behaviour. Internet is needed only for: the Pro URL reader (one labelled fetch), Free
+1. **Offline-first, stated precisely.** No backend for reading, no cloud parsing, and no analytics
+   on reading behaviour **beyond one dimension: which catalogue category a free book came from**
+   (owner, 2026-11-24 — §8.6). That is a real move of this line, recorded here rather than left to
+   contradict the sentence it replaced: before it, a ping could say *that* someone read and never
+   *what*. It is bounded by §1.4, which is unchanged — a self-imported file contributes nothing.
+   Internet is needed only for: the Pro URL reader (one labelled fetch), Free
    Books downloads (one fetch, then offline forever), **the Free Books catalogue check** (one fetch
    on opening the library, silent fallback to the bundled list, §12), store billing, and §8.6's
    anonymous pings (silent failure, never blocking).
@@ -49,7 +53,10 @@ this is not a hard app-blocker.**
    cancellation is one tap through platform billing.
 4. **Privacy by architecture.** Files never touch a server. No reading-content tracking, no uploads.
    §8.6's pings are the one deliberate, minimal, anonymous exception — never extend them to reading
-   content, file names, or any identifier.
+   content, file names, or any identifier. **The user's own files are the hard edge**: §1.1's
+   category dimension describes a book the catalogue published, which is public already, and is
+   **omitted entirely** for anything imported from the device. An event that carried a category for
+   a self-imported file would breach this principle, not merely stretch it.
 5. **Honest limitations.** Shown upfront. Never silently fail. Plain-language errors, never raw
    exception text. A confident wrong number is a silent failure.
 6. **The nudge is a nudge, not a wall.** Every interception carries an immediate, visible, one-tap
@@ -146,10 +153,10 @@ Prices decided 2026-10-30.
   **Revisit when the drops ship.**
 
 **Subscription value stack (closed — do not add scope without asking):** unlimited nudge apps ·
-nudge scheduling · nudge strict mode · **monthly drops: ten curated books, of which the subscriber
-claims one** (rotating, not cumulative; `books[]` is never pruned, so a month can be three new plus
-seven carried, holding curation at ~3/month and ~36 §12.1 licence checks a year rather than 120) ·
-leaderboard badges. **Design intent:** the free tier stays genuinely generous, and subscription
+nudge scheduling · nudge strict mode · **monthly drops: three curated books, of which the
+subscriber claims one** (owner, 2026-11-24 — revised down from ten, which only ever worked by
+carrying titles forward; three fresh each month is the same ~36 §12.1 licence checks a year, and
+it makes "one of three" a figure the app can state without carrying a pool) · leaderboard badges. **Design intent:** the free tier stays genuinely generous, and subscription
 value must be *recurring* value, never a relabeling of static value.
 
 **Explicitly rejected, do not build:** priority book-request fulfilment, early access to catalogue
@@ -475,7 +482,22 @@ Allowlist: `app_opened` · `nudge_shown` · `nudge_read_started` · `nudge_read_
 `nudge_skipped` · `free_book_downloaded` · `pro_purchased` · `subscription_started` ·
 `subscription_cancelled` · `stats_shared` (entry point only — `home`/`dashboard`/`milestone`, never
 the book, stat or destination app) · `read_session_ended` · `book_finished` · `book_opened` ·
-`paywall_shown` · `import_completed` · `onboarding_completed` · `nudge_permission_granted`.
+`paywall_shown` · `import_completed` · `onboarding_completed` · `nudge_permission_granted` · `drop_claimed`.
+
+**`drop_claimed` and the `category` dimension — added 2026-11-24 (product owner).** The event
+carries which month's drop was claimed and the claimed book's category, never its id or title.
+`category` also joins `free_book_downloaded` (acquisition) and `book_opened`, which is what answers
+"which kinds of free book actually get read" rather than merely downloaded. **Three limits, and
+they are what keep §1.4 true:**
+1. **On `book_opened` it is present only for a catalogue book, and absent for a self-imported
+   one** — not blank, not `other`, absent. A category for a file off the user's device is the
+   thing §1.4 forbids outright.
+2. **It is a catalogue slug and nothing else** — one of §12's twelve, or a slug the remote
+   catalogue declared. Never a title, never an id, never a file name. A slug is public: it is
+   printed on a chip in a library anyone can open.
+3. **The Worker's `DIMS` and `schema.sql` take a column, so the dimension is enumerable by
+   construction** — it cannot smuggle free text into a counter row, and §8.6's second receiver
+   rule (no dimension may carry a package name) is unaffected.
 
 **Adding an event is a product decision, not an implementation detail** — the allowlist exists so a
 future caller cannot quietly widen collection; ask first. **It is enforced a second time in the
@@ -620,11 +642,16 @@ that was not on screen a moment ago.
   **not** future drops, so a lifetime owner is "Pro" and still cannot claim one. A `Pro` tag would
   promise them the one thing their tier does not include. The gate is `AppState.isSubscriber`, not
   `isPro`, for the same reason.
-- **One line states the benefit, and it may not name a count.** The month's set is whatever
-  `dropChoices` holds — three in a launch month with nothing carried, ten once `books[]` has a pool
-  (§3) — so a hardcoded "1 of 3" is a confident wrong number (§1.5) and a translated one cannot be
-  corrected without a release. **Derive the figure from `dropChoices.length` at render time, or
-  omit it.**
+- **One line states the benefit, and it still may not *hardcode* a count.** §3 now fixes the
+  month's set at three, so the figure is sayable — but it is sayable because `dropChoices.length`
+  says it. A number written into `en.json`/`hi.json` is a confident wrong number (§1.5) the first
+  month a drop ships short, and a translated one cannot be corrected without a release.
+  **Derive it from `dropChoices.length` at render time, or omit it.**
+- **A claimed book is the reader's for good** (owner, 2026-11-24) — it survives a lapsed or
+  cancelled subscription. It is on the device and readable offline the moment it downloads (§1.1),
+  so revoking it means deleting a book out from under someone mid-read, which is the dark pattern
+  §1.3 forbids. What lapsing stops is claiming the *next* one. The benefit copy may therefore say
+  the book is theirs to keep.
 - **Subscribers see the same section with a `New` tag, sorted first, and the tag retires** — on
   download or when `dropMonth` rolls over. A permanent tag is noise within a week, and last
   month's carried titles wearing "New" is simply false.

@@ -22,6 +22,8 @@
  * Top-level keys it understands: "books" (required), "categories" (optional,
  * so a new genre needs no app release), and Phase D's "dropMonth"/"dropChoices".
  *   node scripts/catalog/validate.mjs <path> --no-net    # skip URL checks
+ *   node scripts/catalog/validate.mjs <path> --allow-removals
+ *                                                # permit deliberate takedowns
  *   node scripts/catalog/validate.mjs <path> --published <path|url>
  *                                                # compare against that baseline
  *                                                # instead of the published file
@@ -215,7 +217,10 @@ const REQUIRED = ['id', 'title', 'author', 'language', 'category', 'sourceUrl', 
 /* Every key the app actually reads. `_cleanEntry()` copies only these, so a key
    outside the list is dropped on the way in — silently, which is why an unknown
    one is worth a warning rather than nothing. */
-const KNOWN    = [...REQUIRED, 'coverImage', 'approxLength', 'requiresOcr'];
+const KNOWN    = [...REQUIRED, 'coverImage', 'approxLength', 'requiresOcr', 'addedAt'];
+/* Past this many entries, arrivals without an addedAt start to crowd the top of
+   the grid, because nothing can age them out. */
+const ARRIVAL_CROWD = 8;
 const isHttps  = (u) => typeof u === 'string' && u.startsWith('https://');
 
 function checkEntries(books, cats, en, hi, bundled, declared) {
@@ -273,6 +278,9 @@ function checkEntries(books, cats, en, hi, bundled, declared) {
     if (raw.coverImage === undefined) missing.cover.push(at);
     if (raw.approxLength === undefined) missing.length.push(at);
 
+    if (raw.addedAt !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(raw.addedAt)) {
+      err(`${at}: addedAt must be "YYYY-MM-DD" — ${JSON.stringify(raw.addedAt)} is ignored, so the book stays a new arrival at the top of the grid until someone downloads it.`);
+    }
     if (raw.requiresOcr !== undefined && raw.requiresOcr !== true) {
       warn(`${at}: requiresOcr is only honoured when it is exactly \`true\` — ${JSON.stringify(raw.requiresOcr)} is ignored. Remove it rather than setting it false.`);
     }
@@ -311,6 +319,11 @@ function checkEntries(books, cats, en, hi, bundled, declared) {
       err(`${at}: this sourceUrl is already in the bundled catalogue under id "${urlClash.id}". The library would show the same book twice, sharing one position.`);
     }
   });
+
+  const undated = books.filter((b) => b && typeof b === 'object' && b.addedAt === undefined);
+  if (books.length > ARRIVAL_CROWD && undated.length) {
+    warn(`${undated.length} of ${books.length} entries have no addedAt. A new arrival leads the grid until it is downloaded or ages out, and only addedAt can age it out — so on a file this size the top of the library fills with everything nobody has taken yet. Add "addedAt": "YYYY-MM-DD" to date them.`);
+  }
 
   for (const slug of declared) {
     if (!books.some((b) => b && b.category === slug)) {
@@ -365,7 +378,7 @@ function checkDrop(data, ids) {
 
 /* ── Nothing may vanish from books[] ─────────────────────────────────────── */
 
-async function checkNoDeletions(books, origin, baseline) {
+async function checkNoDeletions(books, origin, baseline, allowRemovals) {
   const from = baseline || LIVE_URL;
   if (origin === from) return;       /* comparing a file to itself */
 
@@ -387,7 +400,17 @@ async function checkNoDeletions(books, origin, baseline) {
   const now = new Set(books.map((b) => b?.id).filter(Boolean));
   for (const b of published.books) {
     if (b && b.id && !now.has(b.id)) {
-      err(`"${b.id}" is in ${from} but not in this file. Never delete from books[] — anyone who downloaded it keeps the book, but its cover and any re-download stop resolving. Edit dropChoices to rotate a book out instead.`);
+      const note = `"${b.id}" is in ${from} but not in this file. Anyone who downloaded it keeps the book, but its cover and any re-download stop resolving.`;
+      if (allowRemovals) {
+        /* A takedown has to be possible: §12.1 contemplates dropping content
+           whose licence is challenged, and that is the one case where removal
+           is the correct act rather than an accident. The flag exists so it
+           has to be *said* — the default stays a refusal, because the ordinary
+           way a book leaves the drops is `dropChoices`, not deletion. */
+        warn(`${note} Allowed by --allow-removals.`);
+      } else {
+        err(`${note} Rotate a book out with dropChoices instead. If you mean to take it down — a licence problem, say — re-run with --allow-removals.`);
+      }
     }
   }
 }
@@ -552,7 +575,7 @@ const declared = checkCategories(target.data, cats);
 const ids = checkEntries(target.books, cats, en, hi, bundled, declared);
 checkDrop(target.data, ids);
 if (!noNet) {
-  await checkNoDeletions(target.books, target.origin, baseline);
+  await checkNoDeletions(target.books, target.origin, baseline, args.includes('--allow-removals'));
   await checkUrls(target.books);
 } else {
   console.log('Skipping URL and deletion checks (--no-net).\n');

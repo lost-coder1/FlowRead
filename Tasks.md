@@ -2311,7 +2311,7 @@ every one of the 127 `txt` entries (the new and the original 65) carries a heade
 which older texts use. **Not yet exercised in the app** — the library view has not been opened
 against the grown file on device or in a browser.
 
-**C — Remote catalogue. Code complete 2026-11-24; device run owed.**
+**C — Remote catalogue. Code complete and device-verified 2026-11-24.**
 - [x] **Privacy policy amended and published** 2026-11-24, verified against the live host. It also
       closed the six-week gap described above. The IP exception is stated once for every outbound
       request rather than per bullet, because the Gutenberg downloads always had the same property
@@ -2330,18 +2330,23 @@ against the grown file on device or in a browser.
       8s timeout non-load-bearing, which matters because `CapacitorHttp` routes fetch through
       native and may ignore an `AbortSignal`. Cost, accepted: a book added while the library is
       shut appears on the *next* open rather than this one.
-- [x] **Grid-only re-render is complete, not a compromise** — all twelve categories are already
-      represented in the bundled 150, so a remote addition can only land in a chip that is already
-      on screen. Verified against the data. A full `render()` would have cleared the search box and
-      scroll position under a reader mid-browse.
+- [x] **The grid and the chip row re-render; the rest of the screen does not.** This first said
+      grid-only was *complete*, on the reasoning that all twelve categories are already represented
+      in the bundled 150, so a remote addition could only land in a chip already on screen. That
+      reasoning died with expandable categories below — a declared category is a chip that was not
+      there a moment ago — so `_rebuildCatChips()` runs on refresh too, falling back to **all** if
+      the active filter disappears. A full `render()` is still refused: it would clear the search
+      box and scroll position under a reader mid-browse.
 - [x] **Every entry is re-validated on the way in, and again on the way out of the cache** — the
       rules can tighten in a later build while an older build's cache survives. `_cleanEntry()`
       checks every field the card, filters, sort and download path read, so none of them has to,
       and it copies only known fields rather than passing the object through.
-- [x] **One category list, not two.** `_CATEGORY_KEYS` now feeds the label lookup, and the
-      validator reads it out of the source. Two lists is what put raw slugs on six chips in Phase
-      A. **A category cannot be introduced remotely** — it needs a label and an en/hi key, so it
-      is an app release. The loader drops an unknown-category entry rather than drawing its slug.
+- [x] **One category list, not two.** `_CATEGORY_KEYS` feeds the label lookup, and the validator
+      reads it out of the source. Two lists is what put raw slugs on six chips in Phase A. The
+      loader drops an entry whose category is neither built in nor declared, rather than drawing
+      its slug. **"A category cannot be introduced remotely" was the rule here and is no longer**
+      — it made every new genre an app release, which defeats the point of a remote catalogue.
+      See expandable categories below.
 - [x] **`https` is required for `sourceUrl`,** and a non-https `coverImage` is ignored while the
       entry survives. The remote file is hand-edited on a public repo and its strings reach
       `innerHTML`; the existing card markup escapes them, and this closes the URL half.
@@ -2407,6 +2412,40 @@ that frustration was false; it now states the real behaviour. **An edit takes up
 reach a device and nothing in the client can shorten it** — the rule is human: after editing, wait
 five minutes before concluding anything.
 
+**Device-verified 2026-11-24 — and what three failed runs actually were.** On device
+(SM-S711B, debug build over USB): fetch `200`, 905 bytes, both entries kept, the remotely declared
+`epics` category accepted, merged to **152 books with 2 marked as arrivals**. The loader works end
+to end, and a category reached the app without a release.
+
+Three runs before that showed nothing, and **the cause was the CDN each time, not the code**:
+
+- `raw.githubusercontent.com` serves `max-age=300` **and normalises the query string away**, so the
+  `?v=<timestamp>` buster does nothing against it. The code comment claiming otherwise was wrong
+  and has been rewritten. **The rule is human: wait five minutes after editing the remote file.**
+- Worse, the wait is **per edge node**. A `curl` from the dev machine returned the new file while
+  the phone, on a different POP holding its own copy, was still being served the old one for
+  minutes afterwards. **Verifying a publish from the dev machine does not prove the device can see
+  it** — only the device does.
+- That is also why this was misdiagnosed twice: first as a bad `category` value in the test entry,
+  then — after a search of the library for both the new and the old fixture came back empty —
+  confidently as *not* a caching problem at all. Both wrong. The deciding evidence was temporary
+  `console.log` instrumentation in `_fetchRemote`/`_refreshRemote`, since **every failure on that
+  path is swallowed by design** (§1.1's silent fallback), which is right for users and leaves
+  nothing to debug with. Instrumentation added, read, and removed in the same session.
+
+**`CapacitorHttp` does not route GET through native.** It rewrites the URL to
+`https://localhost/_capacitor_http_interceptor_?u=…` and uses the ordinary WebView fetch; only
+non-GET goes through `nativePromise`. So the Phase C note above — that the 8s timeout is
+non-load-bearing because native "may ignore an `AbortSignal`" — holds for the wrong reason on this
+path: the GET keeps the WebView's own `AbortSignal` handling. The conclusion is unchanged; the
+fetch stays out of the paint path.
+
+**The chip row was still in catalogue order** — `_uniqueCategories()` walked the books array, and
+the bundled file begins with the promo-era social-justice block, so the grid opened on classics
+while the filter row still led with SOCIAL JUSTICE. It now sorts by `_CATEGORY_ORDER`, so the row
+and the grid answer to one array. Found on device; it is exactly the kind of thing the global
+ordering was meant to remove and the unit tests could not see.
+
 **One global ordering — 2026-11-24 (owner).** The region-aware sort was promo-era weighting: an
 India locale scored `social_justice`, `constitution_law` and every Hindi title first, so the
 library's **first ten cards were nine caste titles**. Replaced with a single `_CATEGORY_ORDER` array
@@ -2452,7 +2491,45 @@ same section with a `New` tag, sorted first.
 - **Still owed before this can be built:** Hindi copy for the section heading, the `Plus` tag, the
   benefit line and the claim confirm; and the `drop_claimed` decision below.
 
-**D — Monthly drops. Mechanic revised 2026-11-17: a choice of one from ten, subscribers only.**
+**Owner decisions 2026-11-24 — the three that unblocked Phase D.**
+1. **Three books a month, not ten.** Ten only ever worked by carrying titles forward from
+   `books[]`; three fresh is the same ~36 §12.1 licence checks a year and makes "one of three" a
+   figure the app can state without holding a pool. §3 amended. The benefit line still derives from
+   `dropChoices.length` rather than hardcoding `3` — a short month must not print a wrong number.
+2. **A claimed book survives a lapsed subscription.** It is on the device and offline-readable the
+   moment it downloads (§1.1); revoking it means deleting a book mid-read, which §1.3 forbids.
+   Lapsing stops the *next* claim. The copy may say the book is theirs to keep.
+3. **`drop_claimed` is added to §8.6, and a `category` dimension with it** — the owner also wants
+   to see which *kinds* of free book get read, so `category` joins `free_book_downloaded` and
+   `book_opened`. **This moves §1.1's line** and the contract was amended to say so rather than be
+   quietly contradicted: before it, a ping could say *that* someone read, never *what*. Three
+   limits keep §1.4 intact — absent (not blank) on a self-imported book, a catalogue slug only,
+   and a real column in `DIMS`/`schema.sql` so it cannot carry free text.
+
+**Owed together, or the published policy becomes false (§8.6, and this is the step that silently
+did not happen before):** `analytics-ping.js` ALLOWED · the Worker's `ALLOWED` + `DIMS` ·
+`schema.sql`'s new column · `privacy_policy.html`, re-published **and verified against the live
+host**. Batched with the Phase D build so there is one policy publish, not two, and published
+before the build that sends the new dimension is uploaded.
+
+**Drop copy — drafted by Claude 2026-11-24, owner to sign off (§16).** Keys under `freebooks.drops.`:
+
+| Key | English | Hindi |
+|---|---|---|
+| `heading` | This month's picks | इस महीने की किताबें |
+| `tag_plus` | Plus | Plus |
+| `tag_new` | New | नया |
+| `benefit_free` | Choose one book every month with FlowRead Plus — yours to keep. | FlowRead Plus के साथ हर महीने एक किताब चुनें — हमेशा के लिए आपकी। |
+| `benefit_sub` | Choose one of {count} this month. It stays yours. | इस महीने {count} में से एक चुनें। वह हमेशा आपकी रहेगी। |
+| `claim` | Claim this book | यह किताब लें |
+| `confirm` | Claim "{title}"? You get one book this month. | क्या "{title}" लेनी है? इस महीने आपको एक किताब मिलती है। |
+| `claimed` | Claimed | ली गई |
+| `spent` | You've claimed this month's book. | इस महीने की किताब आप ले चुके हैं। |
+
+**Plus stays Roman in both**, as RSVP/PDF/OCR do (§16) — it is a product name. `New` is an ordinary
+word and is translated. Both benefit lines now say the book is kept, which decision 2 licenses.
+
+**D — Monthly drops. Mechanic revised 2026-11-24: a choice of one from three, subscribers only.**
 
 **What changed and why.** Q4 answered "3 books per month, rotating". The owner's revision is that
 a subscriber is shown **ten curated books each month and claims one of them**. Free users get

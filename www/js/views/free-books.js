@@ -142,6 +142,12 @@ var FreeBooksView = (function() {
 
     if (_isHttpsUrl(raw.coverImage)) out.coverImage = raw.coverImage;
     if (typeof raw.approxLength === 'string') out.approxLength = raw.approxLength;
+    /* Optional `YYYY-MM-DD`, and the only thing that can expire a new arrival's
+       place at the top of the grid. Read against the *device* clock, which §12
+       forbids for `dropMonth` — the difference is that `dropMonth` gates an
+       entitlement, where this decides a sort order, so a wrong clock costs a
+       book its position and nothing else. */
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw.addedAt)) out.addedAt = raw.addedAt;
 
     /* Forces the OCR path for a PDF whose text layer extracts as mojibake —
        the legacy Devanagari font encodings §5 describes. It must be carried
@@ -188,10 +194,30 @@ var FreeBooksView = (function() {
     for (var i = 0; i < books.length; i++) at[books[i].id] = i;
     for (var j = 0; j < remote.length; j++) {
       var b = remote[j];
-      if (at[b.id] !== undefined) books[at[b.id]] = b;
-      else { at[b.id] = books.length; books.push(b); }
+      if (at[b.id] !== undefined) {
+        /* An override is a book the reader may already have — a corrected
+           title or cover is not an arrival, and calling it one would send a
+           familiar book back to the top of the grid. */
+        books[at[b.id]] = b;
+      } else {
+        /* Marked here because this is the only place that knows the difference
+           between "the remote file contains it" and "the app did not ship it".
+           Set on the merged copy, never on what `_writeRemoteCache` stores, so
+           it cannot be persisted and go stale. */
+        b = _assign({}, b);
+        b._arrival = true;
+        at[b.id] = books.length;
+        books.push(b);
+      }
     }
     return books;
+  }
+
+  /* minSdk 24 WebViews predate Object.assign in some builds (§2). */
+  function _assign(target, src) {
+    var keys = Object.keys(src);
+    for (var i = 0; i < keys.length; i++) target[keys[i]] = src[keys[i]];
+    return target;
   }
 
   /* Re-validated on read, not trusted because we wrote it: the rules can
@@ -226,7 +252,16 @@ var FreeBooksView = (function() {
          assumed — three app launches inside that window on 2026-11-24 read a
          stale body and dropped the entry it described. Nothing in the client
          can shorten it, so the rule is a human one: after editing the
-         catalogue, wait five minutes before concluding anything. */
+         catalogue, wait five minutes before concluding anything — and wait it
+         *on the device*. The window is per edge node, so a `curl` from a dev
+         machine returning the new file proves only that one POP has it; the
+         phone sat on another and read the old body for minutes longer. That
+         is what made this look twice like a bug in the loader.
+
+         On GET, `CapacitorHttp` does not route through native at all: it
+         rewrites the URL to `localhost/_capacitor_http_interceptor_?u=…` and
+         uses the WebView's own fetch, so the signal below is honoured here
+         even though the native path may ignore one. */
       var opts = { cache: 'no-store' };
       if (ctrl) opts.signal = ctrl.signal;
       var res = await fetch(_REMOTE_URL + '?v=' + Date.now(), opts);
@@ -376,21 +411,58 @@ var FreeBooksView = (function() {
     return i === -1 ? _CATEGORY_ORDER.length : i;
   }
 
+  /* How long a new arrival keeps the top of the grid, when the entry carries an
+     `addedAt` to count from. */
+  var _ARRIVAL_DAYS = 30;
+
+  /* A book added after this build shipped, which the reader has not taken yet.
+     Two ways it stops being one, because one is not enough:
+
+     - **They downloaded it.** It is theirs; holding it at the top is telling
+       someone about a book they are already reading.
+     - **It aged out**, where `addedAt` says when it arrived. Without that the
+       entry stays an arrival until taken — forgiving, since the field is easy
+       to forget, but it means a file nobody downloads from eventually leads
+       with everything in it. The date is the lever, and the validator says so
+       once the file is big enough for it to matter. */
+  function _isArrival(book) {
+    if (!book._arrival) return false;
+    if (_getSavedFileId(book.id)) return false;
+    if (book.addedAt) {
+      var added = Date.parse(book.addedAt + 'T00:00:00');
+      if (!isNaN(added) && (Date.now() - added) > _ARRIVAL_DAYS * 86400000) return false;
+    }
+    return true;
+  }
+
   function _sorted(books) {
     var mixHindi = _isIndiaLocale();
     return books.slice().sort(function(a, b) {
+      /* Arrivals lead, ahead of the language rule as well as the category one:
+         a book added this week is the one thing on this screen the reader has
+         not already had the chance to see, and it is why the remote catalogue
+         exists. Without this a new classic landed at card 42 of 151 and a new
+         Hindi title at 143 — added, and effectively invisible. */
+      var aNew = _isArrival(a), bNew = _isArrival(b);
+      if (aNew !== bNew) return aNew ? -1 : 1;
+
       if (!mixHindi && a.language !== b.language) return a.language === 'hi' ? 1 : -1;
       return _categoryRank(a.category) - _categoryRank(b.category);
     });
   }
 
+  /* In `_CATEGORY_ORDER`, not in catalogue order. The grid was reordered to open
+     on classics while the chip row still led with SOCIAL JUSTICE, because this
+     walked the books array and the bundled file happens to start there — the
+     same promo-era ordering surviving in the one place nobody re-read. The row
+     and the grid now answer to one array. */
   function _uniqueCategories(books) {
     var seen = {};
     var cats = [];
     books.forEach(function(b) {
       if (!seen[b.category]) { seen[b.category] = true; cats.push(b.category); }
     });
-    return cats;
+    return cats.sort(function(a, b) { return _categoryRank(a) - _categoryRank(b); });
   }
 
   /* The categories the app can actually render. One list, because three things
