@@ -434,7 +434,7 @@
   "paywall.plan.monthly.label": "Monthly",
   "paywall.plan.monthly.note": "Cancel anytime.",
   "paywall.plan.sub.label": "FlowRead Plus",
-  "paywall.plan.sub_extra": "The monthly and annual plans unlock the same tools — pay as you go instead of all at once.",
+  "paywall.plan.sub_extra": "Plus adds the monthly book picks on top. Lifetime opens every tool in the app, but not books added later.",
   "paywall.period.year": "{price} / year",
   "paywall.period.month": "{price} / month",
   "paywall.ocr.tier": "OCR Vision",
@@ -789,5 +789,10 @@
   "freebooks.drops.benefit_sub": "Choose one of {count} this month. It stays yours.",
   "freebooks.drops.claim": "Claim this book",
   "freebooks.drops.confirm": "Claim “{title}”? You get one book this month.",
-  "freebooks.drops.spent": "You've claimed this month's book."
+  "freebooks.drops.spent": "You've claimed this month's book.",
+  "paywall.drops.title": "This month's books",
+  "paywall.drops.subtitle": "The monthly picks come with FlowRead Plus. Claim one book every month and keep it — it stays yours even if you stop subscribing.",
+  "paywall.drops.owned_subtitle": "Your lifetime purchase covers every tool in FlowRead, for good. The monthly books are new titles added after it, so they come with FlowRead Plus — the subscription — instead.",
+  "paywall.drops.feature": "Three curated books every month — claim one, and it's yours to keep",
+  "paywall.drops.unavailable": "FlowRead Plus can't be purchased right now. Please try again later."
 }

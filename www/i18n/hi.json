@@ -697,7 +697,7 @@
   "paywall.plan.monthly.label": "मासिक",
   "paywall.plan.monthly.note": "जब चाहें रद्द करें।",
   "paywall.plan.sub.label": "FlowRead Plus",
-  "paywall.plan.sub_extra": "मासिक और सालाना प्लान वही टूल खोलते हैं — एक साथ नहीं, थोड़ा-थोड़ा भुगतान करें।",
+  "paywall.plan.sub_extra": "Plus में इसके साथ मासिक किताबें भी मिलती हैं। लाइफटाइम से ऐप के सभी टूल खुलते हैं, लेकिन बाद में जुड़ने वाली किताबें नहीं।",
   "paywall.period.year": "{price} / साल",
   "paywall.period.month": "{price} / महीना",
   "nudge.toast.apps_trimmed": "फ़्री प्लान में एक ऐप के लिए नज़ मिलती है, इसलिए FlowRead अब {apps} पर नज़र नहीं रख रहा है। ज़्यादा चुनने के लिए अनलॉक करें।",
@@ -789,5 +789,10 @@
   "freebooks.drops.benefit_sub": "इस महीने {count} में से एक चुनें। वह हमेशा आपकी रहेगी।",
   "freebooks.drops.claim": "यह किताब लें",
   "freebooks.drops.confirm": "क्या “{title}” लेनी है? इस महीने आपको एक किताब मिलती है।",
-  "freebooks.drops.spent": "इस महीने की किताब आप ले चुके हैं।"
+  "freebooks.drops.spent": "इस महीने की किताब आप ले चुके हैं।",
+  "paywall.drops.title": "इस महीने की किताबें",
+  "paywall.drops.subtitle": "मासिक किताबें FlowRead Plus के साथ मिलती हैं। हर महीने एक किताब चुनें — सदस्यता खत्म होने पर भी वह आपकी रहती है।",
+  "paywall.drops.owned_subtitle": "आपकी लाइफटाइम खरीद में FlowRead के सभी टूल हमेशा के लिए शामिल हैं। मासिक किताबें उसके बाद जुड़ने वाली नई किताबें हैं, इसलिए वे FlowRead Plus — सदस्यता — के साथ मिलती हैं।",
+  "paywall.drops.feature": "हर महीने तीन चुनी हुई किताबें — एक चुनें, वह हमेशा के लिए आपकी",
+  "paywall.drops.unavailable": "FlowRead Plus अभी खरीदा नहीं जा सकता। कृपया बाद में प्रयास करें।"
 }
