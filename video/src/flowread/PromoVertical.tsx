@@ -8,8 +8,8 @@ import { Caption } from "./Caption";
 import { ClockReadout } from "./Clock";
 import { TileWall } from "./Opener";
 import { EndCard } from "./EndCard";
-import { sec, FONT } from "./theme";
-import { TILES, FEED, PRODUCT, END, BLEND, BEATS, DETAILS, RAMP } from "./Promo";
+import { sec, FONT, hasDevanagari } from "./theme";
+import { TILES, FEED, PRODUCT, END, BLEND, BEATS, DETAILS, RAMP, capCuts, clipSrc, stillSrc } from "./Promo";
 import { STRINGS, Locale } from "./strings";
 
 /* The Shorts cut: 1080x1920, same film, same beats, same bed.
@@ -112,10 +112,13 @@ const SubLine: React.FC<{ locale: Locale }> = ({ locale }) => {
   const frame = useCurrentFrame();
   const { apps, appsPrefix } = STRINGS[locale];
   const o = interpolate(frame, [14, 32], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  /* Same reason as the landscape cut: beat one's Hindi caption takes two
+     lines and a taller line box, and this row is what it lands on. */
+  const drop = hasDevanagari(STRINGS[locale].beats["01_nudge.mp4"].cap) ? 36 : 0;
   return (
     <div
       style={{
-        position: "absolute", left: 0, width: "100%", top: SUB_TOP,
+        position: "absolute", left: 0, width: "100%", top: SUB_TOP + drop,
         display: "flex", alignItems: "center", justifyContent: "center", gap: 11,
         opacity: o, translate: `0px ${interpolate(o, [0, 1], [10, 0])}px`,
       }}
@@ -183,13 +186,13 @@ export const PromoVertical: React.FC<{ locale?: Locale }> = ({ locale = "en" }) 
                 <Sequence key={b.clip} from={sec(FEED + b.at)}>
                   <Sequence durationInFrames={clipLen}>
                     <Screen>
-                      <Video src={staticFile(`clips/${b.clip}`)} muted playbackRate={b.rate} style={{ position: "absolute", inset: 0, width: "100%" }} />
+                      <Video src={staticFile(clipSrc(locale, b.clip))} muted playbackRate={b.rate} style={{ position: "absolute", inset: 0, width: "100%" }} />
                     </Screen>
                   </Sequence>
                   {b.still ? (
                     <Sequence from={sec(b.split!)} durationInFrames={sec(b.len - b.split!)}>
                       <DrawnScreen k={K}>
-                        <Img src={staticFile(b.still)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        <Img src={staticFile(stillSrc(locale, b.still))} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                       </DrawnScreen>
                     </Sequence>
                   ) : null}
@@ -212,18 +215,17 @@ export const PromoVertical: React.FC<{ locale?: Locale }> = ({ locale = "en" }) 
           <Sequence key={b.clip} from={sec(b.at)} durationInFrames={sec(b.len)}>
             <Rule />
             {b.at === 0 ? <SubLine locale={locale} /> : null}
-            {S.beats[b.clip].cap2 ? (
-              <>
-                <Sequence durationInFrames={sec(b.split!)}>
-                  <Caption text={S.beats[b.clip].cap} align="center" top={CAP_TOP} size={CAP_SIZE} exitAt={12} />
-                </Sequence>
-                <Sequence from={sec(b.split!)}>
-                  <Caption text={S.beats[b.clip].cap2!} align="center" top={CAP_TOP} size={b.cap2Size ? CAP_SIZE - 6 : CAP_SIZE} />
-                </Sequence>
-              </>
-            ) : (
-              <Caption text={S.beats[b.clip].cap} align="center" top={CAP_TOP} size={CAP_SIZE} />
-            )}
+            {capCuts(b, S.beats[b.clip]).map((c) => (
+              <Sequence key={c.idx} from={sec(c.from)} durationInFrames={sec(c.len)}>
+                <Caption
+                  text={c.text}
+                  align="center"
+                  top={CAP_TOP}
+                  size={c.idx === 1 && b.cap2Size ? CAP_SIZE - 6 : CAP_SIZE}
+                  exitAt={c.exit ? 12 : undefined}
+                />
+              </Sequence>
+            ))}
           </Sequence>
         ))}
       </FadeIn>

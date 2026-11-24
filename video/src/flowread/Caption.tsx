@@ -1,5 +1,5 @@
 import { useCurrentFrame, useVideoConfig, interpolate, spring, Easing } from "remotion";
-import { COLORS, FONT } from "./theme";
+import { COLORS, FONT, lineBox } from "./theme";
 
 type Props = {
   /** Words wrapped in *asterisks* take the accent colour. */
@@ -46,7 +46,7 @@ export const Caption: React.FC<Props> = ({
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
   const words = tokenize(text);
-  const lineH = Math.round(size * 1.18);
+  const lineH = lineBox(size, text);
 
   /* Both staggers are scaled to the time available rather than fixed per
      word. At a fixed 1.5 frames the exit of a long line started after its own

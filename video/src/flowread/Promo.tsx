@@ -8,14 +8,14 @@ import { Caption } from "./Caption";
 import { ClockReadout } from "./Clock";
 import { TileWall } from "./Opener";
 import { EndCard } from "./EndCard";
-import { sec, PHONE, WIDTH, HEIGHT, FONT } from "./theme";
+import { sec, PHONE, WIDTH, HEIGHT, FONT, hasDevanagari } from "./theme";
 import { STRINGS, Locale } from "./strings";
 
 /* The nudge has to be on screen inside five seconds: that is where people
    leave. The two drawn beats state the problem and get out of the way. */
 export const TILES = 2.0;
 export const FEED = 2.3;
-export const PRODUCT = 25.5;
+export const PRODUCT = 27.0;
 export const END = 3.2;
 export const BLEND = 14;
 
@@ -30,8 +30,15 @@ export type Beat = {
   len: number;
   clip: string;
   rate: number;
-  /* A beat that makes two statements owes two screens and two captions. */
+  /* A beat that makes two statements owes two screens and two captions.
+     `split` is where the still takes over the screen. `capSplit` is where the
+     caption changes *inside* the clip, for a beat that says two things over
+     one piece of footage -- beat 6 shows the free shelf, scrolls up to the
+     month's picks, and then cuts to the import screen, which is three
+     statements over two screens. Without capSplit the caption change and the
+     screen change are the same instant, which is what the other beats want. */
   split?: number;
+  capSplit?: number;
   cap2Size?: number;
   still?: string;
 };
@@ -47,9 +54,13 @@ export const BEATS: Beat[] = [
      study. That is the right trade for a feature nobody installs for. */
   { at: 13.5, len: 3.5, clip: "04_highlight.mp4",  rate: 2.2 },
   { at: 17.0, len: 3.0, clip: "05_dictionary.mp4", rate: 2.4 },
+  /* 16.37. The footage starts on the free shelf and scrolls up into the
+     month's picks, so the captions read in the order the screen does. Longer
+     than the 5.5 it was: three statements at the old length gave the middle
+     one 1.4s, which is under what a staggered line needs to land (rule 8). */
   {
-    at: 20.0, len: 5.5, clip: "06_freebooks.mp4", rate: 1.75,
-    split: 2.8, still: "shots/FlowReadOwnbookNewSS.jpeg",
+    at: 20.0, len: 7.0, clip: "06_freebooks.mp4", rate: 1.37,
+    split: 4.6, capSplit: 2.6, still: "FlowReadOwnbookNewSS.jpeg",
   },
 ];
 
@@ -74,8 +85,45 @@ export const RAMP = 0.5;
 export const DETAILS: [number, number][] = [
   [FEED + 0, FEED + 5.0],        /* the nudge */
   [FEED + 9.5, FEED + 13.5],     /* the completion card */
-  [FEED + 22.8, FEED + 25.5],    /* the import screen */
+  [FEED + 24.6, FEED + 27.0],    /* the import screen */
 ];
+
+/* 16.36. The footage is locale-scoped, not just the copy.
+
+   It used to be `clips/<name>`, one file for both cuts, which is why the
+   Hindi film ran Hindi captions over an English device: there was nowhere to
+   put a Hindi recording. A Hindi viewer was being told the app speaks Hindi
+   by the caption and told otherwise by the screen underneath it, which is
+   worse than an honest English cut.
+
+   So section 27's rule grows one clause: orientation is layout, locale is
+   copy *and footage*. The beat list still holds one name per beat and both
+   orientations still share it -- only the directory changes. A locale whose
+   recording has not been shot yet carries a copy of the English one, so the
+   cut always renders and what is still owed is visible as a duplicate file
+   rather than as a broken render. */
+export const clipSrc = (locale: Locale, clip: string) => `clips/${locale}/${clip}`;
+export const stillSrc = (locale: Locale, still: string) => `shots/${locale}/${still}`;
+
+/* One place that decides when each of a beat's captions is up, because both
+   orientations have to agree and they draw the caption differently. The cut
+   list is beat-relative seconds; the compositions supply the type scale. */
+export type CapCut = { from: number; len: number; text: string; idx: number; exit: boolean };
+
+export const capCuts = (
+  b: Beat,
+  s: { cap: string; cap2?: string; cap3?: string },
+): CapCut[] => {
+  const marks: number[] = [0];
+  if (s.cap2) marks.push(b.capSplit ?? b.split!);
+  if (s.cap3) marks.push(b.split!);
+  const texts = [s.cap, s.cap2, s.cap3].filter(Boolean) as string[];
+  return texts.map((text, i) => {
+    const from = marks[i];
+    const to = i + 1 < marks.length ? marks[i + 1] : b.len;
+    return { from, len: to - from, text, idx: i, exit: i + 1 < marks.length };
+  });
+};
 
 const Push: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const frame = useCurrentFrame();
@@ -134,12 +182,19 @@ const SubLine: React.FC<{ locale?: Locale }> = ({ locale = "en" }) => {
   const frame = useCurrentFrame();
   const { apps, appsPrefix } = STRINGS[locale];
   const o = interpolate(frame, [14, 32], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  /* This row sits under beat one's caption, and that caption is the one place
+     a line of Hindi runs to two lines where the English runs to one. Taller
+     line boxes (see lineBox) then bring the second line down onto "Instagram".
+     The row moves rather than the type shrinking: the caption is the message
+     and this is the footnote to it. Keyed off the caption's own script, so a
+     rewrite that fits on one line takes the space back automatically. */
+  const drop = hasDevanagari(STRINGS[locale].beats["01_nudge.mp4"].cap) ? 46 : 0;
   return (
     <div
       style={{
         position: "absolute",
         left: 132,
-        top: 612,
+        top: 612 + drop,
         display: "flex",
         alignItems: "center",
         gap: 13,
@@ -244,7 +299,7 @@ export const Promo: React.FC<{ locale?: Locale }> = ({ locale = "en" }) => {
                 <Sequence durationInFrames={clipLen}>
                   <Screen>
                     <Video
-                      src={staticFile(`clips/${b.clip}`)}
+                      src={staticFile(clipSrc(locale, b.clip))}
                       muted
                       playbackRate={b.rate}
                       style={{ position: "absolute", inset: 0, width: "100%" }}
@@ -257,7 +312,7 @@ export const Promo: React.FC<{ locale?: Locale }> = ({ locale = "en" }) => {
                      box the recordings are placed in. */
                   <Sequence from={sec(b.split!)} durationInFrames={sec(b.len - b.split!)}>
                     <DrawnScreen>
-                      <Img src={staticFile(b.still)} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      <Img src={staticFile(stillSrc(locale, b.still))} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                     </DrawnScreen>
                   </Sequence>
                 ) : null}
@@ -280,18 +335,15 @@ export const Promo: React.FC<{ locale?: Locale }> = ({ locale = "en" }) => {
           <Sequence key={b.clip} from={sec(b.at)} durationInFrames={sec(b.len)}>
             <Rule />
             {b.at === 0 ? <SubLine locale={locale} /> : null}
-            {S.beats[b.clip].cap2 ? (
-              <>
-                <Sequence durationInFrames={sec(b.split!)}>
-                  <Caption text={S.beats[b.clip].cap} exitAt={12} />
-                </Sequence>
-                <Sequence from={sec(b.split!)}>
-                  <Caption text={S.beats[b.clip].cap2!} size={b.cap2Size ?? 84} />
-                </Sequence>
-              </>
-            ) : (
-              <Caption text={S.beats[b.clip].cap} />
-            )}
+            {capCuts(b, S.beats[b.clip]).map((c) => (
+              <Sequence key={c.idx} from={sec(c.from)} durationInFrames={sec(c.len)}>
+                <Caption
+                  text={c.text}
+                  size={c.idx === 0 ? undefined : c.idx === 1 ? b.cap2Size ?? 84 : 84}
+                  exitAt={c.exit ? 12 : undefined}
+                />
+              </Sequence>
+            ))}
           </Sequence>
         ))}
       </FadeIn>
