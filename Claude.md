@@ -592,6 +592,19 @@ escape hatch** — an incompatible shape change is a *new* file at `v2/`, never 
 it), so **editing a live entry's `sourceUrl` orphans the saved position of everyone who has it** —
 add a new entry instead.
 
+**The remote file may declare its own categories, so a new genre needs no release** (owner,
+2026-11-24 — the twelve were hard-coded and made every genre an app release, which defeats the
+point of a remote catalogue). `catalog.json` carries `categories: { slug: { en, hi } }`; a book's
+category must be one of the twelve **or** declared there. **`en` is required and `hi` falls back to
+it** — a Hindi reader seeing an English chip is a small wrong, where refusing the entry hides the
+book from everyone (§1.5). The twelve stay built in as the offline floor and **cannot be shadowed**,
+so the app's own translated label always wins. **A declared label is the first user-visible string
+to live in data rather than `en.json`/`hi.json`** — §16 still governs app chrome; a category name
+arrives with the catalogue it names. Consequences: a declared category with no book is left off the
+chip row rather than filtering to nothing, a label reaching `innerHTML` **must be escaped** (`t()`
+strings never had to be), and the chip row is now rebuilt on refresh because a category can appear
+that was not on screen a moment ago.
+
 ### 12.1 Legal sourcing — what may enter the catalogue
 **Two source types, nothing else:** (1) **public domain**, verified by the *edition's* status, not the
 work's age — a 1890 text in a 2015 translation is a 2015 copyright, so check the author's death date

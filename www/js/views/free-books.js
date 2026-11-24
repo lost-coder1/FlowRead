@@ -106,6 +106,7 @@ var FreeBooksView = (function() {
   var _REMOTE_CACHE_KEY   = 'fr_remote_catalog';
   var _REMOTE_TIMEOUT_MS  = 8000;
   var _REMOTE_MAX_BOOKS   = 500;
+  var _REMOTE_MAX_CATEGORIES = 24;
   var _REMOTE_MAX_BYTES   = 512 * 1024;
 
   var _bundled   = null;   /* the floor, kept so a refresh can re-merge */
@@ -121,7 +122,7 @@ var FreeBooksView = (function() {
      of them has to. Unknown language is dropped for the same reason as unknown
      category: the tabs offer en and hi, so anything else is unreachable except
      under "All" and is far more likely to be a typo than an intention. */
-  function _cleanEntry(raw) {
+  function _cleanEntry(raw, declared) {
     if (!raw || typeof raw !== 'object') return null;
 
     var required = ['id', 'title', 'author', 'language', 'category', 'sourceUrl', 'fileType'];
@@ -136,20 +137,44 @@ var FreeBooksView = (function() {
        would reach the PDF parser and fail. */
     if (out.fileType !== 'pdf' && out.fileType !== 'txt') return null;
     if (out.language !== 'en' && out.language !== 'hi') return null;
-    if (_CATEGORY_KEYS.indexOf(out.category) === -1) return null;
+    if (!_isKnownCategory(out.category, declared)) return null;
     if (!_isHttpsUrl(out.sourceUrl)) return null;
 
     if (_isHttpsUrl(raw.coverImage)) out.coverImage = raw.coverImage;
     if (typeof raw.approxLength === 'string') out.approxLength = raw.approxLength;
+
+    /* Forces the OCR path for a PDF whose text layer extracts as mojibake —
+       the legacy Devanagari font encodings §5 describes. It must be carried
+       across: an entry that loses it is handed to the text-layer parser, which
+       returns unreadable text rather than an error, and the reader is told
+       nothing (§1.5). Strictly `true`, so the string "false" cannot enable it.
+
+       This is the field that proves the rule for anything added later — a key
+       the app reads and `_cleanEntry` does not copy is a silent downgrade, so
+       both lists have to be extended together. */
+    if (raw.requiresOcr === true) out.requiresOcr = true;
+
     return out;
   }
 
-  function _cleanList(list) {
+  function _cleanList(list, declared) {
     var out = [];
     if (!Array.isArray(list)) return out;
     for (var i = 0; i < list.length && out.length < _REMOTE_MAX_BOOKS; i++) {
-      var entry = _cleanEntry(list[i]);
+      var entry = _cleanEntry(list[i], declared);
       if (entry) out.push(entry);
+    }
+    return out;
+  }
+
+  /* Only the categories a surviving book actually uses. A declared category
+     with nothing in it would otherwise put an empty chip on the row, which
+     filters to "no books found" — a dead control (§1.5). */
+  function _usedCategories(books, declared) {
+    var out = {};
+    for (var i = 0; i < books.length; i++) {
+      var cat = books[i].category;
+      if (declared[cat] && !out[cat]) out[cat] = declared[cat];
     }
     return out;
   }
@@ -174,15 +199,19 @@ var FreeBooksView = (function() {
   function _readRemoteCache() {
     try {
       var raw = localStorage.getItem(_REMOTE_CACHE_KEY);
-      if (!raw) return [];
+      if (!raw) return { books: [], categories: {} };
       var data = JSON.parse(raw);
-      return _cleanList(data && data.books);
-    } catch (_) { return []; }
+      var cats = _cleanCategories(data && data.categories);
+      var books = _cleanList(data && data.books, cats);
+      return { books: books, categories: _usedCategories(books, cats) };
+    } catch (_) { return { books: [], categories: {} }; }
   }
 
-  function _writeRemoteCache(books) {
+  function _writeRemoteCache(result) {
     try {
-      localStorage.setItem(_REMOTE_CACHE_KEY, JSON.stringify({ books: books, at: Date.now() }));
+      localStorage.setItem(_REMOTE_CACHE_KEY, JSON.stringify({
+        books: result.books, categories: result.categories, at: Date.now(),
+      }));
     } catch (_) {}   /* a full quota costs freshness, nothing else */
   }
 
@@ -190,8 +219,14 @@ var FreeBooksView = (function() {
     var ctrl  = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var timer = ctrl ? setTimeout(function() { ctrl.abort(); }, _REMOTE_TIMEOUT_MS) : null;
     try {
-      /* Cache-bust: without it an edit is invisible for hours and "I updated it
-         and nothing happened" becomes a monthly frustration. */
+      /* `?v=` defeats the WebView's own HTTP cache. It does **not** defeat
+         GitHub's: raw.githubusercontent normalises the query string away, so
+         the same ETag comes back on a HIT and an edit takes up to five minutes
+         to reach a device however the request is spelled. Measured, not
+         assumed — three app launches inside that window on 2026-11-24 read a
+         stale body and dropped the entry it described. Nothing in the client
+         can shorten it, so the rule is a human one: after editing the
+         catalogue, wait five minutes before concluding anything. */
       var opts = { cache: 'no-store' };
       if (ctrl) opts.signal = ctrl.signal;
       var res = await fetch(_REMOTE_URL + '?v=' + Date.now(), opts);
@@ -200,7 +235,11 @@ var FreeBooksView = (function() {
       if (text.length > _REMOTE_MAX_BYTES) throw new Error('catalogue too large');
       var data = JSON.parse(text);
       if (!data || !Array.isArray(data.books)) throw new Error('catalogue shape');
-      return _cleanList(data.books);
+
+      /* Categories first: a book's category is validated against them. */
+      var cats  = _cleanCategories(data.categories);
+      var books = _cleanList(data.books, cats);
+      return { books: books, categories: _usedCategories(books, cats) };
     } finally {
       if (timer) clearTimeout(timer);
     }
@@ -221,13 +260,17 @@ var FreeBooksView = (function() {
     _writeRemoteCache(fresh);
 
     if (!_bundled) return;
-    _catalog = { books: _merge(_bundled, fresh) };
+    _remoteCategories = fresh.categories;
+    _catalog = { books: _merge(_bundled, fresh.books) };
 
-    /* The grid alone, not the whole view: a full render() would clear the
-       search box and the scroll position under a reader who is mid-browse. The
-       chip row cannot go stale from this, because all twelve categories are
-       represented in the bundled catalogue already, so a remote addition can
-       only ever land in a chip that is on screen. */
+    /* Not a full render(): that would clear the search box and the scroll
+       position under a reader who is mid-browse. The grid and the chip row
+       instead — the chips because a remotely-declared category is a chip that
+       was not on screen a moment ago. (Before categories could be declared,
+       all twelve were in the bundled catalogue and the row could not change.)
+       Both are delegated-listener containers, so replacing their markup keeps
+       the handlers bound. */
+    _rebuildCatChips();
     _renderGrid();
   }
 
@@ -245,7 +288,8 @@ var FreeBooksView = (function() {
     _bundled = bundled;
     var cached = _readRemoteCache();
     _remoteSig = JSON.stringify(cached);
-    _catalog = { books: _merge(bundled, cached) };
+    _remoteCategories = cached.categories;
+    _catalog = { books: _merge(bundled, cached.books) };
 
     _refreshRemote();   /* deliberately not awaited */
     return _catalog;
@@ -361,8 +405,66 @@ var FreeBooksView = (function() {
     'science_fiction', 'drama', 'essays', 'strategy',
   ];
 
+  /* Categories the remote file declares for itself, slug -> { en, hi }. The
+     twelve above are the offline floor — the bundled books use them and they
+     have real i18n keys — and this is how the catalogue grows a genre without
+     an app release, which is the whole point of a remote file. A book may use
+     either.
+
+     The label lives in the data rather than en.json because a release is
+     exactly what it must not need. §16 still governs app chrome; a category
+     name is catalogue metadata that arrives with the catalogue. */
+  var _remoteCategories = {};
+
+  /* Lowercase slug, matching the twelve. Bounded because it reaches a DOM
+     attribute and a filter comparison. */
+  var _CAT_SLUG = /^[a-z][a-z0-9_]{1,31}$/;
+
+  function _isKnownCategory(cat, declared) {
+    if (_CATEGORY_KEYS.indexOf(cat) !== -1) return true;
+    return !!(declared && Object.prototype.hasOwnProperty.call(declared, cat));
+  }
+
   function _categoryLabel(cat) {
-    return _CATEGORY_KEYS.indexOf(cat) !== -1 ? t('freebooks.cat.' + cat) : cat;
+    if (_CATEGORY_KEYS.indexOf(cat) !== -1) return t('freebooks.cat.' + cat);
+
+    var declared = _remoteCategories[cat];
+    if (declared) {
+      /* `hi` is optional and falls back to `en`: a Hindi reader seeing an
+         English chip is a small wrong, where refusing the entry outright
+         would hide the book from everyone (§1.5). The validator warns. */
+      var lang = (typeof FlowReadI18n !== 'undefined' && FlowReadI18n.currentLang)
+        ? FlowReadI18n.currentLang() : 'en';
+      return declared[lang] || declared.en || cat;
+    }
+    return cat;
+  }
+
+  /* A declared category is kept only if it can be *labelled*. Without a label
+     the chip would read as a raw slug, which is the Phase A defect arriving by
+     a new route. A slug that shadows one of the twelve is ignored, so the
+     app's own translated label always wins. */
+  function _cleanCategories(raw) {
+    var out = {};
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+
+    var slugs = Object.keys(raw);
+    var kept = 0;
+    for (var i = 0; i < slugs.length && kept < _REMOTE_MAX_CATEGORIES; i++) {
+      var slug = slugs[i];
+      if (!_CAT_SLUG.test(slug)) continue;
+      if (_CATEGORY_KEYS.indexOf(slug) !== -1) continue;
+
+      var v = raw[slug];
+      if (!v || typeof v !== 'object') continue;
+      if (typeof v.en !== 'string' || !v.en) continue;
+
+      var entry = { en: v.en };
+      if (typeof v.hi === 'string' && v.hi) entry.hi = v.hi;
+      out[slug] = entry;
+      kept++;
+    }
+    return out;
   }
 
   /* ── Card HTML ───────────────────────────────────────────────── */
@@ -464,6 +566,33 @@ var FreeBooksView = (function() {
     document.querySelectorAll('.fb-lang-tab').forEach(function(tab) {
       tab.classList.toggle('fb-lang-tab-active', tab.dataset.lang === _langFilter);
     });
+  }
+
+  /* The chip row, built in one place because two callers need it: the first
+     render and a refresh that brought a category the row has never shown.
+
+     `_categoryLabel` can now return owner-supplied text from a public repo, so
+     it is escaped here — `t()` strings never needed it, and that is exactly
+     how an escape gets forgotten when the source of a string changes.
+
+     If the active filter's category disappeared, the filter falls back to
+     "all" rather than leaving an empty grid with no chip lit (§1.5). */
+  function _rebuildCatChips() {
+    var row = document.getElementById('fb-cat-chips');
+    if (!row || !_catalog) return;
+
+    var cats = _uniqueCategories(_catalog.books);
+    if (_catFilter !== 'all' && cats.indexOf(_catFilter) === -1) _catFilter = 'all';
+
+    row.innerHTML = [
+      '<button class="fb-cat-chip' + (_catFilter === 'all' ? ' fb-cat-chip-active' : '') +
+        '" data-cat="all" type="button">' + escapeHtml(t('freebooks.cat.all')) + '</button>',
+      cats.map(function(cat) {
+        return '<button class="fb-cat-chip' + (_catFilter === cat ? ' fb-cat-chip-active' : '') +
+          '" data-cat="' + escapeHtml(cat) + '" type="button">' +
+          escapeHtml(_categoryLabel(cat)) + '</button>';
+      }).join(''),
+    ].join('');
   }
 
   function _renderCatChips() {
@@ -817,7 +946,6 @@ var FreeBooksView = (function() {
     if (!view) return;
 
     var catalog = await _loadCatalog();
-    var cats = _uniqueCategories(catalog.books);
 
     view.innerHTML = [
       '<div class="fb-screen">',
@@ -839,12 +967,7 @@ var FreeBooksView = (function() {
       '<input class="fb-search" id="fb-search" type="search" placeholder="' + t('freebooks.search.placeholder') + '" value="' + escapeHtml(_searchQuery) + '" autocomplete="off" />',
       '</div>',
 
-      '<div class="fb-cat-chips" id="fb-cat-chips">',
-      '<button class="fb-cat-chip' + (_catFilter === 'all' ? ' fb-cat-chip-active' : '') + '" data-cat="all" type="button">' + t('freebooks.cat.all') + '</button>',
-      cats.map(function(cat) {
-        return '<button class="fb-cat-chip' + (_catFilter === cat ? ' fb-cat-chip-active' : '') + '" data-cat="' + escapeHtml(cat) + '" type="button">' + _categoryLabel(cat) + '</button>';
-      }).join(''),
-      '</div>',
+      '<div class="fb-cat-chips" id="fb-cat-chips"></div>',
 
       '</div>',
 
@@ -855,6 +978,7 @@ var FreeBooksView = (function() {
       '</div>',
     ].join('');
 
+    _rebuildCatChips();
     _renderGrid();
     _bindEvents(view);
     _backfillCovers(catalog.books);

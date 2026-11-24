@@ -2377,6 +2377,36 @@ release.
 - The loader's own `_cleanEntry`, `_cleanList` and `_merge` were exercised separately (20 cases:
   remote-wins-in-place, order stability, the 500 cap, a bad entry not taking the list with it).
 
+**Expandable categories — built 2026-11-24 (owner).** The twelve were hard-coded, so every new
+genre was an app release and the remote catalogue could add books but not shelves. `catalog.json`
+now declares its own: `categories: { slug: { en, hi } }`, validated before the books that use them.
+- **`en` required, `hi` optional with an English fallback.** The owner's objection was that a book's
+  language has nothing to do with its category, which is right — but the *label* is a UI string, so
+  a Hindi UI would grow an English chip. Requiring both would block an edit over a translation;
+  falling back states the real trade and the validator warns.
+- **The twelve cannot be shadowed** — a declared `classics` is ignored so the app's own translated
+  label wins. Slugs are `[a-z][a-z0-9_]{1,31}`, capped at 24; `self-help` with a hyphen is rejected
+  loudly rather than silently ignored, which is how the first test entry was lost.
+- **A declared category with no surviving book is left off the row**, or the chip filters to "no
+  books found" — a dead control (§1.5).
+- **This retires the "grid-only re-render is complete" claim above.** That rested on all twelve
+  being on screen already; a declared category is a chip that was not. The row is rebuilt on
+  refresh, and the active filter falls back to "all" if its category disappeared.
+- **A label now reaches `innerHTML` from a public repo, so it is escaped.** The chip markup never
+  escaped it because `t()` was the only source — the exact shape of bug that appears when a
+  string's origin changes and its handling does not. The row is also built in one place now instead
+  of twice.
+- Verified: 39 loader cases and the validator's new checks — bad slug, missing `en`, shadowed
+  builtin, unused declaration, undeclared category on a book, missing `hi` as a warning.
+
+**Also corrected: the `?v=` cache-buster does not work.** `raw.githubusercontent` normalises the
+query string away — same ETag, `x-cache: HIT`, with and without it. Measured after three device
+launches inside the window read a stale body and dropped the entry it described, which is what
+"the book never showed up" turned out to be. The comment claiming the buster prevented exactly
+that frustration was false; it now states the real behaviour. **An edit takes up to five minutes to
+reach a device and nothing in the client can shorten it** — the rule is human: after editing, wait
+five minutes before concluding anything.
+
 **Still open in C:** the local editor form, and a device run — the fallback path needs a deliberate
 test, since an empty remote file and a missing one are indistinguishable from a passing one.
 

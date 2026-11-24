@@ -18,6 +18,9 @@
  * Usage:
  *   node scripts/catalog/validate.mjs <path>     # a file you are about to commit
  *   node scripts/catalog/validate.mjs --live     # what is published right now
+ *
+ * Top-level keys it understands: "books" (required), "categories" (optional,
+ * so a new genre needs no app release), and Phase D's "dropMonth"/"dropChoices".
  *   node scripts/catalog/validate.mjs <path> --no-net    # skip URL checks
  *   node scripts/catalog/validate.mjs <path> --published <path|url>
  *                                                # compare against that baseline
@@ -43,6 +46,8 @@ const LIVE_URL =
 /* The loader's own ceilings. Exceeding either is silent truncation on device. */
 const MAX_BOOKS = 500;
 const MAX_BYTES = 512 * 1024;
+const MAX_CATEGORIES = 24;
+const CAT_SLUG = /^[a-z][a-z0-9_]{1,31}$/;
 
 /* The same mirror free-books.js retries through. 127 of the bundled 150 point at
  * www.gutenberg.org, which takes itself down for maintenance — it answered a
@@ -156,12 +161,64 @@ async function loadTarget(args) {
   return { origin, text, books: data.books, data };
 }
 
+/* ── Categories the file declares for itself ─────────────────────────────── */
+
+/* The twelve built in are the floor; a file may declare more so a new genre
+   needs no app release. Returns the slugs that will actually work, so the
+   entry check can tell "unknown category" from "category you declared". */
+function checkCategories(data, builtin) {
+  const declared = data && data.categories;
+  if (declared === undefined) return new Set();
+
+  if (!declared || typeof declared !== 'object' || Array.isArray(declared)) {
+    err('"categories" must be an object of slug -> {"en": "...", "hi": "..."}. As written it is ignored, so every book using a declared category disappears.');
+    return new Set();
+  }
+
+  const ok = new Set();
+  const slugs = Object.keys(declared);
+  if (slugs.length > MAX_CATEGORIES) {
+    err(`${slugs.length} declared categories, but the app stops at ${MAX_CATEGORIES}.`);
+  }
+
+  for (const slug of slugs) {
+    const at = `categories["${slug}"]`;
+    if (!CAT_SLUG.test(slug)) {
+      err(`${at}: not a usable slug. Lowercase letters, digits and underscores, starting with a letter — "self_help", not "self-help" or "Self Help". The app ignores it, so every book using it vanishes.`);
+      continue;
+    }
+    if (builtin.includes(slug)) {
+      warn(`${at}: shadows one of the app's own twelve categories, so it is ignored and the app's translated label is used. Harmless; remove it.`);
+      ok.add(slug);
+      continue;
+    }
+    const v = declared[slug];
+    if (!v || typeof v !== 'object' || Array.isArray(v)) {
+      err(`${at}: must be an object with at least "en".`);
+      continue;
+    }
+    if (typeof v.en !== 'string' || !v.en) {
+      err(`${at}: "en" is required — without a label the chip would read as the raw slug, so the app drops the category and every book in it.`);
+      continue;
+    }
+    if (typeof v.hi !== 'string' || !v.hi) {
+      warn(`${at}: no "hi" label, so a Hindi reader sees "${v.en}" on the chip. It still works — the label falls back to English — but §16 wants both.`);
+    }
+    ok.add(slug);
+  }
+  return ok;
+}
+
 /* ── Entry rules — the same ones _cleanEntry() applies ───────────────────── */
 
 const REQUIRED = ['id', 'title', 'author', 'language', 'category', 'sourceUrl', 'fileType'];
+/* Every key the app actually reads. `_cleanEntry()` copies only these, so a key
+   outside the list is dropped on the way in — silently, which is why an unknown
+   one is worth a warning rather than nothing. */
+const KNOWN    = [...REQUIRED, 'coverImage', 'approxLength', 'requiresOcr'];
 const isHttps  = (u) => typeof u === 'string' && u.startsWith('https://');
 
-function checkEntries(books, cats, en, hi, bundled) {
+function checkEntries(books, cats, en, hi, bundled, declared) {
   const seenId  = new Map();
   const seenUrl = new Map();
   const missing = { cover: [], length: [] };
@@ -192,9 +249,9 @@ function checkEntries(books, cats, en, hi, bundled) {
       err(`${at}: language "${raw.language}" — the tabs are English and Hindi, so the book would be unreachable except under "All". The app drops it.`);
     }
 
-    if (raw.category && !cats.includes(raw.category)) {
-      err(`${at}: category "${raw.category}" is not one the app knows. A new category cannot be introduced remotely — it needs a label in free-books.js and an en/hi key, which is an app release. Use one of: ${cats.join(', ')}.`);
-    } else if (raw.category) {
+    if (raw.category && !cats.includes(raw.category) && !declared.has(raw.category)) {
+      err(`${at}: category "${raw.category}" is neither one of the app's twelve nor declared in this file's "categories". The app drops the entry, so the book never appears. Either use one of: ${cats.join(', ')} — or declare it: "categories": { "${raw.category}": { "en": "...", "hi": "..." } }.`);
+    } else if (raw.category && cats.includes(raw.category)) {
       /* Catches app-side drift as well as a bad edit: a category in the list
          with no Hindi key renders the raw key to a Hindi reader (§16). */
       for (const [name, dict] of [['en.json', en], ['hi.json', hi]]) {
@@ -215,6 +272,18 @@ function checkEntries(books, cats, en, hi, bundled) {
        failure this script exists to prevent, reproduced in its own output. */
     if (raw.coverImage === undefined) missing.cover.push(at);
     if (raw.approxLength === undefined) missing.length.push(at);
+
+    if (raw.requiresOcr !== undefined && raw.requiresOcr !== true) {
+      warn(`${at}: requiresOcr is only honoured when it is exactly \`true\` — ${JSON.stringify(raw.requiresOcr)} is ignored. Remove it rather than setting it false.`);
+    }
+    if (raw.requiresOcr === true && raw.fileType !== 'pdf') {
+      warn(`${at}: requiresOcr on a ${raw.fileType} entry does nothing; only the PDF path consults it.`);
+    }
+    for (const k of Object.keys(raw)) {
+      if (!KNOWN.includes(k)) {
+        warn(`${at}: "${k}" is not a key the app reads, so it is dropped on load. Harmless, but if it was meant to do something it will not.`);
+      }
+    }
 
     /* Duplicates inside the file. */
     if (raw.id) {
@@ -242,6 +311,12 @@ function checkEntries(books, cats, en, hi, bundled) {
       err(`${at}: this sourceUrl is already in the bundled catalogue under id "${urlClash.id}". The library would show the same book twice, sharing one position.`);
     }
   });
+
+  for (const slug of declared) {
+    if (!books.some((b) => b && b.category === slug)) {
+      warn(`categories["${slug}"] is declared but no book uses it. The app leaves it off the chip row rather than showing a chip that filters to nothing.`);
+    }
+  }
 
   const brief = (list) => list.length <= 3 ? list.join(', ') : `${list.slice(0, 3).join(', ')} and ${list.length - 3} more`;
   if (missing.cover.length) {
@@ -468,9 +543,13 @@ const bundled  = (bundledJ && Array.isArray(bundledJ.books)) ? bundledJ.books : 
 const target = await loadTarget(args);
 console.log(`\nCatalogue:  ${target.origin}`);
 console.log(`Entries:    ${target.books.length} remote, ${bundled.length} bundled`);
-console.log(`Categories: ${cats.length} known to the app\n`);
+console.log(`Categories: ${cats.length} built into the app` +
+  (target.data && target.data.categories
+    ? `, ${Object.keys(target.data.categories).length} declared in the file\n`
+    : '\n'));
 
-const ids = checkEntries(target.books, cats, en, hi, bundled);
+const declared = checkCategories(target.data, cats);
+const ids = checkEntries(target.books, cats, en, hi, bundled, declared);
 checkDrop(target.data, ids);
 if (!noNet) {
   await checkNoDeletions(target.books, target.origin, baseline);
